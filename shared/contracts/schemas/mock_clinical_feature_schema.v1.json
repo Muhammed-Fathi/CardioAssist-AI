@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/v1/schemas/mock_clinical_feature_schema.v1.json",
+  "title": "MOCK_ONLY provisional feature schema — mock_clinical_v1",
+  "description": "MOCK ONLY. This is a placeholder feature schema that exists so that the v1 API envelope, validation rules, error codes and fixtures can be implemented and tested before any dataset is authorized. It is NOT a validated UCI clinical schema, it is NOT derived from any dataset, and it asserts NO clinical unit, NO feature eligibility ruling and NO medical semantics. The real clinical dictionaries (DS-1 UCI Heart Disease, DS-2 Z-Alizadeh Sani) are UNVERIFIED until Gate DA (Phase 0 §F-3, D-031) and their units remain UNVERIFIED per §F-1.",
+  "x-contract-status": "MOCK_ONLY",
+  "x-data-dictionary-status": "UNVERIFIED_PENDING_GATE_DA",
+  "x-clinical-semantics": "NOT_ESTABLISHED",
+  "x-dataset-provenance": "NONE — synthetic placeholder identifiers, no dataset was acquired, downloaded or read",
+  "x-warning": "Every unit token below is a schema-local placeholder of the form u_<name>. Placeholder units exist precisely so that no unverified clinical unit (mmHg, mg/dL, bpm, ...) is asserted anywhere in this repository before the data dictionary is ratified.",
+  "x-required-features": ["mock_feature_demographic_age", "mock_feature_demographic_sex"],
+  "x-excluded-features": {
+    "mock_feature_excluded_probe": "Excluded from this schema by design. It stands in for a label-adjacent field that is obtained by the same procedure that defines the label (Phase 0 §F-1 excludes the UCI 'ca' field from primary pre-angiography models). Supplying it yields 422 feature_not_in_schema."
+  },
+  "x-pending-review-features": {
+    "mock_feature_pending_availability_probe": "Pending the feature-availability audit (Phase 0 §F-1, D-027). It is not part of this schema; supplying it yields 422 feature_not_in_schema until the audit rules on it."
+  },
+  "type": "object",
+  "required": ["mock_feature_demographic_age", "mock_feature_demographic_sex"],
+  "additionalProperties": false,
+  "propertyNames": { "pattern": "^mock_feature_[a-z0-9_]+$" },
+  "properties": {
+    "mock_feature_demographic_age": {
+      "description": "Placeholder age slot. The unit token is a placeholder, not a ratified clinical unit.",
+      "allOf": [
+        { "$ref": "#/$defs/FeatureValue" },
+        {
+          "properties": {
+            "value": { "type": "integer", "minimum": 0, "maximum": 200 },
+            "unit": { "const": "u_years" }
+          }
+        }
+      ]
+    },
+    "mock_feature_demographic_sex": {
+      "description": "Placeholder categorical slot. The source coding is NOT established; no category list is asserted.",
+      "allOf": [
+        { "$ref": "#/$defs/FeatureValue" },
+        {
+          "properties": {
+            "value": { "type": "string", "minLength": 1, "maxLength": 32 },
+            "unit": { "const": "u_category" }
+          }
+        }
+      ]
+    },
+    "mock_feature_vital_systolic": {
+      "description": "Placeholder vital-sign slot.",
+      "allOf": [
+        { "$ref": "#/$defs/FeatureValue" },
+        {
+          "properties": {
+            "value": { "type": "number", "minimum": 0, "maximum": 400 },
+            "unit": { "const": "u_pressure" }
+          }
+        }
+      ]
+    },
+    "mock_feature_lab_concentration": {
+      "description": "Placeholder laboratory-slot.",
+      "allOf": [
+        { "$ref": "#/$defs/FeatureValue" },
+        {
+          "properties": {
+            "value": { "type": "number", "minimum": 0, "maximum": 2000 },
+            "unit": { "const": "u_concentration" }
+          }
+        }
+      ]
+    },
+    "mock_feature_binary_flag": {
+      "description": "Placeholder binary slot.",
+      "allOf": [
+        { "$ref": "#/$defs/FeatureValue" },
+        {
+          "properties": {
+            "value": { "type": "boolean" },
+            "unit": { "const": "u_boolean" }
+          }
+        }
+      ]
+    },
+    "mock_feature_count": {
+      "description": "Placeholder count slot.",
+      "allOf": [
+        { "$ref": "#/$defs/FeatureValue" },
+        {
+          "properties": {
+            "value": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "unit": { "const": "u_count" }
+          }
+        }
+      ]
+    },
+    "mock_feature_fraction": {
+      "description": "Placeholder fractional slot.",
+      "allOf": [
+        { "$ref": "#/$defs/FeatureValue" },
+        {
+          "properties": {
+            "value": { "type": "number", "minimum": 0, "maximum": 1 },
+            "unit": { "const": "u_fraction" }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "FeatureValue": {
+      "title": "A single feature assertion",
+      "description": "Every numeric feature declares its unit; a unit mismatch is a 422 and is never silently converted (Phase 0 §8.1). A null value means 'not provided' and is treated exactly like an absent feature; a value of 0 is data and is never conflated with missing (Phase 0 §R2-6.2).",
+      "type": "object",
+      "required": ["value", "unit"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" },
+            { "type": "boolean" },
+            { "type": "null" }
+          ]
+        },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "entered_by": {
+          "description": "Provenance of the asserted value. Informational only; a patient-entered value becomes inference-eligible only as a clinician-confirmed clinician_entry (Phase 0 §F-4).",
+          "type": "string",
+          "enum": ["clinician", "patient_app", "benchmark_import", "simulated"]
+        }
+      }
+    },
+    "UnitTokens": {
+      "description": "Placeholder unit tokens permitted in MOCK_ONLY schemas. Every token matches ^u_[a-z0-9_]+$ so that no clinical unit can be asserted by accident.",
+      "type": "string",
+      "enum": ["u_years", "u_category", "u_pressure", "u_concentration", "u_boolean", "u_count", "u_fraction"]
+    }
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/v1/schemas/cad_tabular_prediction.request.schema.json",
+  "title": "Track A — CAD-inference request (POST /v1/predictions/cad-tabular)",
+  "description": "Request body for the cross-sectional CAD-classification inference endpoint. The feature payload is dataset-specific and is bound to a versioned feature schema; in M1a.1 the only available feature schemas are MOCK_ONLY placeholders, because the clinical dictionaries have not passed Gate DA (Phase 0 §F-3, D-031).",
+  "x-contract-status": "PROPOSED_M1A_1",
+  "x-track": "A",
+  "x-validation-layers": [
+    "Layer 1 (this file): structural JSON Schema validation of the envelope.",
+    "Layer 2 (semantic, implemented by the reference validator in tests/contracts): version compatibility, source admissibility, wearable rejection, model/schema binding, per-feature unit and range rules, required-feature rules. Layer 2 runs first so that a violation is reported with the specific contract error code instead of a generic schema violation."
+  ],
+  "type": "object",
+  "required": ["feature_schema_id", "features", "context"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "$ref": "common.schema.json#/$defs/ContractVersion" },
+    "request_id": {
+      "description": "Client-generated correlation id. Informational only: idempotency is governed by the Idempotency-Key header, and request_id is excluded from the canonical payload hash (Phase 0 §R2-6.1).",
+      "$ref": "common.schema.json#/$defs/Uuid"
+    },
+    "model_id": {
+      "description": "Optional explicit model selection. When omitted, the active model of the deployment is used. A model is bound to exactly one feature schema; a mismatch fails with 422 schema_model_mismatch (Phase 0 §R2-6.2).",
+      "type": "string",
+      "pattern": "^[a-z0-9_.-]{1,128}$"
+    },
+    "feature_schema_id": {
+      "description": "Identifier of the versioned feature schema the payload is expressed in. An unknown identifier fails with 422 unknown_feature_schema.",
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,64}$"
+    },
+    "features": {
+      "description": "Feature map. The concrete per-feature rules (unit, value range, required/optional) live in the referenced feature schema, selected by feature_schema_id.",
+      "type": "object"
+    },
+    "context": { "$ref": "#/$defs/Context" }
+  },
+  "$defs": {
+    "Context": {
+      "title": "Request context",
+      "type": "object",
+      "required": ["source", "recorded_at"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "$ref": "common.schema.json#/$defs/CadInferenceSource" },
+        "recorded_at": { "$ref": "common.schema.json#/$defs/IsoDateTime" },
+        "patient_ref": { "$ref": "common.schema.json#/$defs/PseudonymousRef" },
+        "consent_id": {
+          "description": "Consent reference when the request is linked to a consented record. Prototype-grade reference only; no identifiers, no PHI.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "feature_schema_id": { "const": "mock_clinical_v1" } },
+        "required": ["feature_schema_id"]
+      },
+      "then": {
+        "properties": {
+          "features": { "$ref": "mock_clinical_feature_schema.v1.json" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "feature_schema_id": { "const": "mock_clinical_v2" } },
+        "required": ["feature_schema_id"]
+      },
+      "then": {
+        "properties": {
+          "features": { "$ref": "mock_clinical_feature_schema.v2.json" }
+        }
+      }
+    }
+  ]
+}

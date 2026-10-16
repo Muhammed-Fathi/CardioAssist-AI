@@ -1,0 +1,355 @@
+openapi: 3.1.0
+
+info:
+  title: CardioAssist AI — versioned AI–Backend API contract (v1)
+  version: 1.0.0-m1a.1-proposed
+  summary: PROPOSED contract for the CardioAssist AI v1 API (M1a.1 — contract design only).
+  description: |
+    **STATUS: PROPOSED — not approved, not deployed.** This document is the M1a.1
+    deliverable "versioned API contract definitions" (Phase 0 D-043). No server
+    implements it yet, no model exists behind it, and no dataset was used to
+    produce anything in this repository.
+
+    > **MOCK / SYNTHETIC DATA.** Every example, fixture and mock response in this
+    > contract package is synthetic and deterministic. They are **not** medical
+    > diagnoses, **not** real patient risk, and **not** validated clinical
+    > outputs. No model has been trained, loaded or fitted.
+
+    ## What this contract guarantees (stable envelope)
+
+    * Versioned surface: `/v1/...`; artifact versions travel with every response
+      (`model_id`, `preprocessing_id`, `calibration_id`, `feature_schema_id`,
+      `explanation_config_id`).
+    * Explicit request/response validation with an explicit error catalogue and
+      stable HTTP semantics.
+    * Idempotency: `Idempotency-Key` governs replay and conflict semantics.
+    * Explanation on the log-odds/margin scale with a machine-checked sum-check.
+    * A calibrated score is never presented as an absolute population
+      probability, and SHAP/LIME contributions are never presented as changes
+      in a probability.
+    * Track separation: Track A (CAD inference) and Track B (monitoring) are
+      separate surfaces; wearable data can never be a CAD-inference input.
+
+    ## What this contract does NOT guarantee (provisional, gated)
+
+    * **No clinical feature dictionary is ratified.** The feature schemas in
+      this package are `MOCK_ONLY` placeholders with placeholder unit tokens
+      (`u_*`). The real dictionaries are `UNVERIFIED` until Gate DA
+      (Phase 0 §F-3, D-031) and their units stay `UNVERIFIED` per §F-1.
+    * **The prediction target is not approved.** `target.id` is
+      `T1_angiographic_cad_presence` with `status: provisional_pending_approval`
+      (D-006 / P-1 open). The contract names a cross-sectional classification
+      with `time_horizon: none_cross_sectional`; a 30-day or incident-risk
+      horizon is prohibited in v1.
+    * **No model, no metrics, no performance.** `validation_status` is
+      `development_internal_only` and `model_performance_ref` may only point at
+      an `#internal_validation` section until external validation exists.
+
+    ## Track separation rule (binding)
+
+    `POST /v1/predictions/cad-tabular` accepts exactly two context sources:
+    `benchmark_import` and `clinician_entry`. Wearable, device and vendor
+    sources — and payloads that carry wearable measurement fields — are
+    rejected with **HTTP 422 `wearable_input_not_valid_for_cad_inference`** and
+    produce no score, no explanation and no reassessment (D-039, Phase 0 §F-4).
+    Wearable data is only ever ingested through `POST /v1/monitoring/observations`.
+
+  contact:
+    name: CardioAssist AI — research engineering (private repository)
+    url: https://github.com/Muhammed-Fathi/CardioAssist-AI
+  license:
+    name: Proprietary — private research repository, no public licence granted
+
+servers:
+  - url: /
+    description: >-
+      Relative to the deployment origin. This project is local-first at $0
+      (D-041); no hosted endpoint exists and none is implied by this document.
+
+tags:
+  - name: track-a
+    description: >-
+      Track A — clinical CAD classification research output. Clinician-facing
+      research view only; never shown to a patient as a diagnosis or a personal
+      risk percentage (Phase 0 §R2-2.1).
+  - name: track-b
+    description: >-
+      Track B — patient and wearable monitoring. Descriptive monitoring only; no
+      CAD interpretation is overlaid on a monitoring resource (Phase 0 §R2-2.1).
+
+x-contract-metadata:
+  milestone: M1a.1
+  decision: D-043 (M1a — versioned API contracts, deterministic mock CAD/XAI responses, contract tests)
+  contract_status: PROPOSED_M1A_1
+  data_class: MOCK_SYNTHETIC
+  idempotency_retention_hours: 24
+  fixture_pack: shared/contracts/fixtures/
+  source_of_truth: >-
+    The JSON Schemas under shared/contracts/schemas/ are the source of truth for
+    payload structure; this OpenAPI document wires them to paths, headers and
+    HTTP status codes.
+
+paths:
+  /v1/predictions/cad-tabular:
+    post:
+      operationId: createCadTabularPrediction
+      tags: [track-a]
+      summary: Cross-sectional CAD classification with a per-prediction explanation (research).
+      description: |
+        Synchronous, versioned inference for the provisional T1 target
+        (cross-sectional presence of angiographically significant CAD in a
+        benchmark cohort). The endpoint is **not** a risk-prediction endpoint:
+        there is no time horizon, no alert level and no per-patient confidence
+        interval (Phase 0 §R2-5.6, §R2-6.4).
+
+        The feature payload is bound to a versioned `feature_schema_id`. In
+        M1a.1 the only available schemas are `MOCK_ONLY` placeholders, so the
+        units carried by the request are placeholder unit tokens, not clinical
+        units.
+
+        **Track rule:** only `benchmark_import` and `clinician_entry` are valid
+        sources. Anything wearable is rejected with
+        `422 wearable_input_not_valid_for_cad_inference`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        description: CAD-inference request.
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/cad_tabular_prediction.request.schema.json'
+      responses:
+        '200':
+          description: |
+            Inference result. On an idempotent replay the stored response is
+            returned verbatim with `idempotent_replay: true` and the original
+            `audit_id`; no re-inference and no second audit event occur.
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/cad_tabular_prediction.response.schema.json'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ModelUnavailable'
+      x-idempotency:
+        header: Idempotency-Key
+        required: true
+        canonical_payload: >-
+          SHA-256 over the canonical JSON serialization (UTF-8, lexicographically
+          sorted object keys, no insignificant whitespace) of the request body
+          with `request_id` removed. `request_id` is excluded because it is an
+          informational correlation id: a retry that regenerates it must still
+          be recognised as a replay.
+        replay: >-
+          Same key + identical canonical payload → HTTP 200 with the stored
+          response, `idempotent_replay: true`, same `audit_id`.
+        conflict: >-
+          Same key + different canonical payload → HTTP 409
+          `idempotency_key_conflict` with the original `original_audit_id`.
+        retention_hours: 24
+        retention_note: >-
+          A key reused after the retention window is treated as a new request
+          and the reuse is logged. Clients must not rely on replay beyond the
+          window (Phase 0 §R2-6.1).
+      x-error-codes:
+        '400': [malformed_request, unsupported_contract_version]
+        '409': [idempotency_key_conflict]
+        '422':
+          - unknown_feature
+          - feature_not_in_schema
+          - unit_mismatch
+          - value_out_of_range
+          - missing_required_feature
+          - unknown_feature_schema
+          - unknown_model
+          - schema_model_mismatch
+          - invalid_context_source
+          - wearable_input_not_valid_for_cad_inference
+        '500': [internal_error]
+        '503': [model_unavailable]
+
+  /v1/monitoring/observations:
+    post:
+      operationId: createMonitoringObservation
+      tags: [track-b]
+      summary: Ingest a monitoring observation (patient-entered or wearable-sourced).
+      description: |
+        Track-B ingestion: source-labelled, consent-checked and unit-validated
+        monitoring data. This is the **only** route by which wearable data may
+        enter the platform, and monitoring data may never become an input to
+        CAD inference (D-039, Phase 0 §F-4).
+
+        The response carries no score, no target and no explanation: a Track-B
+        resource may never contain a Track-A output (Phase 0 §R2-6.7).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
+      requestBody:
+        required: true
+        description: Monitoring observation.
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/monitoring_observation.request.schema.json'
+      responses:
+        '201':
+          description: Observation accepted and recorded.
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/monitoring_observation.response.schema.json'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+      x-idempotency:
+        header: Idempotency-Key
+        required: false
+        replay: >-
+          When the header is supplied the same replay/conflict semantics as
+          Track A apply. The header is optional here because monitoring
+          ingestion is a high-volume append path; when it is supplied it is
+          always honoured.
+        retention_hours: 24
+      x-error-codes:
+        '400': [malformed_request, unsupported_contract_version]
+        '409': [idempotency_key_conflict]
+        '422': [unknown_metric, unit_mismatch, value_out_of_range, consent_required]
+        '500': [internal_error]
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Client-generated key identifying a logical write (8–128 characters,
+        `[A-Za-z0-9._:-]`). Governs replay and conflict detection; see the
+        operation's `x-idempotency` block for the exact semantics.
+      schema:
+        $ref: './schemas/common.schema.json#/$defs/IdempotencyKey'
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        Optional client-generated key identifying a logical write. When present
+        the same replay/conflict semantics as Track A apply.
+      schema:
+        $ref: './schemas/common.schema.json#/$defs/IdempotencyKey'
+
+  responses:
+    BadRequest:
+      description: |
+        The request could not be parsed or violates the structural schema
+        (`malformed_request`), or it declares a contract version that this
+        deployment does not implement (`unsupported_contract_version`).
+      content:
+        application/json:
+          schema:
+            $ref: './schemas/common.schema.json#/$defs/ErrorResponse'
+          examples:
+            malformedRequest:
+              summary: Body is not a valid request object
+              value:
+                contract_version: v1
+                error:
+                  code: malformed_request
+                  message: Request body is not a valid prediction request object.
+    IdempotencyConflict:
+      description: |
+        The `Idempotency-Key` was already used with a different canonical
+        payload. The response carries the `original_audit_id` of the request
+        that first used the key (Phase 0 §R2-6.1).
+      content:
+        application/json:
+          schema:
+            $ref: './schemas/common.schema.json#/$defs/ErrorResponse'
+          examples:
+            keyConflict:
+              summary: Same key, different payload
+              value:
+                contract_version: v1
+                error:
+                  code: idempotency_key_conflict
+                  message: This Idempotency-Key was already used with a different request payload.
+                  original_audit_id: 3f6b0f1c-6f9f-4a1e-9a0a-2b8f1c0d5e77
+    UnprocessableEntity:
+      description: |
+        The request is structurally valid but semantically unprocessable, so **no
+        score is produced**. The error code identifies the exact rule that
+        failed (unknown feature, wrong unit, out-of-range value, missing
+        required feature, model/schema mismatch, inadmissible source, or a
+        wearable payload sent to CAD inference).
+      content:
+        application/json:
+          schema:
+            $ref: './schemas/common.schema.json#/$defs/ErrorResponse'
+          examples:
+            unitMismatch:
+              summary: Feature unit does not match the feature schema
+              value:
+                contract_version: v1
+                error:
+                  code: unit_mismatch
+                  message: Unit does not match the unit declared by the feature schema.
+                  details:
+                    - field: features.mock_feature_vital_systolic.unit
+                      feature_id: mock_feature_vital_systolic
+                      expected: u_pressure
+                      received: u_weight
+            wearableRejected:
+              summary: Wearable payload sent to CAD inference
+              value:
+                contract_version: v1
+                error:
+                  code: wearable_input_not_valid_for_cad_inference
+                  message: Wearable or monitoring data cannot be used for CAD inference. Use the monitoring ingestion endpoint instead.
+                  details:
+                    - field: context.source
+                      expected: benchmark_import|clinician_entry
+                      received: simulated_wearable
+    InternalError:
+      description: |
+        Unhandled server error. Logged with an `audit_id`; no stack trace or
+        internal detail is returned to the client.
+      content:
+        application/json:
+          schema:
+            $ref: './schemas/common.schema.json#/$defs/ErrorResponse'
+          examples:
+            internalError:
+              summary: Internal error
+              value:
+                contract_version: v1
+                error:
+                  code: internal_error
+                  message: The request could not be completed because of an internal error.
+    ModelUnavailable:
+      description: |
+        The requested model artifact is missing or does not match its recorded
+        hash. The system fails closed: no score is produced (Phase 0 §8.4).
+      content:
+        application/json:
+          schema:
+            $ref: './schemas/common.schema.json#/$defs/ErrorResponse'
+          examples:
+            modelUnavailable:
+              summary: Model artifact missing or mis-hashed
+              value:
+                contract_version: v1
+                error:
+                  code: model_unavailable
+                  message: The requested model is unavailable; no prediction was produced.

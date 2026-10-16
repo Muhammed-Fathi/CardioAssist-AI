@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/v1/schemas/monitoring_observation.response.schema.json",
+  "title": "Track B — monitoring observation response (POST /v1/monitoring/observations)",
+  "description": "Success response for monitoring ingestion. It deliberately contains NO score, NO target and NO explanation: a Track-B resource may never carry a Track-A output (Phase 0 §R2-6.7, D-039). The absence of those properties is enforced by a contract test.",
+  "x-contract-status": "PROPOSED_M1A_1",
+  "x-track": "B",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "data_class",
+    "track",
+    "request_id",
+    "observation_id",
+    "idempotent_replay",
+    "accepted",
+    "received_at",
+    "recorded_metric_count",
+    "validation",
+    "disclaimer"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "$ref": "common.schema.json#/$defs/ContractVersion" },
+    "data_class": { "$ref": "common.schema.json#/$defs/DataClass" },
+    "track": { "const": "B" },
+    "request_id": { "$ref": "common.schema.json#/$defs/Uuid" },
+    "observation_id": {
+      "description": "Identifier assigned to the stored observation.",
+      "$ref": "common.schema.json#/$defs/Uuid"
+    },
+    "idempotent_replay": {
+      "description": "true when this response is the stored response of an earlier request with the same Idempotency-Key and an identical canonical payload.",
+      "type": "boolean"
+    },
+    "accepted": {
+      "description": "true when the observation passed validation and was accepted for storage.",
+      "type": "boolean"
+    },
+    "received_at": { "$ref": "common.schema.json#/$defs/IsoDateTime" },
+    "recorded_metric_count": {
+      "description": "Number of metrics accepted from the request.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "validation": {
+      "type": "object",
+      "required": ["status", "issues"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "string", "enum": ["accepted", "rejected"] },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "properties": {
+              "code": { "$ref": "common.schema.json#/$defs/ErrorCode" },
+              "message": { "type": "string" },
+              "metric_id": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "disclaimer": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "data_class": { "const": "MOCK_SYNTHETIC" } },
+        "required": ["data_class"]
+      },
+      "then": {
+        "properties": {
+          "disclaimer": { "$ref": "common.schema.json#/$defs/MockDisclaimerTrackB" }
+        }
+      }
+    }
+  ]
+}

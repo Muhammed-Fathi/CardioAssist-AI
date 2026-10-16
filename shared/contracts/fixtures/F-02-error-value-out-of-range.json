@@ -1,0 +1,89 @@
+{
+  "fixture_id": "F-02e",
+  "title": "Feature value outside the declared range (422 value_out_of_range)",
+  "description": "A value outside the plausible range declared by the feature schema is an error. The range in a MOCK_ONLY schema is a placeholder bound, not a clinical reference range.",
+  "covers_phase0_fixture_ids": [
+    "F-02",
+    "F-04"
+  ],
+  "phase0_reference": "Phase 0 §R2-6.2",
+  "track": "A",
+  "endpoint": "POST /v1/predictions/cad-tabular",
+  "data_class": "MOCK_SYNTHETIC",
+  "disclaimer": "MOCK / SYNTHETIC DATA — this fixture contains no real patient, no real measurement and no trained model. It is not a medical diagnosis and not a real patient risk.",
+  "steps": [
+    {
+      "step": 1,
+      "request": {
+        "headers": {
+          "Idempotency-Key": "f02e-out-of-range-key-00001"
+        },
+        "body": {
+          "contract_version": "v1",
+          "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000006",
+          "model_id": "mock_model_a_v0.1.0",
+          "feature_schema_id": "mock_clinical_v1",
+          "features": {
+            "mock_feature_demographic_age": {
+              "value": 500,
+              "unit": "u_years"
+            },
+            "mock_feature_demographic_sex": {
+              "value": "category_a",
+              "unit": "u_category"
+            },
+            "mock_feature_vital_systolic": {
+              "value": 142,
+              "unit": "u_pressure"
+            },
+            "mock_feature_lab_concentration": {
+              "value": 233,
+              "unit": "u_concentration"
+            },
+            "mock_feature_binary_flag": {
+              "value": true,
+              "unit": "u_boolean"
+            },
+            "mock_feature_count": {
+              "value": 2,
+              "unit": "u_count"
+            },
+            "mock_feature_fraction": {
+              "value": 0.25,
+              "unit": "u_fraction"
+            }
+          },
+          "context": {
+            "source": "benchmark_import",
+            "recorded_at": "2026-10-16T09:00:00Z",
+            "patient_ref": "pseudo_demo_001",
+            "consent_id": "consent_mock_001"
+          }
+        }
+      },
+      "expected": {
+        "status": 422,
+        "body": {
+          "contract_version": "v1",
+          "error": {
+            "code": "value_out_of_range",
+            "message": "Value of feature 'mock_feature_demographic_age' is outside the range declared by the feature schema.",
+            "details": [
+              {
+                "field": "features.mock_feature_demographic_age.value",
+                "feature_id": "mock_feature_demographic_age",
+                "expected": "<= 200",
+                "received": "500"
+              }
+            ],
+            "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000006"
+          }
+        }
+      },
+      "assertions": {
+        "error_code": "value_out_of_range",
+        "http_status": 422
+      }
+    }
+  ]
+}

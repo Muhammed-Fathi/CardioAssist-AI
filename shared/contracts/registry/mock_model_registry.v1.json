@@ -1,0 +1,140 @@
+{
+  "document_type": "mock_model_registry",
+  "contract_version": "v1",
+  "data_class": "MOCK_SYNTHETIC",
+  "status": "MOCK_ONLY",
+  "milestone": "M1a.1",
+  "description": "MOCK ONLY registry of stub model bindings used by the deterministic mock implementation and the fixture pack. No model artifact exists, no model was trained, and no dataset was acquired. A production implementation would expose the equivalent information through GET /v1/models/current (Phase 0 §R2-6.3); that endpoint is NOT part of M1a.1 and is deliberately absent from the OpenAPI document.",
+  "x-warning": "artifact_sha256 values are the SHA-256 of the empty byte string (e3b0c442...b855) and therefore denote 'no artifact'. They are placeholders so that the response shape matches the provenance contract; they are NOT hashes of any trained artifact.",
+  "x-base-value-meaning": "base_value is the fixed synthetic intercept of the mock score function. It has no clinical meaning and is not a model parameter.",
+  "models": [
+    {
+      "model_id": "mock_model_a_v0.1.0",
+      "is_default": true,
+      "feature_schema_id": "mock_clinical_v1",
+      "preprocessing_id": "mock_prep_v1",
+      "calibration_id": "none",
+      "explanation_config_id": "mock_explain_config_v1",
+      "explanation_method": "tree_shap",
+      "explanation_scale": "log_odds_margin",
+      "validation_status": "development_internal_only",
+      "model_performance_ref": "model_card:mock_model_a_v0.1.0#internal_validation",
+      "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preprocessing_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "calibration_sha256": null,
+      "base_value": -0.3,
+      "notes": "Uncalibrated mock stub bound to mock_clinical_v1. Serves score.type=uncalibrated_score; the UI must not render it as a probability or a percentage (F-11)."
+    },
+    {
+      "model_id": "mock_model_a_v0.2.0",
+      "feature_schema_id": "mock_clinical_v1",
+      "preprocessing_id": "mock_prep_v1",
+      "calibration_id": "none",
+      "explanation_config_id": "mock_explain_config_v1",
+      "explanation_method": "tree_shap",
+      "explanation_scale": "log_odds_margin",
+      "validation_status": "development_internal_only",
+      "model_performance_ref": "model_card:mock_model_a_v0.2.0#internal_validation",
+      "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preprocessing_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "calibration_sha256": null,
+      "base_value": -0.25,
+      "notes": "Model-swap simulation: a new model version bound to the SAME feature schema. The contract does not change and the contract tests must still pass (F-12)."
+    },
+    {
+      "model_id": "mock_model_b_v0.1.0",
+      "feature_schema_id": "mock_clinical_v2",
+      "preprocessing_id": "mock_prep_v2",
+      "calibration_id": "none",
+      "explanation_config_id": "mock_explain_config_v1",
+      "explanation_method": "tree_shap",
+      "explanation_scale": "log_odds_margin",
+      "validation_status": "development_internal_only",
+      "model_performance_ref": "model_card:mock_model_b_v0.1.0#internal_validation",
+      "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preprocessing_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "calibration_sha256": null,
+      "base_value": -0.2,
+      "notes": "Uncalibrated mock stub bound to mock_clinical_v2. A request that names mock_clinical_v1 with this model fails with 422 schema_model_mismatch."
+    },
+    {
+      "model_id": "mock_model_c_v0.1.0",
+      "feature_schema_id": "mock_clinical_v1",
+      "preprocessing_id": "mock_prep_v1",
+      "calibration_id": "mock_platt_v1",
+      "explanation_config_id": "mock_explain_config_v1",
+      "explanation_method": "tree_shap",
+      "explanation_scale": "log_odds_margin",
+      "validation_status": "development_internal_only",
+      "model_performance_ref": "model_card:mock_model_c_v0.1.0#internal_validation",
+      "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preprocessing_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "calibration_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "base_value": -0.3,
+      "calibration": {
+        "method": "mock_only",
+        "calibration_id": "mock_platt_v1",
+        "slope": 0.8,
+        "intercept": -0.1,
+        "cohort_context": {
+          "cohort_description": "SYNTHETIC MOCK COHORT — no real cohort exists and no dataset was used.",
+          "population_scope": "mock_synthetic_no_cohort_exists",
+          "prevalence_note": "No prevalence can be stated: the mock cohort is synthetic.",
+          "absolute_population_probability_claim": false
+        }
+      },
+      "notes": "MOCK calibration branch. It exercises the calibrated_probability response shape (raw_margin, cohort_context, rendering metadata) without asserting any probability for any real population (Phase 0 §F-6)."
+    },
+    {
+      "model_id": "mock_model_e_v0.1.0",
+      "feature_schema_id": "mock_clinical_v1",
+      "preprocessing_id": "mock_prep_v1",
+      "calibration_id": "none",
+      "explanation_config_id": "mock_explain_config_v1",
+      "explanation_method": "tree_shap",
+      "explanation_scale": "log_odds_margin",
+      "validation_status": "development_internal_only",
+      "model_performance_ref": "model_card:mock_model_e_v0.1.0#internal_validation",
+      "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preprocessing_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "calibration_sha256": null,
+      "artifact_available": false,
+      "base_value": -0.3,
+      "notes": "Fail-closed simulation: the artifact is unavailable, so the endpoint must answer 503 model_unavailable and produce no score (Phase 0 §8.4)."
+    },
+    {
+      "model_id": "mock_model_d_v0.1.0",
+      "feature_schema_id": "mock_clinical_v1",
+      "preprocessing_id": "mock_prep_v1",
+      "calibration_id": "none",
+      "explanation_config_id": "mock_explain_config_lime_v1",
+      "explanation_method": "lime",
+      "explanation_scale": "log_odds_margin",
+      "validation_status": "development_internal_only",
+      "model_performance_ref": "model_card:mock_model_d_v0.1.0#internal_validation",
+      "artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "preprocessing_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "calibration_sha256": null,
+      "base_value": -0.3,
+      "notes": "LIME configuration branch. LIME is a local surrogate: its contributions are NOT an exact additive decomposition of the margin, so the explanation sum-check is marked not applicable (Phase 0 §R2-5.7)."
+    }
+  ],
+  "explanation_configs": [
+    {
+      "explanation_config_id": "mock_explain_config_v1",
+      "method": "tree_shap",
+      "scale": "log_odds_margin",
+      "seed": null,
+      "sampling_count": null,
+      "notes": "MOCK TreeSHAP configuration. In a real deployment this id pins the explainer version, the tree-path approximation and any stability settings."
+    },
+    {
+      "explanation_config_id": "mock_explain_config_lime_v1",
+      "method": "lime",
+      "scale": "log_odds_margin",
+      "seed": 20260101,
+      "sampling_count": 256,
+      "notes": "MOCK LIME configuration. The fixed seed and sampling count are part of the configuration id contract so that a LIME explanation is reproducible (Phase 0 §R2-5.7)."
+    }
+  ]
+}

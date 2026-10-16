@@ -1,0 +1,75 @@
+{
+  "fixture_id": "F-04b",
+  "title": "Monitoring observation without a consent reference (422 consent_required)",
+  "description": "Monitoring ingestion is consent-checked; an observation without consent is rejected.",
+  "covers_phase0_fixture_ids": [
+    "F-04",
+    "F-07"
+  ],
+  "phase0_reference": "Phase 0 §R2-6.7, F07 (audit/consent)",
+  "track": "B",
+  "endpoint": "POST /v1/monitoring/observations",
+  "data_class": "MOCK_SYNTHETIC",
+  "disclaimer": "MOCK / SYNTHETIC DATA — this fixture contains no real patient, no real measurement and no trained model. It is not a medical diagnosis and not a real patient risk.",
+  "steps": [
+    {
+      "step": 1,
+      "request": {
+        "headers": {
+          "Idempotency-Key": "f04b-monitoring-consent-key-01"
+        },
+        "body": {
+          "contract_version": "v1",
+          "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000015",
+          "observation": {
+            "patient_ref": "pseudo_demo_001",
+            "observed_at": "2026-10-16T08:30:00Z",
+            "source": "simulated_wearable",
+            "source_detail": "mock adapter v1 (simulated device, no hardware)",
+            "consent_id": "",
+            "metrics": [
+              {
+                "metric_id": "mock_metric_heart_rate",
+                "value": 72,
+                "unit": "u_rate",
+                "recorded_at": "2026-10-16T08:30:00Z"
+              },
+              {
+                "metric_id": "mock_metric_steps",
+                "value": 4231,
+                "unit": "u_count",
+                "recorded_at": "2026-10-16T08:30:00Z"
+              },
+              {
+                "metric_id": "mock_metric_spo2",
+                "value": 0.97,
+                "unit": "u_fraction",
+                "recorded_at": "2026-10-16T08:30:00Z"
+              }
+            ]
+          }
+        }
+      },
+      "expected": {
+        "status": 422,
+        "body": {
+          "contract_version": "v1",
+          "error": {
+            "code": "consent_required",
+            "message": "A monitoring observation must reference a consent record.",
+            "details": [
+              {
+                "field": "observation.consent_id"
+              }
+            ],
+            "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000015"
+          }
+        }
+      },
+      "assertions": {
+        "error_code": "consent_required",
+        "http_status": 422
+      }
+    }
+  ]
+}

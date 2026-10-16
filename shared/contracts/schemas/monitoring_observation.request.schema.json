@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/v1/schemas/monitoring_observation.request.schema.json",
+  "title": "Track B — monitoring observation request (POST /v1/monitoring/observations)",
+  "description": "Request body for the Track-B monitoring ingestion endpoint. This endpoint is monitoring-only: it never performs CAD inference and never returns a Track-A score (Phase 0 §R2-6.7, D-039). Monitoring observations are the only sanctioned route for wearable data, and wearable data may never be used as a CAD-inference input.",
+  "x-contract-status": "PROPOSED_M1A_1",
+  "x-track": "B",
+  "type": "object",
+  "required": ["observation"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "$ref": "common.schema.json#/$defs/ContractVersion" },
+    "request_id": {
+      "description": "Client-generated correlation id. Informational only; idempotency is governed by the Idempotency-Key header.",
+      "$ref": "common.schema.json#/$defs/Uuid"
+    },
+    "observation": { "$ref": "#/$defs/Observation" }
+  },
+  "$defs": {
+    "Observation": {
+      "title": "A single monitoring observation",
+      "type": "object",
+      "required": ["patient_ref", "observed_at", "source", "metrics"],
+      "additionalProperties": false,
+      "properties": {
+        "patient_ref": { "$ref": "common.schema.json#/$defs/PseudonymousRef" },
+        "observed_at": { "$ref": "common.schema.json#/$defs/IsoDateTime" },
+        "source": {
+          "description": "Source of the observation. Unlike Track A, wearable sources are VALID here: monitoring ingestion is the only route by which wearable data may enter the platform (Phase 0 §F-4).",
+          "type": "string",
+          "enum": ["manual_entry", "simulated_wearable", "wearable_device", "vendor_app"]
+        },
+        "source_detail": {
+          "description": "Free-text provenance of the source (app version, adapter name). Informational only.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "consent_id": {
+          "description": "Consent reference the observation is recorded under. Required by the semantic layer: a monitoring observation without a consent reference is rejected with 422 consent_required (Phase 0 §R2-6.7, F07).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/ObservationMetric" }
+        }
+      }
+    },
+    "ObservationMetric": {
+      "title": "A single monitored measurement",
+      "type": "object",
+      "required": ["metric_id", "value", "unit"],
+      "additionalProperties": false,
+      "properties": {
+        "metric_id": {
+          "description": "Identifier of a monitored quantity. The accepted identifiers, their units and their value ranges are listed in the MOCK_ONLY catalogue shared/contracts/registry/mock_monitoring_metrics.v1.json. An unknown identifier fails with 422 unknown_metric.",
+          "type": "string",
+          "pattern": "^mock_metric_[a-z0-9_]+$"
+        },
+        "value": {
+          "description": "Measured value. A null value means 'not measured'.",
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" },
+            { "type": "boolean" },
+            { "type": "null" }
+          ]
+        },
+        "unit": {
+          "description": "Unit of the measured value. A unit that does not match the catalogue entry fails with 422 unit_mismatch.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "recorded_at": { "$ref": "common.schema.json#/$defs/IsoDateTime" },
+        "quality_note": {
+          "description": "Free-text note about measurement quality (e.g. motion artefact). Informational only.",
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    }
+  }
+}
