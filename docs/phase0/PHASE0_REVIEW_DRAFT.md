@@ -47,7 +47,9 @@ Every material statement is tagged so reviewers can separate fact from proposal:
    6 MAYBE_ORANGE / 9 REJECTED_RED** — classifications unchanged.
 2. **The only clinical target the approved evidence can support today is
    cross-sectional classification of angiographically-defined CAD presence**
-   (≥50% diameter narrowing) on the UCI tabular benchmarks (§4). The
+   (at the ~50% diameter-narrowing threshold; the published threshold
+   wording differs by source — UCI-45 `>50%` vs UCI-412 `≥50%` — and
+   label compatibility must be checked before harmonization, §4.2/§R2-4.2) on the UCI tabular benchmarks. The
    presentation's "30-day CAD risk" (slides 31, 38) is **not supported by any
    approved dataset**: none contains event dates, follow-up, or censoring.
    Labelling a cross-sectional classifier as a 30-day risk model would be a
@@ -425,7 +427,7 @@ AGENTS.md prohibits exactly this confusion.]
 
 | ID | Target | Label source | Feasible now? | Notes |
 |---|---|---|---|---|
-| **T1 [PROPOSED primary]** | Presence of angiographically significant CAD (≥50% diameter narrowing), cross-sectional | UCI-45 `num`>0 vs 0 (and vessel-level `num` 0–4 as an ordinal secondary analysis); UCI-412 CAD/Normal (≥50% narrowing) | **Yes** — public, CC BY 4.0, labels verified (§5) | Must be described everywhere as *"model-estimated probability that this benchmark record resembles angiography-positive cases"* — research output, not a diagnosis. |
+| **T1 [PROPOSED primary]** | Presence of angiographically significant CAD (diameter narrowing at the ~50% threshold; exact threshold wording is source-specific — see Notes), cross-sectional | UCI-45 `num` 0 vs 1–4 (**presence classification only**); UCI-412 CAD/Normal (≥50% narrowing) | **Yes** — public, CC BY 4.0, labels verified (§5) | The official UCI documentation supports `num` for heart-disease **presence** classification (0 vs 1–4); it does **not** establish a per-vessel (or other ordinal) interpretation of values 1–4. **Any severity or ordinal modelling based on `num` is therefore UNAPPROVED** until its label semantics are independently documented. Threshold wording also differs (UCI-45 `>50%` vs UCI-412 `≥50%`) — §R2-4.2 harmonization check required. Must be described everywhere as *"model-estimated probability that this benchmark record resembles angiography-positive cases"* — research output, not a diagnosis. |
 | T2 | CAD severity / per-vessel stenosis (LAD/LCX/RCA) | UCI-411 extension per-artery fields (official UCI guidance: one artery target at a time, others excluded); P25 AngioCAD (RED) | **[OPEN]** — data dictionary at G1 + D-021 for AngioCAD only (UCI-411 is licence-verified) | The LAD/LCX/RCA fields **define** the T1 label: leakage as T1 predictors, legitimate only as T2 targets. Do not promise timelines. |
 | T3 | Self-reported prevalent "heart disease or attack" (survey) | BRFSS-2015 `HeartDiseaseorAttack`; NHANES `MCQ160c–e` | Yes as a **separate secondary task** | Different construct (recall, access to diagnosis); never pooled with T1; survey weights/complex design required for population claims. |
 | T4 | Incident CAD / MI over a horizon (incl. 30-day) | Framingham/BioLINCC, other longitudinal cohorts | **Blocked** | Controlled access (application + IRB + DUA [VERIFIED-EXTERNAL]); no team IRB/site evidenced; also incompatible with $0 timelines. |
@@ -1097,8 +1099,14 @@ harmonization caveats.
 
 **Strategy B — Feature-harmonized cross-dataset evaluation
 (conditional).** Permitted only when **all** hold for the pair:
-(i) same target definition & threshold (T1 ≥50% for UCI-45 cohorts
-and UCI-412 — plausible; BRFSS/NHANES/PTB-XL fail by construction);
+(i) target definitions and thresholds are **checked for
+compatibility, not assumed identical** — published wording differs:
+UCI-45 defines presence as `>50%` diameter narrowing, whereas
+UCI-412 defines CAD as `≥50%` diameter narrowing, so a record at
+exactly 50% stenosis is labelled differently by the two sources
+(if such boundary records exist and cannot be identified/reconciled
+from the acquired data, the targets must be reported as related but
+not identical; BRFSS/NHANES/PTB-XL fail by construction);
 (ii) a documented feature mapping with identical units/definitions
 (e.g., cholesterol mg/dL vs mmol/L converted explicitly);
 (iii) patient independence established (duplicate audit passed;
@@ -1108,6 +1116,21 @@ Design: train on cohort X → evaluate untouched on cohort Y
 (site-as-external), both directions where schemas allow; the
 harmonized intersection schema is versioned (`harmonized_t1_v1`)
 and expected to be small (demographics + comparable vitals/labs).
+
+> **Harmonization audit note (stenosis thresholds).** UCI Heart
+> Disease and Z-Alizadeh Sani use slightly different published
+> threshold wording (`>50%` vs `≥50%` diameter narrowing). Before
+> any cross-dataset validation (Strategy B) or pooled training
+> (Strategy C), the harmonization audit must record, per source:
+> the verbatim label definition, whether raw stenosis percentages
+> or per-vessel fields survive in the acquired files, whether
+> exactly-50% boundary records can be identified and handled under
+> a single pre-registered rule, and the resulting compatibility
+> ruling (identical / reconciled / related-but-not-identical).
+> Without a documented ruling, cross-dataset results must be
+> described as evaluation across related-but-not-identical labels,
+> and pooling is not permitted (see also the verbatim-target item
+> in the §R2-4.4 checklist).
 
 **Strategy C — Pooled training (strictly gated).** Considered only
 after A and B results exist, and only if: B's compatibility checks
