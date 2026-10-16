@@ -1,0 +1,92 @@
+
+name: mock-backend-validation
+
+# CardioAssist AI — M1a.2
+#
+# Validate API contracts and the FastAPI mock backend.
+# Tests use synthetic fixtures only.
+# No clinical datasets, trained AI models, or paid services.
+#
+# Dependency installation may access the Python package index.
+# Application tests require no external data services.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Minimum GitHub token permissions
+permissions:
+  contents: read
+
+concurrency:
+  group: mock-backend-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    name: Mock backend (Python ${{ matrix.python-version }})
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      # Official actions pinned to immutable commit SHAs
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install -r backend/requirements-dev.txt
+          python -m pip check
+
+      - name: Run contract and backend integration tests
+        run: |
+          python -m pytest tests/contracts tests/backend -q -W error
+
+      - name: Verify original source integrity
+        run: |
+          python scripts/verify_sources.py
+
+      - name: Reject prohibited backend artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if find backend tests/backend -type f \
+            \( -name '*.pkl' \
+            -o -name '*.joblib' \
+            -o -name '*.pt' \
+            -o -name '*.pth' \
+            -o -name '*.onnx' \
+            -o -name '*.h5' \
+            -o -name '*.parquet' \
+            -o -name '*.csv' \
+            -o -name '*.sqlite' \
+            -o -name '*.sqlite3' \
+            -o -name '*.db' \
+            -o -name '*.p12' \
+            -o -name '*.pem' \
+            -o -name '*.key' \
+            -o -name '.env' \
+            -o -name '.env.*' \) \
+            -print -quit | grep -q .; then
+
+            echo "ERROR: Prohibited file found." >&2
+            exit 1
+          fi
+
+          echo "PASS: No prohibited backend artifact extensions found."
+          # Extension guard only: not a PHI or secrets scanner.
