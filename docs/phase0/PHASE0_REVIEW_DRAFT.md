@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | **DRAFT REV. 2 — CHANGES REQUESTED by maintainer; revised, awaiting explicit human approval. Not approved. DO NOT START PHASE 1.** |
-| Date | 2026-10-16 (Rev. 2, same session, PR #1 updated in place) |
+| Status | **DRAFT REV. 3 — final Phase 0 corrections applied; awaiting explicit human approval / merge decision. Not approved. DO NOT START PHASE 1.** |
+| Date | 2026-10-16 (Rev. 3; Rev. 1–2 same PR, §F correction map) |
 | Branch | `arena/f977cda2-cardioassist-ai` (dedicated Phase 0 working branch, accepted by maintainer) |
 | Base commit | `9f12482` — *chore: initialize CardioAssist AI project* |
 | Author | Arena Agent Mode (Phase 0 session) |
@@ -66,13 +66,19 @@ Every material statement is tagged so reviewers can separate fact from proposal:
    Kaggle "Framingham"/CVD-70K mirrors (official Framingham requires
    BioLINCC application + IRB + DUA **[VERIFIED-EXTERNAL]**), controlled
    Framingham/BioLINCC, UK Biobank, private cohorts.
-4. **No approved paper deploys anything.** All 9 APPROVED_GREEN papers are
-   offline model studies; the recurring, defensible research gap is
-   *external validation + calibrated, explainable inference behind a
-   versioned API + clinician-facing evaluation* — not a new algorithm (§3).
-   Several recorded scores (100% accuracy, >97% across datasets) are
-   leakage/overfitting red flags and must be treated as claims to audit,
-   not targets to beat.
+4. **Preliminary literature reading (full texts not yet systematically
+   reviewed).** As recorded in the screening sheet, the 9 APPROVED_GREEN
+   papers predominantly report offline model studies in which external
+   validation and deployment were *not identified during screening*;
+   that is a **preliminary screening observation, not an established
+   fact about every paper**. The candidate research gap — external
+   validation + calibrated, explainable inference behind a versioned
+   API + clinician-facing evaluation — is therefore **provisional**
+   and may not be stated as a novelty claim until the GREEN full texts
+   (and a broader literature search) have been systematically verified
+   (§3.2, §3.5, D-025). Several recorded scores (100% accuracy, >97%
+   across datasets) are leakage/overfitting red flags and must be
+   treated as claims to audit, not targets to beat.
 5. **Recommended architecture [PROPOSED, Rev. 2]: the full intended
    product is preserved** — Flutter patient app, React clinician
    dashboard, CAD classification, SHAP/LIME, wearable/health-data
@@ -102,16 +108,17 @@ Every material statement is tagged so reviewers can separate fact from proposal:
    and license snapshots recorded at download time.
 8. **Rev. 2 corrections (maintainer-requested):** nested-CV-primary
    protocol with no locked holdout on n≈300 and cross-fitted calibration
-   (§19, superseding §9 where they conflict); API idempotency
+   (§R2-5, superseding §9 where they conflict); API idempotency
    contradiction resolved (replay = 200 + original response; key-reuse
    with different payload = 409) and **patient-level prediction CIs
    removed** (§20, superseding §8); explanations fixed to the
    log-odds/margin scale with a sum-check that never mixes with the
-   calibrated probability (§20.5).
-9. **Decisions D-011…D-030 (§13 + §23) block Phase 1**, starting with:
-   primary target (D-006), dataset tiers & Kaggle-mirror rule,
+   calibrated probability (§R2-6.5).
+9. **Decisions D-011…D-033 (§13 + §R2-9) block Phase 1**, starting
+   with: primary target (D-006), dataset tiers & Kaggle-mirror rule,
    pooled-training eligibility, whether a clinician advisor exists,
-   and approval of the pre-training protocol before any data download.
+   **Gate DA (D-031, data access) before any download and Gate PT
+   (D-032, frozen protocol) before any fitting** (Rev. 3, §F-3).
 
 ---
 
@@ -223,20 +230,20 @@ or silently downgraded.** Each feature is classified per *layer*:
 non-clinical data); **S** = requires simulation/synthetic inputs;
 **B** = blocked by scientific evidence or external access — with the
 blocking reason named, so a future dataset/access change can unblock it.
-The expanded preservation matrix is §17.
+The expanded preservation matrix is §R2-3.
 
 | ID | Capability | Slide evidence (proposal) | Phase 0 verdict | Gating dependency |
 |---|---|---|---|---|
 | F01 | CAD ML prediction & inference | S22, S28–S31 | **R** for cross-sectional CAD classification (Track A); **B** for 30-day/incident risk (no longitudinal labels) (§4) | D-006 target approval; D-007 dataset approval |
-| F02 | Per-prediction explainability (SHAP/LIME) | S32–S34 | **R/P** (TreeSHAP on tabular models, log-odds scale §20.5); stability & clinician review [OPEN] | Clinician reviewer; explanation-fidelity tests (§19) |
+| F02 | Per-prediction explainability (SHAP/LIME) | S32–S34 | **R/P** (TreeSHAP on tabular models, log-odds scale §R2-6.5); stability & clinician review [OPEN] | Clinician reviewer; explanation-fidelity tests (§R2-5) |
 | F03 | Clinician dashboard (patients, timeline, triage) | S40–S41 | **P** on benchmark/demo records; **B** for real patients (no PHI by policy) | F12 API; F11 auth |
-| F04 | Patient experience — **Flutter app (core scope)**: measures, survey, lifestyle, offline | S37–S39 | **P** (full app on demo/simulated data, local Android testing §17.4); real health-data collection gated by consent/ethics design | Consent design (F07); platform decision (D-019) |
-| F05 | Wearable adapters (HealthKit/Health Connect, Fitbit, Garmin, …) | S15, S38–S39 | **P** adapter pattern + **S** simulated adapter; real-device adapters gated on device/account/vendor approval; wearable→CAD prediction **B** (evidence) | Devices, developer accounts, vendor approvals (§10, §16) |
-| F06 | Reassessment & follow-up loops | S31, S38, S41 | **P** mechanics; scientific validity conditions defined in §16.4; alert thresholds **B** — slide thresholds unsupported (§2.1) | Clinician review; D-016 |
+| F04 | Patient experience — **Flutter app (core scope)**: measures, survey, lifestyle, offline | S37–S39 | **P** (full app on demo/simulated data, local Android testing §R2-7.4); real health-data collection gated by consent/ethics design | Consent design (F07); platform decision (D-019) |
+| F05 | Wearable adapters (HealthKit/Health Connect, Fitbit, Garmin, …) | S15, S38–S39 | **P** adapter pattern + **S** simulated adapter; real-device adapters gated on device/account/vendor approval; wearable→CAD prediction **B** (evidence) | Devices, developer accounts, vendor approvals (§10, §R2-2) |
+| F06 | Reassessment & follow-up loops | S31, S38, S41 | **P** mechanics; scientific validity conditions defined in §R2-2.2; alert thresholds **B** — slide thresholds unsupported (§2.1) | Clinician review; D-016 |
 | F07 | Events, audit logging, consent, data access | S26–S27, S31 | **P/R** for mechanics in the prototype platform | Privacy review; retention decision |
 | F08 | Interoperability, FHIR mapping & export | S25–S27, S36 | **P minimal subset [PROPOSED]**: tabular features + prediction → FHIR-R4-shaped JSON export; full FHIR server deferred (deployment topology, not a deleted feature) | FHIR scope decision (D-020) |
 | F09 | Extensible modular disease architecture | S20, S22–S23, S42–S43 | **P** as versioned disease-module boundaries in the platform (CAD first); public third-party SDK **deferred** to a later phase, explicitly | Architecture approval (D-008) |
-| F10 | Reproducible evaluation & research reporting | S28–S30, S43, S46 | **R — required research core** | Protocol approval (§19) before any training |
+| F10 | Reproducible evaluation & research reporting | S28–S30, S43, S46 | **R — required research core** | Protocol freeze gate (§F-3) before any training |
 | F11 | Authentication, access control, security | S26, S36 | **P** (hashed passwords, roles, session/JWT); no regulatory-compliance claim | Security review; no PHI in scope |
 | F12 | AI–Backend versioned inference API & integration tests | S25–S26, S31 | **P — corrected contract §20 is the Phase 1 integration gate** | Contract approval (D-013) |
 
@@ -305,10 +312,19 @@ Counts re-verified this session: 9 / 1 / 6 / 9 = 25 (§0.4).
 
 ### 3.2 Approved (GREEN) evidence — what it actually establishes
 
-Common pattern: gradient-boosting/tree ensembles and logistic regression
-on small public tabular benchmarks, SHAP (sometimes LIME) explanations,
-**no external/prospective validation, no deployment, no wearable data**.
-That pattern — repeated 9 times — is itself the audit finding.
+Common screening pattern (AS-RECORDED in the CSV's limitation fields,
+not full-text-verified): gradient-boosting/tree ensembles and logistic
+regression on small public tabular benchmarks, SHAP (sometimes LIME)
+explanations, with external/prospective validation, deployment, and
+wearable data **not identified during screening**. Rev. 3 correction:
+this pattern is preliminary. Individual papers may contain external
+validation, deployed artefacts, or wearable components that abstract/
+screening review missed; §3.2's per-paper notes transcribe the
+screening sheet only. Before any gap/novelty statement is used, the
+research lead must full-text-verify every GREEN paper against a
+predefined extraction form (validation design, deployment artefact,
+wearable data, calibration, external cohort), and the audit table
+must be updated with page/section evidence (§F-2).
 
 | ID | Recorded headline result (UNVERIFIED) | Audit notes |
 |---|---|---|
@@ -322,13 +338,18 @@ That pattern — repeated 9 times — is itself the audit finding.
 | P14 | Stacking ">97% accuracy, AUC ≈0.99 across 4 datasets" | June-2026 paper, abstract-only per CSV; near-ceiling scores across heterogeneous schemas are not credible as external performance without independent replication. Its *leakage-safe preprocessing + cross-dataset* design is the reusable part. |
 | P15 | Random Forest + BESO: 90–92% accuracy; beats "traditional scores" as recorded | No XAI; single 70/30 hold-out; source sheet itself notes quoted AUCs could not be verified from open text. Use as a comparative-methods reference only. |
 
-**What GREEN establishes [synthesis]:** tabular CAD classification on
-UCI benchmarks is a solved *benchmark* exercise (typical honest range
-~80–92% accuracy internally, materially lower across datasets); SHAP is
-the consensus explainer; calibration and external validation are rare and
-therefore publishable gaps; deployment/integration is absent. That —
-not a new classifier — is the defensible contribution space (D-010,
-still OPEN).
+**What GREEN suggests (preliminary synthesis — not established):**
+tabular CAD classification on UCI benchmarks is a mature *benchmark*
+exercise (screening-recorded range ~80–92% accuracy internally, with
+materially lower cross-dataset figures where recorded); SHAP is the
+consensus explainer *in this screened corpus*. Whether calibration,
+external validation, deployment, or wearable integration are truly
+rare/absent in these papers — and hence publishable gaps — is
+**UNVERIFIED** until the §F-2 full-text verification is complete. The
+proposed contribution space (validation + calibration + explainable,
+contract-served inference + clinician-facing evaluation, D-010)
+remains a hypothesis to be confirmed by that verification and a
+broader literature search, not a novelty claim.
 
 ### 3.3 MAYBE (PINK/ORANGE) — disposition
 
@@ -389,7 +410,13 @@ Kaggle CVD-70K contains follow-up time or event dates [VERIFIED-EXTERNAL
 for UCI label definitions, §5; AS-RECORDED for the Kaggle sets].
 Prevalence odds from an enriched clinic sample also cannot be
 re-interpreted as absolute risk without recalibration to a target
-population incidence. **Any UI or API field named `30_day_risk`,
+population incidence. Rev. 3 (§F-6): even a well-calibrated score from
+these cohorts is calibrated to a selected, case-enriched spectrum
+(e.g. 71% CAD prevalence in Z-Alizadeh, ~46% in Cleveland as listed)
+and is **not an established absolute disease probability for the
+general patient population** or for any individual patient; UI/API
+language must say "benchmark-cohort model score" with cohort context,
+never "your probability of disease is X%". **Any UI or API field named `30_day_risk`,
 `risk_score` with a time horizon, or any thresholded alert derived from
 these data would be scientifically false.** [CONFIRMED constraint:
 AGENTS.md prohibits exactly this confusion.]
@@ -610,7 +637,7 @@ Request (abridged JSON Schema):
     "resting_systolic_bp": {"value": 142, "unit": "mmHg"},
     "serum_cholesterol": {"value": 233, "unit": "mg/dL"}
   },
-  "context": {"source": "manual_entry | simulated_wearable | benchmark_import",
+  "context": {"source": "benchmark_import | clinician_entry",
               "recorded_at": "ISO-8601"}
 }
 ```
@@ -630,7 +657,8 @@ Response `200`:
     "time_horizon": "none_cross_sectional"
   },
   "score": {"value": 0.73, "type": "calibrated_probability | uncalibrated_score"},
-  "model_performance_ref": "model_card:xgb_zsani_v0.1.0#external_validation",
+  "validation_status": "development_internal_only",
+  "model_performance_ref": "model_card:xgb_zsani_v0.1.0#internal_validation",
   "explanation": {
     "method": "tree_shap",
     "scale": "log_odds_margin",
@@ -650,7 +678,7 @@ Response `200`:
 ### 8.3 Two schemas, not one
 
 `uci_heart_14_v1` (age, sex, cp, trestbps mmHg, chol mg/dL, fbs>120 mg/dL,
-restecg, thalach bpm, exang, oldpeak, slope, ca, thal) and
+restecg, thalach bpm, exang, oldpeak (unit UNVERIFIED, §F-1), slope, ca (excluded from primary schema, §F-1), thal = thallium stress-test result (availability pending audit, §F-1)) and
 `z_alizadeh_sani_v1` (54 features, four groups) are **different feature
 schemas**; a model trained on one cannot score the other. A future
 `harmonized_common_v1` schema (intersection: demographics + comparable
@@ -664,6 +692,7 @@ inspected at download time.
 |---|---|---|
 | 400 | `malformed_request` | JSON/schema syntax invalid |
 | 422 | `unknown_feature`, `unit_mismatch`, `value_out_of_range`, `schema_model_mismatch` | Semantically unscorable; no prediction is produced |
+| 422 | `wearable_input_not_valid_for_cad_inference` (Rev. 3) | Wearable observations/sources (simulated or real) sent to CAD inference; route via Track-B monitoring APIs only. No score is produced |
 | 409 | `idempotency_key_conflict` | Same `Idempotency-Key` reused with a different payload (legitimate replays return `200`, §8.2) |
 | 503 | `model_unavailable` | Model artifact missing/mis-hashed; system fails closed |
 | 500 | `internal_error` | Logged with `audit_id`; no stack trace to client |
@@ -809,31 +838,42 @@ clearly-labelled simulation, never as validation.
 
 ### 10.3 Recommendation [PROPOSED]
 
-Phase 1: implement **one simulated wearable adapter** (synthetic HR/HRV/
-steps/SpO2 + optional single-lead ECG waveform playback from public ECG
-files if licence-checked) behind the ingestion API with
-`source=simulated_wearable`, demonstrating F05/F06 plumbing (sync,
-reassessment trigger mechanics, audit). Real HealthKit/Health Connect
+Phase 1 (if separately approved): implement **one simulated wearable
+adapter** (synthetic HR/HRV/steps/SpO2 + optional single-lead ECG
+waveform playback from public ECG files if licence-checked) behind
+the **Track-B monitoring ingestion API only** (`POST
+/v1/monitoring/observations`, §R2-6.7), tagged `source=simulated`
+in Track-B records, demonstrating F05/F06 plumbing (sync, history,
+audit). Rev. 3: `simulated_wearable` is **not** a valid CAD-inference
+source anywhere in the system (§F-4), and simulated data must never
+trigger a CAD score or a scientifically-claimed reassessment (§R2-2.2). Real HealthKit/Health Connect
 adapters are gated on: a named device owner, a physical device, developer
 account resolution, and clinician review of what (if anything) the UI may
 say. Slide alert thresholds (S38) remain prohibited (§2.1).
 
 ---
 
-## 11. Roadmap, owners, and acceptance gates — [PROPOSED]
+## 11. Roadmap, owners, and acceptance gates — [SUPERSEDED by §R2-7 / §F-5, read with Rev. 3]
+
+> Rev. 3 coherence rule: this Part I gate list is retained only as a
+> high-level index. Where it differs from §R2-7 (as divided in §F-5),
+> **§R2-7/§F-5 govern**. In particular: the Flutter patient app is
+> core scope (G6/C3, not optional), G1 is two separate gates (DA then
+> PT), and "optional" in any retained Part I row must not be read as
+> downgrading an intended product feature.
 
 Owners are roles (names to be filled by the maintainer). No dates are
-committed; durations are relative and depend on the §13 decisions.
+committed; durations are relative and depend on the §F decisions.
 
 | Gate | Deliverable | Owner role | Acceptance criteria (human-checked) |
 |---|---|---|---|
 | **G0 (this PR)** | Phase 0 report + source-integrity fix | AI/Research | This report reviewed; D-011…D-016 answered; verify_sources passes |
-| **G1 Protocol** | Pre-registered evaluation protocol (§9), dataset download log (DS-1/DS-2 hashes + licence snapshots), feature-availability audit | Research lead + supervisor | Protocol merged before any training; D-006/D-007/D-012 closed |
+| **G1 = Gates DA + PT (Rev. 3)** | (DA) authorized local-only acquisition + read-only audit; then (PT) frozen pre-training protocol (§R2-5.1, §F-3). Two separate sign-offs — the audit may not fit/select/tune/evaluate, and no fitting may begin until PT is frozen | Research lead + supervisor | DA authorization names exact datasets; audit report merged; PT protocol frozen + supervisor-approved before any model work; D-006/D-012/D-031/D-032 closed |
 | **G2 Benchmarks** | Reproduced baselines (LR, RF, XGB/LGBM) with repeated nested CV per corrected protocol (§R2-5), duplicate audit published | AI | Metrics with CIs; leakage checklist (§9.2) signed; results (incl. negative) in `research/experiments/` |
 | **G3 External validation** | Site-as-external results + calibration + fairness audit | AI + Research | Headline external metrics reported honestly; model card drafted |
 | **G4 Contract & backend** | Monolith skeleton, `/v1` contract, mock server, contract tests in CI (F12), audit/auth modules (F07/F11) | Backend | §8.6 test matrix green; no PHI; secrets scan clean |
-| **G5 Clinician web** | Dashboard on demo/benchmark data: list, timeline, explanation view (F03/F02) | Frontend + clinician reviewer | Disclaimer/target wording present (snapshot-tested); no alert/treatment language; clinician reviewer sign-off on copy |
-| **G6 (optional)** | Patient experience + simulated wearable (F04/F05/F06 mechanics) | Mobile/Frontend | `source=simulated` labelling verified; consent flow reviewed |
+| **G5 Clinician web** | Dashboard on demo/benchmark data: list, timeline, explanation view (F03/F02) | Frontend + clinician reviewer | Disclaimer/target wording present (snapshot-tested); calibrated scores labelled as benchmark-cohort scores, not absolute population probabilities (§F-6); no alert/treatment language; clinician reviewer sign-off on copy |
+| **G6 Patient + monitoring** | Flutter patient app (CORE scope, not optional) + Track-B monitoring incl. simulated adapter (F04/F05/F06 mechanics) (§R2-7.3 C3) | Mobile/Frontend | Runs locally (Android emulator + physical device); Track-B `source=simulated` labelling verified; consent flow reviewed; no CAD-inference path from wearable data (contract test F-09) |
 | **G7 Write-up** | Manuscript/report with TRIPOD+AI checklist, replication package | Research lead | Supervisor approval; code archived per §9.6; retrospective + next-phase proposal |
 
 Explicit non-goals for the whole roadmap: real patients, clinical
@@ -935,9 +975,10 @@ UNIFIED PLATFORM (shared by both tracks)
 Data flows one way by default: Track B never feeds Track A. The only
 sanctioned crossing is a *future*, separately validated model whose
 training features include wearable variables (D-009 revisited) — until
-then the API must reject wearable-sourced features for CAD inference
-(`422 schema_model_mismatch`, or accept-and-ignore only if the contract
-version explicitly says so; **reject is the Rev. 2 recommendation**).
+then the API must reject wearable-sourced features and sources for
+CAD inference with **`422
+wearable_input_not_valid_for_cad_inference`** (Rev. 3, §F-4; no
+accept-and-ignore variant exists in v1).
 
 ## R2-2. Two-track scientific architecture & safety separation
 
@@ -1119,9 +1160,35 @@ and manuscript checklist, including data-source, outcome-definition,
 fairness, and open-science items. Adopting a reporting guideline is
 not a novelty or quality claim; it is a completeness floor.
 
-### R2-5.1 Pre-training protocol (gate G1 — nothing trains before this is merged)
+### R2-5.1 Two separate gates (Rev. 3, §F-3 — this ordering is binding)
 
-Written, timestamped, supervisor-approved protocol containing:
+**Gate DA — Data-Access approval (comes first).** Only after (i) this
+report (or its Phase-1 successor) is approved, (ii) official sources
+and licences are re-checked and snapshotted, and (iii) a named human
+issues a *specific* data-access authorization listing the exact
+datasets, may the team perform **local-only acquisition into an
+out-of-git, ignored directory** plus a **read-only dataset audit**:
+file/hash verification, schema & data-dictionary inspection, row/
+patient/event counts, missingness/completeness tabulation,
+coding verification (incl. `thal`/`oldpeak`), duplicate/overlap
+screening, and feature-availability documentation. Gate DA permits
+**no** model fitting, feature selection, outcome-linked exploration
+intended to choose features/models, hyperparameter tuning,
+calibration, explanation generation, or performance evaluation.
+Descriptive counts needed to write the protocol (strata sizes,
+missingness) are audit outputs, not analysis results. **Phase 0
+itself still forbids downloads** — Gate DA can only open in an
+approved Phase 1.
+
+**Gate PT — Pre-Training protocol freeze (after the audit, before
+any fitting).** A written, timestamped, supervisor-approved
+experimental protocol — informed by the read-only audit — is frozen
+and merged. **Before Gate PT sign-off, nobody may fit a model, select
+features, tune hyperparameters, or evaluate performance on the
+acquired data.** Post-freeze amendments require a dated amendment
+note; results-driven silent changes are prohibited.
+
+The frozen protocol contains:
 research question + target (T1 verbatim); dataset checklist
 (§R2-4.4) per cohort; eligibility/exclusion rules; feature dictionary
 with availability timing; strategies A→D applicability decision;
@@ -1129,9 +1196,9 @@ model families + baselines; tuning budget; primary metric
 (pre-registered: AUROC on external evaluation; secondary AUPRC,
 Brier, calibration slope/intercept, sensitivity at pre-fixed
 specificity); calibration plan; subgroup plan; CI method; leakage
-checklist sign-off; code/data versioning plan; stopping/reporting
-rules (including reporting null results). Amendments after seeing
-results require a dated amendment note — no silent protocol drift.
+checklist sign-off (incl. the §F-1 `thal` availability ruling);
+code/data versioning plan; stopping/reporting rules (including
+reporting null results).
 
 ### R2-5.2 Resampling: nested CV, no locked holdout (small-n rule)
 
@@ -1186,6 +1253,18 @@ bundles every fitted transformer + its training-fold provenance).
   binning/smoothing method stated) alongside discrimination; a model
   with `calibration_id: "none"` must serve `score.type:
   "uncalibrated_score"` and the UI must not render it as "% risk".
+- **Population meaning (Rev. 3, §F-6):** calibration fitted/evaluated
+  on selected, case-enriched benchmark cohorts (angiography-referred
+  patients; e.g. Z-Alizadeh 71% CAD prevalence) aligns scores with
+  **that cohort's spectrum and prevalence only**. A so-calibrated
+  output is a *benchmark-cohort model score*, **not an established
+  absolute disease probability for the general patient population**,
+  for an outpatient population, or for any individual patient.
+  Presenting it as such (e.g. "your probability of CAD is 73%")
+  is prohibited in API semantics and UI copy. Making an absolute-
+  probability claim would require a representative target-population
+  cohort, recalibration/transportability analysis, and fresh
+  external validation — none of which exists in this project.
 
 ### R2-5.6 Uncertainty & confidence intervals (corrected)
 
@@ -1255,9 +1334,20 @@ identical scores/explanations, replay or not.
 
 Common envelope (required): `request_id` (uuid, informational —
 idempotency is governed by the header key), `feature_schema_id`,
-`context.source` ∈ {`benchmark_import`, `clinician_entry`,
-`patient_entry`, `simulated_wearable`}, `context.recorded_at`
-(ISO-8601). `context.patient_ref` is a **pseudonymous prototype ID**
+`context.source` ∈ {`benchmark_import`, `clinician_entry`}
+(Rev. 3, §F-4), `context.recorded_at`
+(ISO-8601). **Valid CAD-inference sources are exactly `benchmark_import`
+and `clinician_entry`.** Wearable observations (simulated or real) are
+not a CAD-inference source: they enter only through the Track-B
+monitoring APIs (§R2-6.7). Any inference request whose `context.source`
+is `simulated_wearable`, `wearable_device`, a vendor source, or whose
+payload carries wearable-observation fields (e.g. `heart_rate_bpm`,
+`steps`, `spo2_percent`, wearable ECG streams) fails validation with
+`422 wearable_input_not_valid_for_cad_inference` and produces no score,
+no explanation, and no reassessment. Patient-entered *clinical* values
+become inference-eligible only after clinician confirmation, at which
+point the request is a new `clinician_entry` with the confirming
+clinician in the audit trail. `context.patient_ref` is a **pseudonymous prototype ID**
 only (no names/identifiers — validation rejects identifier-shaped
 values per a maintained denylist, prototype-grade control).
 
@@ -1275,18 +1365,18 @@ Per-schema feature rules (`uci_heart_14_v1` shown; the DS-2 schema
 | `resting_ecg` | enum | Optional | As above |
 | `max_heart_rate_bpm` | number, **bpm** | Optional | As above |
 | `exercise_induced_angina` | boolean | Optional | As above |
-| `st_depression_oldpeak` | number, **mm (mV-equivalent as in source — dictionary confirmation at G1)** | Optional | As above |
+| `st_depression_oldpeak` | number, **unit UNVERIFIED** — the official UCI codebook defines `oldpeak` only as "ST depression induced by exercise relative to rest" and the inspected UCI listing states no unit; commonly-reported "mm" must not be asserted until the acquired file's data dictionary confirms it | Optional | As above; unit recorded as `unverified_pending_dictionary` in the schema and any different-unit input → `422 unit_mismatch` once a unit is ratified |
 | `st_slope` | enum | Optional | As above |
-| `num_major_vessels_fluoroscopy` (`ca`) | integer 0–3 | Optional — **flagged**: knowable only after imaging; schemas must declare `availability: post_test`, and models for pre-test use exclude it (protocol decision, D-027) | As above |
-| `thalassemia_test` (`thal`) | enum | Optional (`post_test` flag as above) | As above |
+| `num_major_vessels_fluoroscopy` (`ca`) | integer 0–3 (number of major vessels coloured by fluoroscopy) | **Excluded from primary pre-angiography models pending review (unchanged)** — `ca` is obtained from the fluoroscopy/angiography that also determines the label, so for a pre-angiography prediction moment it is label-adjacent/post-procedure. The primary `feature_schema_id` therefore omits `ca`; any future post-procedure variant needs its own schema + protocol decision (D-027) | n/a — rejected from the primary schema; supplying it to the primary endpoint → `422 feature_not_in_schema` |
+| `thal` — **thallium stress-test / scintigraphy result** (source field `thal`; canonical display name `thallium_stress_test_result`, **not thalassemia**) | enum — UCI codebook values `3 = normal; 6 = fixed defect; 7 = reversible defect`; recoded forms (e.g. 0/1/2) occur in processed derivatives, so raw-vs-file coding must be confirmed in the acquisition audit | Optional | **Availability UNRESOLVED — pending the feature-availability audit (§F-1).** A thallium stress test is part of the pre-angiography diagnostic workup in the source cohorts, so `thal` is **not** categorically labelled post-diagnostic here. The protocol (§R2-5.4) must fix the intended prediction moment first: if prediction is before stress testing, exclude `thal`; if after routine workup but before angiography, it may be admissible only with clinician + protocol approval. Default for the primary model until that audit is signed: **excluded, listed as pending-review** |
 
 General rules: unknown feature → `422 unknown_feature`; wrong unit
 → `422 unit_mismatch`; out-of-range → `422 value_out_of_range`
 (schema carries plausible ranges; out-of-*training*-range is a
 warning, not an error); `null` means "not provided" — a feature
 asserted with value `0` is data, never conflated with missing.
-Track-B (wearable) fields sent to this endpoint →
-`422 schema_model_mismatch` (§R2-1 one-way rule).
+Track-B (wearable) fields or wearable sources sent to this endpoint →
+`422 wearable_input_not_valid_for_cad_inference` (§R2-1 one-way rule, §F-4).
 
 ### R2-6.3 Versioning
 
@@ -1304,8 +1394,20 @@ before any real model exists).
 
 `score.type` ∈ {`calibrated_probability`, `uncalibrated_score`};
 **no `ci_95` or any per-patient interval** (removed in §8 as well);
-`model_performance_ref` points to the model card section containing
-externally-validated metrics **with** bootstrap CIs; `explanation`
+`validation_status` is mandatory and lifecycle-driven:
+`development_internal_only` → `externally_evaluated` →
+`externally_calibrated` (each transition requires the §R2-5 evidence
+and a registry entry). `model_performance_ref` points to the model
+card section matching the *current* status (e.g.
+`#internal_validation` before any external run) and contains the
+metrics **with** bootstrap CIs that actually exist at that stage.
+**The API must not reference an external-validation section, metric,
+or claim before external validation is completed**; a
+`development_internal_only` model may be served only for
+benchmark/demo use, its responses carry that status verbatim, and
+the UI renders it as an internally-evaluated research model — never
+as externally validated. Promotion rules are protocol decisions, not
+defaults; `explanation`
 carries `scale: "log_odds_margin"`, `base_value`, `contributions[]`
 (each: feature, original value, unit, shap), and the invariant
 *base + Σ ≈ margin* (machine-checked); `warnings[]`,
@@ -1316,7 +1418,10 @@ of them fails contract validation in CI.
 
 ### R2-6.5 Explanation ↔ calibrated-score compatibility (binding)
 
-The UI may display the calibrated probability (if calibrated) and,
+The UI may display the calibrated model score (if calibrated)
+labelled as a benchmark-cohort model score with its cohort +
+prevalence context and with **no absolute-population-probability
+wording** (§R2-5.5/§F-6), and,
 separately, the ranked log-odds contributions labelled *"influence
 on the model score (log-odds scale)"*. It must never present SHAP
 values as percentage points of the probability, never colour them
@@ -1334,7 +1439,8 @@ unit-mismatch + unknown-feature + out-of-range; **F-05** idempotent
 replay (response identity + single audit event) and **F-06**
 key-conflict `409`; **F-07** determinism (repeat → identical score);
 **F-08** SHAP sum-check within tolerance on the margin scale;
-**F-09** Track-B payload rejected for inference; **F-10** mandatory-
+**F-09** Track-B / wearable payload (incl. `simulated_wearable` and vendor
+sources) rejected for inference with `422 wearable_input_not_valid_for_cad_inference`; **F-10** mandatory-
 field snapshot (target definition, disclaimer, provenance, review
 state present — UI snapshot tests pin their rendering);
 **F-11** uncalibrated model rendering (no % / no probability label);
@@ -1364,11 +1470,12 @@ maintainer names people. All milestones are local/$0.
 
 | # | Deliverable | Depends on | Acceptance |
 |---|---|---|---|
-| A1 | Pre-training protocol (§R2-5.1) + TRIPOD+AI checklist (protocol stage) | D-006, D-024 approval | Supervisor sign-off recorded; merged before downloads |
-| A2 | Dataset acquisition pack: §R2-4.4 checklist per Tier-1/2 cohort, hashes + licence snapshots, overlap & missingness audits | A1 | Independent team member re-verifies hashes; datasets stored out of git |
-| A3 | Strategy-A baselines per cohort (dummy, LR, RF, GBM) under nested CV | A2 | Model cards v0; leakage checklist + label-shuffle control pass |
+| A1 | **Gate DA application + read-only acquisition/audit plan**: exact dataset list, official-source/licence re-check, local out-of-git storage, audit scope (§R2-5.1 Gate DA) | D-006, D-012, D-031 approval | Named human data-access authorization recorded; **no download before it; no fitting under it** |
+| A2 | Local acquisition + read-only audit pack: §R2-4.4 checklist per Tier-1/2 cohort, hashes + licence snapshots, schema/coding, missingness, patient-count, overlap and feature-availability audits (incl. §F-1) | A1 (Gate DA opened) | Independent team member re-verifies hashes; audit report merged; **certification that no fitting/selection/tuning/evaluation occurred** |
+| A2b | **Gate PT — frozen experimental protocol** (§R2-5.1) + TRIPOD+AI checklist (protocol stage), informed by the A2 audit | A2, D-024/D-032 approval | Supervisor sign-off + frozen timestamped protocol merged; only then may any fitting begin |
+| A3 | Strategy-A baselines per cohort (dummy, LR, RF, GBM) under nested CV | A2b (Gate PT frozen) | Model cards v0; leakage checklist + label-shuffle control pass |
 | A4 | Strategy-B harmonization + cross-dataset external evaluation; Strategy-C eligibility report (go/no-go with evidence) | A3 | External metrics headline; D-028 records pooling decision |
-| A5 | Calibration (cross-fitted) + explanation stability pack; model cards v1 + `model_performance_ref` content | A4 | §R2-5.5/5.7 checks pass; unpromotable models explicitly marked |
+| A5 | Calibration (cross-fitted) + explanation stability pack; model cards v1 with honest `validation_status` lifecycle (`development_internal_only` until A4 external evidence exists); `model_performance_ref` updated only as stages complete | A4 | §R2-5.5/5.7 checks pass; no external-validation reference exists before external validation; unpromotable models explicitly marked |
 | A6 | Artifact registry: versioned model/preprocessing/calibration artifacts + hashes, promotion log | A5 | Serving loads by ID + hash; mismatch fails closed (`503`) |
 
 ### R2-7.2 Workstream B — Backend
@@ -1418,18 +1525,54 @@ behind the unchanged contract; fixture suite + explanation checks
 green; UI wording re-snapshotted. **IC-4**: full research-prototype
 walkthrough + TRIPOD+AI manuscript draft (G7 equivalent).
 
-### R2-7.6 Recommended first implementation milestone
+### R2-7.6 Recommended implementation milestones (Rev. 3 — M1 divided)
 
-**M1 — "Contract-first vertical slice on mock data"** (B1+B2+C1+C3
-core screens, IC-1): the platform shell with auth/RBAC, mock
-inference, review states, monitoring ingestion (simulated adapter),
-and both frontends running locally, while Workstream A executes
-A1–A2 in parallel. Rationale: it validates the riskiest integration
-assumptions (contract, idempotency, explanation rendering, offline
-sync) with zero scientific dependencies, so AI results later land
-without rework. M1 explicitly contains **no trained model, no real
-data, and no clinical claim** — and is only proposed here; Phase 1
-starts on explicit human approval of this report.
+Milestones are sequential and **independently reviewable**: each is
+its own scoped PR (in a future approved phase) with its own
+acceptance check, and a later milestone never silently expands an
+earlier one. The coherent approved roadmap is: **M1a → M1b → M2 →
+M3 → M4**, with Workstream A gates DA/PT running in parallel under
+their own approvals (§F-3). Nothing here authorizes Phase 1.
+
+**M1a — Contract-first vertical slice (the small first milestone).**
+Scope: OpenAPI/JSON-Schema for `/v1` inference + Track-B monitoring
+ingestion; mock inference server with fixtures F-01–F-12; database
+schema (B1); a *thin* end-to-end path — React review screen + one
+Flutter screen — proving login/RBAC, one mock prediction through
+review states, idempotent replay, `422
+wearable_input_not_valid_for_cad_inference`, and audit events (IC-1).
+Mock/simulated data only; **no** full dashboards, no real model, no
+dataset work beyond mock fixtures. Exit check: contract tests green
+in CI; slice demo recorded; contract v1 frozen or change-list agreed.
+
+**M1b — Platform completion on mocks.** Full clinician dashboard and
+Flutter patient app against the unchanged M1a contract (remaining
+B3/C1–C4 scope): monitoring history, consent flows,
+reassessment-validity mechanics, offline sync, snapshot-tested
+wording. Exit check: IC-2; clinician/conservative-copy review of all
+user-facing text. Independently reviewable from M1a.
+
+**M2 — Data access & read-only audit (Gate DA).** Exact-dataset
+local acquisition, §R2-4.4 checklists, coding (`thal`/`oldpeak`),
+missingness, patient/duplicate/availability audits (§F-1). Exit
+check: audit report + "no fitting occurred" certification. No model
+code beyond audit scripts is in scope.
+
+**M3 — Frozen protocol & first benchmark models (Gate PT → A3–A5).**
+Protocol freeze first (Gate PT), then Strategy-A benchmarks,
+Strategy-B external evaluation, calibration/explanation packs with
+the `validation_status` lifecycle. Exit check: IC-3 (real model
+behind the unchanged contract, fixture suite re-green).
+
+**M4 — Integrated research prototype + write-up.** IC-4 walkthrough,
+TRIPOD+AI manuscript, replication package (§R2-5.9, after full-text
+verification §F-2). Optional time-boxed items (FHIR export B5, Health
+Connect spike) attach here, never to M1a.
+
+Rationale for starting at M1a: it validates the riskiest integration
+assumptions (contract, idempotency, explanation rendering, offence-
+proof wearable separation) with zero scientific dependencies and the
+smallest reviewable diff, so later AI results land without rework.
 
 ## R2-8. Scientific validation risks (Rev. 2 supplement to §12)
 
@@ -1453,19 +1596,120 @@ D-011…D-022 (§13) stand unless superseded below. New/clarified:
 | ID | Decision | Recommendation |
 |---|---|---|
 | D-023 | Adopt the two-track architecture + separation rules (§R2-1/R2-2) as binding design constraints | Adopt |
-| D-024 | Approve the pre-training protocol mechanism (§R2-5.1) — protocol document itself returns for supervisor sign-off at G1/A1 before any download/training | Approve mechanism |
+| D-024 | Approve the two-gate mechanism (§R2-5.1, §F-3): Gate DA authorizes acquisition+audit only; the detailed protocol document returns for supervisor sign-off at Gate PT (after the audit) before any fitting/selection/tuning/evaluation | Approve mechanism |
 | D-025 | Broader-literature verification required before any novelty/publication claim (§R2-5.9) | Adopt as gate |
 | D-026 | Symptom-safety messaging: who (clinician) approves static content + sources, or is it omitted from the prototype? | Omit until a named clinician approves content |
-| D-027 | `ca`/`thal` post-test features: excluded from the primary (pre-test) models and relegated to a labelled post-test variant? | Exclude from primary |
+| D-027 | Feature-availability ruling: `ca` excluded from primary pre-angiography models pending review; `thal` (thallium stress-test result) **pending the feature-availability audit** — excluded by default until the intended prediction moment is fixed and clinician/protocol approval is recorded (§F-1) | `ca`: exclude. `thal`: audit first, do not pre-classify as post-diagnostic |
 | D-028 | Strategy-C pooled training: eligible at all, and only after Strategy-B evidence? | Conditional — decide on A4 evidence |
-| D-029 | First milestone = M1 contract-first vertical slice (§R2-7.6) | Adopt as Phase 1 entry (on report approval) |
+| D-029 | Milestone sequence M1a (small contract-first slice) → M1b → M2 (Gate DA) → M3 (Gate PT + models) → M4 (§R2-7.6, §F-5) | Adopt as the Phase-1 entry sequence (only on report approval) |
 | D-030 | Android-first Flutter testing (emulator + physical device; iOS deferred per D-019) | Adopt |
+
+| D-031 | **Gate DA** — authorize, in a future approved phase, local-only acquisition + read-only audit of named datasets (exact list, storage, audit scope per §R2-5.1)? Phase 0 still forbids downloads | Specific written authorization per dataset list |
+| D-032 | **Gate PT** — require the frozen, supervisor-approved experimental protocol (post-audit) before any model fitting, feature selection, tuning, or performance evaluation? | Adopt as a hard gate |
+| D-033 | Serving policy while `validation_status = development_internal_only`: benchmark/demo serving only, with that status rendered verbatim, until external validation is completed (§R2-6.4) | Adopt |
 
 **Blocking decisions for any implementation:** D-011 (report
 approval), D-006 (target), D-012/D-007 (dataset rules), D-013
 (contract), D-023, D-024, D-029, plus D-016 (clinician advisor) for
-any user-facing explanation/alert copy. **No Phase 1 work — including
-dataset downloads — is authorized by this revision.**
+any user-facing explanation/alert copy. **Blocking for data work:
+D-031 (Gate DA) before any download, D-032 (Gate PT) before any
+fitting. No Phase 1 work — including dataset downloads — is
+authorized by this revision.**
+
+# FINAL CORRECTIONS — REV. 3 (governing summary)
+
+> This map records the maintainer's final Phase 0 corrections. Each
+> item was also applied in place in the sections cited. Where any
+> earlier wording conflicts with this part, **Rev. 3 governs**.
+
+## F-1. `thal`, `ca`, and uncertain units — corrected
+
+- `thal` is the **thallium stress-test / scintigraphy result**
+  (UCI codebook: `3 = normal; 6 = fixed defect; 7 = reversible
+  defect`), **not thalassemia** (a blood disorder). All "thalassemia"
+  naming is removed; canonical name `thallium_stress_test_result`.
+- `thal` is **not** categorically post-diagnostic. Its admissibility
+  depends on the intended prediction moment fixed by the protocol:
+  before stress testing → excluded; after routine pre-angiography
+  workup → admissible only with clinician + protocol approval.
+  Until the feature-availability audit rules, the primary model
+  excludes it as *pending-review*. Processed-file recodings must be
+  confirmed against the acquired dictionary at Gate DA.
+- `ca` (major vessels coloured by fluoroscopy) remains **excluded
+  from primary pre-angiography models pending review**, because it
+  is obtained by the fluoroscopy/angiography that determines the label.
+- Uncertain units are marked UNVERIFIED, including `oldpeak` (UCI
+  defines it without stating a unit in the inspected listing). No
+  unit may be asserted in schemas, conversions, or UI until ratified
+  from the acquired data dictionary. (Locations: §R2-6.2 table, §8.3.)
+
+## F-2. GREEN external-validation / deployment claim — downgraded
+
+The statement that the nine GREEN papers lack external validation
+or deployment is **withdrawn as a categorical claim**.
+Screening (abstracts + CSV limitation fields) did not *identify*
+external validation/deployment in most, but full texts were not
+systematically reviewed, so presence cannot be ruled out. The
+research gap in §3.2/§9.6/D-010 is a **provisional hypothesis**; no
+novelty or gap claim may be made until (i) every GREEN full text is
+verified on a predefined extraction form with page/section evidence,
+and (ii) a broader literature search beyond the 25-paper corpus is
+completed (D-025). Per-paper notes in §3 remain AS-RECORDED.
+
+## F-3. Data-access gate separated from protocol-freeze gate
+
+Phase 0 continues to forbid downloads. In a future approved phase:
+**Gate DA** (specific written authorization → local-only acquisition
+of named datasets + read-only audit: hashes, schema, coding,
+counts, missingness, overlap, availability — no fitting, selection,
+tuning, or evaluation) must precede and inform **Gate PT** (frozen,
+supervisor-approved experimental protocol), and **no model fitting,
+feature selection, hyperparameter tuning, or performance evaluation
+may occur before Gate PT is signed**. (§R2-5.1, A1/A2/A2b, G1,
+D-031/D-032.)
+
+## F-4. Wearable input can never be a CAD-inference source
+
+`simulated_wearable` (and every real/vendor wearable source) is
+removed from valid CAD-inference sources; valid sources are exactly
+`benchmark_import` and `clinician_entry`. Wearable observations
+route **only** through Track-B monitoring APIs
+(`/v1/monitoring/observations`). Wearable payloads sent to CAD
+inference fail with **`422
+wearable_input_not_valid_for_cad_inference`** and produce no score
+or reassessment. Patient values reach inference only as a new
+clinician-confirmed `clinician_entry`. (§8.2, §8.4, §R2-6.2, F-09,
+§10.3.)
+
+## F-5. One coherent roadmap — Part I aligned, M1 divided
+
+§11 is marked superseded by §R2-7 and must not be read as making
+the Flutter patient app optional: Flutter is core (G6/C3). The
+roadmap sequence is **M1a** (small contract-first vertical slice:
+schemas, mock server + fixtures, thin React + Flutter path, CI
+contract tests) → **M1b** (platform completion on mocks) → **M2**
+(Gate DA data audit) → **M3** (Gate PT + models) → **M4**
+(integrated prototype + write-up). Each milestone is independently
+reviewable as its own scoped PR in a future approved phase.
+Also in this item: the API no longer assumes an external-validation
+model card exists — `validation_status` lifecycle
+(`development_internal_only` → `externally_evaluated` →
+`externally_calibrated`) governs what `model_performance_ref` may
+point to (§R2-6.4), and internally-only models render as such.
+
+## F-6. Calibrated score ≠ general-population absolute probability
+
+A probability calibrated on selected, case-enriched benchmark
+cohorts (angiography-referred, high CAD prevalence) is calibrated
+to that cohort's spectrum/prevalence only. It is **not an
+established absolute disease probability for the general patient
+population** or for any individual patient, and must be labelled a
+benchmark-cohort model score with cohort context everywhere it
+appears (API, UI, papers). Absolute-probability claims would
+require a representative target-population cohort,
+transportability/recalibration analysis, and new external
+validation — none of which this project currently has.
+(§4.1, §R2-5.5, §R2-6.5, G5.)
 
 ## 14. References
 
@@ -1478,7 +1722,12 @@ XLSX first sheet rows 6–30; CSV 25 rows — all hashes §0);
 
 External (official/primary; accessed 2026-10-16):
 1. UCI Heart Disease (id 45) — label (`num` 0 = <50%, 1 = >50% narrowing),
-   files/sizes, CC BY 4.0: https://archive.ics.uci.edu/dataset/45/heart+disease
+   files/sizes, CC BY 4.0; codebook values relied on in §F-1:
+   `thal: 3 = normal; 6 = fixed defect; 7 = reversible defect`
+   (thallium stress-test result), `ca` = major vessels coloured by
+   fluoroscopy, `oldpeak` = "ST depression induced by exercise
+   relative to rest" (no unit stated in the inspected listing):
+   https://archive.ics.uci.edu/dataset/45/heart+disease
 2. UCI Z-Alizadeh Sani (id 412) — 303 records, CAD = ≥50% narrowing,
    54 features, CC BY 4.0, DOI 10.24432/C5Q31T:
    https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani
@@ -1545,5 +1794,6 @@ Paper-level URLs/DOIs are recorded per-paper in
 - [x] No datasets, weights, credentials, PHI, or large files added
 - [x] PR targets `main`; **not merged**; Phase 1 not started
 - [x] **Rev. 2**: maintainer-requested sections added (§R2-1–§R2-9); §8/§9 contradictions corrected in place; PR #1 updated on the same branch (`arena/f977cda2-cardioassist-ai`); classifications and §0 evidence preserved
+- [x] **Rev. 3**: final corrections (§F-1–§F-6) applied in place + correction map added; `thal` fixed to thallium stress-test (UCI codebook), `oldpeak` unit UNVERIFIED, `ca` kept excluded; GREEN external-validation/deployment claim downgraded to preliminary; Gates DA/PT separated; `simulated_wearable` removed as a CAD-inference source (`422 wearable_input_not_valid_for_cad_inference`); model-card lifecycle added; Part I roadmap made coherent (Flutter core, M1→M1a/M1b/M2/M3/M4); calibrated-score population limitation stated
 
 *End of Phase 0 draft. Awaiting human review.*
