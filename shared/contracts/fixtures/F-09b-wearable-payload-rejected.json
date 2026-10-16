@@ -1,0 +1,92 @@
+{
+  "fixture_id": "F-09b",
+  "title": "Wearable measurement field in a CAD request rejected (422)",
+  "description": "The source looks admissible, but the payload carries a wearable measurement field. The contract rejects it with the same specific error code so that wearable data cannot reach CAD inference by convention, however it is dressed up.",
+  "covers_phase0_fixture_ids": [
+    "F-09"
+  ],
+  "phase0_reference": "Phase 0 §F-4, D-039, §R2-6.6 (F-09)",
+  "track": "A",
+  "endpoint": "POST /v1/predictions/cad-tabular",
+  "data_class": "MOCK_SYNTHETIC",
+  "disclaimer": "MOCK / SYNTHETIC DATA — this fixture contains no real patient, no real measurement and no trained model. It is not a medical diagnosis and not a real patient risk.",
+  "steps": [
+    {
+      "step": 1,
+      "request": {
+        "headers": {
+          "Idempotency-Key": "f09b-wearable-payload-key-001"
+        },
+        "body": {
+          "contract_version": "v1",
+          "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000023",
+          "model_id": "mock_model_a_v0.1.0",
+          "feature_schema_id": "mock_clinical_v1",
+          "features": {
+            "mock_feature_demographic_age": {
+              "value": 76,
+              "unit": "u_years"
+            },
+            "mock_feature_demographic_sex": {
+              "value": "category_f",
+              "unit": "u_category"
+            },
+            "mock_feature_vital_systolic": {
+              "value": 169,
+              "unit": "u_pressure"
+            },
+            "mock_feature_lab_concentration": {
+              "value": 341,
+              "unit": "u_concentration"
+            },
+            "mock_feature_binary_flag": {
+              "value": false,
+              "unit": "u_boolean"
+            },
+            "mock_feature_count": {
+              "value": 3,
+              "unit": "u_count"
+            },
+            "mock_feature_fraction": {
+              "value": 0.25,
+              "unit": "u_fraction"
+            },
+            "heart_rate_bpm": {
+              "value": 72,
+              "unit": "u_rate"
+            }
+          },
+          "context": {
+            "source": "benchmark_import",
+            "recorded_at": "2026-10-16T09:00:00Z",
+            "patient_ref": "pseudo_demo_001",
+            "consent_id": "consent_mock_001"
+          }
+        }
+      },
+      "expected": {
+        "status": 422,
+        "body": {
+          "contract_version": "v1",
+          "error": {
+            "code": "wearable_input_not_valid_for_cad_inference",
+            "message": "Wearable or monitoring data cannot be used for CAD inference. Use the monitoring ingestion endpoint instead.",
+            "details": [
+              {
+                "field": "features.heart_rate_bpm",
+                "feature_id": "heart_rate_bpm",
+                "expected": "a clinical feature declared by the feature schema",
+                "received": "wearable/monitoring field"
+              }
+            ],
+            "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000023"
+          }
+        }
+      },
+      "assertions": {
+        "error_code": "wearable_input_not_valid_for_cad_inference",
+        "http_status": 422
+      }
+    }
+  ]
+}

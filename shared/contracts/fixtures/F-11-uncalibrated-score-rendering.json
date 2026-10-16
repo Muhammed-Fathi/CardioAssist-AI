@@ -1,0 +1,190 @@
+{
+  "fixture_id": "F-11",
+  "title": "Uncalibrated score rendering metadata (no percentage, no probability label)",
+  "description": "A model with calibration_id 'none' must serve score.type 'uncalibrated_score' and the response must forbid rendering it with a % sign or a probability label.",
+  "covers_phase0_fixture_ids": [
+    "F-11",
+    "F-08"
+  ],
+  "phase0_reference": "Phase 0 §R2-5.5, §R2-6.5, §R2-6.6 (F-11)",
+  "track": "A",
+  "endpoint": "POST /v1/predictions/cad-tabular",
+  "data_class": "MOCK_SYNTHETIC",
+  "disclaimer": "MOCK / SYNTHETIC DATA — this fixture contains no real patient, no real measurement and no trained model. It is not a medical diagnosis and not a real patient risk.",
+  "steps": [
+    {
+      "step": 1,
+      "request": {
+        "headers": {
+          "Idempotency-Key": "f11-uncalibrated-rendering-key-01"
+        },
+        "body": {
+          "contract_version": "v1",
+          "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000025",
+          "model_id": "mock_model_a_v0.1.0",
+          "feature_schema_id": "mock_clinical_v1",
+          "features": {
+            "mock_feature_demographic_age": {
+              "value": 80,
+              "unit": "u_years"
+            },
+            "mock_feature_demographic_sex": {
+              "value": "category_b",
+              "unit": "u_category"
+            },
+            "mock_feature_vital_systolic": {
+              "value": 175,
+              "unit": "u_pressure"
+            },
+            "mock_feature_lab_concentration": {
+              "value": 355,
+              "unit": "u_concentration"
+            },
+            "mock_feature_binary_flag": {
+              "value": false,
+              "unit": "u_boolean"
+            },
+            "mock_feature_count": {
+              "value": 5,
+              "unit": "u_count"
+            },
+            "mock_feature_fraction": {
+              "value": 0.35,
+              "unit": "u_fraction"
+            }
+          },
+          "context": {
+            "source": "benchmark_import",
+            "recorded_at": "2026-10-16T09:00:00Z",
+            "patient_ref": "pseudo_demo_001",
+            "consent_id": "consent_mock_001"
+          }
+        }
+      },
+      "expected": {
+        "status": 200,
+        "body": {
+          "contract_version": "v1",
+          "data_class": "MOCK_SYNTHETIC",
+          "track": "A",
+          "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000025",
+          "audit_id": "3f4586d0-81a7-5061-ac6b-fc54fe8b7fb6",
+          "idempotent_replay": false,
+          "generated_at": "2026-10-16T12:00:00Z",
+          "model_id": "mock_model_a_v0.1.0",
+          "preprocessing_id": "mock_prep_v1",
+          "calibration_id": "none",
+          "feature_schema_id": "mock_clinical_v1",
+          "explanation_config_id": "mock_explain_config_v1",
+          "target": {
+            "id": "T1_angiographic_cad_presence",
+            "definition": "PROVISIONAL and NOT APPROVED (D-006 / P-1 open): cross-sectional presence of angiographically significant CAD in a benchmark cohort. Not a future-event risk, not a severity score, not a per-patient probability.",
+            "time_horizon": "none_cross_sectional",
+            "status": "provisional_pending_approval",
+            "approval_note": "The scientific target is still pending research-lead and supervisor approval (P-1). The contract carries the name of the target so that no consumer can invent a different one."
+          },
+          "score": {
+            "value": -0.32,
+            "type": "uncalibrated_score",
+            "scale": "log_odds_margin",
+            "rendering": {
+              "display_unit": "unitless",
+              "percent_sign_allowed": false,
+              "label": "Relative model output (uncalibrated). Not a probability.",
+              "absolute_population_probability_claim": false
+            }
+          },
+          "validation_status": "development_internal_only",
+          "model_performance_ref": "model_card:mock_model_a_v0.1.0#internal_validation",
+          "explanation": {
+            "method": "tree_shap",
+            "scale": "log_odds_margin",
+            "base_value": -0.3,
+            "contributions": [
+              {
+                "feature": "mock_feature_demographic_sex",
+                "value": "category_b",
+                "unit": "u_category",
+                "shap": -0.05,
+                "rank": 1
+              },
+              {
+                "feature": "mock_feature_lab_concentration",
+                "value": 355,
+                "unit": "u_concentration",
+                "shap": -0.05,
+                "rank": 2
+              },
+              {
+                "feature": "mock_feature_demographic_age",
+                "value": 80,
+                "unit": "u_years",
+                "shap": 0.04,
+                "rank": 3
+              },
+              {
+                "feature": "mock_feature_fraction",
+                "value": 0.35,
+                "unit": "u_fraction",
+                "shap": 0.03,
+                "rank": 4
+              },
+              {
+                "feature": "mock_feature_count",
+                "value": 5,
+                "unit": "u_count",
+                "shap": 0.01,
+                "rank": 5
+              },
+              {
+                "feature": "mock_feature_binary_flag",
+                "value": false,
+                "unit": "u_boolean",
+                "shap": 0.0,
+                "rank": 6
+              },
+              {
+                "feature": "mock_feature_vital_systolic",
+                "value": 175,
+                "unit": "u_pressure",
+                "shap": 0.0,
+                "rank": 7
+              }
+            ],
+            "sum_check": {
+              "applicable": true,
+              "margin": -0.32,
+              "computed_sum": -0.32,
+              "tolerance": 1e-06,
+              "passed": true,
+              "margin_source": "score.value"
+            },
+            "synthetic": true,
+            "note": "SYNTHETIC FIXTURE: the contribution values are hand-authored deterministic offsets, NOT computed by SHAP or LIME from any trained model — no model exists. Contributions are on the log-odds (margin) scale: base_value + sum(shap) equals the model margin. They are NOT changes in a calibrated probability and must never be displayed as percentage points of disease probability. They are associational attributions of the model output, NOT causal effects: no treatment, intervention or recommendation may be derived from them (Phase 0 §R2-5.7, §R2-6.5, §2.1)."
+          },
+          "missing_features": [],
+          "warnings": [],
+          "provenance": {
+            "training_datasets": [],
+            "code_commit": "mock-fixture-pack-v1",
+            "artifact_hashes": {
+              "model": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "preprocessing": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "dataset_access_status": "not_applicable_no_dataset_used"
+          },
+          "review_state": "pending_review",
+          "disclaimer": "MOCK / SYNTHETIC DATA — generated by the deterministic mock implementation from test fixtures. This is not a medical diagnosis, not a real patient's risk, and not a validated clinical output. No model has been trained, loaded or fitted, and no patient or dataset data was used."
+        }
+      },
+      "assertions": {
+        "score_type": "uncalibrated_score",
+        "score_rendering": {
+          "percent_sign_allowed": false,
+          "display_unit": "unitless",
+          "absolute_population_probability_claim": false
+        }
+      }
+    }
+  ]
+}

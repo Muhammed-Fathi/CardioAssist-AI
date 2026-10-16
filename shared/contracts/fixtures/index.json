@@ -1,0 +1,398 @@
+{
+  "fixture_pack_version": "1.0.0-m1a.1",
+  "server_side_only_error_codes": [
+    "internal_error"
+  ],
+  "server_side_only_error_codes_note": "internal_error (HTTP 500) is a server-side condition that a client cannot trigger; it is covered by the error-catalogue test instead of by a request fixture.",
+  "contract_version": "v1",
+  "data_class": "MOCK_SYNTHETIC",
+  "milestone": "M1a.1",
+  "disclaimer": "MOCK / SYNTHETIC DATA — every fixture in this pack is synthetic and deterministic. No fixture contains patient data, a trained model, a real measurement or a clinical result. The pack is not a medical diagnosis and not a real patient risk.",
+  "generated_by": "Deterministic reference implementation: tests/contracts/reference_contract.py (frozen clock 2026-10-16T12:00:00Z, no randomness, no I/O).",
+  "fixtures": [
+    {
+      "file": "F-01-cad-tabular-valid-mock-clinical-v1.json",
+      "fixture_id": "F-01",
+      "title": "Valid mock CAD assessment (mock_clinical_v1, uncalibrated mock model A)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-01",
+        "F-07",
+        "F-10",
+        "F-11"
+      ]
+    },
+    {
+      "file": "F-01b-cad-tabular-valid-mock-clinical-v2.json",
+      "fixture_id": "F-01b",
+      "title": "Valid mock CAD assessment (mock_clinical_v2, mock model B)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-01",
+        "F-12"
+      ]
+    },
+    {
+      "file": "F-02-error-malformed-request.json",
+      "fixture_id": "F-02a",
+      "title": "Malformed request body (400 malformed_request)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 400,
+      "error_code": "malformed_request",
+      "covers_phase0_fixture_ids": [
+        "F-02"
+      ]
+    },
+    {
+      "file": "F-02-error-unknown-feature.json",
+      "fixture_id": "F-02b",
+      "title": "Unknown feature (422 unknown_feature)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "unknown_feature",
+      "covers_phase0_fixture_ids": [
+        "F-02",
+        "F-04"
+      ]
+    },
+    {
+      "file": "F-02-error-feature-not-in-schema.json",
+      "fixture_id": "F-02c",
+      "title": "Feature excluded from the schema (422 feature_not_in_schema)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "feature_not_in_schema",
+      "covers_phase0_fixture_ids": [
+        "F-02",
+        "F-04"
+      ]
+    },
+    {
+      "file": "F-02-error-unit-mismatch.json",
+      "fixture_id": "F-02d",
+      "title": "Invalid feature unit (422 unit_mismatch)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "unit_mismatch",
+      "covers_phase0_fixture_ids": [
+        "F-02",
+        "F-04"
+      ]
+    },
+    {
+      "file": "F-02-error-value-out-of-range.json",
+      "fixture_id": "F-02e",
+      "title": "Feature value outside the declared range (422 value_out_of_range)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "value_out_of_range",
+      "covers_phase0_fixture_ids": [
+        "F-02",
+        "F-04"
+      ]
+    },
+    {
+      "file": "F-02-error-missing-required-feature.json",
+      "fixture_id": "F-02f",
+      "title": "Missing required field (422 missing_required_feature)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "missing_required_feature",
+      "covers_phase0_fixture_ids": [
+        "F-02",
+        "F-03",
+        "F-10"
+      ]
+    },
+    {
+      "file": "F-02-error-schema-model-mismatch.json",
+      "fixture_id": "F-02g",
+      "title": "Wrong model / schema combination (422 schema_model_mismatch)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "schema_model_mismatch",
+      "covers_phase0_fixture_ids": [
+        "F-02",
+        "F-04",
+        "F-12"
+      ]
+    },
+    {
+      "file": "F-02-error-unknown-feature-schema.json",
+      "fixture_id": "F-02h",
+      "title": "Unknown feature schema (422 unknown_feature_schema)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "unknown_feature_schema",
+      "covers_phase0_fixture_ids": [
+        "F-02",
+        "F-12"
+      ]
+    },
+    {
+      "file": "F-02-error-unknown-model.json",
+      "fixture_id": "F-02i",
+      "title": "Unknown model (422 unknown_model)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "unknown_model",
+      "covers_phase0_fixture_ids": [
+        "F-02",
+        "F-12"
+      ]
+    },
+    {
+      "file": "F-02-error-invalid-context-source.json",
+      "fixture_id": "F-02j",
+      "title": "Inadmissible context source (422 invalid_context_source)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "invalid_context_source",
+      "covers_phase0_fixture_ids": [
+        "F-02"
+      ]
+    },
+    {
+      "file": "F-02-error-model-unavailable.json",
+      "fixture_id": "F-02k",
+      "title": "Model artifact unavailable (503 model_unavailable)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 503,
+      "error_code": "model_unavailable",
+      "covers_phase0_fixture_ids": [
+        "F-02",
+        "F-12"
+      ]
+    },
+    {
+      "file": "F-03-missing-optional-features.json",
+      "fixture_id": "F-03a",
+      "title": "Optional features missing (200, imputation reported)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-03",
+        "F-10"
+      ]
+    },
+    {
+      "file": "F-03b-null-and-zero-value-semantics.json",
+      "fixture_id": "F-03b",
+      "title": "Null means 'not provided'; a value of zero is data (never conflated with missing)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "missing_required_feature",
+      "covers_phase0_fixture_ids": [
+        "F-03",
+        "F-10"
+      ]
+    },
+    {
+      "file": "F-04-monitoring-observation-valid.json",
+      "fixture_id": "F-04a",
+      "title": "Valid mock monitoring observation (201)",
+      "track": "B",
+      "endpoint": "POST /v1/monitoring/observations",
+      "expected_status": 201,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-04"
+      ]
+    },
+    {
+      "file": "F-04b-monitoring-missing-consent.json",
+      "fixture_id": "F-04b",
+      "title": "Monitoring observation without a consent reference (422 consent_required)",
+      "track": "B",
+      "endpoint": "POST /v1/monitoring/observations",
+      "expected_status": 422,
+      "error_code": "consent_required",
+      "covers_phase0_fixture_ids": [
+        "F-04",
+        "F-07"
+      ]
+    },
+    {
+      "file": "F-04c-monitoring-unknown-metric.json",
+      "fixture_id": "F-04c",
+      "title": "Monitoring observation with an unknown metric (422 unknown_metric)",
+      "track": "B",
+      "endpoint": "POST /v1/monitoring/observations",
+      "expected_status": 422,
+      "error_code": "unknown_metric",
+      "covers_phase0_fixture_ids": [
+        "F-04"
+      ]
+    },
+    {
+      "file": "F-05-idempotent-replay.json",
+      "fixture_id": "F-05",
+      "title": "Idempotent replay (200 with the stored response, same audit id)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-05",
+        "F-07"
+      ]
+    },
+    {
+      "file": "F-06-idempotency-key-conflict.json",
+      "fixture_id": "F-06",
+      "title": "Idempotency key reused with a different payload (409 idempotency_key_conflict)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-06"
+      ]
+    },
+    {
+      "file": "F-07-determinism-repeat-request.json",
+      "fixture_id": "F-07",
+      "title": "Determinism: two distinct requests, identical score and explanation",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-07"
+      ]
+    },
+    {
+      "file": "F-08-shap-sum-check.json",
+      "fixture_id": "F-08",
+      "title": "Mock TreeSHAP log-odds sum-check (base_value + sum(contributions) = margin)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-08",
+        "F-11"
+      ]
+    },
+    {
+      "file": "F-09-wearable-source-rejected.json",
+      "fixture_id": "F-09a",
+      "title": "Wearable context source rejected for CAD inference (422)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "wearable_input_not_valid_for_cad_inference",
+      "covers_phase0_fixture_ids": [
+        "F-09"
+      ]
+    },
+    {
+      "file": "F-09b-wearable-payload-rejected.json",
+      "fixture_id": "F-09b",
+      "title": "Wearable measurement field in a CAD request rejected (422)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "wearable_input_not_valid_for_cad_inference",
+      "covers_phase0_fixture_ids": [
+        "F-09"
+      ]
+    },
+    {
+      "file": "F-10-mandatory-fields-snapshot.json",
+      "fixture_id": "F-10",
+      "title": "Mandatory-field snapshot of a Track-A response",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-10"
+      ]
+    },
+    {
+      "file": "F-11-uncalibrated-score-rendering.json",
+      "fixture_id": "F-11",
+      "title": "Uncalibrated score rendering metadata (no percentage, no probability label)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-11",
+        "F-08"
+      ]
+    },
+    {
+      "file": "F-11b-calibrated-score-rendering.json",
+      "fixture_id": "F-11b",
+      "title": "Calibrated (mock) score rendering metadata with cohort context",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-11",
+        "F-08"
+      ]
+    },
+    {
+      "file": "F-11c-lime-explanation.json",
+      "fixture_id": "F-11c",
+      "title": "LIME configuration branch: local surrogate, sum-check not applicable",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-08",
+        "F-11"
+      ]
+    },
+    {
+      "file": "F-12-model-swap-same-schema.json",
+      "fixture_id": "F-12a",
+      "title": "Model swap with an unchanged contract (new model version, same feature schema)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-12",
+        "F-01"
+      ]
+    },
+    {
+      "file": "F-12b-contract-version-unsupported.json",
+      "fixture_id": "F-12b",
+      "title": "Unsupported contract version (400 unsupported_contract_version)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 400,
+      "error_code": "unsupported_contract_version",
+      "covers_phase0_fixture_ids": [
+        "F-12"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "fixture_id": "F-02a",
+  "title": "Malformed request body (400 malformed_request)",
+  "description": "The body is not a request object. The request is rejected before any inference.",
+  "covers_phase0_fixture_ids": [
+    "F-02"
+  ],
+  "phase0_reference": "Phase 0 §8.4",
+  "track": "A",
+  "endpoint": "POST /v1/predictions/cad-tabular",
+  "data_class": "MOCK_SYNTHETIC",
+  "disclaimer": "MOCK / SYNTHETIC DATA — this fixture contains no real patient, no real measurement and no trained model. It is not a medical diagnosis and not a real patient risk.",
+  "steps": [
+    {
+      "step": 1,
+      "request": {
+        "headers": {
+          "Idempotency-Key": "f02a-malformed-key-000001"
+        },
+        "body": [
+          "not",
+          "a",
+          "prediction",
+          "request"
+        ]
+      },
+      "expected": {
+        "status": 400,
+        "body": {
+          "contract_version": "v1",
+          "error": {
+            "code": "malformed_request",
+            "message": "Request body is not a valid prediction request object."
+          }
+        }
+      },
+      "assertions": {
+        "error_code": "malformed_request",
+        "http_status": 400
+      }
+    }
+  ]
+}

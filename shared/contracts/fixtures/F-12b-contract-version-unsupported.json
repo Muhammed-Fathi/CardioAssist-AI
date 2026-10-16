@@ -1,0 +1,87 @@
+{
+  "fixture_id": "F-12b",
+  "title": "Unsupported contract version (400 unsupported_contract_version)",
+  "description": "A request that declares a contract major version this deployment does not implement is rejected. A breaking contract change requires a new /v2 prefix and a migration note.",
+  "covers_phase0_fixture_ids": [
+    "F-12"
+  ],
+  "phase0_reference": "Phase 0 §R2-6.3",
+  "track": "A",
+  "endpoint": "POST /v1/predictions/cad-tabular",
+  "data_class": "MOCK_SYNTHETIC",
+  "disclaimer": "MOCK / SYNTHETIC DATA — this fixture contains no real patient, no real measurement and no trained model. It is not a medical diagnosis and not a real patient risk.",
+  "steps": [
+    {
+      "step": 1,
+      "request": {
+        "headers": {
+          "Idempotency-Key": "f12b-contract-version-key-0001"
+        },
+        "body": {
+          "contract_version": "v2",
+          "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000029",
+          "model_id": "mock_model_a_v0.1.0",
+          "feature_schema_id": "mock_clinical_v1",
+          "features": {
+            "mock_feature_demographic_age": {
+              "value": 88,
+              "unit": "u_years"
+            },
+            "mock_feature_demographic_sex": {
+              "value": "category_f",
+              "unit": "u_category"
+            },
+            "mock_feature_vital_systolic": {
+              "value": 187,
+              "unit": "u_pressure"
+            },
+            "mock_feature_lab_concentration": {
+              "value": 383,
+              "unit": "u_concentration"
+            },
+            "mock_feature_binary_flag": {
+              "value": false,
+              "unit": "u_boolean"
+            },
+            "mock_feature_count": {
+              "value": 2,
+              "unit": "u_count"
+            },
+            "mock_feature_fraction": {
+              "value": 0.55,
+              "unit": "u_fraction"
+            }
+          },
+          "context": {
+            "source": "benchmark_import",
+            "recorded_at": "2026-10-16T09:00:00Z",
+            "patient_ref": "pseudo_demo_001",
+            "consent_id": "consent_mock_001"
+          }
+        }
+      },
+      "expected": {
+        "status": 400,
+        "body": {
+          "contract_version": "v1",
+          "error": {
+            "code": "unsupported_contract_version",
+            "message": "Contract version 'v2' is not implemented by this deployment.",
+            "details": [
+              {
+                "field": "contract_version",
+                "expected": "v1",
+                "received": "v2"
+              }
+            ],
+            "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000029"
+          }
+        }
+      },
+      "assertions": {
+        "error_code": "unsupported_contract_version",
+        "http_status": 400
+      }
+    }
+  ]
+}

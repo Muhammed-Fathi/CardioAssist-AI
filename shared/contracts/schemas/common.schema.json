@@ -1,0 +1,453 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/v1/schemas/common.schema.json",
+  "title": "CardioAssist AI v1 — common contract components",
+  "description": "Stable, dataset-independent API envelope components for the proposed /v1 contract (M1a.1). Nothing in this file asserts clinical units, feature eligibility, or medical semantics: dataset-specific clinical dictionaries have NOT passed Gate DA (Phase 0 §F-3, D-031) and the scientific target is still PENDING (D-006 / P-1).",
+  "x-contract-status": "PROPOSED_M1A_1",
+  "x-milestone": "M1a.1 (D-043) — contract design only, no server, no model, no dataset",
+  "x-phase0-references": [
+    "Phase 0 §R2-6 (corrected AI–Backend API contract v1)",
+    "Phase 0 §R2-6.1 (idempotency)",
+    "Phase 0 §R2-6.2 (schemas — required vs optional)",
+    "Phase 0 §R2-6.3 (versioning)",
+    "Phase 0 §R2-6.4 (response)",
+    "Phase 0 §R2-6.5 (explanation ↔ calibrated score compatibility)",
+    "Phase 0 §R2-6.6 (mock fixtures F-01…F-12)",
+    "Phase 0 §F-4 / D-039 (wearable input can never be a CAD-inference source)",
+    "Phase 0 §F-1 (uncertain units marked UNVERIFIED)",
+    "Phase 0 §F-6 (calibrated score ≠ general-population absolute probability)"
+  ],
+  "$defs": {
+    "ContractVersion": {
+      "title": "Contract major version",
+      "description": "URL major version of the API contract. Only 'v1' is defined in M1a.1. A request that declares any other value is rejected with 400 unsupported_contract_version; a breaking contract change requires a new /v2 prefix (Phase 0 §R2-6.3).",
+      "type": "string",
+      "const": "v1"
+    },
+    "DataClass": {
+      "title": "Data class of the payload",
+      "description": "MOCK_SYNTHETIC marks a payload produced by the deterministic mock implementation from test fixtures. PRODUCTION_INTERNAL is reserved for a future real (still internal-only) serving path and is NOT implemented in M1a.1.",
+      "type": "string",
+      "enum": ["MOCK_SYNTHETIC", "PRODUCTION_INTERNAL"]
+    },
+    "Track": {
+      "title": "Scientific track",
+      "description": "Track A = clinical CAD inference (research). Track B = patient/wearable monitoring. The tracks are separate: no endpoint under /v1/monitoring may return a Track-A score, and Track-B data may not be an input to Track-A inference (D-039, Phase 0 §F-4).",
+      "type": "string",
+      "enum": ["A", "B"]
+    },
+    "Uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "IsoDateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "PseudonymousRef": {
+      "title": "Pseudonymous prototype patient reference",
+      "description": "Prototype-grade pseudonym only. No names, no direct identifiers, no PHI (Phase 0 §R2-6.2, DATA_POLICY).",
+      "type": "string",
+      "pattern": "^pseudo_[a-z0-9_]{1,64}$"
+    },
+    "IdempotencyKey": {
+      "title": "Idempotency-Key header value",
+      "description": "Client-generated key that identifies a logical write. Same key + byte-identical canonical payload → 200 with the stored response and idempotent_replay=true. Same key + different payload → 409 idempotency_key_conflict. A key reused after the retention window is treated as a new request and logged (Phase 0 §R2-6.1).",
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+    },
+    "CadInferenceSource": {
+      "title": "CAD-inference context source",
+      "description": "Valid CAD-inference sources are exactly 'benchmark_import' and 'clinician_entry' (Phase 0 §F-4). Wearable/device/vendor sources are NOT valid CAD-inference sources: a request carrying one is rejected with HTTP 422 and error code 'wearable_input_not_valid_for_cad_inference' and produces no score, no explanation and no reassessment. The rejected tokens are listed for implementer clarity and are deliberately NOT expressed as an enum, so that the rejection is reported with the specific contract error code instead of a generic schema violation. Any other token → 422 invalid_context_source.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "examples": ["benchmark_import", "clinician_entry"],
+      "x-rejected-with-422": {
+        "error_code": "wearable_input_not_valid_for_cad_inference",
+        "status": 422,
+        "tokens": [
+          "simulated_wearable",
+          "wearable_device",
+          "health_connect",
+          "health_kit",
+          "apple_health",
+          "vendor_app",
+          "fitbit",
+          "garmin",
+          "oura",
+          "whoop"
+        ]
+      }
+    },
+    "ValidationStatus": {
+      "title": "Model validation lifecycle status",
+      "description": "Lifecycle-driven and mandatory. 'development_internal_only' → 'externally_evaluated' → 'externally_calibrated'. While the status is development_internal_only the model may be served for benchmark/demo use only and its status must be rendered verbatim (Phase 0 §R2-6.4, D-033). M1a.1 fixtures are always development_internal_only.",
+      "type": "string",
+      "enum": ["development_internal_only", "externally_evaluated", "externally_calibrated"]
+    },
+    "ReviewState": {
+      "title": "Clinician review state",
+      "description": "Every Track-A output ends at a human review state; transitions are audited (Phase 0 §R2-2.1).",
+      "type": "string",
+      "enum": ["pending_review", "reviewed_accepted", "reviewed_rejected", "reassessment_requested"]
+    },
+    "ScoreType": {
+      "title": "Score type",
+      "description": "'uncalibrated_score' is a relative model output that must never be rendered as a probability or a percentage. 'calibrated_probability' is a benchmark-cohort calibrated output and is still not an absolute population probability (Phase 0 §R2-5.5, §F-6).",
+      "type": "string",
+      "enum": ["uncalibrated_score", "calibrated_probability"]
+    },
+    "Score": {
+      "title": "Model score",
+      "type": "object",
+      "required": ["value", "type", "scale", "rendering"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "description": "For type=uncalibrated_score this is the raw model output on the declared scale (log_odds_margin). For type=calibrated_probability this is the calibrated value in [0,1] for the declared cohort only.",
+          "type": "number"
+        },
+        "type": { "$ref": "#/$defs/ScoreType" },
+        "scale": {
+          "description": "Scale of score.value. log_odds_margin for uncalibrated tree-model output; probability for a calibrated output. The explanation sum-check is always performed on the margin scale (Phase 0 §R2-5.7).",
+          "type": "string",
+          "enum": ["log_odds_margin", "probability"]
+        },
+        "raw_margin": {
+          "description": "Required when type=calibrated_probability: the uncalibrated margin that the explanation decomposes. Not the same quantity as score.value.",
+          "type": "number"
+        },
+        "calibration": {
+          "description": "Calibration metadata. Present only when a calibration layer exists.",
+          "type": "object",
+          "required": ["method", "cohort_context"],
+          "additionalProperties": false,
+          "properties": {
+            "method": { "type": "string", "enum": ["platt", "isotonic", "mock_only"] },
+            "calibration_id": { "type": "string" },
+            "cohort_context": { "$ref": "#/$defs/CohortContext" }
+          }
+        },
+        "rendering": { "$ref": "#/$defs/ScoreRendering" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "uncalibrated_score" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "scale": { "const": "log_odds_margin" },
+              "rendering": {
+                "properties": {
+                  "display_unit": { "const": "unitless" },
+                  "percent_sign_allowed": { "const": false }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "calibrated_probability" } }, "required": ["type"] },
+          "then": {
+            "required": ["raw_margin", "calibration"],
+            "properties": {
+              "scale": { "const": "probability" },
+              "value": { "type": "number", "minimum": 0, "maximum": 1 },
+              "rendering": {
+                "properties": {
+                  "display_unit": { "const": "decimal" },
+                  "percent_sign_allowed": { "const": false }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ScoreRendering": {
+      "title": "Rendering metadata for a model score",
+      "description": "Explicit, machine-checkable rendering rules so that the frontends cannot silently present a research score as a personal risk percentage (Phase 0 §R2-6.5, §R2-5.5, §F-6, F-11).",
+      "type": "object",
+      "required": ["display_unit", "percent_sign_allowed", "label", "absolute_population_probability_claim"],
+      "additionalProperties": false,
+      "properties": {
+        "display_unit": {
+          "description": "unitless for an uncalibrated relative output; decimal for a cohort-calibrated output. 'percent' is not available in v1.",
+          "type": "string",
+          "enum": ["unitless", "decimal", "percent"]
+        },
+        "percent_sign_allowed": {
+          "description": "v1 always forbids rendering a score with a % sign: an uncalibrated score is not a probability, and a cohort-calibrated score is not an absolute population probability.",
+          "type": "boolean"
+        },
+        "label": {
+          "description": "Human-facing label the UI must use verbatim for this score.",
+          "type": "string",
+          "minLength": 1
+        },
+        "absolute_population_probability_claim": {
+          "description": "Must be false in v1. A true value would constitute an unapproved absolute-population probability claim (Phase 0 §F-6).",
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "CohortContext": {
+      "title": "Cohort context of a calibrated score",
+      "description": "A probability calibrated on a selected, case-enriched benchmark cohort is calibrated to that cohort's spectrum and prevalence only. It is not an established absolute disease probability for the general patient population or for any individual patient (Phase 0 §R2-5.5, §F-6).",
+      "type": "object",
+      "required": ["cohort_description", "population_scope", "absolute_population_probability_claim"],
+      "additionalProperties": false,
+      "properties": {
+        "cohort_description": { "type": "string", "minLength": 1 },
+        "population_scope": {
+          "type": "string",
+          "enum": [
+            "benchmark_cohort_only_not_general_population",
+            "mock_synthetic_no_cohort_exists"
+          ]
+        },
+        "prevalence_note": { "type": "string" },
+        "absolute_population_probability_claim": { "type": "boolean", "const": false }
+      }
+    },
+    "Target": {
+      "title": "Prediction target definition",
+      "description": "The exact target of the prediction, named in every response. The scientific target is still PENDING approval (D-006 / P-1); M1a.1 therefore carries a PROVISIONAL target definition and never a future-event risk horizon (Phase 0 §4.2, §R2-5.9).",
+      "type": "object",
+      "required": ["id", "definition", "time_horizon", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Target identifier. T1 = cross-sectional presence of angiographically significant CAD in a benchmark cohort.",
+          "type": "string",
+          "const": "T1_angiographic_cad_presence"
+        },
+        "definition": {
+          "description": "Verbatim target definition shown to the reviewer. In M1a.1 it must state that it is provisional and unapproved.",
+          "type": "string",
+          "minLength": 1
+        },
+        "time_horizon": {
+          "description": "A cross-sectional classification has no time horizon. 'none_cross_sectional' is the only allowed value in v1; a future-event horizon (e.g. '30_day') is prohibited until a longitudinal dataset with event dates and censoring is authorized (Phase 0 §4.1, §2.1).",
+          "type": "string",
+          "const": "none_cross_sectional"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["provisional_pending_approval"]
+        },
+        "approval_note": { "type": "string" }
+      }
+    },
+    "Provenance": {
+      "title": "Model provenance and audit identifiers",
+      "description": "Model identity is explicit in every response: artifact ids, artifact hashes, training-dataset identifiers with hashes, and the code commit. MOCK responses carry an empty training_datasets list because no dataset has been acquired (Gate DA not passed).",
+      "type": "object",
+      "required": ["training_datasets", "code_commit", "artifact_hashes", "dataset_access_status"],
+      "additionalProperties": false,
+      "properties": {
+        "training_datasets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "sha256", "license"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string" },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "license": { "type": "string" },
+              "source_url": { "type": "string", "format": "uri" }
+            }
+          }
+        },
+        "code_commit": { "type": "string", "minLength": 1 },
+        "artifact_hashes": {
+          "type": "object",
+          "required": ["model", "preprocessing"],
+          "additionalProperties": false,
+          "properties": {
+            "model": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "preprocessing": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "calibration": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        },
+        "dataset_access_status": {
+          "description": "MOCK responses: 'not_applicable_no_dataset_used'. A future real model must state the authorized dataset identifiers and the Gate DA authorization reference.",
+          "type": "string",
+          "enum": [
+            "not_applicable_no_dataset_used",
+            "authorized_by_gate_da"
+          ]
+        }
+      }
+    },
+    "ExplanationContribution": {
+      "title": "One feature contribution",
+      "type": "object",
+      "required": ["feature", "value", "unit", "shap"],
+      "additionalProperties": false,
+      "properties": {
+        "feature": { "type": "string", "minLength": 1 },
+        "value": {
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" },
+            { "type": "boolean" }
+          ]
+        },
+        "unit": { "type": "string", "minLength": 1 },
+        "shap": {
+          "description": "Contribution on the declared explanation scale (log_odds_margin in v1). Never a change in a calibrated probability.",
+          "type": "number"
+        },
+        "rank": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "Explanation": {
+      "title": "Per-prediction explanation",
+      "description": "Explanations are data, not advice: feature, value, unit and contribution only, with no recommended-action text and no treatment language (Phase 0 §8.1).",
+      "type": "object",
+      "required": ["method", "scale", "base_value", "contributions", "sum_check", "synthetic", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "description": "Explanation method of the serving implementation. 'lime' must carry a fixed seed and sampling count in explanation_config_id (Phase 0 §R2-5.7).",
+          "type": "string",
+          "enum": ["tree_shap", "lime"]
+        },
+        "scale": {
+          "description": "Contribution scale. v1 supports log_odds_margin only: a probability-scale attribution is a different method and would require its own validation and contract version (Phase 0 §R2-5.7).",
+          "type": "string",
+          "const": "log_odds_margin"
+        },
+        "base_value": {
+          "description": "Model output (margin) before any feature contribution is added.",
+          "type": "number"
+        },
+        "contributions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ExplanationContribution" }
+        },
+        "sum_check": { "$ref": "#/$defs/ExplanationSumCheck" },
+        "synthetic": {
+          "description": "true when the contribution values were hand-authored for a fixture and were NOT computed by SHAP or LIME from any trained model. M1a.1 has no model, so every fixture sets this to true.",
+          "type": "boolean"
+        },
+        "local_fidelity_r2": {
+          "description": "Local fidelity of a surrogate explanation. Required for method=lime, forbidden for method=tree_shap (Phase 0 §R2-5.7).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "note": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "method": { "const": "lime" } }, "required": ["method"] },
+          "then": { "required": ["local_fidelity_r2"] },
+          "else": { "not": { "required": ["local_fidelity_r2"] } }
+        }
+      ]
+    },
+    "ExplanationSumCheck": {
+      "title": "Machine-checked margin sum-check",
+      "description": "base_value + sum(contributions) must equal the margin within tolerance. The check is performed on the margin scale only and is never mixed with the calibrated probability (Phase 0 §R2-5.7, §R2-6.5, F-08).",
+      "type": "object",
+      "required": ["margin", "computed_sum", "tolerance", "passed", "applicable", "margin_source"],
+      "additionalProperties": false,
+      "properties": {
+        "applicable": {
+          "description": "true for exact additive decompositions (TreeSHAP on the margin scale). false for local surrogate methods (LIME), whose contributions are not an exact decomposition of the margin (Phase 0 §R2-5.7).",
+          "type": "boolean"
+        },
+        "margin": { "type": "number" },
+        "computed_sum": { "type": "number" },
+        "tolerance": { "type": "number", "exclusiveMinimum": 0 },
+        "passed": { "type": "boolean" },
+        "margin_source": {
+          "description": "Which response field holds the margin that the contributions decompose: score.value for an uncalibrated score, score.raw_margin for a calibrated one.",
+          "type": "string",
+          "enum": ["score.value", "score.raw_margin"]
+        }
+      }
+    },
+    "ErrorCode": {
+      "title": "Contract error codes",
+      "description": "Error catalogue. The 'x-status' annotations record the provenance of each code: 'phase0_approved' = taken from the Phase 0 review draft (§8.4 / §R2-6.x); 'm1a1_proposed' = newly proposed by M1a.1 and requiring human approval.",
+      "type": "string",
+      "enum": [
+        "malformed_request",
+        "unsupported_contract_version",
+        "unknown_feature",
+        "feature_not_in_schema",
+        "unit_mismatch",
+        "value_out_of_range",
+        "missing_required_feature",
+        "unknown_feature_schema",
+        "unknown_model",
+        "schema_model_mismatch",
+        "invalid_context_source",
+        "wearable_input_not_valid_for_cad_inference",
+        "unknown_metric",
+        "consent_required",
+        "idempotency_key_conflict",
+        "model_unavailable",
+        "internal_error"
+      ]
+    },
+    "ErrorDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "feature_id": { "type": "string" },
+        "metric_id": { "type": "string" },
+        "expected": { "type": "string" },
+        "received": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "ErrorBody": {
+      "type": "object",
+      "required": ["code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": { "type": "string", "minLength": 1 },
+        "details": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ErrorDetail" }
+        },
+        "request_id": { "$ref": "#/$defs/Uuid" },
+        "audit_id": { "$ref": "#/$defs/Uuid" },
+        "original_audit_id": {
+          "description": "Present on 409 idempotency_key_conflict: the audit id of the request that first used the key (Phase 0 §R2-6.1).",
+          "$ref": "#/$defs/Uuid"
+        }
+      }
+    },
+    "ErrorResponse": {
+      "title": "Explicit error response envelope",
+      "type": "object",
+      "required": ["contract_version", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": { "$ref": "#/$defs/ContractVersion" },
+        "error": { "$ref": "#/$defs/ErrorBody" }
+      }
+    },
+    "MockDisclaimerTrackA": {
+      "description": "Verbatim disclaimer required on every Track-A MOCK response.",
+      "type": "string",
+      "const": "MOCK / SYNTHETIC DATA — generated by the deterministic mock implementation from test fixtures. This is not a medical diagnosis, not a real patient's risk, and not a validated clinical output. No model has been trained, loaded or fitted, and no patient or dataset data was used."
+    },
+    "MockDisclaimerTrackB": {
+      "description": "Verbatim disclaimer required on every Track-B MOCK response.",
+      "type": "string",
+      "const": "MOCK / SYNTHETIC DATA — generated by the deterministic mock implementation from test fixtures. This is not a medical diagnosis, not a real patient measurement, and not a validated clinical output. No model has been trained, loaded or fitted, and no patient or dataset data was used."
+    }
+  }
+}

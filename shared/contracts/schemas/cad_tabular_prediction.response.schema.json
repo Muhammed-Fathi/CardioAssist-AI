@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/v1/schemas/cad_tabular_prediction.response.schema.json",
+  "title": "Track A — CAD-inference response (POST /v1/predictions/cad-tabular)",
+  "description": "Success response for the cross-sectional CAD-classification inference endpoint. Every field listed in 'required' is mandatory: a response missing any of them fails contract validation in CI (Phase 0 §8.6, §R2-6.4). The response names the target, the model artifacts, the validation status, the explanation and the provenance; it contains no risk horizon, no alert level, no treatment suggestion and no per-patient confidence interval.",
+  "x-contract-status": "PROPOSED_M1A_1",
+  "x-track": "A",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "data_class",
+    "track",
+    "request_id",
+    "audit_id",
+    "idempotent_replay",
+    "generated_at",
+    "model_id",
+    "preprocessing_id",
+    "calibration_id",
+    "feature_schema_id",
+    "explanation_config_id",
+    "target",
+    "score",
+    "validation_status",
+    "model_performance_ref",
+    "explanation",
+    "missing_features",
+    "warnings",
+    "provenance",
+    "review_state",
+    "disclaimer"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "$ref": "common.schema.json#/$defs/ContractVersion" },
+    "data_class": { "$ref": "common.schema.json#/$defs/DataClass" },
+    "track": { "const": "A" },
+    "request_id": { "$ref": "common.schema.json#/$defs/Uuid" },
+    "audit_id": {
+      "description": "Audit identifier of this inference. A replayed request returns the ORIGINAL audit_id and creates no second audit event (Phase 0 §R2-6.1).",
+      "$ref": "common.schema.json#/$defs/Uuid"
+    },
+    "idempotent_replay": {
+      "description": "true when this response is the stored response of an earlier request with the same Idempotency-Key and an identical canonical payload. The rest of the body is byte-identical to the original response.",
+      "type": "boolean"
+    },
+    "generated_at": { "$ref": "common.schema.json#/$defs/IsoDateTime" },
+    "model_id": { "type": "string", "minLength": 1 },
+    "preprocessing_id": { "type": "string", "minLength": 1 },
+    "calibration_id": {
+      "description": "Calibration artifact id, or 'none' when the model is served uncalibrated. A model with calibration_id 'none' MUST serve score.type 'uncalibrated_score' (Phase 0 §R2-5.5).",
+      "type": "string",
+      "minLength": 1
+    },
+    "feature_schema_id": { "type": "string", "minLength": 1 },
+    "explanation_config_id": {
+      "description": "Versioned explanation configuration (method, scale, and for LIME the fixed seed and sampling count).",
+      "type": "string",
+      "minLength": 1
+    },
+    "target": { "$ref": "common.schema.json#/$defs/Target" },
+    "score": { "$ref": "common.schema.json#/$defs/Score" },
+    "validation_status": { "$ref": "common.schema.json#/$defs/ValidationStatus" },
+    "model_performance_ref": {
+      "description": "Pointer to the model-card section that matches the current validation_status. A model whose status is development_internal_only may only point at the internal-validation section; an external-validation reference must not exist before external validation is completed (Phase 0 §R2-6.4).",
+      "type": "string",
+      "pattern": "^model_card:[A-Za-z0-9_.-]+#[A-Za-z0-9_.-]+$"
+    },
+    "explanation": { "$ref": "common.schema.json#/$defs/Explanation" },
+    "missing_features": {
+      "description": "Optional features that were not supplied and are handled by the versioned preprocessing pipeline (imputation). Identity-critical features are never silently imputed: they are required and yield 422 missing_required_feature.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "description": "Non-fatal notices, e.g. a value outside the training range or an imputed optional feature.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
+    "review_state": { "$ref": "common.schema.json#/$defs/ReviewState" },
+    "disclaimer": { "type": "string", "minLength": 1 }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "data_class": { "const": "MOCK_SYNTHETIC" } },
+        "required": ["data_class"]
+      },
+      "then": {
+        "properties": {
+          "disclaimer": { "$ref": "common.schema.json#/$defs/MockDisclaimerTrackA" },
+          "explanation": {
+            "properties": { "synthetic": { "const": true } }
+          },
+          "provenance": {
+            "properties": {
+              "training_datasets": { "maxItems": 0 },
+              "dataset_access_status": { "const": "not_applicable_no_dataset_used" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "validation_status": { "const": "development_internal_only" } },
+        "required": ["validation_status"]
+      },
+      "then": {
+        "properties": {
+          "model_performance_ref": { "pattern": "#internal_validation$" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "calibration_id": { "const": "none" } },
+        "required": ["calibration_id"]
+      },
+      "then": {
+        "properties": {
+          "score": {
+            "properties": { "type": { "const": "uncalibrated_score" } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "feature_schema_id": { "pattern": "^mock_" } },
+        "required": ["feature_schema_id"]
+      },
+      "then": {
+        "description": "A MOCK_ONLY feature schema can never be served as a production payload: a response scored against a mock schema must declare data_class MOCK_SYNTHETIC, so no consumer can mistake it for a clinically approved result.",
+        "properties": { "data_class": { "const": "MOCK_SYNTHETIC" } }
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+# Pinned dependencies for the CardioAssist AI contract tests (M1a.1).
+#
+# The contract tests are intentionally tiny and offline: they only read the
+# committed contract files and the committed fixture pack. No model, no
+# dataset, no database, no cloud service and no account is required.
+#
+#   python -m venv .venv
+#   . .venv/bin/activate            # Windows: .venv\Scripts\activate
+#   pip install -r tests/contracts/requirements.txt
+#   python -m pytest tests/contracts -q
+#
+# All packages are pure-Python and run on free GitHub Actions runners at $0.
+# The five direct dependencies are pinned, and their transitive resolutions are
+# pinned as well (resolved on 2026-10-16) so that a CI run is reproducible.
+
+# --- direct dependencies --------------------------------------------------- #
+# JSON Schema 2020-12 validation of the contract schemas and the fixtures.
+jsonschema==4.23.0
+# Referencing machinery used by jsonschema to resolve local $ref targets.
+referencing==0.36.2
+# OpenAPI 3.1 structural validation of shared/contracts/openapi.yaml.
+openapi-spec-validator==0.7.2
+# YAML parser for the OpenAPI document.
+PyYAML==6.0.2
+# Test runner.
+pytest==8.3.4
+
+# --- transitive dependencies (pinned for reproducibility) ------------------ #
+attrs==26.1.0
+certifi==2026.7.22
+charset-normalizer==3.5.2
+idna==3.20
+iniconfig==2.3.1
+jsonschema-path==0.3.4
+jsonschema-specifications==2025.9.1
+lazy-object-proxy==1.12.0
+openapi-schema-validator==0.6.3
+packaging==26.3
+pathable==0.4.4
+pluggy==1.7.0
+requests==2.34.2
+rfc3339-validator==0.1.4
+rpds-py==2026.9.1
+six==1.17.0
+typing_extensions==4.16.0
+urllib3==2.8.0
