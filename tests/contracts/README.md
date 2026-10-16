@@ -20,6 +20,7 @@ contract and the deterministic **MOCK / SYNTHETIC** fixture pack.
 | `test_openapi_document.py` | The OpenAPI 3.1 document is valid, exposes exactly two endpoints, resolves every `$ref`, and documents its errors and idempotency explicitly |
 | `test_schemas.py` | The JSON Schemas are valid, and the `MOCK_ONLY` schemas may not drift into impersonating a validated clinical dictionary |
 | `test_fixtures.py` | The fixture pack validates against the schemas, is reproduced exactly by the oracle, and satisfies the explanation, rendering, idempotency, track-separation and claims-discipline rules |
+| `test_contract_behaviour.py` | Checks written **against the contract text rather than against the oracle**: every fixture `assertions` block is executed, the idempotency guarantees are driven directly (one inference and one audit event on a replay, 409 with no new inference on a conflict), a hostile-input battery must return the documented status and code and never a score, the audit id is recomputed from scratch from the documented rule, and the null/zero, clinical-unit, non-causal-wording and percentage-rendering rules are asserted on live responses |
 
 ## Running the tests
 

@@ -18,7 +18,7 @@
 |---|---|
 | A versioned **wire contract** for two endpoints | A server, a client library or an SDK |
 | A set of **JSON Schemas** that define the payloads | A validated clinical data dictionary |
-| A **deterministic mock fixture pack** (29 fixtures) | Real model output or real patient data |
+| A **deterministic mock fixture pack** (30 fixtures) | Real model output or real patient data |
 | A **lightweight contract test suite** (offline, $0) | A model evaluation, benchmark or claim |
 | An explicit **Track A / Track B separation** | Clinical guidance, thresholds or treatment logic |
 
@@ -185,15 +185,22 @@ reported with the specific contract code rather than a generic schema error:
 1. body is an object → else `400 malformed_request`
 2. `contract_version` → else `400 unsupported_contract_version`
 3. `feature_schema_id` known → else `422 unknown_feature_schema`
-4. **wearable rejection** → else `422 wearable_input_not_valid_for_cad_inference`
-5. `context.source` admissible → else `422 invalid_context_source`
-6. `model_id` known → else `422 unknown_model`
-7. model ⇄ feature-schema binding → else `422 schema_model_mismatch`
-8. per-feature rules → `feature_not_in_schema` / `unknown_feature` /
+4. **idempotency conflict** → `409 idempotency_key_conflict` (§5)
+5. **wearable rejection** → else `422 wearable_input_not_valid_for_cad_inference`
+6. `context.source` admissible → else `422 invalid_context_source`
+7. `model_id` known → else `422 unknown_model`
+8. model ⇄ feature-schema binding → else `422 schema_model_mismatch`
+9. per-feature rules → `feature_not_in_schema` / `unknown_feature` /
    `unit_mismatch` / `value_out_of_range`
-9. required features present → else `422 missing_required_feature`
+10. required features present → else `422 missing_required_feature`
 
-Step 4 deliberately precedes the feature rules: a wearable payload must always
+Step 4 deliberately precedes the semantic rules: the rule "same key +
+different payload → 409" is unconditional, so it must not be masked by a
+validation error in the second payload. A request that was *rejected* never
+occupied its key, so a later valid request under the same key is a first
+request, not a conflict.
+
+Step 5 deliberately precedes the feature rules: a wearable payload must always
 fail with the wearable code, so the reason can never be misreported as a
 generic schema problem.
 
@@ -205,7 +212,8 @@ generic schema problem.
 |---|---|
 | First request with key `K` | `200`, response stored under (K, payload hash), `audit_id` created, `idempotent_replay: false` |
 | Retry: same `K`, identical canonical payload | `200`, **stored response verbatim** + `idempotent_replay: true`, same `audit_id`, no re-inference, no second audit event |
-| Same `K`, different payload | `409 idempotency_key_conflict` with `original_audit_id` |
+| Same `K`, different payload | `409 idempotency_key_conflict` with `original_audit_id` — **unconditionally**, even if the second payload is itself invalid (§4.1 step 4) |
+| Same `K`, payload that was rejected earlier | Not a conflict: a request that produced no result never occupied its key, so a later valid request under `K` is a first request |
 | Key older than the retention window (24 h) | Treated as a new request and logged |
 
 * **Canonical payload**: UTF-8 JSON, lexicographically sorted keys, no
@@ -213,9 +221,15 @@ generic schema problem.
   informational correlation id, so a retry that regenerates it is still a
   replay.
 * **Payload hash**: SHA-256 of that canonical string.
-* **Audit id (mock only)**: `uuid5(MOCK_AUDIT_NAMESPACE, "<key>|-|<payload-hash>|<attempt>")`.
-  The mock derives its identifiers so fixtures are byte-reproducible; a real
-  implementation would use random UUIDs.
+* **Audit id (mock only)**: `uuid5(9e139be5-1516-59e8-b50c-45c834786b99,
+  "<key>|-|<payload-hash>|<attempt>")`. The mock derives its identifiers so
+  fixtures are byte-reproducible and a reviewer can recompute them by hand; a
+  real implementation would use random UUIDs.
+* **"No duplicate inference, no second audit event" is machine-checked**, not
+  only asserted in prose: the reference implementation counts the inferences
+  it performs and the audit events it creates, and the contract tests assert
+  that a replay performs exactly one inference and creates exactly one audit
+  event, while a conflict creates neither.
 
 ---
 
@@ -234,12 +248,21 @@ generic schema problem.
 * **Never a probability**: SHAP/LIME contributions are **not** changes in a
   calibrated disease probability and must never be displayed as percentage
   points of disease probability. The contract states this in
-  `explanation.note`, and the fixture test asserts the wording is present.
+  `explanation.note`, and the contract test asserts the wording is present.
+* **Never causal, never advice**: a contribution is an *associational
+  attribution of the model output*, **not a causal effect**. No treatment,
+  intervention or recommendation may be derived from a contribution, and no
+  contribution may be rendered as advice. The contract states this in
+  `explanation.note`, and the contract test asserts the wording is present
+  both in the committed fixtures and in a live response.
 * **Synthetic marker**: `explanation.synthetic` is `true` for every M1a.1
   fixture. The contribution values are hand-authored deterministic offsets,
   **not** computed by SHAP or LIME from any trained model — no model exists.
 * **LIME fidelity**: `local_fidelity_r2` is required when `method = "lime"`
   and forbidden otherwise.
+* **The margin is not a probability and not a risk**: `score.value` in the
+  uncalibrated case is a model margin on the log-odds scale. It is not a
+  probability, not a percentage and not a patient risk estimate.
 
 ---
 
@@ -279,7 +302,7 @@ shared/contracts/
 │   └── mock_monitoring_metrics.v1.json        MOCK_ONLY monitoring metric catalogue
 └── fixtures/
     ├── index.json                             pack manifest + Phase 0 coverage map
-    └── F-*.json                               29 deterministic fixtures
+    └── F-*.json                               30 deterministic fixtures
 ```
 
 The JSON Schemas are the **source of truth** for payload structure; the
@@ -289,14 +312,14 @@ OpenAPI document wires them to paths, headers and HTTP status codes.
 
 ## 9. Fixture pack
 
-29 fixtures, all deterministic, all MOCK / SYNTHETIC, no randomness and a
+30 fixtures, all deterministic, all MOCK / SYNTHETIC, no randomness and a
 frozen clock (`2026-10-16T12:00:00Z`).
 
 | Phase 0 id | Covered by |
 |---|---|
 | F-01 golden valid request/response per schema | `F-01`, `F-01b`, `F-12a` |
 | F-02 every error code | `F-02a`…`F-02k`, `F-04b`, `F-04c` (plus `internal_error` in the catalogue test) |
-| F-03 missing optional vs missing required | `F-02f` (required → 422), `F-03a` (optional → 200 + `missing_features[]`) |
+| F-03 missing optional vs missing required | `F-02f` (required → 422), `F-03a` (optional → 200 + `missing_features[]`), `F-03b` (null vs zero) |
 | F-04 unit mismatch / unknown feature / out of range | `F-02b`, `F-02c`, `F-02d`, `F-02e` |
 | F-05 idempotent replay | `F-05` |
 | F-06 key conflict (409) | `F-06` |
@@ -312,6 +335,23 @@ Fixture file format: each file carries `fixture_id`, `title`, `description`,
 `data_class`, `disclaimer` and a list of `steps`; each step carries the
 `request` (headers + body), the `expected` status and body, and a set of
 `assertions` that the test suite interprets.
+
+**The `assertions` blocks are executed, not decorative.** Every declared
+expectation in every step is checked by the suite
+(`test_contract_behaviour.py::test_every_fixture_assertion_block_is_executed`),
+so a fixture cannot claim an expectation that the test suite never verifies.
+
+**Null vs zero** (Phase 0 §R2-6.2) has its own fixture, `F-03b`: a `null`
+value on a required feature is "not provided" and is rejected with
+`422 missing_required_feature`; a value of `0` is data — it is not missing, it
+does not appear in `missing_features`, and it does appear in the explanation
+contributions.
+
+**Distinct inputs.** The pack deliberately contains no two scenarios that
+exercise the same input: each scenario carries its own feature values, so a
+reviewer reading one fixture has read a genuinely different request. The only
+repeated payloads are the two that *must* repeat — `F-05` (the replay) and
+`F-07` (the determinism check) — where the repetition is the point.
 
 ---
 

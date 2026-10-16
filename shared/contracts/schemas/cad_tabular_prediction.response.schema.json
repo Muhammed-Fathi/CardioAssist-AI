@@ -125,6 +125,16 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": { "feature_schema_id": { "pattern": "^mock_" } },
+        "required": ["feature_schema_id"]
+      },
+      "then": {
+        "description": "A MOCK_ONLY feature schema can never be served as a production payload: a response scored against a mock schema must declare data_class MOCK_SYNTHETIC, so no consumer can mistake it for a clinically approved result.",
+        "properties": { "data_class": { "const": "MOCK_SYNTHETIC" } }
+      }
     }
   ]
 }

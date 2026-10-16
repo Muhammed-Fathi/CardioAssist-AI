@@ -150,10 +150,15 @@ paths:
           be recognised as a replay.
         replay: >-
           Same key + identical canonical payload → HTTP 200 with the stored
-          response, `idempotent_replay: true`, same `audit_id`.
+          response, `idempotent_replay: true`, same `audit_id`, no second
+          inference and no second audit event.
         conflict: >-
           Same key + different canonical payload → HTTP 409
           `idempotency_key_conflict` with the original `original_audit_id`.
+          The rule is unconditional: the conflict is detected before the
+          semantic validation of the second payload, so an invalid second
+          payload under a used key is still reported as 409 and never as a
+          422. A request that was rejected never occupied its key.
         retention_hours: 24
         retention_note: >-
           A key reused after the retention window is treated as a new request

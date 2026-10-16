@@ -25,7 +25,7 @@
           "feature_schema_id": "mock_clinical_v1",
           "features": {
             "mock_feature_demographic_age": {
-              "value": 58,
+              "value": 54,
               "unit": "u_years"
             },
             "mock_feature_demographic_sex": {
@@ -33,11 +33,11 @@
               "unit": "u_category"
             },
             "mock_feature_vital_systolic": {
-              "value": 142,
+              "value": 136,
               "unit": "u_pressure"
             },
             "mock_feature_lab_concentration": {
-              "value": 233,
+              "value": 264,
               "unit": "u_concentration"
             },
             "mock_feature_binary_flag": {
@@ -45,11 +45,11 @@
               "unit": "u_boolean"
             },
             "mock_feature_count": {
-              "value": 2,
+              "value": 6,
               "unit": "u_count"
             },
             "mock_feature_fraction": {
-              "value": 0.25,
+              "value": 0.65,
               "unit": "u_fraction"
             }
           },

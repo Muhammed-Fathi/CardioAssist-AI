@@ -33,11 +33,11 @@
               "unit": "u_category"
             },
             "mock_feature_vital_systolic": {
-              "value": 142,
+              "value": 118,
               "unit": "u_pressure"
             },
             "mock_feature_lab_concentration": {
-              "value": 233,
+              "value": 222,
               "unit": "u_concentration"
             },
             "mock_feature_binary_flag": {
@@ -45,11 +45,11 @@
               "unit": "u_boolean"
             },
             "mock_feature_count": {
-              "value": 2,
+              "value": 7,
               "unit": "u_count"
             },
             "mock_feature_fraction": {
-              "value": 0.25,
+              "value": 0.35,
               "unit": "u_fraction"
             }
           },

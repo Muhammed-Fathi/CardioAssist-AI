@@ -211,6 +211,12 @@ class ReferenceContract:
         self._attempts: Dict[str, int] = {}
         self._keyless_attempts = 0
 
+        #: Observable counters that make the idempotency guarantees testable:
+        #: a replayed request must not perform a second inference, and it must
+        #: not create a second audit event (Phase 0 §R2-6.1).
+        self.inference_count = 0
+        self.audit_events: List[str] = []
+
     # -- idempotency ------------------------------------------------------ #
     def _next_attempt(self, key: Optional[str]) -> int:
         if key is None:
@@ -303,6 +309,29 @@ class ReferenceContract:
                 "Request body is missing the 'features' object.",
             )
 
+        # --- idempotency conflict check (before any semantic rule) --------- #
+        # The rule is unconditional: the same Idempotency-Key with a different
+        # canonical payload is a 409, whatever that payload contains. Checking
+        # it here also keeps a rejected request from polluting the store
+        # (Phase 0 §R2-6.1).
+        digest = payload_hash(body)
+        if key is not None and key in self._idempotency:
+            record = self._idempotency[key]
+            if record["payload_hash"] != digest:
+                raise ContractError(
+                    409,
+                    "idempotency_key_conflict",
+                    "This Idempotency-Key was already used with a different request payload.",
+                    details=[
+                        {
+                            "field": "Idempotency-Key",
+                            "expected": "an unused key, or the same key with an identical payload",
+                            "received": str(key),
+                        }
+                    ],
+                    original_audit_id=record["audit_id"],
+                )
+
         # --- wearable rejection comes first (Phase 0 §F-4, D-039) --------- #
         self._reject_wearable(context, features)
 
@@ -337,7 +366,8 @@ class ReferenceContract:
                 "The requested model is unavailable; no prediction was produced.",
                 details=[{"field": "model_id", "received": str(model_id)}],
             )
-        if model["feature_schema_id"] != schema_id:            raise ContractError(
+        if model["feature_schema_id"] != schema_id:
+            raise ContractError(
                 422,
                 "schema_model_mismatch",
                 (
@@ -358,30 +388,17 @@ class ReferenceContract:
             features, schema
         )
 
-        # --- idempotency -------------------------------------------------- #
-        digest = payload_hash(body)
+        # --- replay of an identical payload --------------------------------- #
+        # The stored response is returned verbatim; no re-inference happens and
+        # no second audit event is created (Phase 0 §R2-6.1).
         if key is not None and key in self._idempotency:
-            record = self._idempotency[key]
-            if record["payload_hash"] != digest:
-                raise ContractError(
-                    409,
-                    "idempotency_key_conflict",
-                    "This Idempotency-Key was already used with a different request payload.",
-                    details=[
-                        {
-                            "field": "Idempotency-Key",
-                            "expected": "an unused key, or the same key with an identical payload",
-                            "received": str(key),
-                        }
-                    ],
-                    original_audit_id=record["audit_id"],
-                )
-            replayed = copy.deepcopy(record["response"])
+            replayed = copy.deepcopy(self._idempotency[key]["response"])
             replayed["idempotent_replay"] = True
             return 200, replayed
 
         attempt = self._next_attempt(key)
         audit_id = self._audit_id(key, body, attempt)
+        self.audit_events.append(audit_id)
         response = self._build_cad_response(
             body=body,
             model=model,
@@ -635,6 +652,9 @@ class ReferenceContract:
         audit_id: str,
         request_id: Optional[str],
     ) -> Dict[str, Any]:
+        # A mock "inference" happens here and only here. The counter makes it
+        # observable that a replayed request performs no second inference.
+        self.inference_count += 1
         base_value = float(model["base_value"])
         method = model["explanation_method"]
 
@@ -725,8 +745,10 @@ class ReferenceContract:
                 "offsets, NOT computed by SHAP or LIME from any trained model — no model exists. "
                 "Contributions are on the log-odds (margin) scale: base_value + sum(shap) equals "
                 "the model margin. They are NOT changes in a calibrated probability and must "
-                "never be displayed as percentage points of disease probability "
-                "(Phase 0 §R2-5.7, §R2-6.5)."
+                "never be displayed as percentage points of disease probability. They are "
+                "associational attributions of the model output, NOT causal effects: no "
+                "treatment, intervention or recommendation may be derived from them "
+                "(Phase 0 §R2-5.7, §R2-6.5, §2.1)."
             ),
         }
         if method == "lime":
@@ -737,7 +759,9 @@ class ReferenceContract:
                 "deterministic offsets, NOT computed by LIME from any trained model — no model "
                 "exists. Contributions are on the log-odds (margin) scale. They are NOT changes "
                 "in a calibrated probability and must never be displayed as percentage points of "
-                "disease probability. A local surrogate is not an exact additive decomposition "
+                "disease probability. They are associational attributions of the model output, "
+                "NOT causal effects: no treatment, intervention or recommendation may be derived "
+                "from them. A local surrogate is not an exact additive decomposition "
                 "of the margin, so the margin sum-check is reported as not applicable "
                 "(Phase 0 §R2-5.7)."
             )
@@ -825,6 +849,23 @@ class ReferenceContract:
                 "Request body is missing the 'observation' object.",
             )
 
+        # --- idempotency conflict check (before any semantic rule) --------- #
+        # Same rule as Track A: the conflict is unconditional, so it is
+        # detected before the observation is validated (Phase 0 §R2-6.1).
+        digest = payload_hash(body)
+        if key is not None and key in self._idempotency:
+            record = self._idempotency[key]
+            if record["payload_hash"] != digest:
+                raise ContractError(
+                    409,
+                    "idempotency_key_conflict",
+                    "This Idempotency-Key was already used with a different request payload.",
+                    original_audit_id=record["audit_id"],
+                )
+            replayed = copy.deepcopy(record["response"])
+            replayed["idempotent_replay"] = True
+            return 201, replayed
+
         if not observation.get("consent_id"):
             raise ContractError(
                 422,
@@ -894,24 +935,11 @@ class ReferenceContract:
                     )
             accepted_metrics.append(metric)
 
-        digest = payload_hash(body)
-        if key is not None and key in self._idempotency:
-            record = self._idempotency[key]
-            if record["payload_hash"] != digest:
-                raise ContractError(
-                    409,
-                    "idempotency_key_conflict",
-                    "This Idempotency-Key was already used with a different request payload.",
-                    original_audit_id=record["audit_id"],
-                )
-            replayed = copy.deepcopy(record["response"])
-            replayed["idempotent_replay"] = True
-            return 201, replayed
-
         attempt = self._next_attempt(key)
         observation_id = str(
             uuid.uuid5(MOCK_OBSERVATION_NAMESPACE, f"{key or '-'}|{digest}|{attempt}")
         )
+        self.audit_events.append(observation_id)
         response = {
             "contract_version": CONTRACT_VERSION,
             "data_class": "MOCK_SYNTHETIC",

@@ -24,19 +24,19 @@
           "feature_schema_id": "mock_clinical_v1",
           "features": {
             "mock_feature_demographic_age": {
-              "value": 58,
+              "value": 70,
               "unit": "u_years"
             },
             "mock_feature_demographic_sex": {
-              "value": "category_a",
+              "value": "category_c",
               "unit": "u_category"
             },
             "mock_feature_vital_systolic": {
-              "value": 142,
+              "value": 160,
               "unit": "u_pressure"
             },
             "mock_feature_lab_concentration": {
-              "value": 233,
+              "value": 320,
               "unit": "u_concentration"
             },
             "mock_feature_binary_flag": {
@@ -44,11 +44,11 @@
               "unit": "u_boolean"
             },
             "mock_feature_count": {
-              "value": 2,
+              "value": 7,
               "unit": "u_count"
             },
             "mock_feature_fraction": {
-              "value": 0.25,
+              "value": 0.1,
               "unit": "u_fraction"
             }
           },
@@ -67,7 +67,7 @@
           "data_class": "MOCK_SYNTHETIC",
           "track": "A",
           "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000020",
-          "audit_id": "ce11f196-8a57-5ce6-8dad-1bb12b7978dd",
+          "audit_id": "5ee73a87-768a-5ba3-8463-7705660d3e23",
           "idempotent_replay": false,
           "generated_at": "2026-10-16T12:00:00Z",
           "model_id": "mock_model_a_v0.1.0",
@@ -83,7 +83,7 @@
             "approval_note": "The scientific target is still pending research-lead and supervisor approval (P-1). The contract carries the name of the target so that no consumer can invent a different one."
           },
           "score": {
-            "value": -0.37,
+            "value": -0.25,
             "type": "uncalibrated_score",
             "scale": "log_odds_margin",
             "rendering": {
@@ -102,64 +102,64 @@
             "contributions": [
               {
                 "feature": "mock_feature_count",
-                "value": 2,
+                "value": 7,
                 "unit": "u_count",
-                "shap": -0.05,
+                "shap": 0.05,
                 "rank": 1
               },
               {
-                "feature": "mock_feature_demographic_age",
-                "value": 58,
-                "unit": "u_years",
+                "feature": "mock_feature_demographic_sex",
+                "value": "category_c",
+                "unit": "u_category",
                 "shap": -0.05,
                 "rank": 2
               },
               {
-                "feature": "mock_feature_fraction",
-                "value": 0.25,
-                "unit": "u_fraction",
-                "shap": 0.03,
+                "feature": "mock_feature_vital_systolic",
+                "value": 160,
+                "unit": "u_pressure",
+                "shap": 0.05,
                 "rank": 3
               },
               {
-                "feature": "mock_feature_vital_systolic",
-                "value": 142,
-                "unit": "u_pressure",
-                "shap": -0.02,
+                "feature": "mock_feature_demographic_age",
+                "value": 70,
+                "unit": "u_years",
+                "shap": 0.03,
                 "rank": 4
+              },
+              {
+                "feature": "mock_feature_lab_concentration",
+                "value": 320,
+                "unit": "u_concentration",
+                "shap": -0.03,
+                "rank": 5
               },
               {
                 "feature": "mock_feature_binary_flag",
                 "value": true,
                 "unit": "u_boolean",
                 "shap": 0.01,
-                "rank": 5
-              },
-              {
-                "feature": "mock_feature_lab_concentration",
-                "value": 233,
-                "unit": "u_concentration",
-                "shap": 0.01,
                 "rank": 6
               },
               {
-                "feature": "mock_feature_demographic_sex",
-                "value": "category_a",
-                "unit": "u_category",
-                "shap": 0.0,
+                "feature": "mock_feature_fraction",
+                "value": 0.1,
+                "unit": "u_fraction",
+                "shap": -0.01,
                 "rank": 7
               }
             ],
             "sum_check": {
               "applicable": true,
-              "margin": -0.37,
-              "computed_sum": -0.37,
+              "margin": -0.25,
+              "computed_sum": -0.25,
               "tolerance": 1e-06,
               "passed": true,
               "margin_source": "score.value"
             },
             "synthetic": true,
-            "note": "SYNTHETIC FIXTURE: the contribution values are hand-authored deterministic offsets, NOT computed by SHAP or LIME from any trained model — no model exists. Contributions are on the log-odds (margin) scale: base_value + sum(shap) equals the model margin. They are NOT changes in a calibrated probability and must never be displayed as percentage points of disease probability (Phase 0 §R2-5.7, §R2-6.5)."
+            "note": "SYNTHETIC FIXTURE: the contribution values are hand-authored deterministic offsets, NOT computed by SHAP or LIME from any trained model — no model exists. Contributions are on the log-odds (margin) scale: base_value + sum(shap) equals the model margin. They are NOT changes in a calibrated probability and must never be displayed as percentage points of disease probability. They are associational attributions of the model output, NOT causal effects: no treatment, intervention or recommendation may be derived from them (Phase 0 §R2-5.7, §R2-6.5, §2.1)."
           },
           "missing_features": [],
           "warnings": [],
@@ -193,19 +193,19 @@
           "feature_schema_id": "mock_clinical_v1",
           "features": {
             "mock_feature_demographic_age": {
-              "value": 58,
+              "value": 70,
               "unit": "u_years"
             },
             "mock_feature_demographic_sex": {
-              "value": "category_a",
+              "value": "category_c",
               "unit": "u_category"
             },
             "mock_feature_vital_systolic": {
-              "value": 142,
+              "value": 160,
               "unit": "u_pressure"
             },
             "mock_feature_lab_concentration": {
-              "value": 233,
+              "value": 320,
               "unit": "u_concentration"
             },
             "mock_feature_binary_flag": {
@@ -213,11 +213,11 @@
               "unit": "u_boolean"
             },
             "mock_feature_count": {
-              "value": 2,
+              "value": 7,
               "unit": "u_count"
             },
             "mock_feature_fraction": {
-              "value": 0.25,
+              "value": 0.1,
               "unit": "u_fraction"
             }
           },
@@ -236,7 +236,7 @@
           "data_class": "MOCK_SYNTHETIC",
           "track": "A",
           "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000020",
-          "audit_id": "7ba80dea-96ef-5b96-ad32-49ffaa496644",
+          "audit_id": "3a326b43-ff1c-5a1f-9c5f-7193e8174726",
           "idempotent_replay": false,
           "generated_at": "2026-10-16T12:00:00Z",
           "model_id": "mock_model_a_v0.1.0",
@@ -252,7 +252,7 @@
             "approval_note": "The scientific target is still pending research-lead and supervisor approval (P-1). The contract carries the name of the target so that no consumer can invent a different one."
           },
           "score": {
-            "value": -0.37,
+            "value": -0.25,
             "type": "uncalibrated_score",
             "scale": "log_odds_margin",
             "rendering": {
@@ -271,64 +271,64 @@
             "contributions": [
               {
                 "feature": "mock_feature_count",
-                "value": 2,
+                "value": 7,
                 "unit": "u_count",
-                "shap": -0.05,
+                "shap": 0.05,
                 "rank": 1
               },
               {
-                "feature": "mock_feature_demographic_age",
-                "value": 58,
-                "unit": "u_years",
+                "feature": "mock_feature_demographic_sex",
+                "value": "category_c",
+                "unit": "u_category",
                 "shap": -0.05,
                 "rank": 2
               },
               {
-                "feature": "mock_feature_fraction",
-                "value": 0.25,
-                "unit": "u_fraction",
-                "shap": 0.03,
+                "feature": "mock_feature_vital_systolic",
+                "value": 160,
+                "unit": "u_pressure",
+                "shap": 0.05,
                 "rank": 3
               },
               {
-                "feature": "mock_feature_vital_systolic",
-                "value": 142,
-                "unit": "u_pressure",
-                "shap": -0.02,
+                "feature": "mock_feature_demographic_age",
+                "value": 70,
+                "unit": "u_years",
+                "shap": 0.03,
                 "rank": 4
+              },
+              {
+                "feature": "mock_feature_lab_concentration",
+                "value": 320,
+                "unit": "u_concentration",
+                "shap": -0.03,
+                "rank": 5
               },
               {
                 "feature": "mock_feature_binary_flag",
                 "value": true,
                 "unit": "u_boolean",
                 "shap": 0.01,
-                "rank": 5
-              },
-              {
-                "feature": "mock_feature_lab_concentration",
-                "value": 233,
-                "unit": "u_concentration",
-                "shap": 0.01,
                 "rank": 6
               },
               {
-                "feature": "mock_feature_demographic_sex",
-                "value": "category_a",
-                "unit": "u_category",
-                "shap": 0.0,
+                "feature": "mock_feature_fraction",
+                "value": 0.1,
+                "unit": "u_fraction",
+                "shap": -0.01,
                 "rank": 7
               }
             ],
             "sum_check": {
               "applicable": true,
-              "margin": -0.37,
-              "computed_sum": -0.37,
+              "margin": -0.25,
+              "computed_sum": -0.25,
               "tolerance": 1e-06,
               "passed": true,
               "margin_source": "score.value"
             },
             "synthetic": true,
-            "note": "SYNTHETIC FIXTURE: the contribution values are hand-authored deterministic offsets, NOT computed by SHAP or LIME from any trained model — no model exists. Contributions are on the log-odds (margin) scale: base_value + sum(shap) equals the model margin. They are NOT changes in a calibrated probability and must never be displayed as percentage points of disease probability (Phase 0 §R2-5.7, §R2-6.5)."
+            "note": "SYNTHETIC FIXTURE: the contribution values are hand-authored deterministic offsets, NOT computed by SHAP or LIME from any trained model — no model exists. Contributions are on the log-odds (margin) scale: base_value + sum(shap) equals the model margin. They are NOT changes in a calibrated probability and must never be displayed as percentage points of disease probability. They are associational attributions of the model output, NOT causal effects: no treatment, intervention or recommendation may be derived from them (Phase 0 §R2-5.7, §R2-6.5, §2.1)."
           },
           "missing_features": [],
           "warnings": [],

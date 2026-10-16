@@ -25,31 +25,31 @@
           "feature_schema_id": "mock_clinical_v1",
           "features": {
             "mock_feature_demographic_age": {
-              "value": 58,
+              "value": 84,
               "unit": "u_years"
             },
             "mock_feature_demographic_sex": {
-              "value": "category_a",
+              "value": "category_d",
               "unit": "u_category"
             },
             "mock_feature_vital_systolic": {
-              "value": 142,
+              "value": 181,
               "unit": "u_pressure"
             },
             "mock_feature_lab_concentration": {
-              "value": 233,
+              "value": 369,
               "unit": "u_concentration"
             },
             "mock_feature_binary_flag": {
-              "value": true,
+              "value": false,
               "unit": "u_boolean"
             },
             "mock_feature_count": {
-              "value": 2,
+              "value": 7,
               "unit": "u_count"
             },
             "mock_feature_fraction": {
-              "value": 0.25,
+              "value": 0.45,
               "unit": "u_fraction"
             }
           },
@@ -68,7 +68,7 @@
           "data_class": "MOCK_SYNTHETIC",
           "track": "A",
           "request_id": "018f3c2a-7b1e-7c4d-8f21-000000000027",
-          "audit_id": "dfbe41dc-7314-581f-b12f-ddd88b061f57",
+          "audit_id": "398cc02e-09fb-5e4c-a442-e9a14398f31b",
           "idempotent_replay": false,
           "generated_at": "2026-10-16T12:00:00Z",
           "model_id": "mock_model_d_v0.1.0",
@@ -84,7 +84,7 @@
             "approval_note": "The scientific target is still pending research-lead and supervisor approval (P-1). The contract carries the name of the target so that no consumer can invent a different one."
           },
           "score": {
-            "value": -0.34,
+            "value": -0.16,
             "type": "uncalibrated_score",
             "scale": "log_odds_margin",
             "rendering": {
@@ -103,64 +103,64 @@
             "contributions": [
               {
                 "feature": "mock_feature_count",
-                "value": 2,
+                "value": 7,
                 "unit": "u_count",
-                "shap": -0.05,
+                "shap": 0.05,
                 "rank": 1
               },
               {
-                "feature": "mock_feature_demographic_age",
-                "value": 58,
-                "unit": "u_years",
-                "shap": -0.05,
+                "feature": "mock_feature_vital_systolic",
+                "value": 181,
+                "unit": "u_pressure",
+                "shap": 0.05,
                 "rank": 2
               },
               {
                 "feature": "mock_feature_fraction",
-                "value": 0.25,
+                "value": 0.45,
                 "unit": "u_fraction",
                 "shap": 0.03,
                 "rank": 3
               },
               {
-                "feature": "mock_feature_vital_systolic",
-                "value": 142,
-                "unit": "u_pressure",
+                "feature": "mock_feature_demographic_sex",
+                "value": "category_d",
+                "unit": "u_category",
                 "shap": -0.02,
                 "rank": 4
               },
               {
                 "feature": "mock_feature_binary_flag",
-                "value": true,
+                "value": false,
                 "unit": "u_boolean",
-                "shap": 0.01,
+                "shap": 0.0,
                 "rank": 5
               },
               {
-                "feature": "mock_feature_lab_concentration",
-                "value": 233,
-                "unit": "u_concentration",
-                "shap": 0.01,
+                "feature": "mock_feature_demographic_age",
+                "value": 84,
+                "unit": "u_years",
+                "shap": 0.0,
                 "rank": 6
               },
               {
-                "feature": "mock_feature_demographic_sex",
-                "value": "category_a",
-                "unit": "u_category",
+                "feature": "mock_feature_lab_concentration",
+                "value": 369,
+                "unit": "u_concentration",
                 "shap": 0.0,
                 "rank": 7
               }
             ],
             "sum_check": {
               "applicable": false,
-              "margin": -0.34,
-              "computed_sum": -0.37,
+              "margin": -0.16,
+              "computed_sum": -0.19,
               "tolerance": 1e-06,
               "passed": false,
               "margin_source": "score.value"
             },
             "synthetic": true,
-            "note": "SYNTHETIC FIXTURE: local surrogate explanation (LIME) with a fixed seed and sampling count pinned in explanation_config_id. The values are hand-authored deterministic offsets, NOT computed by LIME from any trained model — no model exists. Contributions are on the log-odds (margin) scale. They are NOT changes in a calibrated probability and must never be displayed as percentage points of disease probability. A local surrogate is not an exact additive decomposition of the margin, so the margin sum-check is reported as not applicable (Phase 0 §R2-5.7).",
+            "note": "SYNTHETIC FIXTURE: local surrogate explanation (LIME) with a fixed seed and sampling count pinned in explanation_config_id. The values are hand-authored deterministic offsets, NOT computed by LIME from any trained model — no model exists. Contributions are on the log-odds (margin) scale. They are NOT changes in a calibrated probability and must never be displayed as percentage points of disease probability. They are associational attributions of the model output, NOT causal effects: no treatment, intervention or recommendation may be derived from them. A local surrogate is not an exact additive decomposition of the margin, so the margin sum-check is reported as not applicable (Phase 0 §R2-5.7).",
             "local_fidelity_r2": 0.62
           },
           "missing_features": [],

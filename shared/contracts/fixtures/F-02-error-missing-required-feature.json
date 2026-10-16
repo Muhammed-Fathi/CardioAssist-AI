@@ -26,27 +26,27 @@
           "feature_schema_id": "mock_clinical_v1",
           "features": {
             "mock_feature_demographic_sex": {
-              "value": "category_a",
+              "value": "category_b",
               "unit": "u_category"
             },
             "mock_feature_vital_systolic": {
-              "value": 142,
+              "value": 121,
               "unit": "u_pressure"
             },
             "mock_feature_lab_concentration": {
-              "value": 233,
+              "value": 229,
               "unit": "u_concentration"
             },
             "mock_feature_binary_flag": {
-              "value": true,
+              "value": false,
               "unit": "u_boolean"
             },
             "mock_feature_count": {
-              "value": 2,
+              "value": 1,
               "unit": "u_count"
             },
             "mock_feature_fraction": {
-              "value": 0.25,
+              "value": 0.4,
               "unit": "u_fraction"
             }
           },

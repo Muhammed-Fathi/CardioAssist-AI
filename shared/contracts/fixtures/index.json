@@ -195,6 +195,19 @@
       ]
     },
     {
+      "file": "F-03b-null-and-zero-value-semantics.json",
+      "fixture_id": "F-03b",
+      "title": "Null means 'not provided'; a value of zero is data (never conflated with missing)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 422,
+      "error_code": "missing_required_feature",
+      "covers_phase0_fixture_ids": [
+        "F-03",
+        "F-10"
+      ]
+    },
+    {
       "file": "F-04-monitoring-observation-valid.json",
       "fixture_id": "F-04a",
       "title": "Valid mock monitoring observation (201)",
