@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Status | **DRAFT — awaiting human scientific and engineering review. Not approved.** |
-| Date | 2026-10-16 |
+| Status | **DRAFT REV. 2 — CHANGES REQUESTED by maintainer; revised, awaiting explicit human approval. Not approved. DO NOT START PHASE 1.** |
+| Date | 2026-10-16 (Rev. 2, same session, PR #1 updated in place) |
 | Branch | `arena/f977cda2-cardioassist-ai` (dedicated Phase 0 working branch, accepted by maintainer) |
 | Base commit | `9f12482` — *chore: initialize CardioAssist AI project* |
 | Author | Arena Agent Mode (Phase 0 session) |
@@ -52,14 +52,20 @@ Every material statement is tagged so reviewers can separate fact from proposal:
    approved dataset**: none contains event dates, follow-up, or censoring.
    Labelling a cross-sectional classifier as a 30-day risk model would be a
    scientific error and a safety risk.
-3. **Two primary candidate datasets survive license verification** (§5):
-   UCI Heart Disease (id 45) and UCI Z-Alizadeh Sani (id 412), both
-   CC BY 4.0 at the official UCI source **[VERIFIED-EXTERNAL]**, both small
-   (n = 303), single-era, and heavily reused. Everything else is secondary,
-   controlled-access, self-reported-label, ECG-only, or provenance-unverified
-   (notably the Kaggle "Framingham" mirrors — official Framingham data
-   requires a BioLINCC application, IRB evidence, and a data-use agreement
-   **[VERIFIED-EXTERNAL]**, so a Kaggle copy cannot be assumed licensed).
+3. **Dataset strategy is a tiered multi-dataset programme, not a
+   two-dataset restriction** (§5, §18). Tier 1 (licence-verified,
+   angiographic labels): UCI Heart Disease id 45 — **all four cohorts**
+   (Cleveland 303, Hungary 294, Switzerland 123, VA Long Beach 200
+   rows) — and UCI Z-Alizadeh Sani id 412, all CC BY 4.0
+   **[VERIFIED-EXTERNAL]**. Tier 2 (related, gated): Statlog Heart
+   (overlap audit required), Z-Alizadeh **extension id 411 (same 303
+   patients — never an independent cohort; its LAD/LCX/RCA fields
+   define the label and are leakage if used as predictors)**.
+   Tier 3 (separate tasks, never merged into angiographic CAD):
+   BRFSS/NHANES self-report, PTB-XL ECG statements. Blocked/unverified:
+   Kaggle "Framingham"/CVD-70K mirrors (official Framingham requires
+   BioLINCC application + IRB + DUA **[VERIFIED-EXTERNAL]**), controlled
+   Framingham/BioLINCC, UK Biobank, private cohorts.
 4. **No approved paper deploys anything.** All 9 APPROVED_GREEN papers are
    offline model studies; the recurring, defensible research gap is
    *external validation + calibrated, explainable inference behind a
@@ -67,28 +73,45 @@ Every material statement is tagged so reviewers can separate fact from proposal:
    Several recorded scores (100% accuracy, >97% across datasets) are
    leakage/overfitting red flags and must be treated as claims to audit,
    not targets to beat.
-5. **Recommended architecture [PROPOSED]: a local-first modular monolith**
-   (single Python/FastAPI service with internal AI, explanation, audit, and
-   auth modules; PostgreSQL or SQLite locally; React clinician web;
-   Flutter patient app only if a device owner is confirmed) — not the
-   presentation's 6-microservice Kubernetes/AWS design, which is
-   unmaintainable at $0 and with this team's Phase 0 resources (§7).
-   Free-tier hosting is **[OPEN / UNVERIFIED]** and must be re-checked at
-   implementation time; local execution and GitHub Actions CI are the only
-   verified zero-cost execution paths.
-6. **Wearables are simulation-only in the next phase** (§10). No approved
-   paper pairs wearable streams with CAD labels; HealthKit is iOS-only and
-   Health Connect is Android-only, both on-device with per-type consent, and
-   no team device/developer-account access has been confirmed.
+5. **Recommended architecture [PROPOSED, Rev. 2]: the full intended
+   product is preserved** — Flutter patient app, React clinician
+   dashboard, CAD classification, SHAP/LIME, wearable/health-data
+   integration, monitoring/history, reassessment, clinician review,
+   audit/RBAC, versioned APIs, extensible disease modules (§R2-1–§R2-3).
+   It is organized as **two scientifically separate, technically
+   integrated tracks** (A: clinical CAD AI; B: patient & wearable
+   monitoring) on one local-first modular-monolith platform — not the
+   presentation's 6-microservice Kubernetes/AWS deployment topology,
+   which is a *deployment* choice, not a product feature, and is
+   unmaintainable at $0 (§7, §R2-1). The Flutter app remains core scope;
+   local Android emulator/physical-device testing at $0 replaces any
+   assumption of app-store deployment (§R2-3, §R2-7). Free-tier hosting is
+   **[OPEN / UNVERIFIED]**; local execution and GitHub Actions CI are
+   the only verified zero-cost execution paths.
+6. **Wearable *monitoring* is a functional Track-B feature; wearable-fed
+   *CAD prediction* is blocked by evidence** (§10, §R2-2). No approved
+   paper pairs wearable streams with CAD labels, so Track-B data must
+   not influence Track-A scores unless/until a model is trained and
+   validated on such features. A clearly labelled simulated adapter is
+   the integration path; HealthKit is iOS-only and Health Connect is
+   Android-only, both on-device with per-type consent.
 7. **This sandbox cannot download the candidate datasets** (§6): bash
    egress to `archive.ics.uci.edu` / `physionet.org` fails (only
    github.com / pypi.org / npm registry are reachable). Dataset acquisition
    must happen in an approved local environment in a later phase, with hash
    and license snapshots recorded at download time.
-8. **Twelve decisions (D-011…D-022, §13) block Phase 1**, starting with:
-   primary target definition (D-006), primary dataset(s) and the Kaggle
-   mirror prohibition (D-007), and whether a clinician advisor is available
-   to review thresholds, explanations, and UI language.
+8. **Rev. 2 corrections (maintainer-requested):** nested-CV-primary
+   protocol with no locked holdout on n≈300 and cross-fitted calibration
+   (§19, superseding §9 where they conflict); API idempotency
+   contradiction resolved (replay = 200 + original response; key-reuse
+   with different payload = 409) and **patient-level prediction CIs
+   removed** (§20, superseding §8); explanations fixed to the
+   log-odds/margin scale with a sum-check that never mixes with the
+   calibrated probability (§20.5).
+9. **Decisions D-011…D-030 (§13 + §23) block Phase 1**, starting with:
+   primary target (D-006), dataset tiers & Kaggle-mirror rule,
+   pooled-training eligibility, whether a clinician advisor exists,
+   and approval of the pre-training protocol before any data download.
 
 ---
 
@@ -192,26 +215,30 @@ figures are therefore [AS-RECORDED — UNVERIFIED] unless stated otherwise.
 ## 2. Requirements & feature traceability (F01–F12)
 
 Source of features: `docs/FEATURE_REGISTER.md` [CONFIRMED as *proposed*,
-not approved]. Slide references are from the speaker notes. Feasibility
-classes: **A** = implementable for $0 in a later phase (local/free
-resources); **S** = implementable only with simulators / synthetic inputs
-(integration demonstration, **not** clinical evidence); **B** = blocked by
-data, hardware, access, or clinical review.
+not approved]. Slide references are from the speaker notes. **Rev. 2
+preservation rule (maintainer): no intended product feature is removed
+or silently downgraded.** Each feature is classified per *layer*:
+**R** = feasible with real (approved, public benchmark) data;
+**P** = functional prototype on demo/benchmark data (real software,
+non-clinical data); **S** = requires simulation/synthetic inputs;
+**B** = blocked by scientific evidence or external access — with the
+blocking reason named, so a future dataset/access change can unblock it.
+The expanded preservation matrix is §17.
 
 | ID | Capability | Slide evidence (proposal) | Phase 0 verdict | Gating dependency |
 |---|---|---|---|---|
-| F01 | CAD ML prediction & inference | S22, S28–S31: XGBoost tabular + CNN ECG, "30-day risk" | **A for cross-sectional CAD classification only; B for 30-day/incident risk** (§4) | D-006 target approval; D-007 dataset approval |
-| F02 | Per-prediction explainability (SHAP/LIME) | S32–S34 | **A** (TreeSHAP on tabular models); stability & clinician review are [OPEN] | Clinician reviewer; explanation-fidelity tests (§9) |
-| F03 | Clinician dashboard (patients, timeline, triage) | S40–S41, "7-minute consult" | **A as a research demo on retrospective/demo data; B for real patients** | F12 API; F11 auth; no real patient data [CONFIRMED] |
-| F04 | Patient experience (measures, survey, lifestyle, offline) | S37–S39 | **S/A** — forms & offline cache A; real health-data collection B | Consent design (F07); platform decision (D-019) |
-| F05 | Wearable adapters (HealthKit/Health Connect, Fitbit, Garmin, …) | S15, S38–S39 | **S only** (simulated adapter); real adapters **B** | Devices, developer accounts, vendor API approvals (§10) |
-| F06 | Reassessment & follow-up loops | S31, S38, S41 | **S**; alert thresholds **B** — slide thresholds are unsupported (§2.1) | Clinical review of any threshold; D-016 |
-| F07 | Events, audit logging, consent, data access | S26–S27, S31 | **A** for audit/consent mechanics in a demo system | Privacy review; data-retention decision |
-| F08 | Interoperability, FHIR mapping & export | S25–S27, S36 | **A minimal subset [PROPOSED]**: map the small tabular feature set + prediction to FHIR R4 Observation/RiskAssessment-shaped JSON; full FHIR server **B/overkill** | FHIR scope decision (D-020) |
-| F09 | Extensible modular disease architecture | S20, S22–S23, S42–S43 | **A as module boundaries in a monolith; B as a public SDK** | Architecture approval (D-008) |
-| F10 | Reproducible evaluation & research reporting | S28–S30, S43, S46 | **A — required research core** | Protocol approval (§9) before any training |
-| F11 | Authentication, access control, security | S26, S36 | **A for prototype auth (hashed passwords, roles, session/JWT); no regulatory-compliance claim** | Security review; no PHI in scope |
-| F12 | AI–Backend versioned inference API & integration tests | S25–S26, S31 | **A — design in §8 is the Phase 1 gate** | Contract approval (D-013) |
+| F01 | CAD ML prediction & inference | S22, S28–S31 | **R** for cross-sectional CAD classification (Track A); **B** for 30-day/incident risk (no longitudinal labels) (§4) | D-006 target approval; D-007 dataset approval |
+| F02 | Per-prediction explainability (SHAP/LIME) | S32–S34 | **R/P** (TreeSHAP on tabular models, log-odds scale §20.5); stability & clinician review [OPEN] | Clinician reviewer; explanation-fidelity tests (§19) |
+| F03 | Clinician dashboard (patients, timeline, triage) | S40–S41 | **P** on benchmark/demo records; **B** for real patients (no PHI by policy) | F12 API; F11 auth |
+| F04 | Patient experience — **Flutter app (core scope)**: measures, survey, lifestyle, offline | S37–S39 | **P** (full app on demo/simulated data, local Android testing §17.4); real health-data collection gated by consent/ethics design | Consent design (F07); platform decision (D-019) |
+| F05 | Wearable adapters (HealthKit/Health Connect, Fitbit, Garmin, …) | S15, S38–S39 | **P** adapter pattern + **S** simulated adapter; real-device adapters gated on device/account/vendor approval; wearable→CAD prediction **B** (evidence) | Devices, developer accounts, vendor approvals (§10, §16) |
+| F06 | Reassessment & follow-up loops | S31, S38, S41 | **P** mechanics; scientific validity conditions defined in §16.4; alert thresholds **B** — slide thresholds unsupported (§2.1) | Clinician review; D-016 |
+| F07 | Events, audit logging, consent, data access | S26–S27, S31 | **P/R** for mechanics in the prototype platform | Privacy review; retention decision |
+| F08 | Interoperability, FHIR mapping & export | S25–S27, S36 | **P minimal subset [PROPOSED]**: tabular features + prediction → FHIR-R4-shaped JSON export; full FHIR server deferred (deployment topology, not a deleted feature) | FHIR scope decision (D-020) |
+| F09 | Extensible modular disease architecture | S20, S22–S23, S42–S43 | **P** as versioned disease-module boundaries in the platform (CAD first); public third-party SDK **deferred** to a later phase, explicitly | Architecture approval (D-008) |
+| F10 | Reproducible evaluation & research reporting | S28–S30, S43, S46 | **R — required research core** | Protocol approval (§19) before any training |
+| F11 | Authentication, access control, security | S26, S36 | **P** (hashed passwords, roles, session/JWT); no regulatory-compliance claim | Security review; no PHI in scope |
+| F12 | AI–Backend versioned inference API & integration tests | S25–S26, S31 | **P — corrected contract §20 is the Phase 1 integration gate** | Contract approval (D-013) |
 
 **Confirmed scope today [CONFIRMED]:** only the research workflow itself
 (F10/F12 designs, this report). Every product capability above remains a
@@ -372,7 +399,7 @@ AGENTS.md prohibits exactly this confusion.]
 | ID | Target | Label source | Feasible now? | Notes |
 |---|---|---|---|---|
 | **T1 [PROPOSED primary]** | Presence of angiographically significant CAD (≥50% diameter narrowing), cross-sectional | UCI-45 `num`>0 vs 0 (and vessel-level `num` 0–4 as an ordinal secondary analysis); UCI-412 CAD/Normal (≥50% narrowing) | **Yes** — public, CC BY 4.0, labels verified (§5) | Must be described everywhere as *"model-estimated probability that this benchmark record resembles angiography-positive cases"* — research output, not a diagnosis. |
-| T2 | CAD severity / per-vessel stenosis (LAD/LCX/RCA) | UCI-412 extension fields as recorded in literature; P25 AngioCAD (RED) | **[OPEN]** — needs data-dictionary confirmation and the D-021 dataset-scope decision | Attractive differentiator; do not promise. |
+| T2 | CAD severity / per-vessel stenosis (LAD/LCX/RCA) | UCI-411 extension per-artery fields (official UCI guidance: one artery target at a time, others excluded); P25 AngioCAD (RED) | **[OPEN]** — data dictionary at G1 + D-021 for AngioCAD only (UCI-411 is licence-verified) | The LAD/LCX/RCA fields **define** the T1 label: leakage as T1 predictors, legitimate only as T2 targets. Do not promise timelines. |
 | T3 | Self-reported prevalent "heart disease or attack" (survey) | BRFSS-2015 `HeartDiseaseorAttack`; NHANES `MCQ160c–e` | Yes as a **separate secondary task** | Different construct (recall, access to diagnosis); never pooled with T1; survey weights/complex design required for population claims. |
 | T4 | Incident CAD / MI over a horizon (incl. 30-day) | Framingham/BioLINCC, other longitudinal cohorts | **Blocked** | Controlled access (application + IRB + DUA [VERIFIED-EXTERNAL]); no team IRB/site evidenced; also incompatible with $0 timelines. |
 | T5 | Wearable/ECG-detected CAD | PTB-XL ECG statements; PhysioNet ECG sets | **Blocked as CAD prediction**; possible as exploratory ECG-statement modelling | ECG labels ≠ angiographic CAD; no paired tabular+wearable CAD cohort exists in the approved corpus. |
@@ -395,6 +422,7 @@ blocks these hosts, §6 — sizes from official pages, not measured locally).
 |---|---|---|---|---|---|---|
 | DS-1 | **UCI Heart Disease (id 45)** — archive.ics.uci.edu/dataset/45/heart+disease | 4 clinic cohorts (Cleveland, Hungary, Switzerland, VA Long Beach), 1980s angiography patients. Label `num`: 0 = <50% narrowing, 1–4 = >50% | 303 (headline; Cleveland) + 294/123/200 in other files; 76 attrs, 14 used conventionally | Public download, **CC BY 4.0** [VERIFIED-EXTERNAL: UCI page states label definition, files, license] | Cleveland 59.2 KB; all files ≈ 564 KB total [as listed] | **PRIMARY CANDIDATE.** Caveats: Switzerland/VA files have heavy missingness; only Cleveland is "processed"; cohorts overlap conceptually with Statlog (DS-3) — cross-set duplicates must be checked (same patients recirculated). |
 | DS-2 | **UCI Z-Alizadeh Sani (id 412)** — archive.ics.uci.edu/dataset/412, DOI 10.24432/C5Q31T | Shahid Rajaei Hospital (Tehran) chest-pain patients; CAD if ≥50% diameter narrowing, else Normal | 303; 54 features per UCI page (some papers say 55/56 incl. label/extension — reconcile at download) [VERIFIED-EXTERNAL: n, label, file] | Public download, **CC BY 4.0** [VERIFIED-EXTERNAL] | 120.7 KB xlsx [as listed] | **PRIMARY CANDIDATE.** 216 CAD / 87 Normal as recorded in literature; single-centre, single-ethnicity; features include symptoms/ECG/labs/echo — check each feature is available *before* angiography to avoid post-diagnosis leakage (§9). |
+| DS-2b | **UCI Extension of Z-Alizadeh Sani (id 411)** — DOI 10.24432/C5461K | **Same 303 patients as DS-2** (not independent) + LAD/LCX/RCA stenosis fields | 303; 59 features | Public download, **CC BY 4.0** [VERIFIED-EXTERNAL, Rev. 2] | 128.1 KB xlsx [as listed] | **TIER 2 — same-cohort extension.** Never an external-validation set for DS-2. LAD/LCX/RCA define the CAD label → target leakage as predictors; valid as per-artery T2 targets per UCI guidance. See §R2-4.1. |
 | DS-3 | **UCI Statlog Heart (id 145)** | "Similar to" UCI Heart Disease in different form (UCI wording) | 270; 13 attrs | Public, **CC BY 4.0** [VERIFIED-EXTERNAL] | 16.1 KB [as listed] | **SECONDARY.** Useful only after duplicate/overlap audit vs DS-1 Cleveland; otherwise it inflates "external validation". |
 | DS-4 | **CDC BRFSS 2015** (official CDC) / Kaggle cleaned copy (253,680 rows, as recorded) | US telephone-survey adults; self-reported "heart disease or attack" (T3, **not** angiographic CAD) | 253,680 (Kaggle copy); 21 features as recorded; official CDC files larger | CDC public-use data [VERIFIED-EXTERNAL: CDC BRFSS documentation]; **Kaggle cleaned copy's licence/redistribution: UNVERIFIED** — source from CDC, not Kaggle | Kaggle copy 22.7 MB as recorded | **SECONDARY (separate T3 task only).** Needs survey-design handling; class imbalance ≈ 9.4% positive as recorded. |
 | DS-5 | **Framingham Heart Study** (official) | Longitudinal cohort with incident events (T4) | ~thousands/cohort (varies) | **Controlled: BioLINCC application, local IRB evidence, DUA** [VERIFIED-EXTERNAL: ClinicalTrials/FHS policy pages]. Commercial restrictions apply. | n/a | **BLOCKED for Phase 1.** |
@@ -482,8 +510,8 @@ approved channel — the agent cannot fetch them here.
                │ SQL
         PostgreSQL (local/Docker)  — or SQLite for zero-setup dev; NO InfluxDB/Redis/Kafka
                │                                    until a measured need exists [PROPOSED]
-   clinician-web (React+TS)      patient app (Flutter) — ONLY if D-019 confirms
-   via the same /v1 contract     device + platform owner; otherwise web-only demo
+   clinician-web (React+TS)      patient app (Flutter, CORE scope) via the
+   via the same /v1 contract     same contract; local Android testing (§R2-7)
 ```
 
 Rules: (1) the model is a versioned artifact *outside* git, loaded by
@@ -558,9 +586,17 @@ Design only. No code exists. This is the Phase 1 contract-test gate (F12).
 
 ### 8.2 Endpoint (proposed)
 
-`POST /v1/predictions/cad-tabular` — synchronous, idempotent via
-`request_id` (UUID, client-supplied; duplicate `request_id` returns the
-original audit record).
+`POST /v1/predictions/cad-tabular` — synchronous. **Idempotency
+(Rev. 2, resolves the Rev. 1 contradiction — the full corrected
+contract is §R2-6):** the client sends `Idempotency-Key: <uuid>`
+(optionally mirrored as `request_id` in the body). Same key + same
+canonical payload → `200` with the **original stored response** plus
+`"idempotent_replay": true`; no re-inference, no second audit event
+(the original `audit_id` is returned). Same key + **different**
+payload → `409 idempotency_key_conflict`. A `409` is therefore never
+returned for a legitimate replay. Idempotency records expire after a
+versioned retention window (proposed 24 h for the prototype), after
+which a reused key is treated as a new request and this is logged.
 
 Request (abridged JSON Schema):
 
@@ -593,14 +629,16 @@ Response `200`:
     "definition": "Angiographic diameter narrowing >= 50% (benchmark label)",
     "time_horizon": "none_cross_sectional"
   },
-  "score": {"value": 0.73, "type": "calibrated_probability | uncalibrated_score",
-            "ci_95": [0.61, 0.83]},
+  "score": {"value": 0.73, "type": "calibrated_probability | uncalibrated_score"},
+  "model_performance_ref": "model_card:xgb_zsani_v0.1.0#external_validation",
   "explanation": {
     "method": "tree_shap",
-    "base_value": 0.42,
+    "scale": "log_odds_margin",
+    "base_value": -0.31,
     "contributions": [
-      {"feature": "typical_chest_pain", "value": "present", "unit": "category", "shap": 0.18}
-    ]
+      {"feature": "typical_chest_pain", "value": "present", "unit": "category", "shap": 0.62}
+    ],
+    "note": "Contributions sum with base_value to the model log-odds, NOT to score.value (calibrated probability). See §R2-6.5."
   },
   "missing_features": ["fasting_blood_sugar"],
   "warnings": ["feature_out_of_training_range: serum_cholesterol"],
@@ -626,7 +664,7 @@ inspected at download time.
 |---|---|---|
 | 400 | `malformed_request` | JSON/schema syntax invalid |
 | 422 | `unknown_feature`, `unit_mismatch`, `value_out_of_range`, `schema_model_mismatch` | Semantically unscorable; no prediction is produced |
-| 409 | `duplicate_request_id` (with original `audit_id`) | Idempotency guard |
+| 409 | `idempotency_key_conflict` | Same `Idempotency-Key` reused with a different payload (legitimate replays return `200`, §8.2) |
 | 503 | `model_unavailable` | Model artifact missing/mis-hashed; system fails closed |
 | 500 | `internal_error` | Logged with `audit_id`; no stack trace to client |
 
@@ -634,11 +672,18 @@ inspected at download time.
 
 `score.type` must distinguish calibrated probability from raw score;
 calibration method, validation Brier score, and calibration-curve data
-are published with each model version (§9). `ci_95` comes from the
-pre-registered uncertainty method (bootstrap / conformal — D-015).
-Explanations must pass fidelity/stability checks (e.g., SHAP sum check:
-base + Σ contributions ≈ score on the model's link scale, within tolerance)
-before a model version is promotable.
+are published with each model version (§R2-5). **Rev. 2: there is NO
+patient-level confidence interval in the response.** A per-patient CI
+from a model trained/validated on n≈300 benchmark records would imply
+individual precision the science does not support; uncertainty is
+reported at model level (metrics with bootstrap CIs in the model card,
+referenced via `model_performance_ref`). Explanations are on the
+**log-odds/margin scale** (`explanation.scale`, Rev. 2): TreeSHAP
+base + Σ contributions ≈ model log-odds within tolerance — this sum
+check is a contract-test fixture, and the SHAP values must never be
+added to, or displayed as parts of, the calibrated probability.
+Before a model version is promotable, explanations must also pass the
+fidelity/stability checks in §R2-5.7.
 
 ### 8.6 Mock contract tests (Phase 1 gate, F12)
 
@@ -668,9 +713,12 @@ To be pre-registered (timestamped in-repo) **before** any training run.
 
 - **Unit of splitting is the patient/record; if any source yields multiple
   rows per patient (segments, visits), split by patient.**
-- Development: stratified nested cross-validation (outer 5-fold for
-  unbiased estimates, inner folds for tuning) per dataset, with a locked
-  hold-out (20%) touched once. On n=303, report every fold, not just the mean.
+- Development **(Rev. 2 corrected — full protocol §R2-5)**: repeated
+  stratified nested cross-validation per dataset; **no locked holdout
+  on n≈300** (a ~60-record holdout wastes data and yields unstable
+  single-split estimates). Honest generalisation evidence comes from
+  nested-CV out-of-fold estimates plus the untouched cross-dataset
+  external evaluation (§R2-5.2). Report every outer fold, not just the mean.
 - **Site-as-external-validation:** train on DS-2 → test on DS-1
   harmonized subset, and vice versa. Expect P4-style degradation; that
   number, not the internal one, headlines the abstract.
@@ -704,8 +752,11 @@ AUROC + AUPRC (with prevalence stated), sensitivity/specificity at a
 **validation-chosen, pre-registered** operating point (chosen for
 sensitivity at fixed specificity, clinically reviewed — not Youden on test),
 Brier score, calibration intercept/slope + curve, decision-curve analysis
-as supplementary. Uncertainty: 1,000× bootstrap CIs (patient-level) for all
-headline metrics; calibration via Platt/isotonic fitted on validation only.
+as supplementary. Uncertainty **(Rev. 2, §R2-5.6)**: patient-level bootstrap (2,000
+  resamples, percentile + BCa sensitivity) for *model-performance*
+  metrics only — never per-patient prediction intervals in the API.
+  Calibration is cross-fitted so the data that fit the calibrator are
+  not the data that evaluate it (§R2-5.5).
 Report per-sex and per-age-group performance + calibration (fairness
 audit); small subgroups reported with CIs, not suppressed silently.
 
@@ -723,9 +774,8 @@ metrics). Negative results are reported, not file-drawered.
 Position as a **reproducibility + external-validation + contract/
 integration** contribution for a graduation/regional venue or workshop:
 "Calibrated, explainable CAD classification with cross-dataset validation
-and a versioned clinician-facing API: a reproducibility study." Follow a
-recognized prediction-model reporting checklist (TRIPOD-family; confirm
-current version at writing time), deposit code (not restricted data) with
+and a versioned clinician-facing API: a reproducibility study." Use **TRIPOD+AI** (BMJ 2024;385:e078378 — verified this revision,
+§14) as the reporting reference from protocol stage onward, deposit code (not restricted data) with
 a DOI-minting archive only with supervisor approval, and never claim
 clinical utility, novelty of algorithm, or wearable validation that the
 design does not contain.
@@ -779,12 +829,12 @@ committed; durations are relative and depend on the §13 decisions.
 |---|---|---|---|
 | **G0 (this PR)** | Phase 0 report + source-integrity fix | AI/Research | This report reviewed; D-011…D-016 answered; verify_sources passes |
 | **G1 Protocol** | Pre-registered evaluation protocol (§9), dataset download log (DS-1/DS-2 hashes + licence snapshots), feature-availability audit | Research lead + supervisor | Protocol merged before any training; D-006/D-007/D-012 closed |
-| **G2 Benchmarks** | Reproduced baselines (LR, RF, XGB/LGBM) with nested CV + locked hold-out, duplicate audit published | AI | Metrics with CIs; leakage checklist (§9.2) signed; results (incl. negative) in `research/experiments/` |
+| **G2 Benchmarks** | Reproduced baselines (LR, RF, XGB/LGBM) with repeated nested CV per corrected protocol (§R2-5), duplicate audit published | AI | Metrics with CIs; leakage checklist (§9.2) signed; results (incl. negative) in `research/experiments/` |
 | **G3 External validation** | Site-as-external results + calibration + fairness audit | AI + Research | Headline external metrics reported honestly; model card drafted |
 | **G4 Contract & backend** | Monolith skeleton, `/v1` contract, mock server, contract tests in CI (F12), audit/auth modules (F07/F11) | Backend | §8.6 test matrix green; no PHI; secrets scan clean |
 | **G5 Clinician web** | Dashboard on demo/benchmark data: list, timeline, explanation view (F03/F02) | Frontend + clinician reviewer | Disclaimer/target wording present (snapshot-tested); no alert/treatment language; clinician reviewer sign-off on copy |
 | **G6 (optional)** | Patient experience + simulated wearable (F04/F05/F06 mechanics) | Mobile/Frontend | `source=simulated` labelling verified; consent flow reviewed |
-| **G7 Write-up** | Manuscript/report with TRIPOD-family checklist, replication package | Research lead | Supervisor approval; code archived per §9.6; Phase 1 retrospective + Phase 2 proposal |
+| **G7 Write-up** | Manuscript/report with TRIPOD+AI checklist, replication package | Research lead | Supervisor approval; code archived per §9.6; retrospective + next-phase proposal |
 
 Explicit non-goals for the whole roadmap: real patients, clinical
 deployment, app-store release, regulatory submission, paid cloud,
@@ -843,6 +893,580 @@ D-009 (recommendation: simulator-only, §10.3), D-010 (recommendation:
 
 ---
 
+---
+
+# PART II — REV. 2 (maintainer-requested revisions)
+
+> Part I (§§0–13) is preserved, including all verified evidence and the
+> 25-paper classification. Where Part II and Part I conflict, **Part II
+> governs**; the known superseded items are: §8 idempotency/`ci_95`
+> (corrected in place and in §R2-6), §9.1 locked holdout (corrected in
+> place and in §R2-5), §7/§11 Flutter conditionality (Flutter is core
+> scope, §R2-3), and §5's two-dataset framing (expanded in §R2-4).
+
+## R2-1. Revised system workflow
+
+```
+TRACK A — CLINICAL CAD AI (research model, benchmark/clinical inputs)
+  Clinical/record inputs (schema-validated, units checked)
+    → versioned preprocessing (preprocessing_id; fitted only on training data)
+    → CAD classification model (model_id; target T1 only, §4)
+    → calibration layer (calibration_id; only if validated, §R2-5.5)
+    → score + SHAP/LIME explanation (log-odds scale, §R2-6.5)
+    → versioned inference API (§R2-6)
+    → clinician review (accept / reject / request reassessment — human decision)
+    → audit event with full provenance
+
+TRACK B — PATIENT & WEARABLE MONITORING (no CAD inference by default)
+  Flutter patient app (manual measures, surveys, lifestyle, offline sync)
+    + wearable adapters (simulated | Health Connect | HealthKit | vendor)
+    → backend validation & ingestion (schema, units, consent, source label)
+    → monitoring history (time series + patient-entered records)
+    → patient views (own history, trends — NO CAD score from Track-B data)
+    → clinician dashboard monitoring views (reviewed alongside, not fused
+      into, Track-A outputs)
+
+UNIFIED PLATFORM (shared by both tracks)
+  Identity & RBAC · patient/record management · versioned APIs & contracts ·
+  audit events · consent & privacy controls · clinician review workflow ·
+  model/data provenance registry · disease-module registry (CAD first)
+```
+
+Data flows one way by default: Track B never feeds Track A. The only
+sanctioned crossing is a *future*, separately validated model whose
+training features include wearable variables (D-009 revisited) — until
+then the API must reject wearable-sourced features for CAD inference
+(`422 schema_model_mismatch`, or accept-and-ignore only if the contract
+version explicitly says so; **reject is the Rev. 2 recommendation**).
+
+## R2-2. Two-track scientific architecture & safety separation
+
+### R2-2.1 Separation rules (binding on all UI copy and APIs)
+
+| Output class | Examples | Allowed presentation |
+|---|---|---|
+| **Research-model output (Track A)** | T1 score, SHAP/LIME contributions, model card | Clinician-facing research view only; carries target definition + disclaimer; never shown to patients as a diagnosis or personal risk % |
+| **General health monitoring (Track B)** | HR/HRV/steps/SpO₂/sleep trends, entered measures, survey answers | Patient + clinician history views; descriptive trends only; no CAD interpretation overlaid |
+| **Symptom-safety messaging** | "Seek urgent care for crushing chest pain…" type content | Only clinician-approved, guideline-sourced, model-independent static content (D-026); never triggered by a model score or an unvalidated threshold |
+
+No automated medical decisions: the system never starts/stops/changes
+treatment, never messages a patient "you are high risk" from a model
+output, and never escalates care without a human clinician action.
+Every Track-A output ends at a clinician review state
+(`pending_review → reviewed_accepted | reviewed_rejected |
+reassessment_requested`), all transitions audited.
+
+### R2-2.2 When reassessment is scientifically valid
+
+A reassessment (new Track-A inference for the same person) is valid
+**only if at least one holds**, and the trigger is recorded:
+
+1. **New clinical inputs** that belong to the model's feature schema
+   (e.g., new labs/examination) have arrived and passed validation; or
+2. **Corrected inputs** (a documented data error is fixed); or
+3. **Model/preprocessing/calibration version changed**, and the record
+   is re-scored for comparability (labelled `reassessment_reason=
+   model_version_change`, never mixed silently with older scores); or
+4. A clinician explicitly requests re-scoring of the *same* validated
+   inputs to inspect explanation stability (labelled
+   `clinician_requested`; result must be deterministic-identical for
+   identical inputs + versions — a contract test).
+
+Explicitly **invalid** reassessment triggers: arrival of wearable data
+alone; passage of time alone ("every 7 days"); a monitoring-trend
+change; a patient pressing "check again" with unchanged inputs. Those
+events may refresh Track-B views, but must not produce a new CAD score.
+Repeated identical-input re-scores must return the stored result
+(idempotency + determinism), preventing spurious "score drift."
+
+### R2-2.3 Disease-module extensibility (preserved, F09)
+
+`DiseaseModule` registry entry = {target definition, feature schema,
+model artifacts, explanation config, review workflow}. CAD is module #1.
+A new module (e.g., hypertension) plugs in without changing the
+unified-platform services; it may not share CAD scores, thresholds, or
+claims. The public third-party SDK from the deck is a later-phase
+decision, recorded as deferred — not deleted.
+
+## R2-3. Feature preservation & feasibility matrix
+
+Legend: **R** real approved data · **P** functional prototype
+(real software, demo/benchmark data) · **S** simulation required ·
+**B** blocked (reason named) · $0 status applies to every row.
+
+| Intended capability (vision) | Track | Class | What ships in the first milestone(s) | Blocker / unblock condition |
+|---|---|---|---|---|
+| Flutter Patient Application | B + platform | **P** (core scope) | Full app: auth, measures, survey, lifestyle, offline queue, monitoring history, consent screens; local Android build/run (§R2-7.4) | iOS build needs Mac + Apple account (D-019); store release out of scope by decision, not by omission |
+| React Doctor Dashboard | A/B | **P** | Patient list, record detail, Track-A review queue, explanation view, monitoring views, audit view | Real patients **B** by policy (no PHI) |
+| CAD AI Classification / Assessment | A | **R** | T1 classifier(s) on approved benchmark data behind `/v1`; per-dataset models first (§R2-4) | Any other outcome (30-day, severity) **B** until labels exist (D-006) |
+| Explainable AI (SHAP/LIME) | A | **R/P** | TreeSHAP (log-odds) primary; LIME as secondary/stability comparator with seed + sampling config versioned | Clinical interpretation of explanations **B** until clinician review (D-016) |
+| Wearable & health-data integration | B | **P + S** | Adapter interface; **simulated adapter**; manual entry; Health Connect adapter spike if a device owner exists | Real HealthKit/vendor adapters gated (device, account, vendor approval); wearable→CAD **B** (evidence) |
+| Patient monitoring & history | B | **P** | Ingestion, storage, trend views for entered/simulated streams | Population/clinical monitoring claims **B** |
+| Reassessment & follow-up | A/B | **P** | Validity-gated reassessment mechanics (§R2-2.2), clinician-requested follow-up tasks (no automated alerts) | Threshold-based alerting **B** indefinitely until validated + clinician-approved |
+| Clinician review workflows | Platform | **P** | Review states, accept/reject/reassess actions, reason codes, full audit | Deployment with practising clinicians **B** (no site/ethics approval) |
+| Audit logging & RBAC | Platform | **P/R** | Append-only audit, roles (admin/clinician/patient/researcher), consent grants/revocations logged | Regulatory-grade compliance claims **B** (prototype) |
+| Versioned Backend APIs | Platform | **P** | `/v1` contract §R2-6, mock server, contract tests in CI | — |
+| Extensible disease-module architecture | Platform | **P** | Module registry (§R2-2.3), CAD module only | Second disease module = separate scientific approval |
+
+**Nothing above is removed.** Items marked B are blocked by named
+scientific/access reasons; P/S items are fully built as software with
+honestly labelled data.
+
+## R2-4. Multi-dataset research feasibility strategy
+
+Starting point is the GREEN corpus (P1, P2, P4, P5, P7, P9, P10, P14,
+P15). Dataset sources named by GREEN papers: UCI-45, UCI-412, UCI
+Statlog-145, BRFSS-2015, "Framingham" (Kaggle copies — see prohibition),
+Kaggle CVD-70K (P10), plus their constituent sources. RED papers
+contribute **no** methodological evidence; a RED-associated dataset
+needs its own human scope decision (D-021, AngioCAD). MAYBE papers'
+datasets may be inventoried but not used as approved evidence.
+
+### R2-4.1 Cohort inventory — rows ≠ independent patients
+
+| Cohort | Rows (as listed) | Independent patients | Target | Missingness / schema notes [status] |
+|---|---|---|---|---|
+| UCI-45 Cleveland | 303 | Presumed 303; **verify at download** (IDs were de-identified; duplicates cannot be ruled out from the listing) | `num` 0–4 angiographic (0 = <50%, ≥1 = >50%) | Processed file; 14 of 76 attrs conventional; missing values present [VERIFIED-EXTERNAL: UCI listing] |
+| UCI-45 Hungary | 294 | Presumed 294, verify | Same `num` definition | Unprocessed file; schema alignment to Cleveland's 14 must be re-derived, not assumed |
+| UCI-45 Switzerland | 123 | Presumed 123, verify | Same | Known heavy missingness in the literature [AS-RECORDED]; per-feature missingness must be tabulated before any modelling — usable only if pre-registered completeness rules pass |
+| UCI-45 VA Long Beach | 200 | Presumed 200, verify | Same | Unprocessed; site/population differs (veterans) — transportability is a research question, not noise |
+| UCI Statlog-145 | 270 | **Unknown overlap with Cleveland** — treat as *suspect-duplicate* until audited | Heart-disease presence (Statlog coding) | "Similar to UCI Heart Disease in different form" (UCI); exact/near-duplicate audit on shared features is a G1 gate |
+| UCI-412 Z-Alizadeh Sani | 303 | 303 as listed | CAD ≥50% narrowing (binary) | 54 features, no missing as listed; pre-angiography availability audit required |
+| UCI-411 Z-Alizadeh **extension** | 303 | **The same 303 patients as UCI-412 — NOT independent** | CAD defined by LAD/LCX/RCA stenosis | 59 features incl. LAD/LCX/RCA. **Those three fields define the label: they are target leakage as CAD predictors** (UCI itself warns to keep only one of LAD/LCX/RCA/Cath per task). Legitimate uses: (a) per-artery stenosis targets T2 with the other arteries excluded per UCI guidance; (b) feature superset for the same patients. Never count as a second cohort, never as external validation for UCI-412 models [VERIFIED-EXTERNAL: UCI-411 listing, CC BY 4.0, DOI 10.24432/C5461K] |
+| BRFSS-2015 (CDC official) | 253,680 survey rows (Kaggle cleaned copy as recorded; source from CDC) | Survey respondents; complex sample design | Self-reported "heart disease or attack" (T3) | Separate task; survey weights; never pooled with angiographic labels |
+| NHANES (CDC) | ~5–10k/cycle | Sampled persons + weights | Self-reported CHD/angina/MI (T3) | Not GREEN-derived; optional Tier-3 track (D-018) |
+| PTB-XL | 21,801 ECGs / 18,869 patients | Patient count given; ECG-level splits prohibited | ECG statements (not CAD) | Tier-3 exploratory only |
+| Framingham official | Longitudinal cohort | Controlled | Incident events (T4) | **Blocked**: BioLINCC + IRB + DUA |
+| Kaggle "Framingham", CVD-70K | ~4k / 70k rows as circulated | Unknown provenance | Unknown/unverified | **Prohibited** until provenance documented (D-012) |
+| AngioCAD (RED P25) | 413 | As recorded | Stenosis grades | Dataset use needs separate human scope decision (D-021) |
+
+Row-count discipline: every experiment log must report **rows,
+patients, outcome events, and sites** separately; a "920-patient UCI
+corpus" claim is valid only after the UCI-45 internal cohort
+boundaries and Statlog overlap are empirically handled.
+
+### R2-4.2 The four strategies (in mandatory order)
+
+**Strategy A — Dataset-specific models + internal validation
+(always permitted, first).** One model family per cohort with its
+native schema (`uci_cleveland_v1`, `z_alizadeh_sani_v1`, …), each
+evaluated by the §R2-5 protocol. Deliverable: per-cohort model cards.
+This is the only strategy whose results may be reported without
+harmonization caveats.
+
+**Strategy B — Feature-harmonized cross-dataset evaluation
+(conditional).** Permitted only when **all** hold for the pair:
+(i) same target definition & threshold (T1 ≥50% for UCI-45 cohorts
+and UCI-412 — plausible; BRFSS/NHANES/PTB-XL fail by construction);
+(ii) a documented feature mapping with identical units/definitions
+(e.g., cholesterol mg/dL vs mmol/L converted explicitly);
+(iii) patient independence established (duplicate audit passed;
+UCI-411 can never be an external set for UCI-412);
+(iv) missingness mechanisms tabulated and handled identically.
+Design: train on cohort X → evaluate untouched on cohort Y
+(site-as-external), both directions where schemas allow; the
+harmonized intersection schema is versioned (`harmonized_t1_v1`)
+and expected to be small (demographics + comparable vitals/labs).
+
+**Strategy C — Pooled training (strictly gated).** Considered only
+after A and B results exist, and only if: B's compatibility checks
+pass for every pooled cohort; site is carried as a variable for
+heterogeneity analysis; duplicates removed; and **evaluation uses a
+cohort (or later, a dataset) never touched in pooling** — leave-one-
+site-out at minimum. Pooled data with random row splits is
+prohibited (site leakage masquerading as performance). If no
+independent evaluation source survives these rules, pooling is
+reported as exploratory development only, with no generalisation claim.
+
+**Strategy D — Larger, differently-labelled datasets as separate
+tasks (never merged).** BRFSS/NHANES (T3 survey task: sampling
+weights, prevalence calibration to the survey population) and PTB-XL
+(T5 ECG-statement task) may run as clearly separate sub-studies with
+their own protocols and papers sections. Their scores, features, and
+cohorts must never be concatenated with T1 data or described as CAD
+validation.
+
+### R2-4.3 Ranking (scientific validity + reproducibility, not n)
+
+1. **UCI-412** (angiographic, richest pre-angio schema, CC BY) —
+   development + T2 potential via UCI-411's per-artery targets.
+2. **UCI-45 Cleveland** (literature comparability) + **Hungary**
+   (largest sibling cohort) for Strategy B.
+3. **UCI-45 VA Long Beach, Switzerland** — Strategy B stress tests;
+   Switzerland contingent on the missingness audit.
+4. **Statlog-145** — only post-overlap-audit, as sensitivity analysis.
+5. **BRFSS → NHANES (Tier 3, separate task)**, then **PTB-XL**
+   (exploratory ECG), in that order.
+6. Framingham-official / UK Biobank / private Egyptian cohort (P3) /
+   AngioCAD: **decision-gated**, in no plan until D-021/D-022/access
+   approvals exist.
+
+### R2-4.4 Pre-download feasibility checklist (per dataset, G1)
+
+Official URL + licence snapshot; population/setting/dates; target
+definition verbatim; rows/patients/events; per-feature dictionary,
+units, missingness; patient-independence statement; overlap-audit
+plan; leakage screen (is every feature knowable before the label?);
+transportability notes (era, ethnicity, sex, referral pathway);
+storage (local, out of git); hash at download. No checklist = no download.
+
+## R2-5. Corrected experimental protocol — [PROPOSED, requires supervisor approval before any training (D-024)]
+
+This section **supersedes §9** where they differ. Reporting reference:
+**TRIPOD+AI** (Collins et al., BMJ 2024;385:e078378
+[VERIFIED-EXTERNAL, §14]) — its 27 items are adopted as the protocol
+and manuscript checklist, including data-source, outcome-definition,
+fairness, and open-science items. Adopting a reporting guideline is
+not a novelty or quality claim; it is a completeness floor.
+
+### R2-5.1 Pre-training protocol (gate G1 — nothing trains before this is merged)
+
+Written, timestamped, supervisor-approved protocol containing:
+research question + target (T1 verbatim); dataset checklist
+(§R2-4.4) per cohort; eligibility/exclusion rules; feature dictionary
+with availability timing; strategies A→D applicability decision;
+model families + baselines; tuning budget; primary metric
+(pre-registered: AUROC on external evaluation; secondary AUPRC,
+Brier, calibration slope/intercept, sensitivity at pre-fixed
+specificity); calibration plan; subgroup plan; CI method; leakage
+checklist sign-off; code/data versioning plan; stopping/reporting
+rules (including reporting null results). Amendments after seeing
+results require a dated amendment note — no silent protocol drift.
+
+### R2-5.2 Resampling: nested CV, no locked holdout (small-n rule)
+
+- Primary: **repeated stratified nested CV** (proposed 5×5 outer/
+  inner, repeated ×4 with distinct seeds; exact numbers fixed in the
+  protocol). Outer folds give the unbiased performance estimate;
+  inner folds do all tuning. Every outer fold's metrics are reported.
+- **No single locked holdout on n≈300**: a ~60-row holdout has
+  ~±10-point metric instability and discards 20% of development data.
+  The untouched-test role is played by **Strategy-B external cohorts**,
+  which are stronger evidence anyway. If a future cohort ≥1,000
+  patients arrives, a locked holdout may be reintroduced by amendment.
+- All splits are patient-level (grouped where repeated rows exist)
+  and stratified by outcome and, in pooled settings, by site.
+
+### R2-5.3 Within-fold discipline
+
+Imputation, scaling, encoding, feature selection, class balancing
+(SMOTE and variants), and threshold selection are **fitted inside
+training folds only** and applied frozen to validation/test folds.
+Pipeline objects are the unit of versioning (`preprocessing_id`
+bundles every fitted transformer + its training-fold provenance).
+
+### R2-5.4 Leakage audits (all documented per dataset)
+
+1. **Target leakage:** exclude any feature that is the label, a label
+   component, or post-label (UCI-411 LAD/LCX/RCA for the CAD target;
+   angiography-derived fields; treatments started because of the
+   diagnosis).
+2. **Feature-availability:** each feature timestamped relative to the
+   angiography decision; unknowable-before-label features excluded
+   or the model is explicitly re-scoped as post-test.
+3. **Duplicate patients:** exact + fuzzy matching on stable
+   demographics/features within and across cohorts (incl. Statlog);
+   matches resolved before splitting; overlap counts published.
+4. **Site/era leakage (pooled runs):** leave-one-site-out evaluation;
+   no random row splits across sites.
+5. **Preprocessing leakage:** §R2-5.3; plus a negative control
+   (label-shuffle run must score at chance — a cheap leakage tripwire).
+
+### R2-5.5 Calibration without leakage
+
+- Calibrator (Platt logistic preferred at n≈300; isotonic only with
+  a pre-registered minimum-events justification) is fitted on
+  **cross-fitted out-of-fold predictions** of the development data,
+  never on the same predictions used to report calibration.
+- Calibration is *evaluated* on external cohorts untouched by both
+  model and calibrator; recalibration on an external cohort converts
+  that cohort into development data and is reported as model updating
+  (TRIPOD+AI item), requiring a new untouched evaluation source.
+- Report Brier, intercept, slope, and the calibration plot (with
+  binning/smoothing method stated) alongside discrimination; a model
+  with `calibration_id: "none"` must serve `score.type:
+  "uncalibrated_score"` and the UI must not render it as "% risk".
+
+### R2-5.6 Uncertainty & confidence intervals (corrected)
+
+- **Model-performance CIs:** patient-level nonparametric bootstrap,
+  2,000 resamples, percentile intervals primary with a BCa
+  sensitivity where computable; resampling respects patient groups
+  and site clusters; nested-CV estimates report fold dispersion as
+  well as bootstrap CIs, and the protocol names which is primary.
+- **No patient-level prediction intervals** are computed, served, or
+  displayed (§R2-6). Individual-score stability may be studied
+  scientifically (e.g., explanation stability §R2-5.7) without being
+  presented as a confidence interval for a person's disease status.
+
+### R2-5.7 Explanations: scale, calibration consistency, stability
+
+- Declared scale: **log-odds/margin** for tree models (TreeSHAP).
+  Sum check on that scale only. The calibrated probability is a
+  monotone transform of the margin; SHAP contributions must not be
+  re-based onto the probability scale (a probability-scale
+  attribution, if ever required, is a different method and needs
+  its own validation + contract version).
+- LIME (when used): fixed seed + sampling count in
+  `explanation_config_id`; reported as a secondary, local, surrogate
+  explanation with its fidelity (local R²) attached; SHAP/LIME
+  disagreements are logged, not hidden.
+- Stability checks pre-registration: rank correlation of top-k
+  features across CV folds and across bootstrap refits; explanation
+  sensitivity to clinically plausible input perturbations (cf. P5's
+  noise test, as a technique reference). Unstable explanations block
+  UI display of feature attributions for that model version.
+
+### R2-5.8 Subgroups & fairness (small-n honest rules)
+
+Pre-specified subgroups (sex; age <55 / 55–70 / >70; site) with a
+**minimum reportable cell**: ≥30 patients **and** ≥10 events per
+class in the subgroup, else descriptive counts only, no performance
+claim, no significance test. No post-hoc subgroup hunting; all
+pre-specified results reported whether favourable or not;
+subgroup calibration reported only when the cell rule passes for
+calibration bins as well.
+
+### R2-5.9 Claims discipline
+
+Internal-validation numbers are labelled "internal (nested-CV)";
+cross-dataset numbers "external — one site/cohort pair"; nothing is
+"clinically validated". No novelty/publication claim is made in any
+output until the G7 broader-literature verification (systematic
+comparison beyond the 25-paper corpus) is done (D-025, TRIPOD+AI
+checklist completed at protocol **and** manuscript stages).
+
+## R2-6. Corrected AI–Backend API contract (v1) — [PROPOSED, D-013; supersedes §8 on every point of conflict]
+
+### R2-6.1 Idempotency (contradiction resolved)
+
+| Case | Result |
+|---|---|
+| First request with `Idempotency-Key: K` | `200`, response stored under (K, payload-hash), `audit_id` created, `"idempotent_replay": false` |
+| Retry: same K, **byte-identical canonical payload** | `200`, **stored response verbatim** + `"idempotent_replay": true`, same `audit_id`; **no re-inference, no new audit event** (a replay access-log line is allowed) |
+| Same K, **different payload** | `409 {"error": {"code": "idempotency_key_conflict", "original_audit_id": "…"}}` |
+| Key older than retention window (proposed 24 h, configurable per deployment, versioned in the contract's meta endpoint) | Treated as new; logged; clients must not rely on replay beyond the window |
+
+Determinism corollary (contract test): identical inputs + identical
+`model_id`/`preprocessing_id`/`calibration_id` must produce
+identical scores/explanations, replay or not.
+
+### R2-6.2 Schemas — required vs optional
+
+Common envelope (required): `request_id` (uuid, informational —
+idempotency is governed by the header key), `feature_schema_id`,
+`context.source` ∈ {`benchmark_import`, `clinician_entry`,
+`patient_entry`, `simulated_wearable`}, `context.recorded_at`
+(ISO-8601). `context.patient_ref` is a **pseudonymous prototype ID**
+only (no names/identifiers — validation rejects identifier-shaped
+values per a maintained denylist, prototype-grade control).
+
+Per-schema feature rules (`uci_heart_14_v1` shown; the DS-2 schema
+`z_alizadeh_sani_v1` mirrors this table at G1 after its dictionary audit):
+
+| Feature | Type / unit | Required? | Missing handling |
+|---|---|---|---|
+| `age_years` | integer, year (18–120) | Required | Missing → `422 missing_required_feature` (no silent imputation for identity-critical fields, list fixed per schema) |
+| `sex` | enum {female, male} (source coding documented) | Required | As above |
+| `chest_pain_type` | enum (schema codebook) | Required | As above |
+| `resting_systolic_bp` | number, **mmHg** | Required | As above |
+| `serum_cholesterol` | number, **mg/dL** (mmol/L input → `422 unit_mismatch`; conversion is a client responsibility in v1) | Optional | Pipeline imputation (fitted on training folds), listed in `missing_features[]`, warning added |
+| `fasting_blood_sugar_gt_120` | boolean (threshold in mg/dL) | Optional | As above |
+| `resting_ecg` | enum | Optional | As above |
+| `max_heart_rate_bpm` | number, **bpm** | Optional | As above |
+| `exercise_induced_angina` | boolean | Optional | As above |
+| `st_depression_oldpeak` | number, **mm (mV-equivalent as in source — dictionary confirmation at G1)** | Optional | As above |
+| `st_slope` | enum | Optional | As above |
+| `num_major_vessels_fluoroscopy` (`ca`) | integer 0–3 | Optional — **flagged**: knowable only after imaging; schemas must declare `availability: post_test`, and models for pre-test use exclude it (protocol decision, D-027) | As above |
+| `thalassemia_test` (`thal`) | enum | Optional (`post_test` flag as above) | As above |
+
+General rules: unknown feature → `422 unknown_feature`; wrong unit
+→ `422 unit_mismatch`; out-of-range → `422 value_out_of_range`
+(schema carries plausible ranges; out-of-*training*-range is a
+warning, not an error); `null` means "not provided" — a feature
+asserted with value `0` is data, never conflated with missing.
+Track-B (wearable) fields sent to this endpoint →
+`422 schema_model_mismatch` (§R2-1 one-way rule).
+
+### R2-6.3 Versioning
+
+URL major version (`/v1`) + artifact versions in every response
+(`model_id`, `preprocessing_id`, `calibration_id`,
+`feature_schema_id`, `explanation_config_id`). A change to feature
+semantics/units/target = new `feature_schema_id` version and, if
+breaking, `/v2`. Models are never silently swapped:
+`GET /v1/models/current` exposes the active artifact set + hashes;
+promotion requires the §R2-5 gates + a contract-test run against the
+new model (mock fixtures with a stub model make this testable
+before any real model exists).
+
+### R2-6.4 Response (corrected — changes from §8 shown)
+
+`score.type` ∈ {`calibrated_probability`, `uncalibrated_score`};
+**no `ci_95` or any per-patient interval** (removed in §8 as well);
+`model_performance_ref` points to the model card section containing
+externally-validated metrics **with** bootstrap CIs; `explanation`
+carries `scale: "log_odds_margin"`, `base_value`, `contributions[]`
+(each: feature, original value, unit, shap), and the invariant
+*base + Σ ≈ margin* (machine-checked); `warnings[]`,
+`missing_features[]`, `provenance{training_datasets[ids+sha256],
+code_commit, artifact_hashes}`, `review_state: "pending_review"`,
+and the research disclaimer are mandatory — a response missing any
+of them fails contract validation in CI.
+
+### R2-6.5 Explanation ↔ calibrated-score compatibility (binding)
+
+The UI may display the calibrated probability (if calibrated) and,
+separately, the ranked log-odds contributions labelled *"influence
+on the model score (log-odds scale)"*. It must never present SHAP
+values as percentage points of the probability, never colour them
+as risk itself, and never attach action text. If only an
+uncalibrated score exists, the UI shows the score as a relative
+model output (no % sign) per §R2-5.5.
+
+### R2-6.6 Mock fixtures & contract tests (Backend/Frontend unblocked during AI experiments)
+
+Fixture pack (versioned with the contract, stub model, fixed seeds):
+**F-01** golden valid request/response per schema; **F-02** every
+error code in §8.4 (as amended by R2-6.1); **F-03** missing-optional
+(with imputation notice) vs missing-required (`422`); **F-04**
+unit-mismatch + unknown-feature + out-of-range; **F-05** idempotent
+replay (response identity + single audit event) and **F-06**
+key-conflict `409`; **F-07** determinism (repeat → identical score);
+**F-08** SHAP sum-check within tolerance on the margin scale;
+**F-09** Track-B payload rejected for inference; **F-10** mandatory-
+field snapshot (target definition, disclaimer, provenance, review
+state present — UI snapshot tests pin their rendering);
+**F-11** uncalibrated model rendering (no % / no probability label);
+**F-12** model-swap simulation (new `model_id`, contract unchanged
+→ tests pass; schema change without version bump → tests fail).
+Backend serves these from a mock implementation; Frontend integrates
+against the mock from day one; AI replaces the stub behind the same
+contract at G4. All fixtures run in CI on every PR.
+
+### R2-6.7 Non-inference platform APIs (sketch, same versioning/audit rules)
+
+Monitoring ingestion `POST /v1/monitoring/observations` (source-
+labelled, consent-checked, unit-validated; purely Track B);
+history reads `GET /v1/patients/{ref}/monitoring`; review actions
+`POST /v1/predictions/{audit_id}/review` {action, reason_code};
+consent `POST/DELETE /v1/patients/{ref}/consents`. Schemas for
+these are a G4 deliverable reviewed with the same rigour; no
+endpoint may return a Track-A score inside a Track-B resource.
+
+## R2-7. Parallel team execution roadmap — [PROPOSED]
+
+Supersedes §11's sequential gates with three parallel workstreams
+plus shared integration checkpoints (IC). Owners are roles until the
+maintainer names people. All milestones are local/$0.
+
+### R2-7.1 Workstream A — AI & Research
+
+| # | Deliverable | Depends on | Acceptance |
+|---|---|---|---|
+| A1 | Pre-training protocol (§R2-5.1) + TRIPOD+AI checklist (protocol stage) | D-006, D-024 approval | Supervisor sign-off recorded; merged before downloads |
+| A2 | Dataset acquisition pack: §R2-4.4 checklist per Tier-1/2 cohort, hashes + licence snapshots, overlap & missingness audits | A1 | Independent team member re-verifies hashes; datasets stored out of git |
+| A3 | Strategy-A baselines per cohort (dummy, LR, RF, GBM) under nested CV | A2 | Model cards v0; leakage checklist + label-shuffle control pass |
+| A4 | Strategy-B harmonization + cross-dataset external evaluation; Strategy-C eligibility report (go/no-go with evidence) | A3 | External metrics headline; D-028 records pooling decision |
+| A5 | Calibration (cross-fitted) + explanation stability pack; model cards v1 + `model_performance_ref` content | A4 | §R2-5.5/5.7 checks pass; unpromotable models explicitly marked |
+| A6 | Artifact registry: versioned model/preprocessing/calibration artifacts + hashes, promotion log | A5 | Serving loads by ID + hash; mismatch fails closed (`503`) |
+
+### R2-7.2 Workstream B — Backend
+
+| # | Deliverable | Depends on | Acceptance |
+|---|---|---|---|
+| B1 | DB schema: users/roles, pseudonymous patient records, monitoring observations, predictions + review states, audit events, consents, artifact registry | Contract §R2-6 (draft suffices) | Migration + seed on SQLite/PostgreSQL; no PHI fields exist |
+| B2 | **Mock inference server** implementing §R2-6 + fixture pack F-01…F-12 | B1 | Contract tests green in CI; Frontend unblocked (IC-1) |
+| B3 | Platform APIs: auth/RBAC, ingestion (Track B), history, review, consent, audit query | B2 | Role-matrix tests; every mutation writes an audit event |
+| B4 | Real model serving behind the same contract (stub → A6 artifacts) | A6, B3 | Fixture suite re-run against the real model; determinism + sum-check pass (IC-3) |
+| B5 | Thin FHIR-shaped export (§8.7) — optional, time-boxed | B3 | Labelled research serialization; no interoperability claim |
+
+### R2-7.3 Workstream C — Frontend (React clinician web + Flutter patient app)
+
+| # | Deliverable | Depends on | Acceptance |
+|---|---|---|---|
+| C1 | Clinician dashboard skeleton vs mock: list, record detail, review queue, explanation view (per §R2-6.5 rendering rules) | B2 fixtures | Snapshot tests pin target/disclaimer; no % on uncalibrated scores (IC-1) |
+| C2 | Monitoring views (Track-B history/trends, source labels visible) | B3 | Simulated vs entered vs device data distinguishable everywhere |
+| C3 | **Flutter patient app** vs mock: auth, measures, survey, lifestyle, offline queue + sync, history, consent screens | B2 fixtures | Runs on local Android emulator **and** one physical device (§R2-7.4); offline→sync test passes |
+| C4 | Clinician-review + reassessment UX (validity-gated per §R2-2.2; no alert language) | B3, D-016 copy review | Copy checklist signed; invalid triggers demonstrably produce no new score |
+| C5 | Accessibility/wording pass with clinician reviewer (or conservative-copy fallback, D-016) | C1–C4 | Reviewer sign-off or fallback recorded |
+
+### R2-7.4 Flutter at $0 — local Android testing (investigated, Rev. 2)
+
+[VERIFIED-EXTERNAL, §14] Android Studio + Emulator are free
+downloads; apps run/debug on virtual devices (AVD) and on physical
+Android phones over USB/Wi-Fi ADB with Developer options + USB
+debugging — **no Play Store account, no fee, no store release is
+required for the entire development/test cycle**. Health Connect is
+on-device on Android (availability by version/Play services), so the
+simulated adapter remains the default data source; a real Health
+Connect spike is optional and device-gated. iOS remains gated on a
+Mac + Apple Developer account decision (D-019) and is **not** on the
+critical path. Team-machine verification task (first week of Phase 1,
+owner: Mobile lead): install Flutter + Android Studio on one team
+laptop, run the template app on emulator + one phone, record
+versions — if no team machine can run the emulator (RAM/virtualization),
+physical-device-only testing is the fallback and is recorded as a risk.
+
+### R2-7.5 Integration checkpoints
+
+**IC-1** (B2+C1+C3): end-to-end demo on fixtures — clinician reviews a
+mock prediction; patient app submits monitoring data; audit shows
+both. **IC-2** (B3+C2/C4): consent, RBAC, and reassessment-validity
+behaviour proven on mocks. **IC-3** (A6+B4+C1): first real model
+behind the unchanged contract; fixture suite + explanation checks
+green; UI wording re-snapshotted. **IC-4**: full research-prototype
+walkthrough + TRIPOD+AI manuscript draft (G7 equivalent).
+
+### R2-7.6 Recommended first implementation milestone
+
+**M1 — "Contract-first vertical slice on mock data"** (B1+B2+C1+C3
+core screens, IC-1): the platform shell with auth/RBAC, mock
+inference, review states, monitoring ingestion (simulated adapter),
+and both frontends running locally, while Workstream A executes
+A1–A2 in parallel. Rationale: it validates the riskiest integration
+assumptions (contract, idempotency, explanation rendering, offline
+sync) with zero scientific dependencies, so AI results later land
+without rework. M1 explicitly contains **no trained model, no real
+data, and no clinical claim** — and is only proposed here; Phase 1
+starts on explicit human approval of this report.
+
+## R2-8. Scientific validation risks (Rev. 2 supplement to §12)
+
+| ID | Risk | Control (owner) |
+|---|---|---|
+| SR1 | Harmonization quietly changes the target (different thresholds/codings across cohorts) | Feature-mapping table signed by Research lead; target verbatim per cohort in every model card (A) |
+| SR2 | Pooled training inflates performance via site/patient leakage | Strategy-C gate (§R2-4.2); leave-one-site-out; duplicate audit (A) |
+| SR3 | Calibration fitted and judged on the same data | Cross-fitted calibrators; external calibration evaluation only (A) |
+| SR4 | SHAP (log-odds) misread as probability contributions in UI/papers | §R2-6.5 rendering rules + snapshot tests (Backend/Frontend) |
+| SR5 | Subgroup "findings" from tiny cells | §R2-5.8 minimum-cell rule; pre-specification (A) |
+| SR6 | Wearable variables drift into CAD inference by convenience | One-way rule + `422` + contract test F-09 (Backend) |
+| SR7 | Benchmark overfitting to UCI quirks presented as clinical performance | Claims discipline §R2-5.9; external headline metric (A + supervisor) |
+| SR8 | Extension (UCI-411) mistaken for independent validation cohort | §R2-4.1 prohibition; dataset registry entry marks `independent_patients: same_as_UCI-412` (A) |
+| SR9 | Reassessment spam creates illusory score trajectories | §R2-2.2 validity triggers + determinism test (Backend) |
+| SR10 | Reporting drift from TRIPOD+AI (missing outcome/fairness/open-science items) | Checklist at protocol and manuscript gates (A) |
+
+## R2-9. Revised decision register (Rev. 2 additions — approval required)
+
+D-011…D-022 (§13) stand unless superseded below. New/clarified:
+
+| ID | Decision | Recommendation |
+|---|---|---|
+| D-023 | Adopt the two-track architecture + separation rules (§R2-1/R2-2) as binding design constraints | Adopt |
+| D-024 | Approve the pre-training protocol mechanism (§R2-5.1) — protocol document itself returns for supervisor sign-off at G1/A1 before any download/training | Approve mechanism |
+| D-025 | Broader-literature verification required before any novelty/publication claim (§R2-5.9) | Adopt as gate |
+| D-026 | Symptom-safety messaging: who (clinician) approves static content + sources, or is it omitted from the prototype? | Omit until a named clinician approves content |
+| D-027 | `ca`/`thal` post-test features: excluded from the primary (pre-test) models and relegated to a labelled post-test variant? | Exclude from primary |
+| D-028 | Strategy-C pooled training: eligible at all, and only after Strategy-B evidence? | Conditional — decide on A4 evidence |
+| D-029 | First milestone = M1 contract-first vertical slice (§R2-7.6) | Adopt as Phase 1 entry (on report approval) |
+| D-030 | Android-first Flutter testing (emulator + physical device; iOS deferred per D-019) | Adopt |
+
+**Blocking decisions for any implementation:** D-011 (report
+approval), D-006 (target), D-012/D-007 (dataset rules), D-013
+(contract), D-023, D-024, D-029, plus D-016 (clinician advisor) for
+any user-facing explanation/alert copy. **No Phase 1 work — including
+dataset downloads — is authorized by this revision.**
+
 ## 14. References
 
 Internal [VERIFIED-INTERNAL]: `AGENTS.md`; `README.md`;
@@ -879,6 +1503,16 @@ External (official/primary; accessed 2026-10-16):
    https://developer.apple.com/documentation/healthkit
 10. Android Health Connect (Android, on-device, per-type consent):
     https://developer.android.com/health-and-fitness/health-connect
+11. **(Rev. 2)** UCI Extension of Z-Alizadeh Sani (id 411) — same 303
+    patients as id 412, 59 features incl. label-defining LAD/LCX/RCA,
+    CC BY 4.0, DOI 10.24432/C5461K:
+    https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset
+12. **(Rev. 2)** TRIPOD+AI statement — Collins GS et al., BMJ
+    2024;385:e078378. https://doi.org/10.1136/bmj-2023-078378
+13. **(Rev. 2)** Android Studio / Emulator / physical-device debugging
+    (free local testing, no store account):
+    https://developer.android.com/studio/run/emulator and
+    https://developer.android.com/studio/run/device
 
 Paper-level URLs/DOIs are recorded per-paper in
 `research/source_materials/literature_review_status.csv` (P1–P25) and are
@@ -910,5 +1544,6 @@ Paper-level URLs/DOIs are recorded per-paper in
       (one line) and `docs/phase0/PHASE0_REVIEW_DRAFT.md` (new)
 - [x] No datasets, weights, credentials, PHI, or large files added
 - [x] PR targets `main`; **not merged**; Phase 1 not started
+- [x] **Rev. 2**: maintainer-requested sections added (§R2-1–§R2-9); §8/§9 contradictions corrected in place; PR #1 updated on the same branch (`arena/f977cda2-cardioassist-ai`); classifications and §0 evidence preserved
 
 *End of Phase 0 draft. Awaiting human review.*
