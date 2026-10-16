@@ -1,0 +1,329 @@
+﻿Paper_ID,Excel_Row,Supervisor_Status,Original_Title_Fill,Paper_Name,Paper_Link_Display,Paper_URL_from_Excel,Authors,Year,Algorithms_and_Models_Used,Dataset_Availability_as_recorded,Dataset_Reference_as_recorded,Dataset_URL_from_Excel,Results_as_recorded,Constraints_and_Limitations_as_recorded
+P1,6,APPROVED_GREEN,{'rgb': 'FF92D050'},Explainable Coronary Artery Disease Prediction Model Based on AutoGluon from AutoML Framework,Open Paper ↗,https://doi.org/10.3389/fcvm.2024.1360548,"Jianghong Wang, Qiang Xue, Chris W. J. Zhang, Kelvin Kian Loong Wong, Zhihua Liu",2024,"AutoML / ML: AutoGluon AutoML ensemble (stacking + bagging of multiple base learners — gradient boosting, neural network, and tree-based models)
+XAI: SHAP",Public / Available,"Combined five public CAD datasets — constituent datasets via UCI Heart Disease ↗
+(Merged combined dataset as used in this paper is not separately published by the authors)",https://archive.ics.uci.edu/dataset/45/heart+disease,"Best Model: AutoGluon Ensemble
+Accuracy: 91.67% (0.9167)
+AUC: 0.9562
+Protocol: 4-fold cross-bagging
+Sensitivity / Specificity: Not reported","Author Limitations:
+Small dataset (merged from n≈303 per source). No external validation on prospective or unseen data. No clinical deployment. No wearable integration. Model-only study.
+
+CardioAssist Gap:
+No clinical dashboard or patient-facing application was built. The model requires real-world deployment, multi-ethnic validation, and integration with wearable data streams to reach clinical utility."
+P2,7,APPROVED_GREEN,{'rgb': 'FF92D050'},XAI-Augmented Voting Ensemble Models for Heart Disease Prediction: A SHAP and LIME-Based Approach,Open Paper ↗,https://doi.org/10.3390/bioengineering11101016,"Nermeen Gamal Rezk, Samah Alshathri, Amged Sayed, Ezz El-Din Hemdan, Heba El-Behery",2024,"ML: XGBoost (best model), LightBoost — hybrid voting ensemble
+Preprocessing: Feature scaling
+XAI: SHAP (global), LIME (local)",Public / Available,"Heart Statlog Cleveland Hungary — Kaggle ↗
+Cleveland Heart Disease — UCI (also available)",https://www.kaggle.com/datasets/sid321axn/heart-statlog-cleveland-hungary-final,"Best Model: XGBoost
+Accuracy: ≈ 89%
+F1-score, AUC, Precision, Recall, Sensitivity, Specificity: reported in full paper tables — full values not reproducible from abstract alone","Author Limitations:
+Reliance on static benchmark dataset. No wearable or IoT data. No external validation. No clinical deployment. Black-box interpretability remains a challenge without XAI integration by end users.
+
+CardioAssist Gap:
+This paper delivers both SHAP and LIME on a heart disease dataset but stops at the model layer — no clinical interface was built. CardioAssist AI can extend this by (1) integrating both SHAP global explanations and LIME patient-level explanations into a unified dashboard, and (2) applying this dual-XAI approach to CAD-specific data."
+P3,8,MAYBE_PINK,"{'theme': '9', 'tint': '0.59999389629810485'}",A Proposed Technique for Predicting Heart Disease Using Machine Learning Algorithms and an Explainable AI Method,Open Paper ↗,https://doi.org/10.1038/s41598-024-74656-2,"Hosam El-Sofany (King Khalid University, Saudi Arabia), Belgacem Bouallegue (King Khalid University / University of Monastir), Yasser M. Abd El-Latif (Ain Shams University, Cairo, Egypt)",2024,"ML: XGBoost (best), Logistic Regression, Random Forest, SVM, Decision Tree
+Feature Selection: SF-2 feature subset selection strategy
+Preprocessing: SMOTE
+XAI: SHAP",Partially Available,"Cleveland (public portion) — UCI ↗
+Private Egyptian hospital data: N/A — Private / Not Public",https://archive.ics.uci.edu/dataset/45/heart+disease,"Best Model: XGBoost + SF-2 feature subset
+Accuracy: 97.64%
+Sensitivity: 96.61%
+Specificity: 90.48%
+Precision: 95.00%
+F1-score: 92.68%
+AUC: 98%","Author Limitations:
+Small private dataset (n=200). Single-region data (Egypt/Saudi Arabia). No external multi-center validation. Mobile app built but not clinically validated. No wearable integration.
+
+CardioAssist Gap:
+The mobile app was built but not clinically validated. CardioAssist AI can extend this by building a more comprehensive platform integrating both a clinician-facing dashboard AND a patient-facing mobile app, with a larger, more geographically diverse, and openly available dataset."
+P4,9,APPROVED_GREEN,{'rgb': 'FF92D050'},An Interpretable LightGBM Model for Predicting Coronary Heart Disease: Enhancing Clinical Decision-Making with Machine Learning,Open Paper ↗,https://pmc.ncbi.nlm.nih.gov/articles/PMC12431356/,"Lang Deng, Kongjie Lu, Huanhuan Hu",2025,"ML: LightGBM (primary model)
+Preprocessing: Data cleaning, feature engineering, missing-value handling
+XAI: SHAP
+Clinical Output: CHD clinical scoring system",Public / Available,"BRFSS_2015 — Kaggle ↗
+Framingham — Kaggle
+Z-Alizadeh Sani — UCI",https://www.kaggle.com/datasets/alexteboul/heart-disease-health-indicators-dataset,"Model: LightGBM
+BRFSS_2015: Accuracy 90.61%, AUROC 81.11% (after tuning; 90.60% / 81.06% before tuning)
+Framingham: Accuracy 85.26%, AUROC 67.37% (improved from 83.96% / 62.86%)
+Z-Alizadeh Sani: Accuracy 80.33%
+SHAP top features: age, smoking, diabetes, hypertension, cholesterol","Author Limitations:
+Lower AUROC on Framingham and Z-Alizadeh Sani — limited cross-dataset generalizability. No wearable integration. No prospective clinical validation. Scoring system not deployed in a real clinical interface.
+
+CardioAssist Gap:
+The CHD scoring system is a strong clinical utility concept, but it is not wrapped in an interactive interface. CardioAssist AI can adopt the LightGBM + SHAP pipeline AND build the missing clinical dashboard layer around the scoring output."
+P5,10,APPROVED_GREEN,{'rgb': 'FF92D050'},Interpretable Machine Learning for Coronary Artery Disease Risk Stratification: A SHAP-Based Analysis,Open Paper ↗,https://doi.org/10.3390/a18110697,"Nurdaulet Tasmurzayev, Zhanel Baigarayeva, Bibars Amangeldy, Baglan Imanbek, Shugyla Kurmanbek, Gulmira Dikhanbayeva, Gulshat Amirkhanova",2025,"ML: XGBoost (best), Random Forest, LightGBM (LGBMClassifier), Extra Trees, SVM
+Preprocessing: SMOTE (class rebalancing), categorical encoding, normalization
+Optimization: GridSearchCV hyperparameter tuning (3-fold cross-validation)
+Evaluation: ROC-AUC, calibration plot, noise-perturbation robustness test
+XAI: SHAP (global + local / TreeSHAP)",Public / Available,"Z-Alizadeh Sani — UCI ↗
+Z-Alizadeh Sani — UCI dataset page (id 412)",https://doi.org/10.24432/C5Q31T,"Best Model: XGBoost
+Accuracy: 90.11% (0.9011)
+Recall (Sensitivity): 0.8000
+F1-score: 0.8163
+ROC-AUC: 0.92
+Other models: Random Forest Acc 0.8901 / Precision 0.8947 / Recall 0.6800; LGBMClassifier Acc 0.8791 / Recall 0.7600 / F1 0.7755; ExtraTrees & SVM Acc 0.8681 / F1 0.7500
+Specificity: Not reported (confusion matrix: 62 TN, 4 FP, 20 TP, 5 FN)","Author Limitations:
+Small dataset (n=303). Single-center Iranian data. No external validation (internal evaluation only). Potential selection bias acknowledged by authors. No deep learning evaluated. No wearable integration. No clinical deployment. Model transparency remains a barrier to clinical adoption without a deployed interface.
+
+CardioAssist Gap:
+This paper provides the best direct methodological match for CardioAssist AI's core prediction module. The gap is deployment — CardioAssist AI should take this pipeline and embed it inside a real-time clinical dashboard with SHAP visualizations accessible to clinicians."
+P6,11,MAYBE_ORANGE,{'rgb': 'FFFFC000'},Optimized Ensemble Learning Approach with Explainable AI for Improved Heart Disease Prediction( I think nothing new rather than the previous paper 2025),Open Paper ↗,https://doi.org/10.3390/info15070394,"Ibomoiye Domor Mienye, Nobert Jere",2024,"ML: XGBoost (best), AdaBoost, Random Forest
+Optimization: Bayesian hyperparameter optimization
+XAI: SHAP",Public / Available,"Cleveland — UCI ↗
+Framingham — Kaggle",https://archive.ics.uci.edu/dataset/45/heart+disease,"Best Model: XGBoost + Bayesian Optimization
+Accuracy: 98.4% (Cleveland)
+Accuracy: 95.9% (Framingham)
+Sensitivity, Specificity, AUC: reported in full paper","Author Limitations:
+Small Cleveland dataset (n=303). Potential overfitting risk at 98.4% on a small benchmark. No wearable integration. No clinical deployment. No prospective validation.
+
+CardioAssist Gap:
+Bayesian optimization + SHAP is a strong methodology. CardioAssist AI can adopt this optimization strategy and extend it by adding a clinical decision support interface."
+P7,12,APPROVED_GREEN,{'rgb': 'FF92D050'},XAI-HD: An Explainable Artificial Intelligence Framework for Heart Disease Detection,Open Paper ↗,https://doi.org/10.1007/s10462-025-11385-6,"Md. Alamin Talukder, Amira Samy Talaat, Mohsin Kazi, Ansam Khraisat",2025,"ML: RUSBoostClassifier, Balanced Bagging Classifier, Logistic Regression, LightGBM (LGBClassifier)
+DL: Multilayer Perceptron (MLP — best model), CNN, Multi-Head Attention (MHA)
+Preprocessing: Z-score normalization; class balancing — OSS, NCR, SMOTEN, ADASYN, SMOTETomek, SMOTEENN (best); missing-data and feature-inconsistency handling
+Validation: Wilcoxon signed-rank tests; complexity analysis
+XAI: SHAP (global), LIME (local)",Public / Available,"Cleveland & Switzerland — UCI Heart Disease ↗
+Framingham — Kaggle (aasheesh200)",https://archive.ics.uci.edu/dataset/45/heart+disease,"Best Model: MLP + SMOTEENN balancing
+Cleveland (CHD): Accuracy 100%, Precision 100%, Recall 100%, F1-score 100%
+Switzerland (SHD): Accuracy 100%
+Framingham (FHD): Accuracy 92.71%, Precision 92.79%, Recall 92.71%, F1-score 92.62% (kappa 83.93, MCC 84.18)
+Error-rate reduction: 20–25% vs. traditional ML models across datasets (abstract)
+AUC: Not stated in abstract","Author Limitations:
+Benchmark datasets are relatively small; evaluation relies only on public tabular datasets; no real-time ECG / time-series or wearable data; no prospective clinical validation; generalization to real clinical populations uncertain; high computational cost for some DL models (MHA); dataset characteristics differ across CHD/FHD/SHD; very high (100%) scores on small benchmarks require external validation.
+
+CardioAssist Gap:
+XAI-HD's multi-model, multi-dataset design with dual XAI (SHAP+LIME) is a strong architectural reference, but its perfect benchmark scores are unvalidated externally and no deployment layer exists. CardioAssist AI can replicate the comparative structure, add external validation and the missing deployment layer."
+P8,13,MAYBE_ORANGE,{'rgb': 'FFFFC000'},Coronary Artery Disease Prediction Using Bayesian-Optimized Support Vector Machine with Feature Selection,Open Paper ↗,https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12738877/,"Abdul Zahir Baratpur, Hamed Vahdat-Nejad, Emrah Arslan, Javad Hassannataj Joloudari, Silvia Gaftandzhieva",2025,"ML: SVM (Bayesian-optimized, primary model)
+Feature Selection: Hybrid Decision Tree–AdaBoost (30 clinically relevant features selected)
+Preprocessing: SMOTE (within-fold, 10-fold cross-validation)
+Optimization: Bayesian hyperparameter tuning — compared against Sea Lion Optimization Algorithm (SLOA) and grid search
+XAI: SHAP",Public / Available,Z-Alizadeh Sani — UCI ↗,https://doi.org/10.24432/C5Q31T,"Best Model: Bayesian-optimized SVM
+Evaluation metrics: Accuracy, Sensitivity, F1-score
+Full quantitative results: available in the complete paper
+Finding: Bayesian-optimized SVM outperformed SLOA-SVM and Grid-search SVM on the CAD prediction task","Author Limitations:
+Small dataset (n=303). Single-center Iranian data. No external validation. No clinical deployment. No wearable integration. Results may not generalize beyond the Z-Alizadeh Sani dataset.
+
+CardioAssist Gap:
+This paper complements Paper 5 with a different algorithm (SVM vs. XGBoost) on the same dataset. CardioAssist AI's multi-algorithm comparison should include both, with Bayesian optimization as the tuning strategy."
+P9,14,APPROVED_GREEN,{'rgb': 'FF92D050'},Use Machine Learning Models to Identify and Assess Risk Factors for Coronary Artery Disease,Open Paper ↗,https://www.ncbi.nlm.nih.gov/pmc/articles/PMC11379138/,"Mingyang Zhang, Hongnian Wang, Ju Zhao",2024,"ML: Logistic Regression (best model) + 8 additional classifiers (9 total — incl. Random Forest, XGBoost, SVM, KNN, Decision Tree)
+Feature Selection: Univariate analysis + Boruta algorithm
+XAI: SHAP (Shapley values); Generalized Additive Models (nonlinear curve fitting); Piecewise Linear Regression (inflection-point analysis)",Public / Available,Z-Alizadeh Sani — UCI ↗,https://doi.org/10.24432/C5Q31T,"Best Model: Logistic Regression
+AUROC: 0.981 (95% CI: 0.952–1.0)
+AUPRC: 0.993
+Accuracy: Not separately reported","Author Limitations:
+Small single-center dataset (n=303). No external validation cohort. No clinical deployment. SHAP curve-fitting approach not yet validated by clinicians. No wearable integration.
+
+CardioAssist Gap:
+The SHAP nonlinear curve-fitting approach is a unique XAI extension that CardioAssist AI can reference when explaining nonlinear feature relationships (e.g., age–risk curves) in its clinician dashboard."
+P10,15,APPROVED_GREEN,{'rgb': 'FF92D050'},Explainable Hybrid Deep Learning Framework for Cardiovascular Disease Prediction and Clinical Decision Support,Open Paper ↗,https://pubmed.ncbi.nlm.nih.gov/42411231/,"Bhaskar Adepu, T. Archana",2026,"ML (Layer 1 — Ensemble): XGBoost, CatBoost, Random Forest
+DL (Layer 2 — Deep context model): CNN, LSTM
+XAI: SHAP (global), LIME (instance-level)
+Architecture: Two-stage hybrid ML + DL pipeline (HCVDNet); FHIR-compliant design stated by authors",Public / Available,"UCI Heart Disease — UCI ↗
+Cardiovascular Disease Dataset — Kaggle",https://archive.ics.uci.edu/dataset/45/heart+disease,"Best Model: Hybrid Pipeline (Ensemble + CNN/LSTM)
+Accuracy: 96.94%
+AUC: 98.72%
+ECE (Expected Calibration Error): 0.021
+Sensitivity, Specificity, F1: available in the complete paper","Author Limitations:
+No clinical deployment despite ""Clinical Decision Support"" framing. No wearable integration. No prospective external validation. High complexity of two-stage pipeline may limit real-time deployment( you may face the same constraints).
+
+CardioAssist Gap:
+This is the most architecturally sophisticated paper in this review. Its ML+DL hybrid with dual XAI achieves the best performance metrics. CardioAssist AI can adopt this two-stage architecture and add the missing clinical deployment layer."
+P11,16,REJECTED_RED,{'rgb': 'FFFF0000'},"Multimodal Deep Learning with Missing Data Robustness for Enhanced Early Diagnosis of Coronary Artery Disease Using CCTA, Clinical, and ECG Data",Open Paper ↗,https://doi.org/10.1186/s12911-026-03466-5,"YongBo Tu, XiaoRong Yang, Fang Liu, RuYue Ai, Yu Luo, Ran ChunYan, GuangXu Yang, TiJiang Zhang, Lin Jiang",2026,"DL: CNN feature extractors per modality — MRSPAN (multiscale residual pyramid attention network) blocks for CCTA images; dual-channel CNN with discrete wavelet transform + bilinear pooling for ECG; dedicated CNN branch for clinical/laboratory data
+Fusion: Deep weighted fusion with prior-knowledge-guided dynamic attention; MLP classification head
+Robustness: Missing-data tolerance (up to 50% missing modalities/features simulated 1,000×)
+XAI: SHAP (clinical data) + attention maps (imaging)",Private / Not Public,N/A — Private / Not Public,,"Best Model: Multimodal fusion model (CCTA + clinical/lab + ECG)
+AUC (internal validation): 0.86 (95% CI 0.863–0.877)
+AUC (external validation): 0.83 (95% CI 0.826–0.834)
+Unimodal baselines (external): imaging-only AUC 0.79; clinical + laboratory-only AUC 0.77 (p < 0.001 vs. multimodal)
+With 40% missing clinical/lab features: AUC 0.76 ± 0.03
+vs. manual diagnosis: ROC 0.86 vs. 0.78; sensitivity 88% vs. 77%; CHD diagnosis rate +10.43 percentage points (+44.0% relative)
+Specificity / Precision / F1: reported in paper tables (values not reproduced here)","Author Limitations:
+Two-centre data from a single geographical region (China) — limited generalizability; multi-centre, multi-ethnic validation still required. Binary CVD classification does not capture CAD severity. No temporal/longitudinal data. Clinical utility and cost-effectiveness not yet evaluated prospectively. Dataset not publicly available. Requires CCTA imaging (not a low-cost screening pipeline).
+
+CardioAssist Gap:
+First reviewed paper with true external validation and multimodal (imaging + ECG + clinical) fusion — but it depends on hospital CCTA, has no patient-facing or wearable component, and remains a model-only study. CardioAssist AI can borrow the missing-data-robust fusion idea and SHAP-on-clinical-features design for a low-cost, deployable pipeline."
+P12,17,REJECTED_RED,{'rgb': 'FFFF0000'},Enhancing Cardiovascular Disease Classification with Routine Blood Tests Using an Explainable AI Approach,Open Paper ↗,https://doi.org/10.3390/a18110708,"Nurdaulet Tasmurzayev, Bibars Amangeldy, Zhanel Baigarayeva, Assiya Boltaboyeva, Baglan Imanbek, Naoya Maeda-Nishino, Sarsenbek Zhussupbekov, Aliya Baidauletova",2025,"ML: XGBoost (best), LightGBM, CatBoost, SVM, Decision Tree
+Design: Paired comparison — Dataset 1 (baseline vitals/anthropometrics) vs. Dataset 2 (baseline + routine blood biomarkers) on the same 896 patients
+Preprocessing: Complete-case analysis, encoding, hold-out test split; calibration analysis
+XAI: SHAP (global importance, beeswarm/dependence plots, patient-level force plots)",Private / Not Public,N/A — Private / Not Public (available from corresponding author on request),,"Best Model: XGBoost (Dataset 2 — with blood biomarkers)
+Accuracy: 91.62%
+Precision: 95.00%
+Recall (Sensitivity): 87.36%
+F1-score: 91.02%
+Baseline-only XGBoost (Dataset 1): Accuracy 87.15%, F1 ≈ 87.1%
+Other models (Dataset 2): CatBoost Acc 89.94% / Prec 94.05% / Rec 85.87% / F1 89.77%; LightGBM Acc 89.39% / Prec 93.98% / Rec 84.78% / F1 89.14%; SVM Acc 86.03% / Prec 90.36% / Rec 81.52% / F1 85.71%; Decision Tree Acc 85.47% / Prec 90.67% / Rec 78.16% / F1 83.95%
+Confusion matrix (Dataset 2): 76 TP, 88 TN, 4 FP, 11 FN
+SHAP top biomarkers: AST, glucose, creatinine
+AUC / Specificity: Not reported","Author Limitations:
+SCOPE FLAG: framed in title/abstract/keywords as generic cardiovascular disease, but the Discussion describes the cohort as 459 CAD vs. 437 non-CAD — included with caution. Single-centre (Almaty) retrospective data; complete-case filtering reduced the sample to 896; CVD modelled as one heterogeneous category; age/sex imbalance between cases and controls may inflate metrics; no external validation; dataset not public.
+
+CardioAssist Gap:
+Shows that low-cost routine blood tests + SHAP can raise accuracy from ~87% to ~92% — a practical feature set for CardioAssist AI's screening module — but the study is single-centre, model-only, has no LIME, no external validation and no patient-facing tool."
+P13,18,REJECTED_RED,{'rgb': 'FFFF0000'},Which risk factor best predicts coronary artery disease using artificial neural network method?,Open Paper ↗,https://doi.org/10.1186/s12911-024-02442-1,"Nahid Azdaki, Fatemeh Salmani, Toba Kazemi, Neda Partovi, Saeede Khosravi Bizhaem, Masomeh Noori Moghadam, Yoones Moniri, Ehsan Zarepur, Noushin Mohammadifard, Hassan Alikhasi, Fatemeh Nouri, Nizal Sarrafzadegan, Seyyed Ali Moezi, Mohammad Reza Khazdair",2024,"DL / ANN: Artificial Neural Network (multilayer perceptron with five hidden layers, SPSS v26)
+Statistics: t-test, ANOVA and logistic-regression-style risk-factor comparison across CAD / premature CAD / non-CAD groups
+XAI: None (ANN normalised importance ranking only)",Private / Not Public,N/A — Private / Not Public (I-PAD hospital records; no public repository),,"Best Model: ANN (5 hidden layers)
+Accuracy: 81% (non-CAD), 79% (premature CAD), 78% (CAD)
+Top ANN predictors: anxiety, acceptance, education, gender
+Cohort: 48% history of CAD (9.4% premature CAD, 38.8% CAD)
+Sensitivity / Specificity / AUC values: Not reported in abstract","Author Limitations:
+Author-stated: design/analysis limitations — reverse causality, incidence-prevalence bias and unmeasured confounding. Reviewer-noted: single-hospital sub-cohort (n=415), self-reported behavioural/psychological variables, no explainability method, no external validation, dataset not public, no deployment.
+
+CardioAssist Gap:
+Demonstrates that psychosocial variables (anxiety, acceptance, education) carry predictive signal for CAD, but offers no explainability, no public data and no deployment — CardioAssist AI can add SHAP/LIME transparency and a clinician interface on top of such risk-factor models."
+P14,19,APPROVED_GREEN,{'rgb': 'FF92D050'},CardioEnsemNet: An Optimized Ensemble Learning Framework for Accurate Coronary Artery Disease Prediction Across Multiple Datasets,Open Paper ↗,https://doi.org/10.1007/s44196-026-01451-4,"T. Aswani, Jose Moses Gummadi, G. Sharada",2026,"ML: Optimised stacking ensemble — Random Forest, SVM, K-Nearest Neighbours, XGBoost base learners + Logistic Regression meta-learner
+Feature engineering: polynomial & interaction features; Boruta feature selection; SMOTE class balancing; dataset-aware, leakage-safe preprocessing
+Validation: cross-dataset validation + ablation studies
+XAI: SHAP (global), LIME (local)",Public / Available,"Cleveland — UCI Heart Disease ↗
+Z-Alizadeh Sani — UCI (id 412)
+Statlog Heart — UCI (id 145)
+Framingham Heart Study — Kaggle (4th dataset; same mirror as P7/P15)",https://archive.ics.uci.edu/dataset/45/heart+disease,"Best Model: CardioEnsemNet stacking ensemble
+Accuracy: > 97% across all four datasets
+F1-score: > 95% across all four datasets
+ROC-AUC: ≈ 0.99 across all four datasets
+Cross-dataset validation and ablation studies confirm robustness
+Exact per-dataset values: Not stated in abstract","Author Limitations:
+Reviewer-noted (abstract-based; no limitation section available in the open text consulted): evaluation restricted to four retrospective public benchmarks with heterogeneous feature schemas; no real-world clinical cohort or prospective validation; near-perfect scores require independent replication (paper published June 2026); stacking adds computational cost; no wearable/monitoring data; no deployment.
+
+CardioAssist Gap:
+Strongest multi-dataset XAI benchmark in the corpus (SHAP + LIME, four datasets, cross-dataset validation) yet purely offline — CardioAssist AI can reuse its leakage-safe pipeline and add clinical deployment, wearable inputs and prospective evaluation."
+P15,20,APPROVED_GREEN,{'rgb': 'FF92D050'},Comparative analysis of machine learning models for coronary artery disease prediction with optimized feature selection,Open Paper ↗,https://doi.org/10.1016/j.ijcard.2025.133443,"David B. Olawade, Afeez A. Soladoye, Bolaji A. Omodunbi, Nicholas Aderinto, Ibrahim A. Adeyanju",2025,"ML: Random Forest (best), K-Nearest Neighbours, Logistic Regression, SVM (linear, polynomial, RBF kernels)
+Feature selection: Bald Eagle Search Optimization (BESO) — compared with RFE and LASSO
+Preprocessing: missing-value imputation, normalisation, categorical encoding, SMOTE; 70–30 hold-out with empirical hyper-parameter optimisation
+XAI: None",Public / Available,"Z-Alizadeh Sani — UCI (id 412) ↗
+Framingham — Kaggle (aasheesh200)",https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani,"Best Model: Random Forest + BESO feature selection
+Accuracy: 90% (Framingham) vs. 71–73% for traditional clinical risk scores; 92% reported as optimal RF accuracy (conclusion)
+Linear models: 90% (Z-Alizadeh Sani) vs. 66% (Framingham)
+SVM-RBF outperformed linear and polynomial SVM
+AUC / Sensitivity / Specificity: Not stated in abstract (source sheet quotes AUC 0.94/0.95 — not verifiable from open text, not recorded)","Author Limitations:
+Author-stated: future work should focus on prospective validation and clinical implementation. Reviewer-noted (source sheet): Z-Alizadeh Sani is small (304); datasets may carry demographic/institutional bias; no external validation on real-world clinical data; single 70–30 hold-out split rather than cross-validation; no explainability method; no deployment.
+
+CardioAssist Gap:
+Shows metaheuristic feature selection (BESO) + RF beats clinical risk scores on public data, but with no explainability, no external validation and no deployment — the XAI + deployment layers of CardioAssist AI remain open."
+P16,21,REJECTED_RED,{'rgb': 'FFFF0000'},Enhancing prediction accuracy of coronary artery disease through machine learning-driven genomic variant selection,Open Paper ↗,https://doi.org/10.1186/s12967-024-05090-1,"Z. Alireza, M. Maleeha, M. Kaikkonen, V. Fortino",2024,"ML: Logistic Regression, LASSO, SVM, Random Forest classifiers combined with feature selection (ML-FS pipeline)
+Feature selection: GWAS/PLINK association filtering, mRMR, Random Forest importance
+Benchmark: polygenic risk scores — P+T, LDpred2, Lassosum; cross-validation
+XAI: None",Private / Not Public,N/A — Controlled access (UK Biobank application required),,"Best Model: Random-Forest-based feature selection + classifier
+AUC-ROC: ≈ 0.80 with the top 50 SNPs combined with known risk factors (≈80% accuracy)
+Comparable to PRS models while using a far smaller variant panel
+Six genomic variants consistently selected by all feature-selection methods
+Sensitivity / Specificity: Not reported","Author Limitations:
+Reviewer-noted (source sheet + abstract): single biobank cohort (UK Biobank) — ancestry/ethnic transferability untested; genetic testing cost and controlled data access limit reproducibility and practical use; no explainability method; no external cohort; no clinical tool. Author limitation section not exposed in the open text consulted.
+
+CardioAssist Gap:
+Only genomic paper in the corpus — shows compact SNP panels reach ≈0.80 AUC, but relies on controlled-access data and offers no XAI or clinical interface; CardioAssist AI's clinical-variable pipeline could later accept a compact genetic panel as an optional input."
+P17,22,REJECTED_RED,{'rgb': 'FFFF0000'},Enhanced Coronary Artery Disease Classification Through Feature Engineering and One-Dimensional Convolutional Neural Network,Open Paper ↗,https://doi.org/10.1109/ACCESS.2025.3584735,"Atitaya Phoemsuk, Vahid Abolghasemi",2025,"DL: Streamlined 1D-CNN (proposed) — compared with LSTM and CNN-LSTM
+ML baselines: SVM, K-means, kNN
+Feature engineering: sample entropy + standard normalisation to discard noisy / flat 1-s ECG segments
+XAI: None",Public / Available,"Fantasia Database — PhysioNet ↗
+MIMIC-III Waveform Database — PhysioNet",https://physionet.org/content/fantasia/1.0.0/,"Best Model: Proposed 1D-CNN + feature engineering
+Accuracy: 98.5% (D1 test), 99.0% (D2 unseen); 87.9% / 87.0% without feature engineering
+Training (D1): accuracy 99.3%, precision 98.5%, sensitivity 98.5%, F1 99.01%
+One-class evaluation: 99% of CAD and 98% of non-CAD samples correctly identified
+Baselines with FE: SVM 96.1% / 96.4%, LSTM 86.7% / 90.0%, CNN-LSTM 86.7% / 89.0% (D1 test / D2)","Author Limitations:
+Reviewer-noted (source sheet + full text): relatively small subject pool (40 patients per class) drawn from two different PhysioNet databases, with experiments on selected ECG segments — larger, more diverse cohorts are needed to establish generalisability; no explainability method; no clinical/external cohort; no deployment (portable-ECG use is proposed only).
+
+CardioAssist Gap:
+Evidence that low-cost single-lead ECG alone can separate CAD from non-CAD with a compact 1D-CNN — directly relevant to CardioAssist AI's wearable-ECG ambition — but without explainability, clinical validation or a deployed monitoring pipeline."
+P18,23,REJECTED_RED,{'rgb': 'FFFF0000'},Development and validation of an interpretable machine learning model associated with erythrocyte fatty acids to identify coronary artery disease among Chinese adults,Open Paper ↗,https://doi.org/10.1016/j.fbio.2024.105368,"Yongjin Wang, Zhaocheng Zhuang, Yandan Wang, Meijun Du, Le Yu, Qayyum Shehzad, Feng Xiao, Gangcheng Wu, Hui Zhang, Qingzhe Jin, Xingguo Wang",2024,"ML: Eight algorithms compared — XGBoost (best); source sheet lists LR, RF, SVM, KNN, Decision Tree, AdaBoost, Gradient Boosting
+Feature selection: LASSO (7 erythrocyte fatty acids retained)
+XAI: SHAP (global ranking + personalised risk explanation)
+Deployment: online Shiny risk-calculation platform",Private / Not Public,N/A — Private / Not Public (online risk calculator: c34d.shinyapps.io/ShinyWyj),,"Best Model: XGBoost (test set)
+AUC: 0.885
+Accuracy: 80.3%
+Specificity: 80.85%
+Sensitivity: 79.79%
+F1-score: 0.802
+SHAP: erythrocyte saturated fatty acids and n-3 PUFA were the two most important variables","Author Limitations:
+Author-stated: preliminary study — large-scale, multi-centre prospective studies are needed. Reviewer-noted (source sheet): small single-centre case-control sample (628); dataset not public; specialised erythrocyte fatty-acid assays limit practical accessibility; no wearable data; no prospective multi-centre validation; SHAP only.
+
+CardioAssist Gap:
+One of only two papers with any deployed artefact beyond a mobile app — an online SHAP-backed risk calculator — but it depends on a specialised laboratory assay and private single-centre data; CardioAssist AI targets routinely available inputs with a full clinician dashboard."
+P19,24,MAYBE_ORANGE,{'rgb': 'FFFFC000'},Enhanced TabNet with Entmax-Based Sparse Attention and Modified GLU for Interpretable Cardiovascular Risk Prediction Using an Edge-IoT Framework,Open Paper ↗,https://doi.org/10.3390/bdcc10080271,"Mehboob Zahedi, Dokhyl AlQahtani, Bader Alhasson, Emad A. Mohamed, Pradeep Kumar Dabla, Shyamalendu Kandar",2026,"DL: Enhanced TabNet — Entmax-based sparse attention + modified Gated Linear Units (vs. original TabNet / softmax attention; RF baseline per source sheet)
+Signal processing: Kalman filtering, normalisation, PQRST feature extraction at the edge; SMOTE class balancing
+Edge-IoT hardware: ESP32 with AD8232 ECG, MAX30102 PPG, DS18B20 temperature, NEO-6M GPS; SMS risk alerts (threshold e.g. 0.85)
+XAI: Intrinsic attention-based feature selection (TabNet masks) — no SHAP/LIME",Public / Available,"Heart Statlog Cleveland Hungary (comprehensive, n=1,190) — Kaggle ↗
+Constituent datasets — UCI Heart Disease",https://www.kaggle.com/datasets/sid321axn/heart-statlog-cleveland-hungary-final,"Best Model: Enhanced TabNet
+Accuracy: 97.43%
+Precision: 96.18%
+Recall: 97.24%
+Edge-to-cloud end-to-end latency: < 200 ms
+F1 96.32% / ROC-AUC 0.969 / fold accuracy 97.21–97.59%: per source review sheet (full text) — not in abstract","Author Limitations:
+SCOPE FLAG: framed as generic 'cardiovascular risk', but trained and evaluated on the UCI angiographic heart-disease (CAD) datasets — included with caution. Reviewer-noted (source sheet): no large-scale prospective clinical validation; wearable validation is preliminary and the model is trained on benchmark tabular data rather than a real-world wearable dataset; wearable-derived features need clinical validation; edge-device compute limits; research prototype, not a certified medical device.
+
+CardioAssist Gap:
+The ONLY reviewed paper with a working wearable ECG/PPG prototype and continuous-monitoring architecture — but its model never sees wearable-derived training data and it offers no SHAP/LIME, no clinician dashboard and no prospective validation; CardioAssist AI can close the loop between wearable data, explainable prediction and clinical interface."
+P20,25,MAYBE_ORANGE,{'rgb': 'FFFFC000'},Application of spatial uncertainty predictor in CNN-BiLSTM model using coronary artery disease ECG signals( you can only check the technique but can't be used as a benchmark),Open Paper ↗,https://doi.org/10.1016/j.ins.2024.120383,"Silvia Seoni, Filippo Molinari, U. Rajendra Acharya, Oh Shu Lih, Prabal Datta Barua, Salvador García, Massimo Salvi",2024,"DL: CNN-BiLSTM (proposed); CNN and DenseNet comparators (per source sheet)
+XAI: Grad-CAM (gradient-weighted class activation mapping)
+Uncertainty quantification: Spatial Uncertainty Estimator (SUE) — spatial overlap of Grad-CAM features as a confidence score
+Future work named: Monte Carlo Dropout, deep ensembles",Public / Available,"Fantasia Database — PhysioNet ↗
+St Petersburg INCART 12-lead Arrhythmia DB — PhysioNet",https://physionet.org/content/fantasia/1.0.0/,"Best Model: CNN-BiLSTM
+Accuracy: 99.6%
+Sensitivity: 99.8%
+Specificity: 98.2%
+SUE accurately separates correctly classified from misclassified ECG segments at test time
+Comparators (per source sheet): CNN 98.80% / 99.30% / 96.30%; DenseNet 98.60% / 99.10% / 95.90% (Acc / Sens / Spec)","Author Limitations:
+Reviewer-noted (source sheet): very small number of unique CAD patients (7) vs. 40 healthy subjects — many segments come from few individuals; SUE currently addresses spatial feature repeatability only (probabilistic UQ proposed as future work); real-time ECG monitoring not implemented; no physician evaluation of SUE; generalisation to larger, diverse populations untested.
+
+CardioAssist Gap:
+Only paper combining XAI (Grad-CAM) with uncertainty quantification for ECG-based CAD detection — a trust mechanism CardioAssist AI can adopt for its ECG branch — but built on 7 CAD subjects and never evaluated with clinicians or in real time."
+P21,26,MAYBE_ORANGE,{'rgb': 'FFFFC000'},From Black Box to Glass Box: SHAP-Explained XGBoost Model for Coronary Artery Disease Prediction,Open Paper ↗,https://doi.org/10.3390/a18120771,"Hanieh Ahmadian, Samaneh Emami, Hamid Nasiri",2025,"ML: XGBoost (SHAP-explained), SVM, Naïve Bayes, Logistic Regression, Random Forest, K-Nearest Neighbours
+Feature selection: ANOVA F-value ranking
+Validation: hold-out test set + 10-fold cross-validation
+XAI: SHAP (bar and beeswarm plots on the XGBoost model)",Public / Available,Cleveland — UCI Heart Disease ↗,https://archive.ics.uci.edu/dataset/45/heart+disease,"Best hold-out model: KNN (K=3) + ANOVA features — Accuracy 93.33%
+SVM and XGBoost (hold-out): Accuracy 91.66%
+XGBoost, 10-fold CV: Accuracy 86.16%, Recall 87.41%
+SHAP top features (XGBoost): Ca, Thal, Cp
+ANOVA top predictors: chest pain type, max heart rate, ST depression, exercise-induced angina
+AUC: Not stated in abstract","Author Limitations:
+Reviewer-noted (source sheet): small dataset (Cleveland, 297–303 records); no external validation on other datasets; no formal statistical significance tests; manual hyper-parameter tuning; interpretability evaluated with SHAP only; no deployment.
+
+CardioAssist Gap:
+A clean SHAP-explained XGBoost baseline on Cleveland; like P1/P2/P5 it stops at the notebook — no dashboard, no external data, no LIME — reinforcing the deployment and generalisability gaps."
+P22,27,REJECTED_RED,{'rgb': 'FFFF0000'},"Machine learning and SHAP values for predicting coronary artery disease risk in Xinjiang, China",Open Paper ↗,https://doi.org/10.1186/s40001-025-03763-1,"Gulinigaer Maimaitituersun, Fuerkaiti Abulimiti, Qiqi Shao, Yaqi Zhou, Subinuer Jureti, Fan Liu, Rui Liu, Mengwei Wei, Ziyang Liu, Zhenyan Fu",2026,"ML: XGBoost (best), Random Forest, MLP, SVM, KNN, AdaBoost — sex-specific models
+Feature selection: logistic regression + LASSO
+Evaluation: AUROC, calibration curves + Brier score, decision-curve analysis, 99-cut-point threshold analysis; benchmarked against SCORE2 Asia Pacific
+XAI: SHAP (individualised risk explanations)",Private / Not Public,N/A — Private / Not Public (hospital cohort; aggregate data in article only),,"Best Model: XGBoost (sex-specific)
+Test AUROC: 0.826 (95% CI 0.802–0.850) males; 0.786 (0.751–0.821) females
+Training / validation AUROC: 0.845 / 0.814 (males); 0.817 / 0.759 (females)
+vs. SCORE2 Asia Pacific: 0.826 vs. 0.662 (males); 0.786 vs. 0.720 (females), with improved calibration
+SHAP: age strongest male predictor; hypertension strongest female predictor; higher risk in Kazakh and Hui ethnicities (males)
+Accuracy / Sensitivity / Specificity: Not reported in abstract","Author Limitations:
+Author-stated: retrospective design (waist circumference unavailable, so comparison with the CHINA-PAR model was impossible); internal validation only — independent external validation is lacking. Reviewer-noted (source sheet): cross-sectional data limit long-term risk prediction; limited sample size for some ethnic groups (Kazakh, Hui); dataset not public; SHAP only; no deployment.
+
+CardioAssist Gap:
+Largest and only multi-ethnic clinical cohort in the corpus (n=12,116) with sex-specific SHAP-explained models benchmarked against a guideline score — yet private data, no external validation and no clinician interface; CardioAssist AI can adopt its calibration/decision-curve evaluation standard."
+P23,28,MAYBE_ORANGE,{'rgb': 'FFFFC000'},Explainable AI for Coronary Artery Disease Stratification Using Routine Clinical Data,Open Paper ↗,https://doi.org/10.3390/a18110693,"Nurdaulet Tasmurzayev, Baglan Imanbek, Assiya Boltaboyeva, Gulmira Dikhanbayeva, Sarsenbek Zhussupbekov, Qarlygash Saparbayeva, Gulshat Amirkhanova",2025,"ML: CatBoost (best) — standardized comparison of gradient boosting, tree ensembles, SVM etc. (source sheet: XGBoost, LightGBM, HistGradientBoosting, RF, Extra Trees, Decision Tree, KNN, SVM, LR)
+Pipeline: missing-value handling, encoding, scaling, 80/20 split, SMOTE on training set only, GridSearchCV tuning
+Evaluation: accuracy, recall, F1, calibration curves
+XAI: SHAP (patient-level interpretability)",Public / Available,UCI Heart Disease (4 cohorts) ↗,https://archive.ics.uci.edu/dataset/45/heart+disease,"Best Model: CatBoost
+Accuracy: 0.8278
+Recall: 0.8407
+F1-score: 0.8436
+Calibration curves confirm reliable probabilistic predictions
+SHAP: ST-segment depression among clinically significant predictors (source sheet adds chest-pain type, exercise-induced angina, ST slope)
+ROC-AUC 0.90 / Brier 0.1252: per source review sheet (full text) — not in abstract","Author Limitations:
+Reviewer-noted (source sheet): external validation on geographically distinct datasets is needed before clinical deployment; the UCI data lack contemporary imaging metrics and advanced biomarkers; SMOTE may affect decision boundaries and calibration (prospective recalibration needed); most analyses focus on binary CAD classification rather than disease severity despite the stated severity objective; site-specific audits and age/sex fairness analyses needed; no deployment.
+
+CardioAssist Gap:
+Explicitly targets CAD severity stratification from routine data and adds calibration analysis, but ends with a binary CatBoost classifier on legacy UCI data — CardioAssist AI can deliver the calibrated, severity-aware, explainable output this paper only aims at."
+P24,29,REJECTED_RED,{'rgb': 'FFFF0000'},Enhancement of Stress ECG Performance with Machine Learning: A Single-Center Study,Open Paper ↗,https://doi.org/10.1016/j.jacadv.2025.102141,"Ayan Banerjee, Riya Sudhakar Salian, Hema Srikanth Vemulapalli, Anil Kumar Sriramoju, Poojan Prajapati, Juan F. Rodriguez-Riascos, Padmapriya Muthu, Shruti Krishna Iyengar, Win Shen, Sandeep K. S. Gupta, Komandoor Srivathsan",2025,"DL: Transformer-based architecture on exercise-stress-ECG images converted to time series; four configurations (K1: 5 critical leads at max MET — best; K2–K4)
+Preprocessing: image-to-time-series conversion, resampling/padding, cardiologist quality assurance
+Validation: 5-fold cross-validation on 227-patient test subset + second validation cohort (91 patients)
+XAI: None",Not Clearly Stated,N/A — Not Clearly Stated (single-centre patient records; no data-sharing statement found),,"Best Model: K1 transformer (5 leads, maximum MET)
+AUC: 92.2%
+Test subset (n=227): Sensitivity 93.6%, Specificity 93.2%, Accuracy 93.4%
+Sensitivity gain vs. physician interpretation: +40.9% (women), +44.6% (men)
+Second validation cohort (n=91): Accuracy 78%, Sensitivity 64.6%, Specificity 93%","Author Limitations:
+Author-stated: retrospective data collection and inclusion only of patients undergoing ICA (selection bias); predominantly White population limits generalisability; performance across stenosis levels needs evaluation; lack of false-positive stress-ECG cases may affect accuracy; despite an independent validation cohort, external validation is still required; no correlation with advanced imaging. Reviewer-noted: no explainability; private data; performance drop in the validation cohort (78% accuracy).
+
+CardioAssist Gap:
+Shows transformer models can lift stress-ECG sensitivity by >40 points, but with no explainability, private single-centre data and a marked performance drop on the second cohort — CardioAssist AI's explainable, multi-source design addresses the trust and generalisability gaps this exposes."
+P25,30,REJECTED_RED,{'rgb': 'FFFF0000'},AngioCAD: A public x-ray angiography dataset and an adaptive fusion framework for stenosis detection,Open Paper ↗,https://doi.org/10.1016/j.cmpb.2026.109368,"Marzieh Sadat Hosseini, Ahmad R. Naghsh-Nilchi, Mehran Safayani, Masoumeh Sadeghi, Ehsan Shirvani, Manizheh Danesh, Seyed Ali Miramirkhani",2026,"DL: Video-based stenosis detection — VGG16 + ResNet101 CNN feature extractors with an adaptive attention-weighted fusion module (learned α)
+ML: Classical classifiers on discretised/normalised clinical attributes — polynomial-kernel SVM best
+Dataset contribution: AngioCAD (413 patients, artery-level stenosis labels in 7 severity categories, clinical + laboratory data)
+XAI: None (attention weights not presented as an explainability method)",Public / Available,AngioCAD dataset — Zenodo ↗,https://zenodo.org/records/15826856,"Best clinical-feature model: polynomial-kernel SVM — F1-score 89.78%
+Adaptive fusion (VGG16 + ResNet101) video model: superior F1-score and PR-AUC vs. baseline models (exact values not stated in abstract)
+Discretisation/normalisation of clinical attributes improved classical ML performance
+Accuracy / Sensitivity / Specificity: Not stated in abstract","Author Limitations:
+Reviewer-noted (source sheet): 413 patients is small for training/evaluating deep video models; single-centre data (one heart centre, Isfahan); retrospective collection (selection bias); limited population diversity; external validation on independent hospitals still needed; no explainability method; no clinical deployment.
+
+CardioAssist Gap:
+Supplies the first open multimodal CAD dataset with artery-level 7-grade stenosis labels — the raw material for severity-aware prediction that no reviewed model yet delivers — but the framework itself is black-box, single-centre and undeployed."

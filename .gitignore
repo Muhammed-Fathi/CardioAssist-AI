@@ -1,0 +1,63 @@
+# Credentials and machine-local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*credentials*.json
+!docs/*credentials*.md
+
+# Python and model caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+mlruns/
+lightning_logs/
+wandb/
+
+# Node, Flutter / frontend outputs
+node_modules/
+.next/
+.dart_tool/
+.flutter-plugins*
+build/
+dist/
+coverage/
+
+# Patient-level data, source datasets, generated model artifacts
+/data/
+**/datasets/
+**/raw_data/
+**/processed_data/
+**/checkpoints/
+**/model_artifacts/
+*.parquet
+*.feather
+*.pkl
+*.joblib
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.h5
+*.hdf5
+*.tfrecord
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Misc
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.ipynb_checkpoints/
+
+# Original source PPTX is intentionally held locally (too large for ordinary Git)
+research/source_materials/*.pptx
