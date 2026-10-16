@@ -1,6 +1,8 @@
 # CardioAssist AI
 
-**Status:** Phase 0 — Discovery & Scientific Feasibility. No model has been trained, no backend/front-end implementation has been approved, and no clinical performance claim is verified.
+**Status:** Phase 1, contract-first mocks (D-043). Phase 0 and PR #3 (M1a.1 `/v1` contracts, synthetic fixtures and tests) are merged. This branch proposes the **M1a.2 FastAPI mock backend** for human review. No model has been trained, no dataset acquired, no frontend built, and no clinical performance claim is made.
+
+**Run the mock backend locally:** [backend/README.md](backend/README.md). See [contract implementation notes / unresolved questions](backend/CONTRACT_NOTES.md) and the [M1a.3 React + Flutter handoff](docs/M1A3_INTEGRATION_HANDOFF.md).
 
 **Purpose:** Research-oriented graduation project for Coronary Artery Disease (CAD): explainable AI, clinician dashboard, patient experience, possible wearable integrations, and a reproducible research workflow. The project is a **research prototype, not a clinically validated diagnosis or risk-prediction service**.
 
@@ -31,11 +33,11 @@ scripts/                   Lightweight source verification tools
 ## Current operating rules
 
 1. Read `AGENTS.md` before executing any coding-agent task.
-2. Start with `prompts/arena_phase0.md` — the agent is permitted to write only Phase 0 **documentation drafts on its own branch**, then open a PR; no implementation, data download, package installs, or deployment.
+2. Follow the active human-authorized milestone and `docs/DECISIONS.md`. `AGENTS.md` / `prompts/arena_phase0.md` retain historical Phase-0-only text; the explicit M1a.2 authorization permits the mock backend/tests/pinned dependencies, not datasets, models, DB persistence, production auth/RBAC, UI, deployment or automatic merging.
 3. Do not merge a PR without human scientific and engineering review.
 4. Never commit private medical data, credentials, large datasets, model weights, or licensed data without explicit permission.
 5. `main` represents **human-reviewed** baseline. On GitHub Free private repos, GitHub's paid-only enforced branch protection cannot be assumed; the team must follow the PR-only workflow voluntarily.
 
-## First step
+## Current local entry point
 
-Read `docs/REPO_SETUP.md`, publish this starter as a *private* GitHub repository, connect it to Arena Agent Mode, then use the supplied Phase 0 prompt.
+Use [backend/README.md](backend/README.md) for a Python-venv-only run and the combined contract/HTTP test command. Human review and an explicit next-milestone authorization precede React + Flutter implementation. The original setup history remains in `docs/REPO_SETUP.md`.

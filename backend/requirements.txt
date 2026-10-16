@@ -1,0 +1,28 @@
+# M1a.2 mock backend. Python 3.11/3.12; no model, dataset, DB or cloud SDK.
+# Direct dependencies and their runtime transitive closure are pinned.
+# Shared validator versions intentionally match tests/contracts/requirements.txt.
+fastapi==0.135.4
+uvicorn==0.54.0
+jsonschema==4.23.0
+referencing==0.36.2
+PyYAML==6.0.2
+rfc3339-validator==0.1.4
+
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.12.1
+attrs==26.1.0
+click==8.5.0
+h11==0.16.0
+idna==3.20
+jsonschema-specifications==2025.9.1
+pydantic==2.14.1
+pydantic_core==2.50.1
+rpds-py==2026.9.1
+six==1.17.0
+# Maintains the supported httpx 0.28 TestClient API (no httpx2 dependency).
+starlette==0.52.1
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+colorama==0.4.6; sys_platform == 'win32'
+tzdata==2026.2; sys_platform == 'win32'

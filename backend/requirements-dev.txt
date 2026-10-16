@@ -1,0 +1,7 @@
+# Install from the repository root: pip install -r backend/requirements-dev.txt
+-r requirements.txt
+-r ../tests/contracts/requirements.txt
+
+# Actual HTTP/ASGI integration client (not the fixture-generating oracle).
+httpx==0.28.1
+httpcore==1.0.9
