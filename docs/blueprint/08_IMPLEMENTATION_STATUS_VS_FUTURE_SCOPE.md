@@ -26,12 +26,12 @@ deterministic synthetic fixture data (`MOCK_SYNTHETIC`).**
 |---|---|---|
 | `research/source_materials/` | 47-slide PDF, speaker notes, literature XLSX/CSV, SHA256 manifest | Source of truth (immutable); integrity verified |
 | `docs/phase0/PHASE0_REVIEW_DRAFT.md` | Rev. 3 feasibility review (1,822 lines) | Merged (PR #1); governing research document |
-| `docs/DECISIONS.md` | D-001…D-043 + P-1…P-6 | Merged; authoritative register |
+| `docs/DECISIONS.md` | D-001…D-044 + P-1…P-6 | Merged; authoritative register |
 | `docs/FEATURE_REGISTER.md` | F01–F12 proposed register | Merged; F13–F18 extensions proposed in [02](02_FEATURE_TRACEABILITY_MATRIX.md) |
-| `shared/contracts/` | OpenAPI, 4 schema families (common, cad request/response, monitoring request/response, mock feature v1/v2), 2 MOCK_ONLY registries, 30 fixtures (33 steps), fixture index | **IMPLEMENTED + TESTED** (M1a.1, PR #3) — approved artifacts; A-01 pending |
+| `shared/contracts/` | OpenAPI, 4 schema families (common, cad request/response, monitoring request/response, mock feature v1/v2), 2 MOCK_ONLY registries, 30 fixtures (33 steps), fixture index | **IMPLEMENTED + TESTED** (M1a.1, PR #3) — approved artifacts; A-01 Option A approved (D-044), runtime prerequisite in review, schema correction pending |
 | `tests/contracts/` | 136 tests + deterministic oracle `reference_contract.py` | **IMPLEMENTED + TESTED** |
 | `backend/app/` (887 lines: `main.py`, `contracts.py`, `validation.py`, `mock_prediction.py`, `state.py`) | FastAPI mock server: 2 POST endpoints + bundled `/openapi.json`; in-memory idempotency (24 h), audit snapshots, inference counter | **IMPLEMENTED + TESTED + SYNTHETIC/MOCK** (M1a.2, PR #4; cleanup PR #5) |
-| `tests/backend/` | 234 HTTP tests (golden bodies, validation, Track separation, replay/conflict, concurrency, expiry, failures) | **IMPLEMENTED + TESTED** |
+| `tests/backend/` | 273 tests: 234 HTTP tests (golden bodies, validation, Track separation, replay/conflict, concurrency, expiry, failures) + 39 ADR-001 schema-reader compatibility tests | **IMPLEMENTED + TESTED** |
 | `.github/workflows/` | `contracts-ci.yml`, `backend-ci.yml` (installed, executing) | **IMPLEMENTED** (runs must be inspected per commit) |
 | `backend/CONTRACT_NOTES.md`, `backend/VERIFICATION.md`, `backend/ci/` | Compat notes (A-01…X-01), verification records, CI notes | Documentation (merged) |
 | `docs/M1A3_INTEGRATION_HANDOFF.md` | Approved plan shape for next milestone | Documentation (merged) |

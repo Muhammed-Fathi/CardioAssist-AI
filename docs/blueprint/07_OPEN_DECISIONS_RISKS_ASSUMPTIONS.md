@@ -55,7 +55,7 @@ The authoritative registers remain `docs/DECISIONS.md`, Phase 0 §13/§R2-9,
 
 | ID | Issue | Current behavior | Pending decision |
 |---|---|---|---|
-| **A-01** | Optional-null rejected by schema `allOf` but accepted by backend | Backend treats optional null = missing (success + warning) | **ADR-001** — maintainer approve Option A (in-place patch) / Option B (versioned) / reject. **No schema edit until decided** |
+| **A-01** | Optional-null rejected by schema `allOf` but accepted by backend | Backend treats optional null = missing (success + warning) | **ADR-001 Option A APPROVED** (D-044, 2026-10-17). Implementation sequenced: behavior-preserving runtime schema-reader prerequisite (in review), then the schema/fixture correction (pending). No schema edit is included in the prerequisite |
 | B-01 | Track-B wire scalars (number/string/boolean/null) vs numeric metric catalogue | Permissive accept + numeric range check; no coercion | Reviewer must ratify intended type rule + error code before tightening |
 | B-02 | Common prose "replay = 200" vs Track-B 201 | 201 for first + replay (merged tests) | Reconcile generic wording; do not change behavior silently |
 | B-03 | Idempotency namespace scoping | Global key store + route-identity guard (cross-route reuse = 409) | Endpoint/client scoping needs reviewed decision |

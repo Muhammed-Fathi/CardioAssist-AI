@@ -48,6 +48,23 @@ target, dataset access, protocol, clinician-wording, or validation question
 | D-042 | **Flutter and React are both core project components; neither may be silently removed** | **APPROVED** | Maintainer (Phase 1 baseline). Codifies `docs/FEATURE_REGISTER.md` ("never remove a feature silently") and the Phase 0 Rev. 2 preservation rule; any future removal requires an explicit new decision entry in this register with human approval |
 | D-043 | The **first implementation milestone is M1a: versioned API contracts, deterministic mock CAD/XAI responses, contract tests, and minimal integration scaffolding** | **APPROVED** | Maintainer (Phase 1 baseline). Per Phase 0 §R2-7.6 M1a: mock/simulated data only (fixtures F-01–F-12); no real models, no datasets, no training; sequence remains M1a → M1b → M2 → M3 → M4, each an independently reviewable PR |
 
+## ADR-001 contract decision — maintainer-approved (D-044)
+
+Recorded 2026-10-17. This entry records the ADR-001 decision only. It does
+**not** authorize M1a.3, dataset acquisition, model training, clinical
+claims, or any other pending item.
+
+| ID | Decision | Status | Approver / rationale |
+|---|---|---|---|
+| D-044 | **ADR-001 Option A — in-place correction of optional-feature nullability in the existing mock clinical feature schemas (`mock_clinical_v1`, `mock_clinical_v2`)**, with matching fixtures and regression tests | **APPROVED** by the maintainer 2026-10-17. Implementation **IN PROGRESS**: a behavior-preserving runtime schema-reader prerequisite is in review; the schema/fixture correction is deferred to a separate follow-up PR and is **not yet applied** | Maintainer approval. **Scope:** optional feature `value: null` only, in the two mock feature schemas, fixtures and tests. **Rationale:** the approved contract prose and tested backend already interpret an explicit null for an optional feature as "not provided"; the existing JSON Schema `allOf` typed constraints incorrectly reject that representation. **Compatibility:** a schema-validity broadening aligned with existing accepted server behavior — not a scoring or HTTP behavior change. **Safeguards:** required features remain non-null; zero/false remain valid data; existing types, units and ranges are preserved; no clinical semantics change. **Implementation sequencing:** an audit found the runtime reads `properties.value["type"]` directly, so the ADR's `anyOf` shape requires a minimal runtime adapter before the schema correction; the maintainer authorized that adapter as a separate prerequisite PR (see below). ADR: `docs/blueprint/ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md` |
+
+The runtime prerequisite is PR #7
+(<https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/7>). It changes no
+wire behavior and is covered by `tests/backend/test_schema_reader.py`. It does
+not modify the committed schemas. The schema/fixture correction remains
+subject to its own review and must not be described as implemented or merged
+until that follow-up PR is merged.
+
 ## Pending approvals — explicitly preserved, NOT approved
 
 The following were **not** approved by the Phase 0 merge and are **not**
