@@ -9,9 +9,9 @@ check` reports no broken requirements; source verification passes 4/4 hashes.
 See [06](06_TESTING_AND_ACCEPTANCE_MATRIX.md) for exact commands/results.
 GitHub check status for PR #9 is **UNVERIFIED**: `gh pr checks` and REST
 check-run/status endpoints returned HTTP 403 `Resource not accessible by
-integration`. PR metadata reports `mergeStateStatus=UNSTABLE`, but individual
-checks could not be inspected; no pass/fail is inferred. Windows and Python
-3.12 local runs are also UNVERIFIED.
+integration`. PR metadata currently reports `mergeStateStatus=CLEAN`, but
+that is not an individual check result; no pass/fail is inferred. Windows
+and local Python 3.12 runs are also **UNVERIFIED**.
 
 **Honesty rule:** no trained model exists; all current CAD/XAI output is
 deterministic synthetic fixture data (`MOCK_SYNTHETIC`). No dataset has been

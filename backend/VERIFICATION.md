@@ -317,10 +317,10 @@ All repository inputs remain synthetic/demo-only. Windows, Python 3.12 local,
 PostgreSQL compatibility, and the GitHub Actions result are **UNVERIFIED**;
 local test results are not CI results. For PR #9, `gh pr checks` and the REST
 check-run/status endpoints returned HTTP 403 `Resource not accessible by
-integration`. PR metadata reports `mergeStateStatus=UNSTABLE`, but individual
-check results could not be inspected, so no CI pass/fail is inferred. M1b.1's
-monitoring observation,
-non-null metrics and metadata-only success audit are durable; the 24-hour
+integration`. PR metadata currently reports `mergeStateStatus=CLEAN`; that is
+not an individual check result. Check details could not be inspected, so no CI
+pass/fail is inferred. M1b.1's monitoring observation, non-null metrics
+and metadata-only success audit are durable; the 24-hour
 runtime idempotency cache, Python audit snapshots and error-audit events remain
 process-local. A-01's separate technical correction remains complete (D-044,
 PR #7/#8); this verification does not close any unrelated decision/gate.
