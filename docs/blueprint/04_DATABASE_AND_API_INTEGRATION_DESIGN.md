@@ -182,7 +182,7 @@ original response + flag;
 (`400 malformed_request`, `409 idempotency_key_conflict`, `422` family incl.
 `wearable_input_not_valid_for_cad_inference`, `503 model_unavailable`/schema
 mismatch), deterministic synthetic scores/SHAP-shaped offsets, optional-null =
-missing (backend; schema fix pending ADR-001), Track-B scalars permissive
+missing (backend; the schema side is corrected under ADR-001 Option A — D-044 — in an open PR), Track-B scalars permissive
 (B-01 open), Track-B replay = 201 (B-02 open), global key namespace with
 route guard (B-03), null/count semantics (B-04), deterministic correlation id
 (G-01). Full detail: `shared/contracts/README.md`, `backend/CONTRACT_NOTES.md`.

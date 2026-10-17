@@ -5,8 +5,8 @@ No model, dataset, database, service or account is needed at test time.
 
 | Folder | Milestone | What it does |
 |---|---|---|
-| `contracts/` | M1a.1 (D-043), merged PR #3 | Existing 136 contract/fixture/oracle tests, unchanged. Historical proposal markers do not imply scientific/clinical approval. See `contracts/README.md`. |
-| `backend/` | M1a.2 | Actual FastAPI HTTP tests, independent of the fixture-generating oracle. Golden HTTP responses, schema/error compliance, missing/null/zero, Track separation, XAI additivity, replay/conflict, 24-hour expiry, restart reset, failure paths and concurrent one-result/one-event guarantees. |
+| `contracts/` | M1a.1 (D-043), merged PR #3 | 249 contract/fixture/oracle tests. Historical proposal markers do not imply scientific/clinical approval. The ADR-001 Option A correction (D-044) adds the optional-null matrix and a minimally adapted oracle; the original tests are kept. See `contracts/README.md`. |
+| `backend/` | M1a.2 | 347 actual FastAPI HTTP tests, independent of the fixture-generating oracle. Golden HTTP responses, schema/error compliance, missing/null/zero, Track separation, XAI additivity, replay/conflict, 24-hour expiry, restart reset, failure paths, concurrent one-result/one-event guarantees and the ADR-001 optional-null semantics. |
 
 ## Combined suite (repository root)
 

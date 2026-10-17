@@ -56,14 +56,22 @@ claims, or any other pending item.
 
 | ID | Decision | Status | Approver / rationale |
 |---|---|---|---|
-| D-044 | **ADR-001 Option A — in-place correction of optional-feature nullability in the existing mock clinical feature schemas (`mock_clinical_v1`, `mock_clinical_v2`)**, with matching fixtures and regression tests | **APPROVED** by the maintainer 2026-10-17. Implementation **IN PROGRESS**: a behavior-preserving runtime schema-reader prerequisite is in review; the schema/fixture correction is deferred to a separate follow-up PR and is **not yet applied** | Maintainer approval. **Scope:** optional feature `value: null` only, in the two mock feature schemas, fixtures and tests. **Rationale:** the approved contract prose and tested backend already interpret an explicit null for an optional feature as "not provided"; the existing JSON Schema `allOf` typed constraints incorrectly reject that representation. **Compatibility:** a schema-validity broadening aligned with existing accepted server behavior — not a scoring or HTTP behavior change. **Safeguards:** required features remain non-null; zero/false remain valid data; existing types, units and ranges are preserved; no clinical semantics change. **Implementation sequencing:** an audit found the runtime reads `properties.value["type"]` directly, so the ADR's `anyOf` shape requires a minimal runtime adapter before the schema correction; the maintainer authorized that adapter as a separate prerequisite PR (see below). ADR: `docs/blueprint/ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md` |
+| D-044 | **ADR-001 Option A — in-place correction of optional-feature nullability in the existing mock clinical feature schemas (`mock_clinical_v1`, `mock_clinical_v2`)**, with matching fixtures and regression tests | **APPROVED** by the maintainer 2026-10-17. Implementation **IN PROGRESS**: the behavior-preserving runtime schema-reader prerequisite is **MERGED** (PR #7, merge commit `7f850bd`); the normative schema/fixture/test correction is in a separate **OPEN** pull request and is **not yet merged** | Maintainer approval. **Scope:** optional feature `value: null` only, in the two mock feature schemas, fixtures and tests. **Rationale:** the approved contract prose and tested backend already interpret an explicit null for an optional feature as "not provided"; the existing JSON Schema `allOf` typed constraints incorrectly reject that representation. **Compatibility:** a schema-validity broadening aligned with existing accepted server behavior — not a scoring or HTTP behavior change. **Safeguards:** required features remain non-null; zero/false remain valid data; existing types, units and ranges are preserved; no clinical semantics change. **Implementation sequencing:** an audit found the runtime reads `properties.value["type"]` directly, so the ADR's `anyOf` shape requires a minimal runtime adapter before the schema correction; the maintainer authorized that adapter as a separate prerequisite PR (see below). ADR: `docs/blueprint/ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md` |
 
 The runtime prerequisite is PR #7
-(<https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/7>). It changes no
-wire behavior and is covered by `tests/backend/test_schema_reader.py`. It does
-not modify the committed schemas. The schema/fixture correction remains
-subject to its own review and must not be described as implemented or merged
-until that follow-up PR is merged.
+(<https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/7>), **MERGED** into
+`main` at merge commit `7f850bd`. It changes no wire behavior and is covered
+by `tests/backend/test_schema_reader.py`. It does not modify the committed
+schemas.
+
+The schema/fixture correction — the nine optional feature slots of the two
+mock feature schemas (5 in v1, 4 in v2), the new fixture
+`F-03c-optional-null-equivalent-to-absent.json` and the matching regression
+tests — is the change-set of the next pull request, which is **OPEN and under
+review**. It must not be described as implemented or merged until that PR is
+merged, and **finding A-01 remains open until then**. A-01 closes only after
+maintainer review, independent Windows testing and the required GitHub checks
+have passed.
 
 ## Pending approvals — explicitly preserved, NOT approved
 

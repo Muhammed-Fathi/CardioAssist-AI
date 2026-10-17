@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **APPROVED — Option A** (maintainer, 2026-10-17; decision **D-044**). Implementation is **in progress** in two reviewed change-sets: (1) a behavior-preserving runtime schema-reader prerequisite (in review), and (2) the schema/fixture/test correction (not yet applied). Do not describe the schema correction as implemented or merged before change-set (2) is actually merged. |
+| Status | **APPROVED — Option A** (maintainer, 2026-10-17; decision **D-044**). Implementation is **in progress** in two reviewed change-sets: (1) the behavior-preserving runtime schema-reader prerequisite — **PR #7, MERGED** into `main` at merge commit `7f850bd` — and (2) the normative schema/fixture/test correction — **this change-set, OPEN and under review**. Finding **A-01 stays open / pending closure** until change-set (2) is verified and merged. Do not describe the schema correction as merged before that merge. |
 | Date | 2026-10-17 |
 | Origin | M1a.2 review finding **A-01** (`backend/CONTRACT_NOTES.md`), re-reported for approval in PR #5 (`security: dependency and contract compatibility cleanup`) |
 | Scope | `shared/contracts/schemas/mock_clinical_feature_schema.v1.json`, `mock_clinical_feature_schema.v2.json` (optional feature slots only) |
@@ -124,9 +124,50 @@ schema-reader adapter** as a separate prerequisite PR (**PR #7**,
 <https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/7>). The adapter extracts
 the single non-null typed alternative from `anyOf` for non-null values; null
 continues to be skipped before type checking. It is a no-op for all current
-schemas and required slots. The schema/fixture correction itself remains
-deferred to the follow-up PR and must not be applied until the prerequisite is
-reviewed and merged.
+schemas and required slots.
+
+**PR #7 was merged on 2026-10-17** (merge commit `7f850bd`) after independent
+review and Windows testing. The schema/fixture correction is applied in the
+follow-up change-set (this PR, **open**); it depends on the merged adapter and
+does not modify a single line of `backend/app/validation.py`.
+
+### 3.1.2 The correction as applied in this change-set (PR #8, open)
+
+The nine optional feature slots of the two mock feature schemas now carry the
+approved `anyOf` shape. Nothing else in the schemas changed: the `allOf`
+composition, the `$defs/FeatureValue` reference, the unit rules, the required
+feature definitions, the feature ids, the types, the ranges and the
+enumerations are byte-identical to the pre-correction files.
+
+| Schema | Optional slots corrected (5 + 4 = 9) | Required slots left unchanged |
+|---|---|---|
+| `mock_clinical_feature_schema.v1.json` | `mock_feature_vital_systolic`, `mock_feature_lab_concentration`, `mock_feature_binary_flag`, `mock_feature_count`, `mock_feature_fraction` | `mock_feature_demographic_age`, `mock_feature_demographic_sex` |
+| `mock_clinical_feature_schema.v2.json` | `mock_feature_vital_systolic`, `mock_feature_lab_concentration`, `mock_feature_binary_flag`, `mock_feature_count` | `mock_feature_demographic_age`, `mock_feature_demographic_sex`, `mock_feature_fraction` (the v2-specific required slot) |
+
+Each corrected slot reads exactly:
+
+```json
+"value": {
+  "anyOf": [
+    { "type": "null" },
+    { "type": "number", "minimum": 0, "maximum": 400 }
+  ]
+}
+```
+
+where the second alternative is a **verbatim copy** of the slot's original
+typed/ranged rule (the boolean slot copies `{"type": "boolean"}`, the integer
+slot copies `{"type": "integer", "minimum": 0, "maximum": 100}`, and so on).
+There is nothing beside the `anyOf` at that level, so the merged runtime
+adapter recognises the shape exactly.
+
+The reference oracle (`tests/contracts/reference_contract.py`) needed one
+minimal adaptation: it used to read a feature's value rule by its direct
+`type` key. It now recognises the approved nullable shape, reads the
+non-null alternative for non-null values, and **fails closed** (loudly, with a
+`ValueError`) for a value rule it does not understand, instead of silently
+skipping the type check. Its scoring, ordering, error codes and identifiers
+are unchanged; it does not import the backend's schema reader.
 
 ### 3.2 Required coverage changes (must ship in the same change-set)
 
@@ -148,6 +189,16 @@ reviewed and merged.
    scoring semantics.
 5. **Source manifest:** `research/source_materials/` and its SHA-256 manifest
    are untouched (this ADR concerns contracts only).
+
+#### 3.2.1 What actually shipped in this change-set
+
+| # | Required coverage | Delivered as |
+|---|---|---|
+| 1 | Optional-null fixture for both schema versions | **New fixture `F-03c-optional-null-equivalent-to-absent.json`** (4 steps: v1 omitted → v1 all-optional-null, v2 omitted → v2 all-optional-null), indexed in `shared/contracts/fixtures/index.json`; `F-03b` is byte-identical to before. The expected bodies were produced by the reference oracle, not hand-written. |
+| 2 | Contract tests for Draft 2020-12 acceptance and equivalence | **New `tests/contracts/test_optional_null_contract.py`** (107 tests) plus the schema-shape assertions in `tests/contracts/test_schemas.py` (6 tests) and the new `missing_features_equals` / `warnings_equals` / `equivalent_missing_semantics_to_step` assertion keys in `tests/contracts/test_contract_behaviour.py`. |
+| 3 | HTTP regression of the pinned behavior | `tests/backend/test_behavior_http.py::test_required_null_optional_null_and_zero_are_distinct` is **unchanged and passing**; **new `tests/backend/test_optional_null_http.py`** (73 tests) covers the same matrix over the real ASGI app. |
+| 4 | Fixture-oracle consistency | `tests/contracts/reference_contract.py` was adapted minimally (§3.1.2); its scoring, error codes and identifier rules are unchanged, and the whole pack still reproduces exactly. |
+| 5 | Source manifest | `research/source_materials/` is untouched; `python scripts/verify_sources.py` still passes 4/4 hashes and the 25-paper supervisor audit (9 GREEN / 1 PINK / 6 ORANGE / 9 RED). |
 
 ### 3.3 Effects on clients
 
@@ -194,20 +245,32 @@ fallback and must be delivered as its own reviewed change-set.
 
 ## 6. Regression test checklist (acceptance for the implementing PR)
 
-- [ ] `python -m pytest tests/contracts tests/backend -q -W error` green
+State in this change-set (PR #8, **open**). Every box is a *local* result;
+final acceptance additionally requires maintainer review, independent Windows
+testing and the required GitHub checks.
+
+- [x] `python -m pytest tests/contracts tests/backend -q -W error` green
       (existing counts preserved or increased; nothing deleted).
-- [ ] New fixture/step present in `shared/contracts/fixtures/index.json` and
+      **596 passed** (249 contract + 347 backend); the merged PR #7 baseline
+      was 409 (136 + 273). Nothing was deleted.
+- [x] New fixture/step present in `shared/contracts/fixtures/index.json` and
       validated by both oracle and HTTP layers.
-- [ ] `test_required_null_optional_null_and_zero_are_distinct` unchanged and
-      passing.
-- [ ] Required-null still 422 `missing_required_feature` (fixture F-03b
-      unchanged).
-- [ ] Zero/false still accepted as data.
-- [ ] Null vs absent still hash differently under idempotency
+      `F-03c` is indexed and is executed by the oracle pack test and by the
+      HTTP golden test.
+- [x] `test_required_null_optional_null_and_zero_are_distinct` unchanged and
+      passing. (The file was not edited at all.)
+- [x] Required-null still 422 `missing_required_feature` (fixture F-03b
+      unchanged — byte-identical).
+- [x] Zero/false still accepted as data.
+- [x] Null vs absent still hash differently under idempotency
       (canonical-payload rule unchanged).
-- [ ] `python scripts/verify_sources.py` still passes (4/4 hashes).
-- [ ] `docs/DECISIONS.md` records the maintainer decision (approve Option A /
+- [x] `python scripts/verify_sources.py` still passes (4/4 hashes).
+- [x] `docs/DECISIONS.md` records the maintainer decision (approve Option A /
       approve Option B / reject) before the implementing change-set merges.
+      **D-044 — approved 2026-10-17.**
+- [ ] **Maintainer review of this PR, independent Windows testing and the
+      required GitHub checks are still outstanding. A-01 therefore stays open
+      until this PR is merged.**
 
 ## 7. Decision record (maintainer answers)
 
@@ -217,10 +280,11 @@ fallback and must be delivered as its own reviewed change-set.
 | If no: approve Option B (versioned revision) instead? | **NO — Option B not selected.** |
 | Target milestone for the approved option (M1a.3 prep vs. M1b)? | **M1a.3 preparation** (client-contract alignment before client code). No M1a.3 implementation authorization is granted by this ADR. |
 | Name/ID of the decision entry added to `docs/DECISIONS.md` | **D-044** |
-| Sequencing after the implementation audit | **Runtime schema-reader prerequisite first** (separate reviewed PR), then the schema/fixture/test correction. The prerequisite changes no wire behavior; the schema correction is **not yet applied**. |
+| Sequencing after the implementation audit | **Runtime schema-reader prerequisite first** (separate reviewed PR), then the schema/fixture/test correction. The prerequisite changes no wire behavior. |
 
-The runtime prerequisite is documented in
-`backend/CONTRACT_NOTES.md` §A-01 and covered by
-`tests/backend/test_schema_reader.py`. The schema/fixture correction remains
-pending its own review and is not to be described as implemented or merged
-until that follow-up PR is merged.
+The runtime prerequisite is PR #7, **merged** into `main` at merge commit
+`7f850bd`; it is documented in `backend/CONTRACT_NOTES.md` §A-01 and covered
+by `tests/backend/test_schema_reader.py`. The schema/fixture correction is
+the change-set of this PR, which is **open and under review**: it is not to
+be described as implemented or merged until that PR is merged, and **A-01
+remains open until then**.

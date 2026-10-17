@@ -37,7 +37,7 @@ def test_legacy_lime_fixture_is_not_a_live_computed_result(client, http_app):
 
 
 def test_no_fixture_is_silently_omitted_from_http_coverage():
-    assert len(SUPPORTED) == 29
+    assert len(SUPPORTED) == 30
     assert {entry["fixture_id"] for entry in INDEX["fixtures"]} - {
         entry["fixture_id"] for entry in SUPPORTED
     } == {"F-11c"}

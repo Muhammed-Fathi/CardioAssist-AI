@@ -229,3 +229,54 @@ not claimed here; inspect the checks attached to the final PR commit.
 The schema-reader tests also pin fail-closed behavior for unexpected `anyOf`
 shapes (missing or inexact null alternatives, extra alternatives, sibling
 constraints).
+
+## ADR-001 Option A schema/fixture correction (2026-10-17)
+
+This change-set is the follow-up to the merged runtime prerequisite (PR #7,
+merge commit `7f850bd`). It applies the approved Option A patch to the two
+**mock** feature schemas, adds the matching fixture and the regression tests.
+**No backend runtime file is modified** — `backend/app/validation.py` and
+every other module under `backend/app/` are byte-identical to the merged PR #7
+baseline; the already-merged `typed_value_rule()` adapter reads the new shape.
+
+Executed locally with Python **3.11.2** and the pinned
+`backend/requirements-dev.txt` environment.
+
+```text
+pip check: No broken requirements found
+pytest tests/contracts -q -W error: 249 passed
+  (new tests/contracts/test_optional_null_contract.py: 107 passed)
+pytest tests/backend -q -W error: 347 passed
+  (new tests/backend/test_optional_null_http.py: 73 passed)
+pytest -q -W error: 596 passed
+scripts/verify_sources.py: PASS (4/4 SHA256 hashes; 25 papers; 9/1/6/9)
+git diff --check: PASS
+```
+
+The merged PR #7 baseline was 409 passing tests (136 contract, 273 backend);
+the total is now 596 (249 contract, 347 backend). Nothing was deleted: the
+existing `test_required_null_optional_null_and_zero_are_distinct` HTTP
+regression and the whole F-01…F-12 fixture pack still pass unchanged.
+
+What the new tests pin, for **both** schema versions and for **every**
+affected optional slot (5 in v1, 4 in v2 — nine in total):
+
+* an omitted optional feature and an explicitly null optional feature are
+  both accepted and both classified as missing, with the same
+  `missing_features[]` list, the same `imputed_feature:` warnings and the same
+  deterministic score;
+* a required feature that is omitted or explicitly null is still
+  `422 missing_required_feature`;
+* `0` and `false` stay data and are never reported as missing;
+* wrong non-null types, invalid units and out-of-range values stay rejected
+  (`400 malformed_request`, `422 unit_mismatch`, `422 value_out_of_range`);
+* the same schema under Draft 2020-12 accepts the null wrapper and still
+  rejects a null or an omitted required feature;
+* the canonical payload hash still distinguishes null from absent, so the
+  same key with the other form is a `409 idempotency_key_conflict`, a replay
+  creates no second inference and no second audit event.
+
+Python 3.12 and GitHub Actions results are **not** claimed here; inspect the
+checks attached to the final PR commit. The pull request is **open** and under
+review: finding **A-01 stays open** until it is merged, reviewed, tested
+independently on Windows and its required checks have passed.

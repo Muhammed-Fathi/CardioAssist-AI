@@ -185,6 +185,103 @@ def test_model_registry_declares_no_real_artifact(schema_documents):
 
 
 # --------------------------------------------------------------------------- #
+# ADR-001 Option A: the optional-slot nullability shape (D-044)
+# --------------------------------------------------------------------------- #
+#: The exact shape approved for an optional feature value: the original
+#: typed/ranged rule, plus exactly one explicit null alternative and nothing
+#: else beside ``anyOf`` (ADR-001 §3.1).
+APPROVED_NULLABLE_SLOTS = {
+    "mock_clinical_feature_schema.v1.json": {
+        "mock_feature_vital_systolic": {
+            "type": "number", "minimum": 0, "maximum": 400,
+        },
+        "mock_feature_lab_concentration": {
+            "type": "number", "minimum": 0, "maximum": 2000,
+        },
+        "mock_feature_binary_flag": {"type": "boolean"},
+        "mock_feature_count": {"type": "integer", "minimum": 0, "maximum": 100},
+        "mock_feature_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+    },
+    "mock_clinical_feature_schema.v2.json": {
+        "mock_feature_vital_systolic": {
+            "type": "number", "minimum": 0, "maximum": 400,
+        },
+        "mock_feature_lab_concentration": {
+            "type": "number", "minimum": 0, "maximum": 2000,
+        },
+        "mock_feature_binary_flag": {"type": "boolean"},
+        "mock_feature_count": {"type": "integer", "minimum": 0, "maximum": 100},
+    },
+}
+
+#: The nine optional slots of the two mock feature schemas (5 in v1, 4 in v2).
+ALL_OPTIONAL_SLOTS = sorted(
+    (name, filename)
+    for filename, slots in APPROVED_NULLABLE_SLOTS.items()
+    for name in slots
+)
+
+
+def test_there_are_exactly_nine_optional_slots_across_the_two_mock_schemas():
+    assert len(ALL_OPTIONAL_SLOTS) == 9
+    assert len(APPROVED_NULLABLE_SLOTS["mock_clinical_feature_schema.v1.json"]) == 5
+    assert len(APPROVED_NULLABLE_SLOTS["mock_clinical_feature_schema.v2.json"]) == 4
+
+
+@pytest.mark.parametrize("filename", MOCK_SCHEMA_FILES)
+def test_every_optional_slot_declares_the_approved_nullable_value_rule(
+    schema_documents, filename
+):
+    document = schema_documents[filename]
+    required = set(document["required"])
+    expected = APPROVED_NULLABLE_SLOTS[filename]
+    optional = {
+        name: definition
+        for name, definition in document["properties"].items()
+        if name not in required
+    }
+    assert set(optional) == set(expected), filename
+    for name, typed_rule in expected.items():
+        definition = optional[name]
+        # The approved shape keeps the original allOf composition.
+        assert len(definition["allOf"]) == 2, name
+        assert definition["allOf"][0] == {"$ref": "#/$defs/FeatureValue"}, name
+        value_rule = definition["allOf"][1]["properties"]["value"]
+        # Nothing may sit beside the anyOf at that level.
+        assert set(value_rule) == {"anyOf"}, name
+        alternatives = value_rule["anyOf"]
+        assert len(alternatives) == 2, name
+        assert {"type": "null"} in alternatives, name
+        typed = [item for item in alternatives if item != {"type": "null"}]
+        # The original typed/ranged rule is copied unchanged.
+        assert typed == [typed_rule], name
+        # The unit rule is untouched.
+        assert "const" in definition["allOf"][1]["properties"]["unit"], name
+
+
+@pytest.mark.parametrize("filename", MOCK_SCHEMA_FILES)
+def test_required_slots_keep_a_non_nullable_typed_value_rule(schema_documents, filename):
+    """Required features stay non-nullable, including v2's fraction slot."""
+    document = schema_documents[filename]
+    for name in document["required"]:
+        definition = document["properties"][name]
+        value_rule = definition["allOf"][1]["properties"]["value"]
+        assert "type" in value_rule, name
+        assert "anyOf" not in value_rule, name
+        assert value_rule["type"] != "null", name
+        assert set(value_rule) <= {"type", "minimum", "maximum", "minLength", "maxLength"}
+
+
+def test_the_two_mock_schemas_differ_only_in_which_slots_are_required(schema_documents):
+    """v2 adds a required fraction slot; it does not add a feature."""
+    v1 = schema_documents["mock_clinical_feature_schema.v1.json"]
+    v2 = schema_documents["mock_clinical_feature_schema.v2.json"]
+    assert set(v1["properties"]) == set(v2["properties"])
+    assert set(v2["required"]) - set(v1["required"]) == {"mock_feature_fraction"}
+    assert set(v1["required"]) - set(v2["required"]) == set()
+
+
+# --------------------------------------------------------------------------- #
 # contract semantics encoded in the schemas
 # --------------------------------------------------------------------------- #
 def test_target_cannot_carry_a_time_horizon(schema_documents):

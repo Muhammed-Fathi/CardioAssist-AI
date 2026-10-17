@@ -138,6 +138,43 @@ def deterministic_offset(feature_id: str, value: Any) -> float:
     return round(steps * 0.01 - 0.05, 2)
 
 
+def typed_value_alternative(value_schema: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Return the non-null typed rule behind a feature's value constraint.
+
+    A feature value rule is either a plain typed rule (every required slot) or
+    the nullable shape approved by ADR-001 Option A (D-044)::
+
+        {"anyOf": [{"type": "null"}, <the original typed/ranged rule>]}
+
+    which the optional slots now use. Exactly that shape is recognised: two
+    alternatives, one of them exactly ``{"type": "null"}`` and one non-null
+    typed rule, and nothing beside ``anyOf``. The oracle reads the constraint
+    out of the committed schema itself; it does not import the backend's
+    schema reader and it does not accept any other ``anyOf`` shape.
+
+    ``None`` is returned for a rule the oracle does not understand, so that
+    the caller fails closed instead of silently skipping the type check.
+    """
+    if "type" in value_schema:
+        return value_schema
+    if set(value_schema) != {"anyOf"}:
+        return None
+    alternatives = value_schema["anyOf"]
+    if not isinstance(alternatives, list) or len(alternatives) != 2:
+        return None
+    if sum(1 for alternative in alternatives if alternative == {"type": "null"}) != 1:
+        return None
+    typed = [alternative for alternative in alternatives if alternative != {"type": "null"}]
+    if len(typed) != 1:
+        return None
+    rule = typed[0]
+    if not isinstance(rule, dict):
+        return None
+    if not isinstance(rule.get("type"), str) or rule["type"] == "null":
+        return None
+    return rule
+
+
 class ContractError(Exception):
     """A contract-level failure carrying the exact HTTP status and error code."""
 
@@ -576,13 +613,27 @@ class ReferenceContract:
         maximum = None
         for part in definition.get("allOf", []):
             properties = part.get("properties", {})
-            value_schema = properties.get("value", {})
-            if "type" in value_schema:
-                expected_type = value_schema["type"]
-            if "minimum" in value_schema:
-                minimum = value_schema["minimum"]
-            if "maximum" in value_schema:
-                maximum = value_schema["maximum"]
+            if "value" not in properties:
+                continue  # e.g. the generic FeatureValue reference member
+            value_schema = properties["value"]
+            typed_rule = typed_value_alternative(value_schema)
+            if typed_rule is None:
+                # The oracle does not understand this value rule. Fail loudly
+                # instead of silently accepting a value it cannot check.
+                raise ValueError(
+                    f"Feature '{name}' declares a value rule this oracle does not "
+                    f"understand: {canonical_json(value_schema)}"
+                )
+            if "type" in typed_rule:
+                expected_type = typed_rule["type"]
+            if "minimum" in typed_rule:
+                minimum = typed_rule["minimum"]
+            if "maximum" in typed_rule:
+                maximum = typed_rule["maximum"]
+        if expected_type is None:
+            raise ValueError(
+                f"Feature '{name}' declares no typed value rule this oracle can check."
+            )
         if expected_type == "integer" and not isinstance(value, int):
             raise ContractError(
                 400,

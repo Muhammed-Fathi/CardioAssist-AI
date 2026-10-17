@@ -15,7 +15,7 @@ labelled with the *named* blocker and unblock condition.
 
 | Tag | Meaning |
 |---|---|
-| **IMPLEMENTED + TESTED** | Real software in the repo today, covered by the 370-test suite (as of merge `6c2572c`) |
+| **IMPLEMENTED + TESTED** | Real software in the repo today, covered by the 596-test suite (on the ADR-001 Option A correction branch, on top of the merged PR #7 baseline `7f850bd`) |
 | **SYNTHETIC/MOCK** | Real plumbing producing deterministic **synthetic** results (mock CAD/XAI, mock registries) — **not** a trained AI, not clinical evidence |
 | **PROPOSED** | Designed/decided but not built; scheduled in [03](03_MILESTONE_ROADMAP_AND_DEPENDENCIES.md) |
 | **RESEARCH-GATED** | Blocked on Gate DA / Gate PT / dataset or protocol approvals (P-1…P-3) |
@@ -72,7 +72,7 @@ optional and not part of the research-prototype completion definition
 | F09 | Extensible modular disease architecture | S20, S22–S23, S42–S43 | Platform | PROPOSED (CAD module boundary designed) | registry M1b/M4; second module post-M4 |
 | F10 | Reproducible evaluation & research reporting | S28–S30, S43, S46 | A | PROPOSED protocol (Phase 0 §R2-5) — required research core | M2 → M3 → M4 |
 | F11 | Authentication, roles/RBAC, access control | S26, S36 | Platform | PROPOSED (current backend is unauthenticated by design) | M1b |
-| F12 | Versioned AI–backend API & integration tests | S25–S26, S31 | Platform | **IMPLEMENTED + TESTED** (OpenAPI, 30 fixtures/33 steps, 370 tests) | DONE-M1a.1/2 |
+| F12 | Versioned AI–backend API & integration tests | S25–S26, S31 | Platform | **IMPLEMENTED + TESTED** (OpenAPI, 31 fixtures/38 steps, 596 tests) | DONE-M1a.1/2 |
 | F13 | Medical history, symptoms, surveys & clinical feature input | S38 (survey/symptom check), Track-A inputs | A/B | PROPOSED | M1b |
 | F14 | Lab-report image/PDF upload & OCR extraction | Not in slides — blueprint request + external mockups | B | PROPOSED — **required product-vision deliverable** | M5 product track (authorization to schedule) |
 | F15 | Extracted-field editing, provenance, confirmation & clinician verification | Not in slides — blueprint request + external mockups | B→A (gated) | PROPOSED — **required product-vision deliverable**; Track-A use only via the 05 §2.1 eligibility checklist | M5 product track (authorization to schedule) |
@@ -99,7 +99,7 @@ today.
 | Data entities | **PredictionResult**, **ModelArtifact**, **ClinicalFeatureSet**, `feature_schema_id` (mock schemas exist: `mock_clinical_v1/v2`), **ModelRegistry** entry. |
 | API requirements | `POST /v1/predictions/cad-tabular` (exists): `Idempotency-Key` required, 200 replay semantics, 400/409/422/503 envelope; deterministic output; provenance fields per response. Planned: prediction-history read API (M1b, contract change). |
 | UI surfaces | Clinician record-detail prediction panel (target name + definition + provisional status, MOCK disclaimer, model/preprocessing/calibration/schema ids, validation_status, score label, missing values/warnings, audit_id, replay flag, read-only `pending_review`) — M1a.3 §2.4. Patient UI never shows Track-A scores. |
-| Local tests | Contract tests (136) incl. F-01/F-01b/F-07/F-10/F-11/F-12 fixtures; HTTP tests: golden bodies, determinism, idempotent replay, 409 conflict, error catalogue (234 backend tests total today). Re-run unchanged against real model at M3 (IC-3). |
+| Local tests | Contract tests (249) incl. F-01/F-01b/F-03c/F-07/F-10/F-11/F-12 fixtures; HTTP tests: golden bodies, determinism, idempotent replay, 409 conflict, error catalogue (347 backend tests total today). Re-run unchanged against real model at M3 (IC-3). |
 | Scientific/safety gates | P-1 target; Gate DA (P-2) → Gate PT (P-3); claims discipline §R2-5.9; no accuracy/risk % claims ever from mock; `validation_status` rendering rule (D-033); calibrated score is a benchmark-cohort score, never an absolute personal probability (§F-6). |
 | Milestone | Mock: DONE-M1a.1/2 · Real model behind unchanged contract: **M3** · History/review integration: M1b/M4 |
 
@@ -237,12 +237,12 @@ today.
 
 | Field | Content |
 |---|---|
-| Status | **IMPLEMENTED + TESTED** (DONE-M1a.1/2): `shared/contracts/` (OpenAPI, 4 schema families, 2 MOCK_ONLY registries, 30 fixtures / 33 steps), 136 contract tests, FastAPI mock backend (2 endpoints + bundled `/openapi.json`), 234 HTTP tests; 370 total green (`-W error`); CI workflows `contracts-ci.yml` + `backend-ci.yml` installed. Open contract questions Q1–Q14 and compat notes A-01/B-01…X-01 remain explicitly open (`shared/contracts/README.md` §11, `backend/CONTRACT_NOTES.md`). |
+| Status | **IMPLEMENTED + TESTED** (DONE-M1a.1/2): `shared/contracts/` (OpenAPI, 4 schema families, 2 MOCK_ONLY registries, 31 fixtures / 38 steps), 249 contract tests, FastAPI mock backend (2 endpoints + bundled `/openapi.json`), 347 HTTP tests; 596 total green (`-W error`); CI workflows `contracts-ci.yml` + `backend-ci.yml` installed. Open contract questions Q1–Q14 and compat notes A-01/B-01…X-01 remain explicitly open (`shared/contracts/README.md` §11, `backend/CONTRACT_NOTES.md`). |
 | Dependencies | None (baseline). Change protocol: ADR process (ADR-001 example); approved artifacts never edited without maintainer approval. |
 | Data entities | Fixture pack, schema/registry artifacts, idempotency records (in-memory, 24 h retention). |
 | API requirements | `POST /v1/predictions/cad-tabular`, `POST /v1/monitoring/observations`, `GET /openapi.json` (all exist). `/docs` disabled; only one worker. |
 | UI surfaces | n/a (contract layer). |
-| Local tests | `python -m pytest tests/contracts tests/backend -q -W error` (370); `python scripts/verify_sources.py` (4/4). |
+| Local tests | `python -m pytest tests/contracts tests/backend -q -W error` (596); `python scripts/verify_sources.py` (4/4). |
 | Scientific/safety gates | MOCK_SYNTHETIC data class; no schema edits without approval (ADR-001); versioning rule (breaking change → `/v2`). |
 | Milestone | DONE-M1a.1/2 · Continues as the regression gate for every later milestone (IC-3 re-greens it with real models) |
 
