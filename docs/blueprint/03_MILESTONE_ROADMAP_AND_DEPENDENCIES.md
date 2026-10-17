@@ -34,7 +34,7 @@ merge** (AGENTS.md; no self-merge).
 | **M1a.3** | **Thin React + Flutter integration** | One React synthetic-record form/action + one Flutter synthetic observation screen vs the unchanged mock contract; client tests; network config discipline | **NEXT PLANNED — implementation authorization PENDING** (plan in handoff doc; do not start until explicitly authorized) |
 | M1b | Platform completion on mocks | Persistence (SQLite, F18), auth/RBAC (F11), consent lifecycle + durable audit (F07), history/read APIs, review + reassessment mechanics (F06), full dashboard + full patient app (F03/F04/F13 manual entry), offline sync + batch ingestion (Q11), basic admin (F17), registry scaffolding (F09) | PROPOSED |
 | M2 | Gate DA — data access & read-only audit | Authorized local-only acquisition of named datasets; §R2-4.4 checklists; coding/missingness/duplicate/overlap/availability audits; **"no fitting occurred" certification** | RESEARCH-GATED (needs P-2) |
-| M3 | Gate PT — frozen protocol + first real models | Supervisor-approved frozen protocol; Strategy-A benchmarks; Strategy-B external evaluation; cross-fitted calibration; **real TreeSHAP/LIME** + stability; real model behind the unchanged contract (IC-3); fixture suite re-green | RESEARCH-GATED (needs P-3, after M2) |
+| M3 | Gate PT — frozen protocol + first real models | Supervisor-approved frozen protocol; Strategy-A benchmarks; Strategy-B external evaluation; cross-fitted calibration; **real TreeSHAP/LIME** + stability; first real model behind **backward-compatible `/v1` behavior with the existing mock regression fixtures preserved and green** (IC-3); separately approved, versioned **real clinical feature schemas and model registries** may be added after Gate DA/PT — a real model must **not** depend on provisional mock feature identifiers (`mock_clinical_v1/v2`, `mock_model_*`) | RESEARCH-GATED (needs P-3, after M2) |
 | M4 | Integrated **research prototype** + write-up (**not** product completion, see above) | IC-4 walkthrough; TRIPOD+AI manuscript; replication package; optional time-boxed FHIR export (F08) and Health Connect capability/device spike (F05: supported-device plan + **simulator fallback deliverable**); PostgreSQL-path validation; optional disposable hosted demo | RESEARCH/REVIEW-GATED |
 | M5 | **Product track** — required product-vision surfaces | Lab-report upload + OCR (F14, required), extraction verification (F15, required), research-safe content/assistant (F16, clinician-gated), admin console (F17), notifications delivery polish, second disease-module prep (F09) | **PROPOSED — scheduling authorization pending; deliverables are required vision, not optional** |
 
@@ -67,10 +67,16 @@ never blocks platform work and vice versa.
               │                                    │            │
               └── §R2-4.4 checklists ──────────────┘            ├── real SHAP/LIME (F02)
                                                                ├── calibration + model cards
-                                                               └── unchanged /v1 contract (IC-3)
+                                                               ├── /v1 behavior + mock regression
+                                                               │    fixtures preserved (IC-3)
+                                                               └── versioned real feature schemas
+                                                                    + model registries (approved
+                                                                    post Gate DA/PT; never the
+                                                                    provisional mock identifiers)
                                                                         │
         D-020 ──► F08 FHIR export (M4 optional)                        ▼
-        P-6   ──► F05 Health Connect spike (M4 optional)      M4 write-up (IC-4, TRIPOD+AI)
+        P-6   ──► F05 Health Connect (M4: capability/device    M4 write-up (IC-4, TRIPOD+AI)
+                  plan + required simulator fallback)
         D-025 ──► literature verification (before any novelty claim, M4)
 ````
 
@@ -78,9 +84,12 @@ Hard edges worth restating:
 
 - **No model fitting of any kind before Gate PT** (P-3), which cannot open
   before Gate DA (P-2) completes its read-only audit (Phase 0 §F-3).
-- **M3 serves real models only through the unchanged M1a contract** —
-  contract changes for research convenience are out of scope; use ADR
-  process if unavoidable.
+- **M3 preserves backward-compatible `/v1` behavior and the existing mock
+  regression fixtures** (they stay green unchanged). Separately approved,
+  versioned **real clinical feature schemas and model registries** may be
+  added after Gate DA/PT — a real model must never depend on provisional
+  mock feature identifiers. Contract changes for research convenience are
+  out of scope; use the ADR process if unavoidable.
 - **M1b read/history/review APIs are new contract surface** → each needs the
   same contract-first treatment (schema + fixtures + tests before server),
   i.e. an "M1b.1 contracts" slice inside M1b.
@@ -152,8 +161,11 @@ The universal exit gate for **every** milestone PR:
   `research/experiments/`; negative results reported.
 - Real SHAP (log-odds sum-check) + LIME (with real fidelity) explanations;
   explanation stability documented.
-- Fixture suite + HTTP suite re-green against the real model backend
-  (IC-3); `validation_status` lifecycle enforced; UI wording re-snapshotted.
+- Fixture suite + HTTP suite re-green **unchanged** against the real model
+  backend (backward-compatible `/v1`; real clinical feature schemas and
+  model registries separately approved and versioned — never provisional
+  mock identifiers; IC-3); `validation_status` lifecycle enforced; UI
+  wording re-snapshotted.
 
 ### M4 — exit criteria (draft)
 
@@ -191,7 +203,7 @@ them — but M4 alone never closes the product vision.
 |---|---|---|
 | IC-1 | End-to-end on fixtures: clinician reviews mock prediction + patient submits monitoring + audit shows both | M1a.3 |
 | IC-2 | Consent, RBAC, reassessment-validity behavior on mocks | M1b |
-| IC-3 | First real model behind the unchanged contract; fixture suite + explanation checks green | M3 |
+| IC-3 | First real model behind **backward-compatible `/v1` behavior**; existing mock regression fixtures preserved and green unchanged; explanation checks green; real model served on a separately approved, versioned real feature schema + model registry (never provisional mock identifiers) | M3 |
 | IC-4 | Full research-prototype walkthrough + manuscript draft | M4 |
 
 ## 6. Sequencing risks (delivery)

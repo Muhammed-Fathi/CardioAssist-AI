@@ -197,8 +197,8 @@ route guard (B-03), null/count semantics (B-04), deterministic correlation id
 | `GET /v1/predictions/{id}` | A | M1b | Prediction replay/read | Needed because today only the POST response exposes a result |
 | `POST /v1/predictions/{id}/review-actions` | A | M1b | accept / reject / reassessment_requested | Idempotent; audited; reason codes; read-only `pending_review` today |
 | `POST /v1/predictions/{id}/reassess` | A | M1b | Validity-gated re-score | Server enforces §R2-2.2 triggers; `reassessment_reason` labelled |
-| `GET/POST /v1/monitoring/observations/batch` | B | M1b | Offline sync (Q11) | Preserves per-write idempotency keys; per-item results |
-| `GET /v1/monitoring/observations` | B | M1b | History/trends | Pagination; source labels |
+| `POST /v1/monitoring/observations/batch` | B | M1b | **Proposed batch-submission** endpoint for offline sync (Q11) | Preserves per-write idempotency keys; per-item results; subject to contract-first approval (§6) |
+| `GET /v1/monitoring/observations` | B | M1b | **Proposed history-read** endpoint (history/trends) | Pagination; source labels; subject to contract-first approval (§6) |
 | `GET/POST/PATCH /v1/consents` | Platform | M1b | Consent lifecycle | Grant/revoke audited |
 | `GET /v1/me/...` history & profile | B | M1b | Patient self views | Own data only |
 | `POST /v1/documents/lab-reports` (multipart) | B | M5 | F14 upload | sha256 + type/size validation; audited metadata only |
