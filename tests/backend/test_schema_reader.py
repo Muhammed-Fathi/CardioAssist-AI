@@ -20,7 +20,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
 from backend.app.contracts import ContractFiles, ContractViolation
-from backend.app.validation import feature_rules, validate_features
+from backend.app.validation import feature_rules, typed_value_rule, validate_features
 
 CAD = "/v1/predictions/cad-tabular"
 KEY = {"Idempotency-Key": "adr-001-prerequisite-key-001"}
@@ -127,17 +127,62 @@ def test_adapter_selects_the_single_typed_alternative(contracts, schema_id):
             assert value_rule["type"] != "null", name
 
 
-def test_adapter_leaves_unsupported_shapes_unchanged(contracts):
-    """Ambiguous or non-typed alternatives are not silently widened."""
-    unsupported = {
-        "anyOf": [{"type": "null"}, {"const": 1}],
-    }
-    assert feature_rules({"allOf": [{"properties": {"value": unsupported}}]})[
-        "value"
-    ] is unsupported
-    assert feature_rules({"allOf": [{"properties": {"value": {"type": "integer"}}}]})[
-        "value"
-    ] == {"type": "integer"}
+@pytest.mark.parametrize(
+    "rule",
+    [
+        {"anyOf": [{"type": "null"}, {"type": "number", "minimum": 0, "maximum": 1}]},
+        {"anyOf": [{"type": "number", "minimum": 0, "maximum": 1}, {"type": "null"}]},
+    ],
+    ids=["null-first", "typed-first"],
+)
+def test_adapter_accepts_only_the_exact_nullable_shape(rule):
+    """Both orderings are semantically identical to the approved shape."""
+    assert typed_value_rule(rule) == {"type": "number", "minimum": 0, "maximum": 1}
+
+
+def test_adapter_leaves_direct_type_rules_unchanged():
+    rule = {"type": "integer", "minimum": 0, "maximum": 100}
+    assert typed_value_rule(rule) is rule
+    assert feature_rules({"allOf": [{"properties": {"value": rule}}]})["value"] is rule
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        # No typed alternative.
+        {"anyOf": [{"type": "null"}, {"const": 1}]},
+        # Missing null alternative.
+        {"anyOf": [{"type": "number"}, {"type": "string"}]},
+        # Extra alternative beyond the approved pair.
+        {"anyOf": [{"type": "null"}, {"type": "number"}, {"type": "string"}]},
+        # Null alternative is not exactly {"type": "null"}.
+        {"anyOf": [{"type": "null", "description": "not provided"}, {"type": "number"}]},
+        # Non-string type (the runtime expects a single type token).
+        {"anyOf": [{"type": "null"}, {"type": ["number", "null"]}]},
+        # Outer constraints would be silently discarded by unwrapping.
+        {"anyOf": [{"type": "null"}, {"type": "number"}], "minimum": 0},
+        {"anyOf": [{"type": "null"}, {"type": "number"}], "description": "sibling"},
+        # Not a list of alternatives.
+        {"anyOf": {"type": "null"}},
+        # More than two alternatives.
+        {"anyOf": [{"type": "null"}, {"type": "number"}, {"type": "null"}]},
+    ],
+    ids=[
+        "no-typed-alternative",
+        "missing-null",
+        "extra-alternative",
+        "inexact-null",
+        "non-string-type",
+        "outer-minimum",
+        "outer-description",
+        "anyof-not-list",
+        "three-alternatives",
+    ],
+)
+def test_adapter_fails_closed_for_unexpected_shapes(rule):
+    """Unexpected structures are not reinterpreted as the approved shape."""
+    assert typed_value_rule(rule) is rule
+    assert feature_rules({"allOf": [{"properties": {"value": rule}}]})["value"] is rule
 
 
 # --------------------------------------------------------------------------- #
@@ -261,9 +306,9 @@ def test_corrected_shape_under_draft_2020_12(contracts, schema_id):
                 schema_id, **{name: {"value": OPTIONAL_VALUES[name], "unit": OPTIONAL_UNITS[name]}}
             )
         )
-        validator.validate(
-            feature_map(schema_id, **{name: {"value": None, "unit": OPTIONAL_UNITS[name]}})
-        )
+        absent = feature_map(schema_id)
+        assert name not in absent
+        validator.validate(absent)
 
     with pytest.raises(ValidationError):
         validator.validate(

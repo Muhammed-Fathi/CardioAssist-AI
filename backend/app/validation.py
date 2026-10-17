@@ -80,29 +80,39 @@ def reject_wearable(contracts: ContractFiles, body: dict[str, Any]) -> None:
 
 
 def typed_value_rule(rule: dict[str, Any]) -> dict[str, Any]:
-    """Return the non-null typed alternative of a feature value rule.
+    """Return the typed alternative of the exact approved nullable shape.
 
-    ADR-001 Option A represents an optional feature value as
-    ``anyOf: [{"type": "null"}, <original typed/ranged rule>]``. The runtime
-    has always skipped explicit nulls before type checking, so it only needs
-    the typed alternative for non-null values. Rules that already declare a
-    direct ``type`` (the current schemas, and every required slot) are
-    returned unchanged. An unsupported shape is also returned unchanged so
-    that this adapter cannot silently broaden validation.
+    ADR-001 Option A represents an optional feature value as exactly
+    ``{"anyOf": [{"type": "null"}, <original typed/ranged rule>]}``. The
+    runtime has always skipped explicit nulls before type checking, so it only
+    needs the typed alternative for non-null values.
+
+    Rules that already declare a direct ``type`` (the current schemas, and
+    every required slot) are returned unchanged. Any other structure --
+    missing or extra alternatives, a non-exact null alternative, or sibling
+    constraints alongside ``anyOf`` -- is also returned unchanged so the
+    runtime fails closed instead of silently broadening validation.
     """
     if "type" in rule:
         return rule
-    alternatives = rule.get("anyOf")
-    if not isinstance(alternatives, list):
+    if set(rule) != {"anyOf"}:
         return rule
-    typed = [
+    alternatives = rule["anyOf"]
+    if not isinstance(alternatives, list) or len(alternatives) != 2:
+        return rule
+    null_alternatives = [
+        alternative for alternative in alternatives if alternative == {"type": "null"}
+    ]
+    typed_alternatives = [
         alternative
         for alternative in alternatives
-        if isinstance(alternative, dict) and alternative.get("type") != "null"
+        if isinstance(alternative, dict)
+        and isinstance(alternative.get("type"), str)
+        and alternative["type"] != "null"
     ]
-    if len(typed) == 1 and "type" in typed[0]:
-        return typed[0]
-    return rule
+    if len(null_alternatives) != 1 or len(typed_alternatives) != 1:
+        return rule
+    return typed_alternatives[0]
 
 
 def feature_rules(definition: dict[str, Any]) -> dict[str, Any]:

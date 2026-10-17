@@ -214,15 +214,18 @@ Executed locally with Python **3.11.2** and the pinned
 ```text
 pip check: No broken requirements found
 pytest tests/contracts -q -W error: 136 passed
-pytest tests/backend -q -W error: 262 passed
-  (includes tests/backend/test_schema_reader.py: 28 passed)
-pytest -q -W error: 398 passed
+pytest tests/backend -q -W error: 273 passed
+  (includes tests/backend/test_schema_reader.py: 39 passed)
+pytest -q -W error: 409 passed
 scripts/verify_sources.py: PASS (4/4 SHA256 hashes; 25 papers; 9/1/6/9)
 git diff --check: PASS
 ```
 
-The 28 new tests exercise the future ADR `anyOf` shape only through in-memory
+The 39 new tests exercise the future ADR `anyOf` shape only through in-memory
 copies of the schemas. The committed schemas, the oracle
 `tests/contracts/reference_contract.py`, fixture pack and contract tests are
 unchanged in this prerequisite. Python 3.12 and GitHub Actions results are
 not claimed here; inspect the checks attached to the final PR commit.
+The schema-reader tests also pin fail-closed behavior for unexpected `anyOf`
+shapes (missing or inexact null alternatives, extra alternatives, sibling
+constraints).

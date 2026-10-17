@@ -129,8 +129,11 @@ directly from each `allOf` member. The ADR's `anyOf` shape would therefore
 raise `KeyError: 'type'` for every non-null optional feature (20 existing
 backend tests failed in verification). The maintainer authorized a minimal,
 behavior-preserving adapter that extracts the single non-null typed
-alternative for non-null values; null is still skipped before type checking.
-It is a no-op for the current schemas and for every required slot, and it
+alternative only from the exact approved shape (no siblings beside `anyOf`,
+exactly two alternatives, one exact `{"type": "null"}`); null is still skipped
+before type checking, and unexpected structures are left unchanged so the
+runtime fails closed. It is a no-op for the current schemas and for every
+required slot, and it
 changes no wire behavior, error code, scoring or audit rule. Coverage lives in
 `tests/backend/test_schema_reader.py`. The committed feature schemas are
 **not** changed by this prerequisite; the schema/fixture correction remains
