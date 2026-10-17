@@ -106,8 +106,8 @@ authorization.
    │ actor_user_id, action, │  │ response_snapshot     │  │ calibration_id,         │
    │ entity_type, entity_id,│  │ original_result_id    │  │ feature_schema_id,      │
    │ model_ids, hashes,     │  │ created_at, expires_at│  │ training_datasets_json, │
-   │ created_at (append- │  └───────────────────────┘  │ artifact_sha256,        │
-   │  DELETE)               │                             │ code_commit,            │
+   │ created_at             │  └───────────────────────┘  │ artifact_sha256,        │
+   │ append-only in app code│                             │ code_commit,            │
    └────────────────────────┘                             │ validation_status       │
                                                           └─────────────────────────┘
    ┌────────────────────────┐  ┌───────────────────────┐  ┌─────────────────────────┐
