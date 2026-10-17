@@ -57,7 +57,7 @@ schema revision needs a separate explicit review.
 | B-02 | Common idempotency prose says replay = 200; the Track-B operation documents only 201, and the merged behavior test explicitly expects 201 for a replay. The contract README Q7 also asks 200 vs 201. | Use **201 for both first acceptance and replay**, preserving the operation-specific OpenAPI and merged tests. Reviewer should reconcile the generic wording, not add an undocumented 200 response here. |
 | B-03 | Idempotency namespace is not explicitly scoped by route/client in the prose. The merged oracle uses one global key store for both tracks. | Preserve a **global namespace**, with an additional route-identity guard: reuse on the other endpoint is 409, never a wrong-track replay. Clients should prefix keys by logical write/track. Endpoint/client scoping requires a reviewed decision. |
 | B-04 | Schema says null means “not measured”; it does not explicitly define all-null observations, repeated metric ids or count semantics. The merged oracle skips nulls, counts other entries, accepts all-null observations and does not deduplicate metric ids. | Preserve that behavior: zero is counted; null is not stored as a measurement; all-null = 201, accepted, count 0; duplicate entries count individually. Validate the whole request before publishing any observation/audit. Reviewer must ratify or revise these cases. |
-| A-01 | CAD feature prose says explicit null = absent; the feature schemas' `allOf` value constraints reject null, including optional slots. | Honor the approved missing-value semantics: required null/absent → 422 `missing_required_feature`; explicit optional null → missing list + existing `imputed_feature:` warning. Check the null wrapper's shape/unit/extra fields, then omit optional nulls from a **validation copy** only. Original JSON is still hashed (null and absent are different canonical payloads). A schema correction needs review; files are unchanged. There is no fitted imputer: missing slots simply have no synthetic contribution. |
+| A-01 | CAD feature prose says explicit null = absent; the shared feature schemas' per-feature `allOf` value constraints reject null, including optional slots, while the live backend treats optional null as missing. | Preserve the approved runtime behavior: required null/absent → 422 `missing_required_feature`; explicit optional null → successful response with the existing missing-feature warning. Validate wrapper shape/unit/extra fields and omit optional null only from a validation copy. Original JSON is still hashed, so null and absent remain different idempotency payloads. Do not edit approved schemas here. The exact proposed schema-only patch, affected tests/fixtures and versioning considerations are documented below pending maintainer approval. There is no fitted imputer: missing slots have no synthetic contribution. |
 | G-01 | Both requests make `request_id` optional, but both success schemas require a UUID; the oracle returns null when it is omitted. | Generate a deterministic prototype correlation UUID for an omitted id. A replay preserves the original id; invalid ids in errors are omitted rather than echoed into a schema-invalid error. No request or response schema change is necessary. |
 | G-02 | README validation-order table places version/schema checks before conflict, while its unconditional-conflict prose, OpenAPI, and the active task say any different payload under a used key is 409. | Follow the **unconditional** rule: parse JSON, require an object and a valid header, then look up conflict/replay **before all semantic checks**, including version/schema. Tests cover invalid versions and missing envelopes under a used key. Malformed JSON/non-object/header failures cannot identify a valid canonical request and remain 400. Reviewer should reconcile the ordering table. |
 | X-01 | Legacy F-11c/registry include a synthetic LIME result with an illustrative fixed local R². The active task explicitly prohibits fabricating a computed LIME result. | The known LIME-only `mock_model_d_v0.1.0` binding is **unavailable in this server**: 503 `model_unavailable`, no score/explanation/fidelity. Its legacy contract fixture/test remains unchanged and still runs. Live HTTP coverage explicitly asserts 503 rather than skipping the case. LIME stays a future integration capability requiring actual method/fidelity validation, never a made-up result. |
@@ -68,18 +68,81 @@ consent lifecycle, future retention store, patient-ref privacy checks, offline
 batch sync, FHIR scope, and clinician wording. No dataset, clinical or privacy
 gate is closed by implementing this mock.
 
-## CI permission boundary and maintainer handoff
+## A-01 schema compatibility finding — approval required
 
-The agent's initial push was rejected because creating a workflow requires
-GitHub App workflow-write permission. Per explicit maintainer instruction,
-there is **no change under `.github/workflows/`** in this PR. The proposed
-backend workflow is a **non-executing** template at
-`backend/ci/backend-ci.yml.example`, intended to be manually installed at
-**`.github/workflows/backend-ci.yml`** by the maintainer. The existing contract
-workflow is unchanged. No additional GitHub permissions are requested.
-See `backend/ci/README.md` for exact content and manual steps.
-**GitHub Actions status: UNVERIFIED** until installation and actual CI runs;
-local test results do not imply a green Actions run.
+**Finding.** The normative feature schemas combine the generic `FeatureValue`
+object with each property's value rule using `allOf`. `FeatureValue` permits a
+null scalar, but the per-feature `type` rule (integer, number, string, or
+boolean) excludes null. A Draft 2020-12 validator therefore rejects an
+optional feature wrapper such as `{"value": null, "unit": "u_count"}`.
+The live backend's semantic validator deliberately interprets that optional
+null as missing, returns success, reports the feature as missing, and emits
+its existing `imputed_feature:` warning. Required null remains a 422
+`missing_required_feature`; absent optional fields already work in both
+schema and backend. Zero/false remain data.
+
+Thus a standards-compliant client-side schema validator or generated client
+that enforces the per-feature schema can reject an optional-null request that
+the backend accepts. Code-generator nullability behavior differs by tool, so
+this is a risk, not a claim that every React/Flutter generator will reject it.
+The current schema does not accept invalid values by virtue of this
+inconsistency; it is stricter than the runtime only for optional null values.
+
+**Proposed patch (not applied).** In both
+`shared/contracts/schemas/mock_clinical_feature_schema.v1.json` and
+`mock_clinical_feature_schema.v2.json`, replace each *optional* property's
+second `allOf` member's direct `properties.value` constraint with an `anyOf`
+containing `{ "type": "null" }` and the exact existing typed/ranged
+constraint. For example, for `mock_feature_vital_systolic`:
+
+```json
+"value": {
+  "anyOf": [
+    { "type": "null" },
+    { "type": "number", "minimum": 0, "maximum": 400 }
+  ]
+}
+```
+
+Apply the same shape to all optional slots (including string/boolean/integer
+slots where present), leaving their current range/type/unit constraints
+unchanged. Keep required `mock_feature_demographic_age` and
+`mock_feature_demographic_sex` non-null so required null remains invalid as a
+successful request and continues to produce the existing 422. Do not change
+error codes, feature definitions, target semantics, or response schemas.
+
+**Expected coverage changes.** The required-null and zero cases in committed
+fixture `F-03b-null-and-zero-value-semantics.json` remain unchanged. It does
+not currently contain an optional-null case. Add an optional-null request
+assertion to the contract behavior/schema tests and fixture pack (or add a
+new fixture) confirming the same successful semantics as
+`tests/backend/test_behavior_http.py::test_required_null_optional_null_and_zero_are_distinct`.
+That HTTP regression already covers the current backend behavior. No existing
+fixture response body needs changing for the proposed optional-null case; the
+new schema acceptance assertion is the missing coverage.
+
+**Compatibility/versioning.** The backend already accepts this request and
+v1 prose already says null means not provided, so the proposed change broadens
+only schema validity and aligns code generation with existing wire behavior;
+it does not require a runtime behavior change or a new error code. However,
+these schemas are approved shared v1 artifacts. Do not apply an in-place v1
+schema edit without maintainer approval. If approved as a correction to the
+existing v1 semantics, update the schema bundle, fixture/test assertions and
+contract artifact revision together. If the maintainer treats a published
+schema as immutable, issue a separately versioned contract revision and
+coordinate clients instead. **Maintainer decision is pending; no schema,
+fixture, or client change is made in this PR.**
+
+## CI workflow status
+
+The maintainer has installed `.github/workflows/backend-ci.yml`; it is an
+executing workflow on `main`, not a proposed/non-executing template. The
+existing `.github/workflows/contracts-ci.yml` remains separate and is not
+changed here. Workflow presence and local test results do not establish that
+GitHub Actions ran or passed for this PR: inspect actual checks on the latest
+commit. See `backend/ci/README.md`. CI checks software behavior only; it does
+not validate a real trained AI, authorize a research deployment, or approve
+clinical deployment.
 
 ## Idempotency and audit lifecycle
 
