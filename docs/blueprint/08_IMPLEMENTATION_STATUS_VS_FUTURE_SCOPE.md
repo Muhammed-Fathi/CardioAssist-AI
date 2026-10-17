@@ -48,7 +48,7 @@ deterministic synthetic fixture data (`MOCK_SYNTHETIC`).**
 | Explainability (F02) | Sum-check (log-odds), rendering labels, F-08 fixture | Synthetic SHAP-shaped offsets | Real TreeSHAP/LIME + stability/fidelity (M3) |
 | Clinician dashboard (F03) | — | — | Thin screen (M1a.3) → full (M1b) |
 | Patient app (F04) | — | — | One screen (M1a.3) → full (M1b) |
-| Wearables/monitoring (F05) | Track-B ingestion, consent ref, source labelling, wearable→CAD 422 | `simulated_wearable` source | History/trends (M1b); Health Connect spike (M4 opt.); vendor (P-6) |
+| Wearables/monitoring (F05) | Track-B ingestion, consent ref, source labelling, wearable→CAD 422 | `simulated_wearable` source (always-available fallback) | History/trends (M1b); Health Connect capability/device spike (M4, simulator fallback deliverable); vendor (P-6) |
 | Reassessment/follow-up (F06) | Read-only `pending_review` state in responses | — | Validity-gated mechanics + notifications/summaries (M1b) |
 | Audit/consent (F07) | In-memory events, one-per-write tests | Test-only introspection | Durable audit + consent lifecycle (M1b) |
 | FHIR (F08) | — | — | Thin export (M4 opt., D-020) |
@@ -57,8 +57,8 @@ deterministic synthetic fixture data (`MOCK_SYNTHETIC`).**
 | Auth/RBAC (F11) | — | — | M1b |
 | API & tests (F12) | **Complete for M1a scope** (370 tests, CI) | Fixture pack | Grows per milestone (contract-first) |
 | History/symptoms/surveys (F13) | — | — | M1b |
-| Lab OCR (F14) | — | — | M5 (proposed; $0 local OCR) |
-| Extraction verification (F15) | — | — | M5 (proposed) |
+| Lab OCR (F14) | — | — | M5 product track (**required** deliverable; $0 local OCR; scheduling authorization pending) |
+| Extraction verification (F15) | — | — | M5 product track (**required** deliverable; verification ≠ Track-A eligibility, 05 §2.1) |
 | Research-safe assistant (F16) | — | — | M5 (proposed; clinician-gated) |
 | Administration (F17) | — | — | Basic M1b; console M5 |
 | Persistence/deployment (F18) | In-memory state (documented) | — | SQLite M1b; PG path M4; hosting optional |
@@ -82,8 +82,17 @@ deterministic synthetic fixture data (`MOCK_SYNTHETIC`).**
 
 ## 5. Near-term future scope (in order)
 
-1. **M1a.3** (authorized next): thin React + Flutter paths vs the unchanged
-   mock contract, per `docs/M1A3_INTEGRATION_HANDOFF.md`; carries A-01 etc.
+**Research completion (M4) is not product completion.** M4 closes the
+research prototype (integrated walkthrough + TRIPOD+AI write-up). The
+product vision additionally requires the M5 product track (F14–F17,
+required deliverables) and the capability/device-dependent Health Connect
+delivery plan (simulator fallback). Neither completion implies clinical
+deployment or regulatory readiness (P-5).
+
+1. **M1a.3** (next planned; **implementation authorization pending** — do
+   not start until the maintainer explicitly authorizes): thin React +
+   Flutter paths vs the unchanged mock contract, per
+   `docs/M1A3_INTEGRATION_HANDOFF.md`; carries A-01 etc.
 2. **M1b**: persistence (SQLite→PG path), auth/RBAC, consent + durable
    audit, history/review/reassessment APIs ("M1b.1 contracts first"),
    full dashboard + full patient app, offline sync + batch ingestion,
@@ -92,9 +101,12 @@ deterministic synthetic fixture data (`MOCK_SYNTHETIC`).**
 3. **M2** (after P-2): authorized dataset acquisition + read-only audit.
 4. **M3** (after P-3): frozen protocol, real models, real SHAP/LIME,
    calibration, IC-3.
-5. **M4**: integrated prototype, TRIPOD+AI write-up, optional FHIR export /
-   Health Connect spike / disposable hosted demo.
-6. **M5** (authorization required): F14–F17 preserved product surfaces.
+5. **M4** (research completion): integrated prototype, TRIPOD+AI write-up,
+   optional FHIR export / Health Connect capability-device spike (with
+   simulator fallback deliverable) / disposable hosted demo.
+6. **M5 product track** (scheduling authorization pending; deliverables
+   **required**): F14 lab OCR, F15 extraction verification, F16
+   research-safe assistant (clinician-gated), F17 admin console.
 
 ## 6. Change control for this snapshot
 

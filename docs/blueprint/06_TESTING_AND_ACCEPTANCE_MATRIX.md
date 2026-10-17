@@ -31,8 +31,14 @@ Run the mock backend (one worker only — in-memory state):
 
 ```bash
 python -m pip install -r backend/requirements.txt
-python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
+
+**Local security default:** the server is unauthenticated — bind
+`127.0.0.1` for ordinary local development. Bind `0.0.0.0` only for a
+controlled LAN/preview demo, with synthetic inputs and appropriate network
+restrictions (`backend/README.md`). A phone's `localhost` is the phone
+itself (M1a.3 handoff §3.2).
 
 CI (installed workflows, `backend/ci/README.md`): `contracts-ci.yml`
 (contracts + prohibited-file check) and `backend-ci.yml` (contracts + HTTP
@@ -60,12 +66,13 @@ prohibited-copy absence) · **D** = demonstration/recorded walkthrough.
 
 | Milestone | Local tests (in addition to §2 guards) | L | S | D | H (reviewer focus) |
 |---|---|---|---|---|---|
-| **M1a.3** thin React+Flutter | React client/component/snapshot tests (mandatory target/disclaimer/status copy; uncalibrated vs mock-calibrated labels; optional missing values; replay keeps original audit id; 409 conflict; 422 wearable rejection; 503 unavailable/LIME-only). Flutter client/widget tests (JSON fields; 201 first/replay; preserved observation id; consent-required/unknown-metric/unit/range errors; source/disclaimer labels; **absence of CAD output/actions**). Prove: monitoring does not increase inference counter | ✔ | ✔ rendered mandatory wording + absence of %/LIME/advice | ✔ 4 integration demos (retry same audit id / same observation id / 409 / 422+no score); emulator/physical-device evidence or UNVERIFIED note | Engineering: toolchain pins, network config (relative `/v1`, `--dart-define`), no client-side contract tightening (B-01), no fabricated LIME (X-01); carry B-02–B-04, A-01, G-02 forward |
+| **M1a.3** thin React+Flutter (next planned; **implementation authorization pending**) | React client/component/snapshot tests (mandatory target/disclaimer/status copy; uncalibrated vs mock-calibrated labels; optional missing values; replay keeps original audit id; 409 conflict; 422 wearable rejection; 503 unavailable/LIME-only). Flutter client/widget tests (JSON fields; 201 first/replay; preserved observation id; consent-required/unknown-metric/unit/range errors; source/disclaimer labels; **absence of CAD output/actions**). Prove: monitoring does not increase inference counter | ✔ | ✔ rendered mandatory wording + absence of %/LIME/advice | ✔ 4 integration demos (retry same audit id / same observation id / 409 / 422+no score); emulator/physical-device evidence or UNVERIFIED note | Engineering: toolchain pins, network config (relative `/v1`, `--dart-define`, `127.0.0.1` local default), no client-side contract tightening (B-01), no fabricated LIME (X-01); carry B-02–B-04, A-01, G-02 forward |
 | **M1b** platform completion | Full suite green **with persistence** (behavior unchanged); migration up/down tests; RBAC role-matrix tests; consent grant/revoke audit tests; one-audit-event-per-write on all new write APIs; reassessment-validity matrix (invalid triggers produce no score); offline→sync test (emulator + 1 physical device or recorded UNVERIFIED); batch-ingestion per-item results; admin-only route tests | ✔ | ✔ all user-facing text snapshot-tested or conservative fallback recorded | ✔ IC-2 demo (consent, RBAC, reassessment-validity on mocks) | Engineering + (P-4/D-016 outcome): copy review; SQLite-only-SQL checklist; wire-behavior diff empty |
 | **M2** Gate DA audit | Audit scripts runnable; hash/licence verification; `verify_sources.py` untouched; duplicate/overlap audit tooling tests | ✔ | n/a (no UI) | ✔ audit report + **"no fitting occurred" certification** | Research lead + supervisor: dataset authorization match, §R2-4.4 checklist completeness, §F-1 coding rulings (`thal`/`oldpeak`/`ca`) |
 | **M3** protocol + real models | Full suite re-green with real model backend (IC-3); SHAP log-odds sum-check **for real**; determinism tests; calibration evaluation scripts; label-shuffle negative control at chance; stability computation | ✔ | ✔ UI wording re-snapshot; `validation_status` rendering | ✔ IC-3: fixture suite green against real model; benchmark results incl. negatives | Supervisor: Gate PT signed **before** any fitting; leakage checklist; metrics/CI honesty; LIME fidelity real (X-01 closed) |
 | **M4** prototype + write-up | Replication package re-runs key results from clean checkout (documented commands); export snapshot tests (if F08 approved) | ✔ | ✔ claims-discipline check (no invented numbers; TRIPOD+AI checklist) | ✔ IC-4 walkthrough | Supervisor + research lead: manuscript, D-025 verification before novelty claims |
-| **M5** (if authorized) | Upload validation tests; OCR pipeline tests on **synthetic sample documents**; extraction state-machine tests; "unverified fields cannot enter feature sets"; copy guardrails (prohibited-phrase tests); assistant refusal/citation tests | ✔ | ✔ PHI rules (synthetic docs only), assistant labelling | ✔ F14–F17 walkthrough per EXT mockups | Clinician (P-4/D-016/D-026) for F15 copy + F16 content; privacy review for uploads |
+| **M5** product track (scheduling authorization pending; deliverables required) | Upload validation tests; OCR pipeline tests on **synthetic sample documents**; extraction state-machine tests; "unverified fields cannot enter feature sets"; **"verified-but-ineligible fields cannot enter Track-A feature sets"** (05 §2.1); copy guardrails (prohibited-phrase tests); assistant refusal/citation tests | ✔ | ✔ PHI rules (synthetic docs only), assistant labelling | ✔ F14–F17 walkthrough per EXT mockups | Clinician (P-4/D-016/D-026) for F15 copy + F16 content; privacy review for uploads |
+| Health Connect spike (M4 product item) | Capability/device check recorded; adapter tests on a qualifying device **or** recorded unsupported-device outcome with the simulator fallback exercised end-to-end | ✔ | ✔ simulated-source labelling everywhere | ✔ fallback demo is a deliverable, not a skip | Engineering: capability/device record; P-6 remains closed for vendor/real-device claims |
 
 **Universal rule: a milestone PR is not complete until L + H are both
 satisfied** (and S/D where marked). The agent never merges (AGENTS.md).

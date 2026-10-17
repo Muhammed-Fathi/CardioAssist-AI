@@ -65,3 +65,14 @@ governed elsewhere, this set cites the source and defers to it:
 - **No silent feature deletion** (`docs/FEATURE_REGISTER.md`): the vision is
   preserved in the traceability matrix (02); blocked items are labelled with
   the named blocker, not removed.
+- **M1a.3 is next *planned*, not authorized:** explicit implementation
+  authorization is pending (see 03); work must not start until the
+  maintainer grants it.
+- **Research completion (M4) ≠ product completion:** full product delivery
+  requires the M5 product track (F14–F17 are required deliverables, not
+  optional) plus the capability/device-dependent Health Connect plan with
+  simulator fallback (03 §4).
+- **Clinical laboratory data boundary (binding):** wearable/monitoring data
+  never feeds the existing CAD model; clinician-verified lab measurements
+  become Track-A-eligible only via the six-condition checklist in 05 §2.1 —
+  verification alone never implies model eligibility.

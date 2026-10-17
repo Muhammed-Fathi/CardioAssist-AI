@@ -51,6 +51,11 @@ task (they also match capabilities implied by the external mockups). They are
 **not** yet in the approved register; ratify them into
 `docs/FEATURE_REGISTER.md` in a follow-up maintainer decision. They are
 listed here so nothing in the requested vision is silently dropped.
+F14/F15 (lab-report OCR and extraction verification) are **required
+product-vision deliverables** — they are scheduled in the product track
+(M5) subject to implementation-readiness and safety approvals; they are not
+optional and not part of the research-prototype completion definition
+(see [03](03_MILESTONE_ROADMAP_AND_DEPENDENCIES.md) §4).
 
 ## 4. Summary matrix
 
@@ -69,9 +74,9 @@ listed here so nothing in the requested vision is silently dropped.
 | F11 | Authentication, roles/RBAC, access control | S26, S36 | Platform | PROPOSED (current backend is unauthenticated by design) | M1b |
 | F12 | Versioned AI–backend API & integration tests | S25–S26, S31 | Platform | **IMPLEMENTED + TESTED** (OpenAPI, 30 fixtures/33 steps, 370 tests) | DONE-M1a.1/2 |
 | F13 | Medical history, symptoms, surveys & clinical feature input | S38 (survey/symptom check), Track-A inputs | A/B | PROPOSED | M1b |
-| F14 | Lab-report image/PDF upload & OCR extraction | Not in slides — blueprint request + external mockups | B | PROPOSED | M5 (needs scope authorization) |
-| F15 | Extracted-field editing, provenance, confirmation & clinician verification | Not in slides — blueprint request + external mockups | B | PROPOSED | M5 (needs scope authorization) |
-| F16 | Research-safe recommendations & clinical-assistant capabilities | S34/S38 contain *prohibited* variants; research-safe restatement | A/B | PROPOSED, heavily CLINICALLY-GATED | M5 (needs scope authorization) |
+| F14 | Lab-report image/PDF upload & OCR extraction | Not in slides — blueprint request + external mockups | B | PROPOSED — **required product-vision deliverable** | M5 product track (authorization to schedule) |
+| F15 | Extracted-field editing, provenance, confirmation & clinician verification | Not in slides — blueprint request + external mockups | B→A (gated) | PROPOSED — **required product-vision deliverable**; Track-A use only via the 05 §2.1 eligibility checklist | M5 product track (authorization to schedule) |
+| F16 | Research-safe recommendations & clinical-assistant capabilities | S34/S38 contain *prohibited* variants; research-safe restatement | A/B | PROPOSED, heavily CLINICALLY-GATED | M5 product track (clinician-gated; scheduling authorization pending) |
 | F17 | Administration (users, roles, registries, ops) | Implied S22/S42–S43 | Platform | PROPOSED | basic M1b; console M5 |
 | F18 | Persistent database & deployment posture | S25–S27 (topology downgraded), task-locked SQLite→PG | Platform | Persistence PROPOSED (in-memory today); local-first deployment posture adopted | persistence M1b; hosting optional M4+ |
 
@@ -141,14 +146,14 @@ today.
 
 | Field | Content |
 |---|---|
-| Status | Simulated-wearable source path IMPLEMENTED + TESTED (`source: simulated_wearable` accepted on Track B; F-04 fixtures; observations never scored). Real adapters (Android Health Connect spike, Apple HealthKit, Fitbit/Garmin/Withings/Polar) are **ACCESS-GATED** (P-6: named device owner, $0 account resolution, vendor terms). **Wearable→CAD inference is PROHIBITED and enforced** (D-039, `422 wearable_input_not_valid_for_cad_inference`, fixtures F-09a/F-09b, test F-09). |
+| Status | Simulated-wearable source path IMPLEMENTED + TESTED (`source: simulated_wearable` accepted on Track B; F-04 fixtures; observations never scored). Real adapters are **ACCESS-GATED** (P-6: named device owner, $0 account resolution, vendor terms). **Android Health Connect** gets a **capability- and device-dependent delivery plan**: availability varies by Android version/Play services and physical device, so the spike delivers (i) a capability check + supported-device record, (ii) an adapter behind the same ingestion API when a qualifying device exists, and (iii) the **simulated adapter as the always-available fallback** when it does not (the fallback is a deliverable, not a failure). Apple HealthKit and vendor APIs (Fitbit/Garmin/Withings/Polar) remain gated. **Wearable→CAD inference is PROHIBITED and enforced** (D-039, `422 wearable_input_not_valid_for_cad_inference`, fixtures F-09a/F-09b, test F-09) — including for any future real adapter. |
 | Dependencies | F05 simulated: done. Real: P-6/D-019 + clinician review of device-facing copy. Never: labeled wearable+CAD dataset + separate validated protocol (none exists in approved evidence). |
 | Data entities | **MonitoringObservation** + **MonitoringMetric** (exists on the wire), **DeviceLink** (future, M5+/P-6). |
 | API requirements | `POST /v1/monitoring/observations` (exists; 201 first + 201 replay per operation contract — B-02 open question on 200-vs-201 wording). Batch ingestion (Q11). No wearable payload may ever appear in a CAD request (`context.source` closed set). |
 | UI surfaces | Patient submission with visible source/synthetic labelling; clinician monitoring views distinguishing simulated/entered/device data everywhere (M1b). |
 | Local tests | F-04/F-04b/F-04c fixtures; F-09 rejection tests (HTTP + contract); "monitoring does not increase the inference counter" check (M1a.3 acceptance). |
 | Scientific/safety gates | One-way Track B→A rule (hard); no monitoring-triggered reassessment (§R2-2.2); `source=simulated` labelling mandatory; no device accuracy claims; no thresholds (PROHIBITED). |
-| Milestone | Simulator plumbing: DONE-M1a.1/2 · History/trends: M1b · Health Connect spike: M4 optional time-boxed · Vendor adapters: post-P-6 |
+| Milestone | Simulator plumbing: DONE-M1a.1/2 · History/trends: M1b · Health Connect: **M4 product-spike (capability/device-dependent plan + simulator fallback, time-boxed)** · Vendor adapters: post-P-6 |
 
 ### F06 — Reassessment, follow-up workflows, notifications & summaries
 
@@ -251,34 +256,34 @@ today.
 | API requirements | Planned M1b: history/symptom/survey write+read APIs, clinical-feature-set submission wrapping the existing prediction contract (`clinician_entry` source); all idempotent + audited. |
 | UI surfaces | Flutter: history/survey/lifestyle screens (F04); React: clinician feature-entry form (M1a.3 starts with the synthetic-record form). |
 | Local tests | Survey versioning tests; feature-set validation tests (units/ranges via schema); audit-per-write; RBAC ownership tests. |
-| Scientific/safety gates | Survey/clinical wording review (P-4); no feature enters a CAD model outside a frozen protocol (Gate PT); patient-entered values reach inference only via clinician-confirmed `clinician_entry` (§F-4). |
+| Scientific/safety gates | Survey/clinical wording review (P-4); no feature enters a CAD model outside a frozen protocol (Gate PT); patient-entered values reach inference only via clinician-confirmed `clinician_entry` (§F-4); any lab-derived member of a clinical feature set must pass the **05 §2.1 eligibility checklist** (schema membership, target, prediction time, units, provenance, protocol) — verification or confirmation alone never suffices, and no feature mapping is invented (real schemas come from Gate DA, Q1). |
 | Milestone | **M1b** (manual entry + basic surveys) · Instrument content finalized with clinician review |
 
 ### F14 — Laboratory-report image/PDF upload & OCR extraction
 
 | Field | Content |
 |---|---|
-| Status | PROPOSED (register extension §3). **Provenance: 2026-10-17 master-blueprint request + external mockups (EXT-01…14, uninspected).** Not described in the 47-slide speaker notes; treated as preserved vision, not as a slide-traced feature. Scope: patient/clinician upload of lab-report images/PDFs; local OCR extraction of structured fields (analyte, value, unit, reference range, collection date); raw text retained. |
+| Status | **PROPOSED — required product-vision deliverable** (register extension §3; product track M5). **Provenance: 2026-10-17 master-blueprint request + external mockups (EXT-01…14, uninspected).** Not described in the 47-slide speaker notes; treated as preserved vision, not as a slide-traced feature. Scope: patient/clinician upload of lab-report images/PDFs; local OCR extraction of structured fields (analyte, value, unit, reference range, collection date); raw text retained. Scheduling/implementation subject to implementation-readiness and safety approvals — it is not part of research-prototype completion (M4), and not optional. |
 | Dependencies | F18 persistence + file storage (out-of-git, hashed); F11 auth; **$0 local OCR engine decision** (Tesseract-class local engine — cloud OCR APIs prohibited: cost + PHI egress); EXT mockups for upload UX; P-4-class review of extraction-display copy. |
-| Data entities | **LabDocument** (mime, sha256, storage ref, uploaded_by, status), **ExtractionField** (raw text, value, unit, page/region locator, engine+version, confidence). |
+| Data entities | **LabDocument** (mime, sha256, storage ref, uploaded_by, status), **ExtractionField** (raw text, value, unit, page/region locator, engine+version, confidence). Extracted fields are **Track-B document data**; they carry no model eligibility by default (see F15 / 05 §2.1). |
 | API requirements | Planned M5: `POST /v1/documents/lab-reports` (multipart upload), `GET .../extraction` (fields + provenance); all audited; virus/size/type validation; no raw document bytes in audit events. Contract review required. |
 | UI surfaces | Flutter upload screen; React document review screen (per EXT mockups once supplied). |
 | Local tests | Upload validation tests (type/size/hash); OCR pipeline tests on **committed synthetic sample documents** (not real reports); extraction-accuracy *engineering* checks only — never reported as clinical accuracy. |
-| Scientific/safety gates | Real patient reports are PHI: prototype accepts **synthetic sample documents only** until a privacy/ethics design exists; OCR output is unverified data until F15 verification; extracted fields never auto-feed a CAD model; no diagnostic interpretation of lab values by the system. |
-| Milestone | **M5** (proposed; requires maintainer scope authorization before scheduling) |
+| Scientific/safety gates | Real patient reports are PHI: prototype accepts **synthetic sample documents only** until a privacy/ethics design exists; OCR output is unverified data until F15 verification; extracted fields never auto-feed a CAD model; no diagnostic interpretation of lab values by the system; eligibility for Track A is decided only per 05 §2.1, never by the upload/OCR pipeline. |
+| Milestone | **M5 product track** (required deliverable; requires maintainer authorization before scheduling) |
 
 ### F15 — Extracted-field editing, provenance, confirmation & clinician verification
 
 | Field | Content |
 |---|---|
-| Status | PROPOSED (register extension §3; blueprint request + external mockups). Scope: every extracted field is editable with full provenance (raw vs edited, who/when); patient confirmation step; clinician verification step; verification state machine `extracted → edited → confirmed → verified` (or `rejected`). Only verified fields may be promoted into a **ClinicalFeatureSet** (F13) for clinician-confirmed use. |
-| Dependencies | F14; F11 roles (clinician verification permission); F07 audit (every edit/verification is an event); F13 feature-set mapping (unit reconciliation!). |
-| Data entities | **ExtractionField** (+ edit history), **VerificationEvent**, link to **ClinicalFeatureSet**. |
-| API requirements | Planned M5: `PATCH /v1/documents/lab-reports/{id}/fields/{field_id}` (idempotent), `POST .../verify`; response carries provenance + state; 409 on concurrent conflicting edits (idempotency/conflict patterns reused). |
+| Status | **PROPOSED — required product-vision deliverable** (register extension §3; product track M5, with F14). Scope: every extracted field is editable with full provenance (raw vs edited, who/when); patient confirmation step; clinician verification step; verification state machine `extracted → edited → confirmed → verified` (or `rejected`). A verified field may be *recorded* in a **ClinicalFeatureSet** (F13) **only when the 05 §2.1 eligibility checklist also passes** for the approved model version. **Verification alone never implies Track-A model eligibility** — a verified field that is not a named feature of the approved `feature_schema_id` remains a Track-B/record value only (no feature mapping is invented). |
+| Dependencies | F14; F11 roles (clinician verification permission); F07 audit (every edit/verification is an event); F13 feature-set mapping (unit reconciliation!); 05 §2.1 boundary; Gate DA feature dictionary (Q1) before any Track-A mapping can exist. |
+| Data entities | **ExtractionField** (+ edit history), **VerificationEvent**, link to **ClinicalFeatureSet** (eligibility-gated edge). |
+| API requirements | Planned M5: `PATCH /v1/documents/lab-reports/{id}/fields/{field_id}` (idempotent), `POST .../verify`; response carries provenance + state; 409 on concurrent conflicting edits (idempotency/conflict patterns reused). Promotion to a Track-A-bound feature set is a separate, eligibility-checked operation — `verify` alone never writes to an inference-eligible set. |
 | UI surfaces | Side-by-side document viewer + field editor (React); patient confirmation (Flutter). Per EXT mockups. |
-| Local tests | State-machine transition tests; provenance retention tests (raw never lost); "unverified field cannot enter feature set" test; audit-per-edit tests. |
-| Scientific/safety gates | Human-in-the-loop mandatory (no auto-verification); unit mismatches must fail closed (422-class, never silent conversion); clinician verification ≠ clinical validation claim; P-4 copy review for patient-facing confirmation text. |
-| Milestone | **M5** (with F14) |
+| Local tests | State-machine transition tests; provenance retention tests (raw never lost); "unverified field cannot enter feature set" test; **"verified-but-ineligible field cannot enter a Track-A feature set"** test (05 §2.1 negative case); unit-mismatch fail-closed test; audit-per-edit tests. |
+| Scientific/safety gates | Human-in-the-loop mandatory (no auto-verification); unit mismatches must fail closed (422-class, never silent conversion); clinician verification ≠ clinical validation claim ≠ model eligibility; wearable/monitoring values can never ride this path into inference (F-09 rule preserved); P-4 copy review for patient-facing confirmation text. |
+| Milestone | **M5 product track** (required deliverable, with F14; requires maintainer authorization before scheduling) |
 
 ### F16 — Research-safe recommendations & clinical-assistant capabilities
 

@@ -16,10 +16,10 @@ or any performance/clinical claim.**
 
 | | Track A — clinical CAD AI | Track B — patient & wearable monitoring |
 |---|---|---|
-| Purpose | Cross-sectional CAD **presence** classification (T1, provisional) on approved tabular benchmark data, with real SHAP/LIME explanations and clinician review | Patient-entered information, lab-report processing (M5), wearable/monitoring history |
-| Inputs | `benchmark_import` / `clinician_entry` only, schema-validated, unit-checked | `manual_entry`, `simulated_wearable` (later real device sources under P-6) |
+| Purpose | Cross-sectional CAD **presence** classification (T1, provisional) on approved tabular benchmark data, with real SHAP/LIME explanations and clinician review | Patient-entered information, lab-report processing (M5; boundary rules §2.1), wearable/monitoring history |
+| Inputs | `benchmark_import` / `clinician_entry` only, schema-validated, unit-checked. Clinician-verified lab measurements (§2.1b) qualify as `clinician_entry` **only** via the six-condition eligibility checklist — verification alone never confers eligibility | `manual_entry`, `simulated_wearable` (later real device sources under P-6); verified lab records may live here while still ineligible for Track A |
 | Outputs | Target-named score + explanation + `validation_status` + disclaimer; ends at clinician review | Descriptive history/trends only; **no CAD score, no interpretation overlay** |
-| Data rule | Trained only on labeled tabular datasets under Gate PT | **Never feeds CAD inference** (`422 wearable_input_not_valid_for_cad_inference`; contract test F-09) |
+| Data rule | Trained only on labeled tabular datasets under Gate PT; feature set must match the approved `feature_schema_id` exactly | **Never feeds CAD inference** (`422 wearable_input_not_valid_for_cad_inference`; contract test F-09) — applies to wearable/monitoring data permanently, and to lab data until §2.1 eligibility is fully met |
 
 **The one-way rule is permanent for this project unless a future model is
 trained and validated, under its own protocol, on a dataset that pairs
@@ -42,6 +42,47 @@ wearable variables with CAD labels.** No approved dataset does (Phase 0
 - Candidate secondary targets (per-artery stenosis T2 via UCI-411, survey
   self-report T3, ECG-statement T5) are separate tasks — never merged into
   T1 (§R2-4.2 Strategy D).
+
+## 2.1 Clinical laboratory data boundary (binding)
+
+Track B contains two **scientifically different** kinds of clinical data.
+They must never be conflated, and neither may reach CAD inference through
+the other's path:
+
+| Category | Examples | Relation to the existing CAD inference model |
+|---|---|---|
+| **(a) Wearable / monitoring observations** | HR/HRV, steps, SpO₂, sleep, simulated-wearable streams, patient-entered measures and symptom/survey answers | **Never eligible.** Wearable/monitoring payloads sent to CAD inference fail with `422 wearable_input_not_valid_for_cad_inference` (contract test F-09). This rule is permanent for the current model and is preserved unchanged (D-039, Phase 0 §F-4) |
+| **(b) Clinician-verified clinical laboratory measurements** | Extracted from uploaded lab reports (F14/F15), then edited/confirmed/verified by a clinician; or clinician-entered lab values | **Conditionally eligible Track-A inputs — eligibility is never automatic.** A verified measurement may be used as a Track-A feature **only if all** of the following hold (see the checklist below) |
+
+**Verification alone must never imply model eligibility.** The F15 workflow
+moves a field through `extracted → edited → confirmed → verified`; that
+state records *data trustworthiness*, not *model admissibility*. Promotion
+into a **ClinicalFeatureSet** used for CAD inference additionally requires
+every one of:
+
+1. **Feature-schema membership** — the field maps to a named feature of the
+   *approved* model's `feature_schema_id` (from Gate DA dictionary work,
+   Q1). No new clinical feature mappings may be invented; unmapped fields
+   are stored as history/records only.
+2. **Target support** — the field is admissible for the approved target
+   (P-1/D-006) under the frozen protocol (Gate PT).
+3. **Intended prediction time** — the value is knowable at the model's
+   intended prediction moment (§R2-5.4 feature-availability discipline;
+   cf. the `thal`/`ca` rulings in §F-1).
+4. **Unit conformity** — the verified unit matches the schema unit exactly
+   or a protocol-approved explicit conversion; unit mismatch fails closed
+   (`422`), never silently.
+5. **Provenance complete** — document hash, extraction/edit/verification
+   history, verifier identity, and `source: clinician_entry` recorded.
+6. **Validation protocol** — the use is covered by the frozen protocol's
+   feature dictionary and validation plan; any model whose features include
+   lab values must itself be trained/evaluated under Gate PT rules on data
+   containing those features.
+
+Until all six hold for a given measurement and model version, that
+measurement is Track-B (or plain record) data only. The existing
+wearable-source rejection rule applies regardless of verification state.
+This boundary is binding on `01`, `02`, `04` and every future contract.
 
 ## 3. Candidate datasets, tiers, and risks (summary of Phase 0 §5 / §R2-4)
 

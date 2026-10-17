@@ -55,6 +55,17 @@ Two vision tracks are **scientifically separated and never silently merged**
   contract test F-09). A future wearable-aware model is possible only as a
   separately trained, separately validated research protocol on a labeled
   dataset (Phase 0 §10.2) — none exists in the approved evidence base.
+- **Clinical laboratory data boundary (binding):** within Track B, wearable/
+  monitoring observations and clinician-verified clinical laboratory
+  measurements are different categories. Wearable/monitoring data is never
+  eligible for the existing CAD model (rule above, permanent). Clinician-verified lab
+  measurements may become eligible Track-A inputs **only** via the
+  six-condition checklist in
+  [05 §2.1](05_RESEARCH_METHODOLOGY_AND_APPROVAL_GATES.md) (approved feature
+  schema, target support, intended prediction time, unit conformity,
+  complete provenance, validation protocol). **Verification alone never
+  implies model eligibility**, and no new clinical feature mappings are
+  invented — real feature schemas come only from Gate DA dictionary work.
 
 ## 2. Locked technology decisions
 
@@ -109,7 +120,11 @@ them and is exempt until persistence lands):
    they own; **no cross-module table access** (Phase 0 §7.2 monolith
    discipline).
 2. Every externally visible write emits exactly one audit event; audit rows
-   are append-only (no UPDATE/DELETE privileges on the audit table).
+   are append-only. Append-only is enforced by **application design**
+   (insert-only code paths, no update/delete service methods) — SQLite has
+   no per-table `UPDATE`/`DELETE` grant enforcement; the PostgreSQL
+   migration path adds `REVOKE UPDATE, DELETE` (and optionally triggers) as
+   defense-in-depth (see [04](04_DATABASE_AND_API_INTEGRATION_DESIGN.md) §4).
 3. The model is a versioned artifact **outside git**, loaded by `model_id`;
    artifact hash + training-dataset ids + code commit travel with every
    prediction (provenance, Phase 0 §8.1).
@@ -172,12 +187,17 @@ authorizations; the milestone authorization for M1b must re-confirm it.
    lifecycle (`development_internal_only → externally_evaluated →
    externally_calibrated`), plus the request payload hash and `audit_id`
    (Phase 0 §R2-6.4, §F-5).
-3. **Document-extraction provenance (lab reports, M5):** each extracted
-   field stores the source document hash, page/region locator, OCR engine +
-   version + confidence, raw extracted text, edited value, editor identity,
-   and verification state (`extracted → edited → confirmed_by_patient →
-   verified_by_clinician`). Only verified fields may enter clinical feature
-   sets; unverified fields are visually labelled everywhere.
+3. **Document-extraction provenance (lab reports, product track M5):** each
+   extracted field stores the source document hash, page/region locator,
+   OCR engine + version + confidence, raw extracted text, edited value,
+   editor identity, and verification state (`extracted → edited →
+   confirmed_by_patient → verified_by_clinician`). Only verified fields may
+   enter clinical feature sets at all; unverified fields are visually
+   labelled everywhere. **Verification is a data-trust state, not a
+   model-eligibility state** — a verified field is usable as a Track-A
+   feature only when every condition of the clinical laboratory data
+   boundary (05 §2.1) also holds for the approved model version; otherwise
+   it remains a Track-B/record value only.
 
 Audit events (append-only) tie the three layers together: one event per
 accepted logical write (prediction, observation, review action, consent

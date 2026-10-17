@@ -73,7 +73,8 @@ authorization.
    │ reassessment_reason (null)    │                   │  verified_at     │
    │ created_at                    │                   └──────────────────┘
    └────────────────────▲──────────┘
-                        │ generated from (verified fields + manual entry)
+                        │ generated from (manual entry and, ONLY when the
+                        │ 05 §2.1 eligibility checklist passes, verified lab fields)
    ┌────────────────────┴──────────────────────────────────────────────┐
    │ clinical_feature_set                                              │
    │ PK feature_set_id · FK patient_id · feature_schema_id             │
@@ -105,7 +106,7 @@ authorization.
    │ actor_user_id, action, │  │ response_snapshot     │  │ calibration_id,         │
    │ entity_type, entity_id,│  │ original_result_id    │  │ feature_schema_id,      │
    │ model_ids, hashes,     │  │ created_at, expires_at│  │ training_datasets_json, │
-   │ created_at (no UPDATE/ │  └───────────────────────┘  │ artifact_sha256,        │
+   │ created_at (append- │  └───────────────────────┘  │ artifact_sha256,        │
    │  DELETE)               │                             │ code_commit,            │
    └────────────────────────┘                             │ validation_status       │
                                                           └─────────────────────────┘
@@ -122,6 +123,19 @@ internal PK. Linkage is server-side only. `audit_id` doubles as the
 prediction's public result id (current mock behavior: the response's
 `audit_id` is the replay identity).
 
+**Laboratory-data boundary (binding, [05 §2.1](05_RESEARCH_METHODOLOGY_AND_APPROVAL_GATES.md)):**
+`extraction_field` rows are Track-B document records. The
+`extraction_field → clinical_feature_set` edge represents *recording* a
+feature-set member **only** when every eligibility condition (approved
+feature-schema membership, target support, intended prediction time, unit
+conformity, complete provenance, validation protocol) holds for the
+approved model version — **verification alone never implies model
+eligibility**, and no feature mapping is invented (real schemas come from
+Gate DA dictionary work, Q1). Wearable/monitoring metrics have **no edge**
+to `clinical_feature_set` or `prediction_result`; the API rejects wearable
+sources for CAD inference with `422 wearable_input_not_valid_for_cad_inference`
+(F-09), permanently.
+
 ## 3. Table catalog (grouped by module)
 
 | Module | Tables (proposed) | Notes |
@@ -132,8 +146,8 @@ prediction's public result id (current mock behavior: the response's
 | inference | `prediction_result`, `model_artifact_registry` | provenance columns mandatory (Phase 0 §8.1); explanation stored as JSON on the log-odds scale |
 | ingestion | `monitoring_observation`, `monitoring_metric` | mirrors today's wire objects; `source` closed set; consent FK required |
 | review | `review_action`, `reassessment_request`, `follow_up_task`, `notification_record`, `visit_summary` | F06; validity rules enforced server-side (§R2-2.2) |
-| audit | `audit_event` | append-only (no UPDATE/DELETE grants); one row per accepted logical write |
-| platform | `idempotency_record`, `content_item`, `disease_module` | 24 h replay retention (approved) measured on `created_at`/`expires_at` |
+| audit | `audit_event` | Append-only by **application design** (insert-only code paths). SQLite cannot enforce per-table `UPDATE`/`DELETE` grants; the PostgreSQL path adds `REVOKE UPDATE, DELETE` (and optionally triggers) as defense-in-depth. One row per accepted logical write |
+| platform | `idempotency_record`, `content_item`, `disease_module` | 24 h replay retention is the **implemented & tested runtime behavior** (M1a.2, window read from the merged OpenAPI text); formal ratification of the window and the durable store of record remains **pending (Q8)** — see §5.1 |
 
 ## 4. SQLite → PostgreSQL migration path (documented rules)
 
@@ -146,6 +160,7 @@ prediction's public result id (current mock behavior: the response's
 | Date/time | Store UTC ISO-8601 or naive-UTC datetimes consistently; never local time |
 | Concurrency | SQLite: single writer, `WAL` mode, `BEGIN IMMEDIATE` for idempotency transactions (mirrors today's one coarse lock). PG: row-level locking + unique constraint on `idempotency_record.key`; semantics tests must pass on both |
 | Migrations | Alembic up/down per change; CI runs the suite on SQLite always; a **PG compatibility job** (local `postgres` service or container) runs the same suite before any non-local deployment (target: M4) |
+| Audit append-only | Enforced in application code on both backends (insert-only service methods; no update/delete paths). **SQLite has no GRANT/REVOKE**, so table permissions cannot enforce this there; on PostgreSQL add `REVOKE UPDATE, DELETE ON audit_event` (plus optional triggers) as defense-in-depth — never claim SQLite provides PG-style permission enforcement |
 | Cutover | Export/import script for SQLite→PG (data is synthetic/demo-only at that point); documented in the M1b PR; no zero-downtime claim |
 | What we never introduce without a measured need | Redis, InfluxDB, Kafka, ORM caches (Phase 0 §7.3) |
 
@@ -159,7 +174,10 @@ prediction's public result id (current mock behavior: the response's
 | `POST /v1/monitoring/observations` | B | Mock, IMPLEMENTED | Flutter (M1a.3 screen), tests |
 | `GET /openapi.json` | — | IMPLEMENTED (self-contained) | codegen + tests |
 
-Behavioral summary: idempotency (24 h, replay = original response + flag;
+Behavioral summary: idempotency (24 h retention — **implemented & tested
+runtime behavior**, read from the merged OpenAPI; the *formal* approval of
+the window and the durable store of record is Q8, pending; replay =
+original response + flag;
 409 conflict before semantic validation per G-02 ruling), error envelope
 (`400 malformed_request`, `409 idempotency_key_conflict`, `422` family incl.
 `wearable_input_not_valid_for_cad_inference`, `503 model_unavailable`/schema
@@ -184,7 +202,7 @@ route guard (B-03), null/count semantics (B-04), deterministic correlation id
 | `GET/POST/PATCH /v1/consents` | Platform | M1b | Consent lifecycle | Grant/revoke audited |
 | `GET /v1/me/...` history & profile | B | M1b | Patient self views | Own data only |
 | `POST /v1/documents/lab-reports` (multipart) | B | M5 | F14 upload | sha256 + type/size validation; audited metadata only |
-| `GET/PATCH /v1/documents/lab-reports/{id}/fields...`, `POST .../verify` | B | M5 | F15 review workflow | Provenance + state machine; 409 on conflicting edits |
+| `GET/PATCH /v1/documents/lab-reports/{id}/fields...`, `POST .../verify` | B→A (gated) | M5 | F15 review workflow | Provenance + state machine; 409 on conflicting edits; `verify` records data trust only — promotion into a Track-A-bound feature set is a separate eligibility-checked operation (05 §2.1) |
 | `GET /v1/content/...` (static safety/lifestyle), assistant endpoints | A/B | M5 | F16 | Clinician-approved content only; citations mandatory |
 | `GET /v1/exports/fhir` | Platform | M4 opt. | F08 thin export | D-020 first; research-serialization label |
 | Admin endpoints (users, registry) | Platform | M1b/M5 | F17 | Admin role only; audited |
@@ -227,7 +245,10 @@ uses `API_BASE_URL` via `--dart-define` (M1a.3 handoff §2–3).
   (`model_id`, `preprocessing_id`, `calibration_id`, `feature_schema_id`,
   `training_datasets` hashes, `code_commit`, `validation_status`).
 - Every `extraction_field` keeps raw + edited values + engine/confidence +
-  verifier identity (F15).
+  verifier identity (F15). Verification state records data trustworthiness
+  only; Track-A model eligibility is a separate, stricter condition
+  ([05 §2.1](05_RESEARCH_METHODOLOGY_AND_APPROVAL_GATES.md)) and is never
+  implied by the verification event.
 - Every accepted write emits exactly one `audit_event` (entity ids + hashes,
   never raw values); replays emit none (current rule preserved); conflicts
   and validation failures emit none; unexpected 500s emit an error audit id.

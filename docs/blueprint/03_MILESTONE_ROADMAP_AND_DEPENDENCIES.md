@@ -2,12 +2,20 @@
 
 **Status:** PROPOSED planning baseline (documentation only), 2026-10-17.
 Sequence M1a → M1b → M2 → M3 → M4 is maintainer-approved (D-029, Phase 0
-§R2-7.6/§F-5). M0/M1a.x are complete (merged). M1a.3 is the **next
-feature-development milestone** and requires explicit maintainer
-authorization before it starts (its plan is
-`docs/M1A3_INTEGRATION_HANDOFF.md`). M5 is a proposed extension bucket for
-preserved vision scope (F14–F17) not covered by M1a–M4 and needs its own
-scope authorization.
+§R2-7.6/§F-5). M0/M1a.x are complete (merged). **M1a.3 is the next planned
+milestone; explicit implementation authorization is still pending** — work
+must not start until the maintainer grants it (the plan is
+`docs/M1A3_INTEGRATION_HANDOFF.md`; this status wording is used
+consistently across the blueprint set). M5 is the **product track** for
+preserved product-vision scope (F14–F17) not covered by M1a–M4; it contains
+**required** product deliverables (especially F14/F15) and needs its own
+scope/scheduling authorization.
+
+**Research completion ≠ product completion.** M4 completes the *research
+prototype* (integrated walkthrough + TRIPOD+AI write-up). Full *product*
+completion additionally requires the product track (§4: F14–F17 and the
+capability/device-dependent delivery items). Neither completion definition
+implies clinical deployment, validation, or regulatory readiness (P-5).
 
 **Every milestone is one scoped PR (or a small PR series) that ends with
 reproducible local tests green and a named human reviewer approving before
@@ -23,12 +31,12 @@ merge** (AGENTS.md; no self-merge).
 | M1a.1 | `/v1` contract-first pack | OpenAPI + JSON Schemas + MOCK registries + 30 fixtures + 136 contract tests | **COMPLETE** — PR #3 merged (`6e677b7`) |
 | M1a.2 | Mock FastAPI backend | 2 endpoints + bundled openapi.json, idempotency/audit in memory, 234 HTTP tests | **COMPLETE** — PR #4 merged (`dbb6d18`) |
 | M1a.2+ | Security/dependency cleanup | Pinned dep security fixes (anyio/starlette/pytest), A-01 finding reported | **COMPLETE** — PR #5 merged (`6c2572c`) |
-| **M1a.3** | **Thin React + Flutter integration** | One React synthetic-record form/action + one Flutter synthetic observation screen vs the unchanged mock contract; client tests; network config discipline | **NEXT — plan approved as handoff doc; awaiting explicit milestone authorization** |
+| **M1a.3** | **Thin React + Flutter integration** | One React synthetic-record form/action + one Flutter synthetic observation screen vs the unchanged mock contract; client tests; network config discipline | **NEXT PLANNED — implementation authorization PENDING** (plan in handoff doc; do not start until explicitly authorized) |
 | M1b | Platform completion on mocks | Persistence (SQLite, F18), auth/RBAC (F11), consent lifecycle + durable audit (F07), history/read APIs, review + reassessment mechanics (F06), full dashboard + full patient app (F03/F04/F13 manual entry), offline sync + batch ingestion (Q11), basic admin (F17), registry scaffolding (F09) | PROPOSED |
 | M2 | Gate DA — data access & read-only audit | Authorized local-only acquisition of named datasets; §R2-4.4 checklists; coding/missingness/duplicate/overlap/availability audits; **"no fitting occurred" certification** | RESEARCH-GATED (needs P-2) |
 | M3 | Gate PT — frozen protocol + first real models | Supervisor-approved frozen protocol; Strategy-A benchmarks; Strategy-B external evaluation; cross-fitted calibration; **real TreeSHAP/LIME** + stability; real model behind the unchanged contract (IC-3); fixture suite re-green | RESEARCH-GATED (needs P-3, after M2) |
-| M4 | Integrated research prototype + write-up | IC-4 walkthrough; TRIPOD+AI manuscript; replication package; optional time-boxed FHIR export (F08) and Health Connect spike (F05); PostgreSQL-path validation; optional disposable hosted demo | RESEARCH/REVIEW-GATED |
-| M5 | Preserved product-surface extension (PROPOSED bucket) | Lab-report upload + OCR (F14), extraction verification (F15), research-safe content/assistant (F16), admin console (F17), notifications delivery polish, second disease-module prep (F09) | **PROPOSED — not yet authorized; needs explicit scope decision** |
+| M4 | Integrated **research prototype** + write-up (**not** product completion, see above) | IC-4 walkthrough; TRIPOD+AI manuscript; replication package; optional time-boxed FHIR export (F08) and Health Connect capability/device spike (F05: supported-device plan + **simulator fallback deliverable**); PostgreSQL-path validation; optional disposable hosted demo | RESEARCH/REVIEW-GATED |
+| M5 | **Product track** — required product-vision surfaces | Lab-report upload + OCR (F14, required), extraction verification (F15, required), research-safe content/assistant (F16, clinician-gated), admin console (F17), notifications delivery polish, second disease-module prep (F09) | **PROPOSED — scheduling authorization pending; deliverables are required vision, not optional** |
 
 Workstream A (research: M2/M3/M4 gates) runs **in parallel** with platform
 work (M1a.3/M1b/M5) under its own approvals (Phase 0 §R2-7). Dataset work
@@ -44,7 +52,7 @@ never blocks platform work and vice versa.
                         └───────┬──────────────┬───────────────┬───────┘
                                 │              │               │
  M0 Phase 0 ──► M1a.1 ──► M1a.2 ──► M1a.2+ ──► M1a.3 ──► M1b ──┬──► M5 (F14–F17)
- (COMPLETE)     contracts  mock API   cleanup   thin UIs   platform   (proposed)
+ (COMPLETE)     contracts  mock API   cleanup   thin UIs   platform   (product track)
                                 │                  │         │
                                 │                  │         ├── F11 auth/RBAC ──► F17 admin
                                 │                  │         ├── F18 persistence ──► F07 durable audit/consent
@@ -76,8 +84,9 @@ Hard edges worth restating:
 - **M1b read/history/review APIs are new contract surface** → each needs the
   same contract-first treatment (schema + fixtures + tests before server),
   i.e. an "M1b.1 contracts" slice inside M1b.
-- **M5 features never block M1a.3/M1b/M2/M3/M4.** They are preserved vision,
-  scheduled only after explicit authorization.
+- **M5 items never block M1a.3/M1b/M2/M3/M4** (separate product track,
+  §4), but they are required product-vision deliverables — unscheduled
+  ≠ optional.
 
 ## 3. Milestone exit criteria (acceptance gates)
 
@@ -152,15 +161,29 @@ The universal exit gate for **every** milestone PR:
   stage; replication package assembled (code + configs, no restricted data);
   supervisor approval; no novelty claim without D-025 verification.
 
-## 4. M5 bucket — preserved scope awaiting authorization
+## 4. Product track (M5) — required product-vision deliverables
 
-F14 (lab OCR), F15 (extraction verification), F16 (research-safe
-recommendations/assistant), F17 console, F09 second-module prep. Scheduling
-proposal (not a commitment): start **after M1b** in parallel with M2/M3, in
-this internal order — F17 basics → F14 → F15 → F16 (last, because it has the
-heaviest clinician gates). Each sub-item is its own scoped PR with the
-universal exit gate. Until the maintainer authorizes M5, these rows remain
-PROPOSED in the traceability matrix and nothing in M1a.3/M1b depends on them.
+**Product completion is a separate, explicit definition from research
+completion (§ intro).** The items below are **required product-vision
+deliverables** (not optional extras): their implementation is subject to
+implementation-readiness and safety approvals, and their scheduling needs
+maintainer authorization — that pending scheduling does not demote them.
+
+| Item | Deliverable | Readiness/safety conditions |
+|---|---|---|
+| F14 (required) | Lab-report image/PDF upload + local OCR extraction | $0 local OCR engine decision; PHI/privacy design (synthetic sample documents only until approved); EXT mockups |
+| F15 (required) | Extraction editing, provenance, confirmation, clinician verification | Clinician verification workflow + 05 §2.1 eligibility boundary (verification ≠ model eligibility); P-4 copy review |
+| F16 (clinician-gated) | Research-safe recommendations / clinical-assistant surfaces | Named clinician content approval (D-016/D-026); no model-driven advice; citations + refusal rules |
+| F17 | Admin console (beyond M1b basics) | RBAC + audit |
+| F09 prep | Second disease-module groundwork | Separate scientific approval to activate any module |
+| F05 (M4 spike, carried) | **Health Connect: capability- and device-dependent delivery plan** | Supported-device/capability check recorded; adapter only on a qualifying device; **simulated adapter is the always-available fallback deliverable** when no qualifying device exists |
+
+Scheduling proposal (not a commitment): start **after M1b** in parallel with
+M2/M3, internal order F17 basics → F14 → F15 → F16 (last — heaviest
+clinician gates). Each sub-item is its own scoped PR with the universal exit
+gate. Until the maintainer authorizes M5 scheduling, these rows remain
+PROPOSED in the traceability matrix and nothing in M1a.3/M1b depends on
+them — but M4 alone never closes the product vision.
 
 ## 5. Integration checkpoints (from Phase 0 §R2-7.5, unchanged)
 
