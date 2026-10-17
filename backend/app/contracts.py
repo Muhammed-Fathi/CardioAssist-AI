@@ -188,9 +188,13 @@ class ContractFiles:
             name: rebase(schema, name) for name, schema in self.schemas.items()
         }
         document["info"]["description"] += (
-            "\nM1a.2 implementation: single-process MOCK_SYNTHETIC backend. "
-            "In-memory state resets on restart. LIME is a future capability; "
-            "the LIME-only mock binding returns 503 model_unavailable. "
-            "Historical M1a.1 proposal metadata is retained from the merged source."
+            "\nM1a.2/M1b.1 implementation: single-process MOCK_SYNTHETIC backend. "
+            "The existing monitoring POST persists observations, non-null metrics, "
+            "and success-audit metadata to the configured database after Alembic "
+            "migrations. Idempotency state and Python audit snapshots remain in "
+            "memory and reset on restart. CAD inference is deterministic mock "
+            "scoring only. LIME is a future capability; the LIME-only mock binding "
+            "returns 503 model_unavailable. Historical M1a.1 proposal metadata is "
+            "retained from the merged source."
         )
         return document

@@ -19,13 +19,52 @@ These instructions govern all AI agents working in this repository, including Ar
 - Model/backend APIs must be versioned; include regression, schema, integration tests before changes are approved.
 - Always document uncertainty, risks, assumptions, and approval status.
 
-## Current authorization: Phase 0 ONLY
-- May: inspect repository, use safe read-only tool checks, research official sources, and write reports/plans **only under `docs/phase0/`** in a dedicated branch. May propose and open one PR for review.
-- May not: change files elsewhere, modify source materials, add dependencies, install packages, download datasets, train models, implement features, change branches of main, merge PRs, or deploy anything.
-- If an external service cannot be verified without authentication or cost, report `UNVERIFIED` or `REQUIRES_AUTHORIZATION`. Do not attempt bypasses.
-- If Phase 0 report is large, commit the written report to `docs/phase0/` before the session PR is closed or merged, so it persists across sessions.
+## Current authorization: M1b.1 only (maintainer, 2026-10-17)
+The original Phase 0 authorization and report remain historical project context;
+the active maintainer authorization and D-045 supersede the stale “Phase 0
+ONLY” restriction for this explicitly bounded implementation slice. This does
+not authorize any subsequent milestone or research/data/clinical work.
 
-## Required Phase 0 deliverable
-`docs/phase0/PHASE0_REVIEW_DRAFT.md` with feature inventory, paper audit, dataset candidacy + licenses (verified/unverified labels), precise target feasibility, zero-cost architecture alternatives, actual agent environment audit, proposed AI–backend API, research validation methodology, roadmap/acceptance gates, and blocking decision register.
+D-045 sets execution priority as: (1) genuine, reproducible CAD AI research
+and inference; (2) a complete, integration-ready FastAPI backend; (3) a
+durable, tested database. React and Flutter remain thin local integration/demo
+clients. M1a.3 is deferred/resequenced, not cancelled or completed. This
+priority order does not waive scientific approvals/gates, authorize dataset
+acquisition or model training, or change `/v1` contracts.
 
-Stop after the report and PR. Do not self-approve or self-merge.
+For M1b.1, agents may implement a small SQLite-first persistence foundation,
+Alembic migrations, storage/repository boundary, and one safe integration with
+an existing approved monitoring path. Preserve existing HTTP behavior,
+validation order/errors, fixtures, request hashes, Track A/Track B separation,
+mock CAD scores and response formats. Do not add endpoints or alter approved
+contracts. Use synthetic/demo records only; keep patient and consent
+references opaque unless approved semantics exist. Fail closed on invalid
+references/inconsistent database state. Keep the 24-hour runtime idempotency
+behavior process-local; Q8's formal approval and durable-store policy remain
+unresolved. Describe RAM-only idempotency/audit limitations accurately.
+
+Database implementation rules: SQLite by default, configuration-based path,
+explicit Alembic migrations, portable service/storage boundary, foreign keys,
+indexes, explicit transactions and rollback. Audit is append-only by
+application design; do not claim SQLite provides PostgreSQL GRANT/REVOKE or
+claim PostgreSQL parity without PostgreSQL tests. Never commit database files.
+
+M1b.1 does not authorize auth/RBAC, patient/history/review APIs, frontend work,
+datasets, model training, clinical integration, wearables, OCR, assistants,
+notifications, real-data ingestion, or unnecessary infrastructure. Preserve all
+research approvals/gates and existing product requirements. Do not merge or
+start a subsequent milestone without separate authorization.
+
+Report **IMPLEMENTED**, **TESTED**, **PROPOSED**, and **UNVERIFIED** distinctly.
+Before review, run and report exact results for migration creation/consistency,
+read/write/restart/rollback/constraints/concurrency/idempotency/malformed-input
+coverage, isolated DB tests, existing fixtures and synthetic inference/
+monitoring regressions, `pip check`, contract/backend tests, full pytest, source
+verification, and `git diff --check`. Provide Windows PowerShell and local
+setup/migration/restart/cleanup instructions. Open a standalone PR targeting
+`main` and leave it OPEN; never self-approve or self-merge.
+
+No dataset download, model training, real patient data, paid APIs/hosting/
+compute, card-required trials, or changes to source research materials are
+authorized. If a required policy or contract semantic blocks safe persistence,
+stop and report the precise blocker.

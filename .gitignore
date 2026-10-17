@@ -48,8 +48,12 @@ coverage/
 *.hdf5
 *.tfrecord
 *.db
+*.db-*
 *.sqlite
+*.sqlite-*
 *.sqlite3
+*.sqlite3-*
+/var/
 *.log
 
 # Misc

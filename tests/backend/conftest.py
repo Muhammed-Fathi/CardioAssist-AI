@@ -11,6 +11,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from alembic import command
+from alembic.config import Config
 import yaml
 from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator
@@ -84,8 +86,27 @@ def monotonic_time():
 
 
 @pytest.fixture
-def http_app(monotonic_time):
-    return create_app(clock=lambda: monotonic_time[0])
+def database_url(tmp_path):
+    # A unique file per test prevents cross-test state and avoids shared-memory
+    # SQLite behavior under the app's threadpool-based request handling.
+    path = tmp_path / "cardioassist-test.sqlite3"
+    return f"sqlite:///{path.as_posix()}"
+
+
+@pytest.fixture
+def migrated_database_url(database_url):
+    config = Config(str(ROOT / "alembic.ini"))
+    config.attributes["database_url"] = database_url
+    command.upgrade(config, "head")
+    return database_url
+
+
+@pytest.fixture
+def http_app(monotonic_time, migrated_database_url):
+    return create_app(
+        database_url=migrated_database_url,
+        clock=lambda: monotonic_time[0],
+    )
 
 
 @pytest.fixture

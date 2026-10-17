@@ -54,6 +54,9 @@ def test_canonical_replay_preserves_original_response_and_single_audit(
     state = http_app.state.mock
     assert len(state.audit_events) == 1
     assert state.inference_count == (1 if path == CAD else 0)
+    if path == MON:
+        assert len(http_app.state.monitoring_repository.list_observations()) == 1
+        assert len(http_app.state.monitoring_repository.list_audit_events()) == 1
 
 
 @pytest.mark.parametrize("path", [CAD, MON])
@@ -77,6 +80,9 @@ def test_conflict_precedes_validation_even_for_invalid_second_payload(
     assert error["original_audit_id"] == first["audit_id" if path == CAD else "observation_id"]
     assert len(http_app.state.mock.audit_events) == 1
     assert http_app.state.mock.inference_count == (1 if path == CAD else 0)
+    if path == MON:
+        assert len(http_app.state.monitoring_repository.list_observations()) == 1
+        assert len(http_app.state.monitoring_repository.list_audit_events()) == 1
 
 
 @pytest.mark.parametrize("path", [CAD, MON])
@@ -126,6 +132,9 @@ def test_retention_uses_monotonic_time_not_the_frozen_fixture_timestamp(
     assert "mock_idempotency_expired" in caplog.text
     assert KEY["Idempotency-Key"] not in caplog.text
     assert len(http_app.state.mock.audit_events) == 2
+    if path == MON:
+        assert len(http_app.state.monitoring_repository.list_observations()) == 2
+        assert len(http_app.state.monitoring_repository.list_audit_events()) == 2
 
 
 @pytest.mark.parametrize("path", [CAD, MON])
@@ -163,6 +172,8 @@ def test_keyless_monitoring_appends_and_keeps_source_labels(client, http_app, mo
     state = http_app.state.mock
     assert len(state.observations) == len(state.audit_events) == 2
     assert state.observations[first["observation_id"]]["source"] == "simulated_wearable"
+    assert len(http_app.state.monitoring_repository.list_observations()) == 2
+    assert len(http_app.state.monitoring_repository.list_audit_events()) == 2
     snapshot = state.observations
     snapshot.clear()
     assert len(state.observations) == 2  # Test access cannot mutate stored observations.
@@ -358,6 +369,9 @@ def test_concurrent_http_requests_publish_one_result_and_one_audit(
     assert len(http_app.state.mock.audit_events) == 1
     assert http_app.state.mock.inference_count == len(calls) == (1 if path == CAD else 0)
     assert len(http_app.state.mock.observations) == (0 if path == CAD else 1)
+    if path == MON:
+        assert len(http_app.state.monitoring_repository.list_observations()) == 1
+        assert len(http_app.state.monitoring_repository.list_audit_events()) == 1
 
 
 def test_internal_error_is_audited_safe_and_does_not_consume_key(client, http_app, cad_body, monkeypatch, caplog):
@@ -401,22 +415,47 @@ def test_schema_invalid_server_output_is_not_published_or_cached(
     assert response.status_code == 500
     assert http_app.state.mock.observations == {}
     assert http_app.state.mock.inference_count == 0
+    if path == MON:
+        assert http_app.state.monitoring_repository.list_observations() == ()
+        assert http_app.state.monitoring_repository.list_audit_events() == ()
     accepted = client.post(path, json=body, headers=KEY)
     assert accepted.status_code == (200 if path == CAD else 201)
     assert accepted.json()["idempotent_replay"] is False
+    if path == MON:
+        assert len(http_app.state.monitoring_repository.list_observations()) == 1
+        assert len(http_app.state.monitoring_repository.list_audit_events()) == 1
 
 
-def test_restarting_app_resets_all_prototype_state(client, http_app, http_validators, cad_body, monitoring_body):
+def test_reopening_app_resets_runtime_state_but_monitoring_records_survive(
+    client, http_app, http_validators, cad_body, monitoring_body, migrated_database_url
+):
     client.post(CAD, json=cad_body, headers=KEY)
-    client.post(MON, json=monitoring_body)
-    restarted = create_app()
+    monitoring_key = {"Idempotency-Key": "restart-monitor-write"}
+    first = client.post(MON, json=monitoring_body, headers=monitoring_key)
+    assert first.status_code == 201
+    assert len(http_app.state.monitoring_repository.list_observations()) == 1
+    assert len(http_app.state.monitoring_repository.list_audit_events()) == 1
+
+    # Runtime idempotency/audit snapshots still reset; the database does not.
+    restarted = create_app(database_url=migrated_database_url)
     assert restarted.state.mock.audit_events == ()
     assert restarted.state.mock.observations == {}
     assert restarted.state.mock.inference_count == 0
-    # TestClient is intentionally created for the separate app instance.
+    persisted = restarted.state.monitoring_repository.list_observations()
+    assert len(persisted) == 1
+    assert persisted[0].metrics[0].value == 64
+    assert len(restarted.state.monitoring_repository.list_audit_events()) == 1
+
+    # Q8 remains open: the current 24-hour key cache is process-local. A retry
+    # after restart is accepted again; the storage UUID keeps both rows distinct
+    # even though the existing deterministic public observation id repeats.
     from fastapi.testclient import TestClient
     with TestClient(restarted) as other:
-        response = other.post(CAD, json=cad_body, headers=KEY)
-    http_validators(response, CAD)
-    assert response.status_code == 200
+        response = other.post(MON, json=monitoring_body, headers=monitoring_key)
+    http_validators(response, MON)
+    assert response.status_code == 201
     assert response.json()["idempotent_replay"] is False
+    reopened_rows = http_app.state.monitoring_repository.list_observations()
+    assert len(reopened_rows) == 2
+    assert reopened_rows[0].observation_id == reopened_rows[1].observation_id
+    assert len(http_app.state.monitoring_repository.list_audit_events()) == 2

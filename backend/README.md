@@ -1,189 +1,210 @@
-# FastAPI mock backend — Phase 1 / M1a.2
+# FastAPI backend — MOCK_SYNTHETIC API + M1b.1 persistence
 
-**MOCK / SYNTHETIC ONLY. Research prototype, not a diagnosis, real patient
-risk/measurement, clinical model, or production service.** No model or dataset
-is trained, loaded, downloaded or required. No database, authentication, RBAC,
-clinical alert thresholds, UI or cloud integration is implemented.
+**Research prototype only.** CAD scoring and explanation-shaped output remain
+deterministic `MOCK_SYNTHETIC` behavior: no trained model, dataset, clinical
+result or performance claim exists. This milestone adds durable SQLite storage
+only to the existing Track-B monitoring write path. There is still no
+authentication/RBAC, actual consent lookup, patient-history API, or production
+security guarantee.
 
-PR #3's merged `/v1` definitions are reused without editing their schemas,
-registries, fixtures or tests. Read [CONTRACT_NOTES.md](CONTRACT_NOTES.md) for
-explicit ambiguities and compatibility choices, including Track-B values and
-live LIME unavailability. Those notes are part of the review, not silent API
-redesigns.
+The approved `/v1` schemas, fixture pack and request/response behavior are
+unchanged. Read [CONTRACT_NOTES.md](CONTRACT_NOTES.md) for unresolved contract
+questions. The database work uses SQLAlchemy + Alembic, pinned open-source
+packages and local SQLite; it requires no Docker, account, paid service or
+cloud connection. Database files and SQLite sidecars are git-ignored.
 
-## Local setup ($0, no Docker or accounts)
+## Local setup and migration ($0)
 
-From the **repository root**, with Python **3.11 or 3.12**:
+From the repository root with Python **3.11 or 3.12**:
 
-```bash
+```powershell
 python -m venv .venv
-. .venv/bin/activate            # Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install -r backend/requirements.txt
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r backend/requirements-dev.txt
 python -m pip check
-python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
+$env:CARDIOASSIST_DATABASE_URL = "sqlite:///./var/cardioassist.sqlite3"
+python -m alembic upgrade head
+python -m alembic check
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-Dependency installation needs PyPI access once; running the service and tests
-needs no outbound network, paid service, dataset, model artifact or account.
-Runtime and test dependencies (including transitive packages) are pinned;
-shared validator pins match the existing contract-test environment.
-The verified local environment is Linux/Python 3.11.2. CI also targets Python
-3.12; Windows/Android/team-machine execution must be verified on those devices.
+On Linux/macOS, activate with `. .venv/bin/activate`. The environment variable
+is optional: the same relative SQLite URL is the default. Set a different
+`CARDIOASSIST_DATABASE_URL` to choose another location; the application and
+Alembic read the same variable. No user-specific absolute path is built into
+the code. Do not put credentials in the URL or commit a database file.
 
-**Use exactly one worker.** All state is in process memory. Multiple workers
-or replicas do not share idempotency, observations or audit state. A restart,
-reload or fresh `create_app()` loses everything. Do not use this unauthenticated
-server for real records or expose it as a public clinical service. Binding to
-`0.0.0.0` allows a controlled LAN/preview demo; use only synthetic inputs and
-appropriate local network restrictions.
+Migrations are explicit. The app fails closed at startup if the migration
+schema is missing; it never silently creates or upgrades tables. For normal
+local development:
 
-## Endpoints
+```bash
+python -m alembic current
+python -m alembic history
+python -m alembic upgrade head
+python -m alembic check
+```
+
+`alembic check` verifies that the current revision matches the SQLAlchemy
+metadata. Use `alembic downgrade` only against a disposable test database;
+never downgrade or delete a developer's existing database. Test migration
+downgrade/re-upgrade operations run only in pytest's temporary directories.
+
+## M1b.1 schema and service boundary
+
+The current migration is
+`backend/migrations/versions/20261017_01_monitoring_persistence.py`.
+`MonitoringRepository` is injected into the existing backend state service;
+there is no parallel HTTP schema/model and no new route.
+
+| Implemented entity | Purpose and integrity |
+|---|---|
+| `monitoring_observation` | Durable Track-B write. A private storage UUID is the database primary key. The public deterministic `observation_id`, request id, patient reference, opaque consent reference, source, UTC timestamp and recorded time are stored. Indexes cover public id and `(patient_ref, observed_at)`. |
+| `monitoring_metric` | One child row per non-null accepted metric, with a foreign key to the observation and a unique `(observation_record_id, ordinal)` constraint. The ordinal preserves repeated metric IDs and request order; duplicate metric IDs remain allowed by current B-04 behavior. JSON storage preserves contract-permitted scalar values without coercion. Null means “not measured” and is not stored; zero, booleans and strings retain current semantics. |
+| `audit_event` | One successful-write metadata row per observation, in the same transaction. A foreign key and unique observation constraint prevent orphan/multiple success events. It contains IDs, request id, route/type, payload SHA-256 and timestamp—not raw measurements, patient reference or consent reference. The application exposes insertion and read methods only; there is no audit update/delete service method. |
+
+SQLite foreign-key enforcement is enabled per connection, with WAL and a busy
+timeout. All database columns and migrations use SQLAlchemy's common dialect
+(types such as `String` and `JSON`). SQLite integration is **IMPLEMENTED and
+TESTED**; PostgreSQL compatibility is **UNVERIFIED**—no PostgreSQL server or
+driver tests were run, and parity is not claimed.
+
+### References intentionally not resolved yet
+
+The existing POST contract requires a non-empty `consent_id`, but the approved
+backend only checks that it is present; it does not look up a consent grant.
+M1b.1 preserves that exact behavior and stores `patient_ref` and `consent_id`
+as opaque synthetic/demo references. Neither is a foreign key in this
+migration: there is no `PatientProfile` or `ConsentRecord`, and inventing one
+would imply unapproved reference/consent semantics. This is explicitly
+**deferred** until the Q7/Q12/consent contract review. No patient identity is
+created and no real patient data may be used.
+
+Also **deferred**: `UserAccount`, role/session tables, patient/clinician
+profiles, consent lifecycle, clinical feature sets, predictions, medical
+history/symptom/survey records, lab documents/extraction/verification,
+follow-up/review/notification tables, disease/model registries and
+`idempotency_record`. Patient history/read APIs, consent APIs, review APIs and
+all other new endpoints remain contract-first M1b work and are not added here.
+
+## What persists today
+
+`POST /v1/monitoring/observations` is the one persistent HTTP path. Existing
+validation runs in its current order; the full request is validated before any
+write. After the same response body has passed the approved response-schema
+validator, a single explicit transaction inserts the observation, its
+non-null metrics and its success-audit metadata. If any insert/constraint/commit
+fails, SQLAlchemy rolls back the whole transaction; the existing handler
+returns its generic `500 internal_error`, and the request does not consume the
+runtime idempotency key. Validation failures, conflicts and in-process replays
+create no durable success rows. Track-B input never invokes or alters CAD
+inference. The CAD POST remains the existing synthetic mock and is not stored
+in this slice.
+
+Rows survive application/process restart. There is no history/read HTTP API;
+repository reads are internal Python integration methods only. Example
+PowerShell request using synthetic data:
+
+```powershell
+$payload = @{
+  observation = @{
+    patient_ref = "pseudo_demo_001"
+    observed_at = "2026-10-16T10:25:00Z"
+    source = "simulated_wearable"
+    consent_id = "consent_mock_001"
+    metrics = @(@{ metric_id = "mock_metric_heart_rate"; value = 64; unit = "u_rate" })
+  }
+} | ConvertTo-Json -Depth 8
+$headers = @{ "Idempotency-Key" = "demo-monitor-write-001" }
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/v1/monitoring/observations" `
+  -ContentType "application/json" -Headers $headers -Body $payload
+```
+
+To confirm a persisted row after stopping and restarting the server, query the
+repository from Python (no new HTTP endpoint):
+
+```powershell
+python -c "from backend.app.storage.database import Database; from backend.app.storage.monitoring import MonitoringRepository; db=Database(); print(MonitoringRepository(db).list_observations()); db.dispose()"
+```
+
+### Idempotency and audit limits (Q8 remains open)
+
+- The tested **24-hour, monotonic-clock** idempotency behavior is preserved
+  while one app process is alive: same key + same canonical payload replays
+  the original response; changed key use conflicts before semantic checks;
+  a replay creates no second database row or success-audit row.
+- Q8 is still **OPEN** for formal ratification of the retention window and
+  durable store of record. Idempotency keys, response snapshots, attempt
+  counters, expiry and in-memory audit snapshots remain RAM-only; this PR does
+  not silently choose an idempotency storage policy.
+- After restart, runtime state resets as before. A retry may be accepted as a
+  new write, and the existing deterministic public observation id can repeat.
+  A separate database UUID keeps the durable rows distinct. This is not
+  cross-process exactly-once delivery; durable idempotency is deferred to a
+  later M1b slice after Q8 review.
+- Successful monitoring audit metadata is durable and transactionally coupled
+  to its observation. Unexpected 500/error audit IDs remain process-local (a
+  database failure cannot reliably audit itself). SQLite append-only behavior
+  is an application design rule, **not** PostgreSQL-style `GRANT`/`REVOKE`
+  permissions. The repository has no audit update/delete path.
+- One process/one worker only. No multi-process/replica transaction guarantee,
+  tamper resistance, authentication, authorization, real consent verification,
+  PHI protection, rate limit, backup/export procedure or production guarantee.
+
+## Existing HTTP contract (unchanged)
 
 | Method / path | Result | Key |
 |---|---|---|
 | `POST /v1/predictions/cad-tabular` | 200 deterministic synthetic CAD/XAI envelope | `Idempotency-Key` required |
-| `POST /v1/monitoring/observations` | 201 monitoring-only acceptance, no CAD output | Key optional; honored when supplied |
+| `POST /v1/monitoring/observations` | 201 monitoring-only acceptance; durable observation + metrics + success audit | Optional; honored in-process |
 | `GET /openapi.json` | Shared OpenAPI with local schemas bundled for offline use | N/A |
 
 Only the two contracted POST operations exist. CDN-backed `/docs` and `/redoc`
 pages are disabled. There are no history, model-discovery, review-action,
-authentication or audit-query endpoints in this milestone.
+authentication or audit-query endpoints.
 
-### Track A: minimal synthetic request
+The mock CAD response, error codes, Track A/Track B separation, wearable
+rejection, source/consent presence checks, request hashing, response shapes and
+fixture pack are unchanged. All monitoring payloads remain Track B; a wearable
+observation cannot become a CAD inference feature.
 
-In another terminal (Windows: use `curl.exe` with equivalent quoting):
+## Tests and independent Windows verification
 
-```bash
-curl --fail-with-body http://127.0.0.1:8000/v1/predictions/cad-tabular \
-  -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: demo-cad-write-0001' \
-  -d '{
-    "feature_schema_id": "mock_clinical_v1",
-    "features": {
-      "mock_feature_demographic_age": {"value": 43, "unit": "u_years"},
-      "mock_feature_demographic_sex": {"value": "synthetic_category", "unit": "u_category"}
-    },
-    "context": {"source": "benchmark_import", "recorded_at": "2026-10-16T10:20:00Z"}
-  }'
-```
+From the repository root, after activating `.venv`:
 
-Repeat exactly to see `idempotent_replay: true` and the original `audit_id`.
-Changing a value while retaining the key returns 409 with
-`error.code: idempotency_key_conflict`. `request_id` is optional and generated
-when omitted; regenerating it does not change the canonical payload.
-
-All units are the approved **placeholder** `u_*` tokens, not clinical units.
-Unknown/excluded features, wrong units, out-of-range values, missing required
-features and model/schema mismatches return the existing contract codes.
-Required null/absent values produce 422; optional null/absent values are
-reported missing with existing warnings. Zero/false are data, not missing.
-Wearable sources/fields produce 422
-`wearable_input_not_valid_for_cad_inference`; they never trigger inference.
-
-Supported synthetic model bindings: default `mock_model_a_v0.1.0`, its
-`v0.2.0` swap, `mock_model_b_v0.1.0` (requires `mock_clinical_v2` and its
-required fraction slot), and `mock_model_c_v0.1.0` (mock calibration shape).
-`mock_model_e_v0.1.0` simulates 503 unavailability. The LIME-only
-`mock_model_d_v0.1.0` also returns 503: **LIME is future capability, no local
-fidelity or computed LIME result is fabricated**.
-
-Explanations are **synthetic SHAP-shaped offsets**, not computed SHAP. Their
-base plus contributions equals the **log-odds margin**, not the mock calibrated
-value. No causal, treatment or personal-probability interpretation is allowed.
-Both score branches forbid `%` rendering; calibrated output carries synthetic
-cohort context. `validation_status` remains `development_internal_only`, the
-target remains provisional, and review state stays `pending_review`.
-
-### Track B: simulated monitoring request
-
-```bash
-curl --fail-with-body http://127.0.0.1:8000/v1/monitoring/observations \
-  -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: demo-monitor-write-0001' \
-  -d '{
-    "observation": {
-      "patient_ref": "pseudo_demo_001",
-      "observed_at": "2026-10-16T10:25:00Z",
-      "source": "simulated_wearable",
-      "consent_id": "consent_mock_001",
-      "metrics": [{"metric_id": "mock_metric_heart_rate", "value": 64, "unit": "u_rate"}]
-    }
-  }'
-```
-
-Both the first write and keyed replay return **201** (operation-specific
-contract/merged tests); a replay retains the `observation_id` and creates no
-second observation/audit. Without a key, every accepted call is a new append.
-A consent reference is required, but **no consent record is looked up**.
-Invalid metric/unit/range/structure rejects the entire write. Track-B data
-never feeds CAD inference and contains no score, target or explanation.
-
-Important unresolved contract detail: the wire schema/reference currently
-accept string/boolean values and fractional counts despite the numeric metric
-catalogue. This prototype preserves that behavior; it does not ratify those
-as measurement semantics. Null metrics are not measured, zero is counted,
-and all-null observations currently accept with count 0. See notes B-01/B-04.
-
-## In-memory idempotency and audit
-
-- Canonical payload: compact UTF-8 JSON, sorted keys, top-level `request_id`
-  excluded. No normalization of defaults, null vs absent, or array order.
-- Same key + same route/payload replays the stored response with only the
-  replay flag changed. Different payload/route returns 409 **before semantic
-  validation**. Rejected requests do not occupy keys.
-- One in-process lock prevents concurrent duplicate mock inference,
-  observation recording and success-audit publication. Retention is the
-  approved **24 hours**, using monotonic time; expired reuse is logged and
-  treated as a new write. Replays do not extend retention.
-- Keys are globally scoped as in the merged reference. Use distinct logical
-  write keys across tracks. No production identity/client scoping is claimed.
-- Python tests can inspect `app.state.mock.audit_events`, `.inference_count`
-  and a defensive `.observations` snapshot. No extra HTTP endpoint is added.
-  Audit events contain metadata/hash/ids, not raw feature or measurement data.
-- Unexpected 500s are logged with an error `audit_id`, without client stack
-  traces/internal details; unsuccessful writes are not cached.
-
-**This is not persistent, tamper-resistant, production-grade auditing.** All
-state resets on restart and fixture-derived ids can repeat after restart.
-Memory can grow during a run; expiry is lazy on key reuse, not a background
-memory collector. No durability, multi-process, PHI protection, access-control
-or production security guarantee is made.
-
-## Tests
-
-```bash
-python -m pip install -r backend/requirements-dev.txt
+```powershell
 python -m pip check
+python -m alembic upgrade head
+python -m alembic check
 python -m pytest tests/contracts tests/backend -q -W error
-# Entire repository's pytest suite:
 python -m pytest -q -W error
-# Original source integrity check (no source materials changed):
 python scripts/verify_sources.py
+git diff --check
 ```
 
-The HTTP suite uses FastAPI/Starlette `TestClient` and concurrent HTTPX ASGI
-requests. It has its **own** shared-schema validators and never imports the
-fixture-generating oracle. All 29 supported fixture scenarios (33 steps) match
-their approved bodies exactly; the 30th scenario explicitly tests the
-LIME-only binding's 503 restriction instead of skipping it. Additional tests
-cover validation, error schemas, missing/null/zero, deterministic XAI,
-request-id generation, unconditional conflicts, 24-hour expiry, keyless append,
-restart reset, failures and concurrent single-event publication.
+The backend tests use a fresh disposable SQLite database per test, apply the
+Alembic migration, and cover migration up/down/re-up on temporary files,
+metadata consistency, successful writes/reads, restart durability, rollback,
+foreign-key/unique constraints, concurrency/replay, malformed and rejected
+inputs, test-database isolation, contract fixtures and synthetic CAD/Track-B
+regressions. No migration downgrade or delete is run against a developer's
+local database.
 
-The maintainer has installed the backend workflow at
-[`.github/workflows/backend-ci.yml`](../.github/workflows/backend-ci.yml).
-The original `.github/workflows/contracts-ci.yml` remains separate and
-unchanged. Workflow presence is not evidence that a CI run passed: inspect the
-PR Checks tab for results tied to the latest commit. See the
-[backend CI status and local verification](ci/README.md). The workflow targets
-Python 3.11/3.12, runs contract and HTTP tests, checks dependency consistency
-and source integrity, and uses synthetic-only inputs. CI validates software
-behavior; it does not establish that a real model was trained, that this is a
-research deployment, or that clinical deployment is approved.
+## Local restart and cleanup (PowerShell)
 
-## M1a.3 handoff
+1. Stop Uvicorn with `Ctrl+C`; the configured database remains at
+   `.\var\cardioassist.sqlite3` by default. Start the server again with the
+   same `CARDIOASSIST_DATABASE_URL`; accepted monitoring rows remain.
+2. For an intentionally disposable synthetic demo DB only, stop the server
+   first and remove the DB plus SQLite sidecars:
 
-See [docs/M1A3_INTEGRATION_HANDOFF.md](../docs/M1A3_INTEGRATION_HANDOFF.md) for
-exact React + Flutter next steps, network configuration, safety/rendering
-rules and acceptance tests. **No frontend implementation is part of M1a.2.**
-Human review/merge and explicit next-milestone authorization come first.
+   ```powershell
+   Remove-Item .\var\cardioassist.sqlite3* -Force -ErrorAction SilentlyContinue
+   ```
+
+   **Do not run this cleanup or `alembic downgrade` against any existing
+   database you need.** Pytest databases are temporary and cleaned by pytest.
+
+The runtime accepts synthetic/demo inputs only. Do not place actual patient
+identifiers or health records in SQLite, source control, logs, fixtures, or
+remote AI sessions.

@@ -1,8 +1,11 @@
-"""Single-process, prototype-only state. EVERYTHING resets on restart.
+"""Single-process, prototype-only runtime state.
 
-One lock covers conflict/replay lookup, validation, mock inference, response
-validation, observation storage and audit publication. No await occurs inside
-that transaction. Multiple Uvicorn workers/replicas are NOT supported.
+Idempotency caches, inference counters and Python audit snapshots reset on
+restart; accepted monitoring rows, non-null metrics and success-audit metadata
+are durable in SQLite. One lock covers conflict/replay lookup, validation,
+mock inference, response validation, observation storage and audit publication.
+No await occurs inside that critical section. Multiple Uvicorn workers or
+replicas are NOT supported; do not infer durable exactly-once replay behavior.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from typing import Any, Callable
 
 from .contracts import CAD_PATH, ContractFiles, ContractViolation
 from .mock_prediction import build_prediction, payload_hash
+from .storage.monitoring import MonitoringRepository
 from .validation import validate_cad, validate_monitoring
 
 logger = logging.getLogger(__name__)
@@ -53,9 +57,14 @@ class IdempotencyRecord:
 
 class MockState:
     def __init__(
-        self, contracts: ContractFiles, *, clock: Callable[[], float] = time.monotonic
+        self,
+        contracts: ContractFiles,
+        monitoring_repository: MonitoringRepository,
+        *,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.contracts = contracts
+        self.monitoring_repository = monitoring_repository
         self._clock = clock
         self._lock = threading.RLock()
         # Global key namespace matches the merged reference implementation.
@@ -166,8 +175,19 @@ class MockState:
                 observation["metrics"] = [
                     metric for metric in observation["metrics"] if metric["value"] is not None
                 ]
+                # Durable observation, metric rows and success-audit metadata
+                # share one SQL transaction. Do this before publishing runtime
+                # idempotency/audit state so a storage failure consumes no key.
+                self.monitoring_repository.record_accepted(
+                    observation_id=result_id,
+                    request_id=request_id,
+                    payload_sha256=digest,
+                    path=path,
+                    observation=body["observation"],
+                )
 
-            # Publish only after response construction AND schema validation.
+            # Publish only after response construction, schema validation and
+            # (for Track B) the durable storage transaction have succeeded.
             if key is not None:
                 self._idempotency[key] = record
                 self._attempts[key] = attempt
