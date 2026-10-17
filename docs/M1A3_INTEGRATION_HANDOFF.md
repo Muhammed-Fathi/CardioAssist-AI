@@ -9,13 +9,14 @@ schema, close scientific gates or implement a frontend.
 1. Verify the M1a.2 PR is merged into `main`; read its final approved diff,
    `AGENTS.md`, `docs/DECISIONS.md`, `backend/CONTRACT_NOTES.md` and the shared
    OpenAPI/schemas/fixtures. Work on the next session's dedicated branch.
-2. Before claiming a green integration baseline, have the maintainer install
-   `backend/ci/backend-ci.yml.example` at `.github/workflows/backend-ci.yml`
-   and inspect actual CI runs (`backend/ci/README.md`). GitHub Actions remains
-   **UNVERIFIED** until then. Ask the reviewer to resolve or explicitly carry
-   forward notes B-01–B-04,
-   A-01, G-02 and X-01. Do not let a TypeScript/Dart client silently tighten
-   the permissive Track-B scalar types or fabricate a LIME panel/result.
+2. The maintainer has installed `.github/workflows/backend-ci.yml`; the
+   example under `backend/ci/` is historical/reference material, not the
+   executing workflow. Before claiming a green integration baseline, inspect
+   actual CI runs tied to the latest reviewed commit (`backend/ci/README.md`);
+   workflow presence alone proves no result. Ask the reviewer to resolve or
+   explicitly carry forward notes B-01–B-04, A-01, G-02 and X-01. Do not let a
+   TypeScript/Dart client silently tighten the permissive Track-B scalar types
+   or fabricate a LIME panel/result.
 3. From the repo root, run:
 
    ```bash

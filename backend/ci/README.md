@@ -1,77 +1,56 @@
-# Backend CI — non-executing maintainer handoff
+# Backend CI status and local verification
 
-**GitHub Actions status: UNVERIFIED.** This directory does not enable any
-workflow. The agent's push of a new workflow was rejected because its GitHub
-App lacks workflow-write permission. The maintainer explicitly chose this
-handoff instead of requesting additional permissions.
+The maintainer has installed the backend workflow at
+[`.github/workflows/backend-ci.yml`](../../.github/workflows/backend-ci.yml).
+It is an executing GitHub Actions workflow, not merely a proposed template.
+The existing [`contracts-ci.yml`](../../.github/workflows/contracts-ci.yml)
+remains a separate workflow. Neither workflow file is changed by this cleanup.
 
-## Exact template and destination
+**GitHub Actions results are not asserted here.** Workflow presence does not
+prove that a run was triggered, completed, or passed for a particular commit.
+Review the Checks tab for the PR and confirm each result is attached to the
+latest commit before reporting CI status.
 
-- Full, exact YAML content: [`backend-ci.yml.example`](backend-ci.yml.example).
-- Current location: **`backend/ci/backend-ci.yml.example`** (non-executing).
-- Exact intended installation destination:
-  **`.github/workflows/backend-ci.yml`**.
-- Existing **`.github/workflows/contracts-ci.yml` must remain unchanged**.
+## What the workflow covers
 
-The template uses the same immutable action revisions as the merged contract
-workflow, read-only contents permission, Python 3.11/3.12, pinned dependencies,
-strict-warning contract + HTTP tests, source-integrity verification and a
-narrow prohibited-artifact extension guard. It uses no secrets, paid service,
-model, dataset or cloud account. Existing GitHub Actions quota still applies.
+The backend workflow tests Python 3.11 and 3.12, installs the pinned backend
+and contract-test dependencies, runs dependency consistency checks, runs
+contract and HTTP backend tests with warnings treated as errors, verifies the
+source-integrity baseline, and rejects a narrow set of prohibited artifact
+extensions. The extension guard is not a secrets or PHI scanner. Dependency
+installation requires package-index access; the tests do not require a model,
+dataset, database, cloud service, credentials, or paid service.
 
-## Manual installation — maintainer only
+`backend-ci.yml.example` is retained as historical/reference material only.
+The installed workflow under `.github/workflows/` is authoritative; do not
+copy the example over it or use the example as evidence of a CI result.
 
-After reviewing the PR/template, use the maintainer's normal workflow-authorized
-GitHub session. No extra permission is requested for the agent.
+## Local verification
 
-### Option A: GitHub file editor
-
-1. Open this PR's branch, **`arena/cae890ca-cardioassist-ai`**.
-2. Create a new file named exactly **`.github/workflows/backend-ci.yml`**.
-3. Copy the complete content of `backend/ci/backend-ci.yml.example` unchanged.
-   Comments calling it a template are harmless; a byte-for-byte copy is valid.
-4. Commit the new file to this same PR branch using the maintainer's session.
-   Do **not** edit `contracts-ci.yml` and do **not** merge just to install CI.
-5. Inspect the actual PR checks for **Mock backend (Python 3.11)** and
-   **Mock backend (Python 3.12)**, plus the original contract workflow.
-   Confirm their jobs ran against the latest reviewed commit and passed.
-
-### Option B: Maintainer's local checkout
-
-From the repository root, **already on this PR's branch**, after reviewing the
-copy and using the maintainer's ordinary workflow-authorized GitHub session:
+From the repository root, with Python 3.11 or 3.12:
 
 ```bash
-cp backend/ci/backend-ci.yml.example .github/workflows/backend-ci.yml
-# PowerShell equivalent:
-# Copy-Item backend/ci/backend-ci.yml.example .github/workflows/backend-ci.yml
-
-git add .github/workflows/backend-ci.yml
-git commit -m "ci: enable mock backend validation"
-git push origin arena/cae890ca-cardioassist-ai
+python -m pip install -r backend/requirements-dev.txt
+python -m pip check
+python -m pytest tests/contracts -q -W error
+python -m pytest tests/backend -q -W error
+python -m pytest -q -W error
+python scripts/verify_sources.py
 ```
 
-Inspect the PR checks as above. There is no merge command in these steps.
+A local pass is useful verification but is not a GitHub Actions result.
 
-## Until then
+## Scope and deployment status
 
-- **UNVERIFIED** means no backend GitHub Actions result is claimed. A locally
-  validated template, a successful local test suite, a push or a PR URL is not
-  evidence that the new workflow executed.
-- The unchanged original contract workflow may run on the PR, but it does not
-  replace the backend HTTP suite. Its result is also not claimed without
-  inspecting an actual GitHub run.
-- Local confirmation uses:
+- **Synthetic mock functionality:** this repository's backend returns
+  deterministic mock outputs and mock monitoring acceptance responses. It
+  does not train, load, or use a real AI model or real patient data.
+- **Research deployment:** the code is a research prototype for local and
+  controlled synthetic-data integration testing. Research deployment requires
+  separate review, governance, infrastructure, and operational controls.
+- **Clinical deployment:** not approved or implemented. No clinical validity,
+  patient-care use, production readiness, or diagnostic capability is claimed.
 
-  ```bash
-  python -m pip install -r backend/requirements-dev.txt
-  python -m pip check
-  python -m pytest tests/contracts -q -W error   # 136 tests
-  python -m pytest tests/backend -q -W error     # 233 tests
-  python -m pytest -q -W error                  # 369 combined
-  ```
-
-- See [`../VERIFICATION.md`](../VERIFICATION.md) for local tests and the live
-  TCP run of all 33 supported HTTP fixture steps. See
-  [`../CONTRACT_NOTES.md`](../CONTRACT_NOTES.md) for unresolved contract
-  questions. Human review/approval is still required; M1a.3 has not started.
+Human review and explicit authorization are required before moving beyond the
+mock integration milestone. Workflow CI passing would validate software
+checks only; it would not establish model validity or clinical approval.

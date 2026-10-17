@@ -17,11 +17,15 @@ No model, dataset, DB, cloud account or paid service was used.
 - Remote `main` was rechecked after implementation/tests: still the same tip.
 - The approved contract/fixture/test/original-workflow paths remain unchanged.
 
-## Final pytest output
+## Historical pytest output (2026-10-16)
 
-Re-run after the maintainer-selected CI template handoff; all counts remain
-unchanged. The live TCP fixture run was also repeated: **33/33 supported
-steps passed**, plus the explicit LIME-only 503 check.
+The output below records the original M1a.2 verification before this security
+and documentation cleanup. Its counts are a historical snapshot, not the
+current PR's final results. Current cleanup verification is recorded in the
+follow-up section at the end of this file.
+
+At that time, the live TCP fixture run passed **33/33 supported steps**, plus
+the explicit LIME-only 503 check.
 
 ```text
 $ .venv/bin/python -m pip check
@@ -118,19 +122,82 @@ $ .venv/bin/python -W error -m compileall -q backend/app tests/backend
 PASS (exit 0)
 ```
 
-- The proposed backend CI is now a **non-executing template** at
-  `backend/ci/backend-ci.yml.example`. Its exact intended destination is
-  **`.github/workflows/backend-ci.yml`**. It defines Python **3.11 and 3.12**
-  jobs with pinned actions/dependencies, strict-warning contract + HTTP tests,
-  dependency consistency, source integrity and an artifact-extension guard.
-  There are **no changes under `.github/workflows/`** in this PR; the original
-  maintainer workflow is unchanged.
-- **GitHub Actions status: UNVERIFIED.** The initial push of a new workflow was
-  rejected by the GitHub App's permission boundary. The maintainer explicitly
-  chose the template/manual-install handoff instead of requesting additional
-  permissions. The template cannot execute here: the maintainer must install
-  it and inspect actual CI runs (`backend/ci/README.md`). Python 3.12 and
-  Windows/device execution were not run in this sandbox. Local results do
-  not claim green GitHub Actions. No automatic merge is authorized.
+- **Historical CI handoff (at the time of the original verification):** the
+  backend workflow existed only as `backend/ci/backend-ci.yml.example`; the
+  then-current note said the maintainer still needed to install it. That
+  handoff is superseded. The maintainer has since installed
+  `.github/workflows/backend-ci.yml`; see the current status in
+  [`ci/README.md`](ci/README.md).
+- This record does not claim GitHub Actions passed for the current cleanup PR.
+  Inspect actual checks tied to the latest reviewed commit. Python 3.12 and
+  Windows/device execution were unavailable in this original sandbox run.
+  Local results do not imply green GitHub Actions. No automatic merge is
+  authorized.
 - Remaining contract ambiguities/capability restrictions are reported in
   [CONTRACT_NOTES.md](CONTRACT_NOTES.md), not hidden by test skips or schema edits.
+
+## Security and contract cleanup follow-up (2026-10-17)
+
+### Dependency findings
+
+- `anyio==4.12.1` was affected by [GHSA-82r6-8w77-94w6 / CVE-2026-63374]
+  (incorrect IDNA handling in `TLSStream`; patched in 4.14.2). Exploitation
+  requires a TLS connection to a non-ASCII hostname whose connection has been
+  redirected. This mock backend makes no outbound TLS connections, so the
+  vulnerable path was not exercised by its current code, but AnyIO is a
+  runtime dependency and was upgraded to `4.14.2`.
+- `starlette==0.52.1` was below fixes for five audited advisories: malformed
+  Host URL-path poisoning (GHSA-86qp-5c8j-p5mr / CVE-2026-48710; fixed 1.0.1),
+  `HTTPEndpoint` method dispatch (GHSA-x746-7m8f-x49c / CVE-2026-48817; fixed
+  1.1.0), Windows `StaticFiles` UNC/SMB credential exposure
+  (GHSA-wqp7-x3pw-xc5r / CVE-2026-48818; fixed 1.1.0), malformed path URL
+  hostname poisoning (GHSA-jp82-jpqv-5vv3 / CVE-2026-54282; fixed 1.3.0), and
+  ignored URL-encoded form parser limits (GHSA-82w8-qh3p-5jfq / CVE-2026-54283;
+  fixed 1.3.1). Current routes are FastAPI operations, not `HTTPEndpoint`;
+  the app does not mount `StaticFiles`, parse form bodies, or make
+  security-sensitive decisions based on `request.url`. Those conditions make
+  these particular exploit paths inapplicable to the current app, but the
+  Starlette code is on the HTTP stack. It was upgraded to `1.3.1`, the smallest
+  audited release covering the set. A malformed-Host URL-inspection regression
+  test now checks that `request.url.path` and `.hostname` fall back safely.
+- `pytest==8.3.4` was affected by [GHSA-6w46-j5rx-g56g / CVE-2025-71176]
+  (unsafe pytest temporary-directory handling on UNIX for pytest through
+  9.0.2; patched in 9.0.3). The attack requires a hostile local user able to
+  interact with the test runner's `/tmp` area; pytest is test-only here. It was
+  upgraded to `9.0.3` and its newly required `Pygments==2.21.0` dependency was
+  pinned.
+- Starlette 1.3.1 deprecates its legacy HTTPX TestClient adapter. To keep
+  `-W error` meaningful rather than suppress the warning, test dependencies
+  now pin `httpx2==2.13.1`, `httpcore2==2.13.1`, and `truststore==0.10.5` for
+  Starlette's TestClient. `httpx==0.28.1` / `httpcore==1.0.9` remain pinned for
+  separate async ASGI integration tests. FastAPI 0.135.4 requires Starlette
+  `>=0.46.0`; Starlette 1.3.1 requires Python `>=3.10`, satisfying the
+  repository's Python 3.11/3.12 support range. This combination passed local
+  Python 3.11 tests and dependency resolution.
+
+The full pinned backend + test requirements were checked using `pip check`
+(**no broken requirements**) and `pip-audit` (**no known vulnerabilities**).
+The audit was also run directly against `tests/contracts/requirements.txt`;
+no vulnerabilities were reported. These are point-in-time advisory database
+results, not a guarantee against future advisories.
+
+### Current local verification
+
+Executed with Python **3.11.2**. Python 3.12 is not installed in this sandbox;
+that leg is left for the installed GitHub Actions matrix/maintainer review.
+
+```text
+pip check: No broken requirements found
+pytest tests/contracts -q -W error: 136 passed
+pytest tests/backend -q -W error: 234 passed
+pytest -q -W error: 370 passed
+pip-audit -r backend/requirements-dev.txt: No known vulnerabilities found
+pip-audit -r tests/contracts/requirements.txt: No known vulnerabilities found
+scripts/verify_sources.py: PASS
+compileall -W error: PASS
+```
+
+The backend suite includes the existing HTTP/ASGI integration tests and the
+new malformed-Host regression. No GitHub Actions result is claimed for this
+PR; verify the actual checks against its final commit. No `.github/workflows/`
+file was changed.

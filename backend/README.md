@@ -170,15 +170,16 @@ cover validation, error schemas, missing/null/zero, deterministic XAI,
 request-id generation, unconditional conflicts, 24-hour expiry, keyless append,
 restart reset, failures and concurrent single-event publication.
 
-The original `.github/workflows/contracts-ci.yml` stays untouched.
-**GitHub Actions status: UNVERIFIED.** The new backend workflow is delivered
-only as **`backend/ci/backend-ci.yml.example`**, a non-executing template.
-Its exact intended destination is **`.github/workflows/backend-ci.yml`**.
-The maintainer must install it and inspect actual CI runs before claiming a
-result. See [CI handoff and exact manual instructions](ci/README.md).
-The template covers Python 3.11/3.12 contract + HTTP tests, pinned actions,
-dependency consistency and source integrity. No additional GitHub permissions
-are requested for the agent; no paid hosting/account/service is introduced.
+The maintainer has installed the backend workflow at
+[`.github/workflows/backend-ci.yml`](../.github/workflows/backend-ci.yml).
+The original `.github/workflows/contracts-ci.yml` remains separate and
+unchanged. Workflow presence is not evidence that a CI run passed: inspect the
+PR Checks tab for results tied to the latest commit. See the
+[backend CI status and local verification](ci/README.md). The workflow targets
+Python 3.11/3.12, runs contract and HTTP tests, checks dependency consistency
+and source integrity, and uses synthetic-only inputs. CI validates software
+behavior; it does not establish that a real model was trained, that this is a
+research deployment, or that clinical deployment is approved.
 
 ## M1a.3 handoff
 
