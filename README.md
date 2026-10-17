@@ -12,13 +12,14 @@
 - **Supervisor paper selection:** `research/source_materials/literature_review_status.csv` (export of the FIRST sheet of the original Excel workbook), with `Supervisor_Status` explicitly recorded; inspect original `literature_review_original.xlsx` if available.
 - **Research evidence:** approved GREEN papers, verified against their originals when accessible. PINK/ORANGE are pending; RED are excluded from the selected research scope.
 - **Budget:** $0, with only free-tier or existing local resources; check limits before use.
+- **Implementation blueprint (proposed, 2026-10-17):** `docs/blueprint/` — master architecture/feature-traceability/roadmap/DB-API/research-gates/testing/open-decisions/status set plus ADR-001. It plans the next milestones; it authorizes nothing by itself.
 
 ## Repository organization
 
 ```
 research/source_materials/  Supplied project materials, unchanged except PDF/CSV exports
 research/                  Research decisions and experiments (no raw datasets)
-docs/                      Scope, decisions, scientific warnings, Phase 0 reports
+docs/                      Scope, decisions, scientific warnings, Phase 0 reports, master blueprint (docs/blueprint/)
 ai/                        AI code after Phase 0 approval
 backend/                   Backend code after Phase 0 approval
 frontend/patient-mobile/   Patient Flutter candidate after approval
