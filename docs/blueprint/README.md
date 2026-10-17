@@ -33,7 +33,7 @@ governed elsewhere, this set cites the source and defers to it:
 | 6 | Local testing and milestone acceptance matrix | [06_TESTING_AND_ACCEPTANCE_MATRIX.md](06_TESTING_AND_ACCEPTANCE_MATRIX.md) |
 | 7 | Open decisions, risks, assumptions, $0-budget constraints | [07_OPEN_DECISIONS_RISKS_ASSUMPTIONS.md](07_OPEN_DECISIONS_RISKS_ASSUMPTIONS.md) |
 | 8 | Current implementation status versus future scope | [08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md](08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md) |
-| ADR | CAD optional-null JSON Schema / backend compatibility issue (A-01) — **proposal only** | [ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md](ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md) |
+| ADR | CAD optional-null JSON Schema / backend compatibility issue (A-01) — **Option A approved** (D-044); runtime prerequisite merged, schema/fixture correction in an open PR | [ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md](ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md) |
 
 ## Reading order for a new developer
 

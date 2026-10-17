@@ -50,7 +50,12 @@
         { "$ref": "#/$defs/FeatureValue" },
         {
           "properties": {
-            "value": { "type": "number", "minimum": 0, "maximum": 400 },
+            "value": {
+              "anyOf": [
+                { "type": "null" },
+                { "type": "number", "minimum": 0, "maximum": 400 }
+              ]
+            },
             "unit": { "const": "u_pressure" }
           }
         }
@@ -62,7 +67,12 @@
         { "$ref": "#/$defs/FeatureValue" },
         {
           "properties": {
-            "value": { "type": "number", "minimum": 0, "maximum": 2000 },
+            "value": {
+              "anyOf": [
+                { "type": "null" },
+                { "type": "number", "minimum": 0, "maximum": 2000 }
+              ]
+            },
             "unit": { "const": "u_concentration" }
           }
         }
@@ -74,7 +84,12 @@
         { "$ref": "#/$defs/FeatureValue" },
         {
           "properties": {
-            "value": { "type": "boolean" },
+            "value": {
+              "anyOf": [
+                { "type": "null" },
+                { "type": "boolean" }
+              ]
+            },
             "unit": { "const": "u_boolean" }
           }
         }
@@ -86,7 +101,12 @@
         { "$ref": "#/$defs/FeatureValue" },
         {
           "properties": {
-            "value": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "value": {
+              "anyOf": [
+                { "type": "null" },
+                { "type": "integer", "minimum": 0, "maximum": 100 }
+              ]
+            },
             "unit": { "const": "u_count" }
           }
         }
@@ -98,7 +118,12 @@
         { "$ref": "#/$defs/FeatureValue" },
         {
           "properties": {
-            "value": { "type": "number", "minimum": 0, "maximum": 1 },
+            "value": {
+              "anyOf": [
+                { "type": "null" },
+                { "type": "number", "minimum": 0, "maximum": 1 }
+              ]
+            },
             "unit": { "const": "u_fraction" }
           }
         }

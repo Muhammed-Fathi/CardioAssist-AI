@@ -18,7 +18,7 @@
 |---|---|
 | A versioned **wire contract** for two endpoints | A server, a client library or an SDK |
 | A set of **JSON Schemas** that define the payloads | A validated clinical data dictionary |
-| A **deterministic mock fixture pack** (30 fixtures) | Real model output or real patient data |
+| A **deterministic mock fixture pack** (31 fixtures) | Real model output or real patient data |
 | A **lightweight contract test suite** (offline, $0) | A model evaluation, benchmark or claim |
 | An explicit **Track A / Track B separation** | Clinical guidance, thresholds or treatment logic |
 
@@ -82,6 +82,43 @@ Consequences that are enforced by the test suite, not just by prose:
 When Gate DA (D-031) opens and a dictionary is audited, a **new** feature
 schema version is added. The envelope does not change; the `feature_schema_id`
 in the response changes. That is the whole point of the split.
+
+### 2.3 Optional features: an absent slot and an explicit `null` are the same
+
+An **optional** feature slot may be left out of the request, or it may be sent
+with an explicit `null` value. Both mean "not provided" (Phase 0 §R2-6.2) and
+both produce the same result: the feature is listed in `missing_features[]`,
+one `imputed_feature:<id>` warning is emitted, and the slot contributes
+nothing to the explanation.
+
+Each optional slot therefore declares its value rule as
+
+```json
+"value": {
+  "anyOf": [
+    { "type": "null" },
+    { "type": "number", "minimum": 0, "maximum": 400 }
+  ]
+}
+```
+
+— the original typed/ranged rule, plus exactly one explicit `null`
+alternative (ADR-001 Option A, decision **D-044**). The nine optional slots
+of the two mock feature schemas (5 in v1, 4 in v2) use that shape; the
+required slots do not, because a **required** slot must carry a real value.
+
+| Case | Result |
+|---|---|
+| Optional slot omitted | 200, the slot is reported as missing |
+| Optional slot explicitly `null` | 200, the slot is reported as missing — identical to omitting it |
+| Required slot omitted | 422 `missing_required_feature` |
+| Required slot explicitly `null` | 422 `missing_required_feature` |
+| Optional slot with the value `0` or `false` | 200, the value is **data** — never missing |
+| Optional slot with a wrong type, a wrong unit or an out-of-range value | 400 `malformed_request` / 422 `unit_mismatch` / 422 `value_out_of_range` |
+
+The canonical payload hash still distinguishes `null` from absent, so the two
+forms are **different** payloads: the same `Idempotency-Key` with the other
+form is a `409 idempotency_key_conflict`, not a replay.
 
 ---
 
@@ -302,7 +339,7 @@ shared/contracts/
 │   └── mock_monitoring_metrics.v1.json        MOCK_ONLY monitoring metric catalogue
 └── fixtures/
     ├── index.json                             pack manifest + Phase 0 coverage map
-    └── F-*.json                               30 deterministic fixtures
+    └── F-*.json                               31 deterministic fixtures
 ```
 
 The JSON Schemas are the **source of truth** for payload structure; the
@@ -312,14 +349,14 @@ OpenAPI document wires them to paths, headers and HTTP status codes.
 
 ## 9. Fixture pack
 
-30 fixtures, all deterministic, all MOCK / SYNTHETIC, no randomness and a
+31 fixtures, all deterministic, all MOCK / SYNTHETIC, no randomness and a
 frozen clock (`2026-10-16T12:00:00Z`).
 
 | Phase 0 id | Covered by |
 |---|---|
 | F-01 golden valid request/response per schema | `F-01`, `F-01b`, `F-12a` |
 | F-02 every error code | `F-02a`…`F-02k`, `F-04b`, `F-04c` (plus `internal_error` in the catalogue test) |
-| F-03 missing optional vs missing required | `F-02f` (required → 422), `F-03a` (optional → 200 + `missing_features[]`), `F-03b` (null vs zero) |
+| F-03 missing optional vs missing required | `F-02f` (required → 422), `F-03a` (optional → 200 + `missing_features[]`), `F-03b` (null vs zero), `F-03c` (optional null ≡ optional absent) |
 | F-04 unit mismatch / unknown feature / out of range | `F-02b`, `F-02c`, `F-02d`, `F-02e` |
 | F-05 idempotent replay | `F-05` |
 | F-06 key conflict (409) | `F-06` |
@@ -347,11 +384,21 @@ value on a required feature is "not provided" and is rejected with
 does not appear in `missing_features`, and it does appear in the explanation
 contributions.
 
+**Optional null ≡ optional absent** has its own fixture, `F-03c`: for
+`mock_clinical_v1` and for `mock_clinical_v2`, a request that omits the
+optional features and the same request with every optional feature explicitly
+set to `null` produce the same `missing_features[]` list, the same
+`warnings[]` and the same deterministic score. Only the identifiers may
+differ: the correlation id, the canonical payload hash and the audit id are
+different, because null and absent are different payloads — so the same key
+with the two forms is a `409 idempotency_key_conflict`, not a replay.
+
 **Distinct inputs.** The pack deliberately contains no two scenarios that
 exercise the same input: each scenario carries its own feature values, so a
 reviewer reading one fixture has read a genuinely different request. The only
-repeated payloads are the two that *must* repeat — `F-05` (the replay) and
-`F-07` (the determinism check) — where the repetition is the point.
+repeated payloads are the three that *must* repeat — `F-05` (the replay),
+`F-07` (the determinism check) and `F-03c` (the omitted/null pair, where the
+repetition is the point) — where the repetition is the point.
 
 ---
 

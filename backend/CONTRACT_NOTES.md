@@ -57,7 +57,7 @@ schema revision needs a separate explicit review.
 | B-02 | Common idempotency prose says replay = 200; the Track-B operation documents only 201, and the merged behavior test explicitly expects 201 for a replay. The contract README Q7 also asks 200 vs 201. | Use **201 for both first acceptance and replay**, preserving the operation-specific OpenAPI and merged tests. Reviewer should reconcile the generic wording, not add an undocumented 200 response here. |
 | B-03 | Idempotency namespace is not explicitly scoped by route/client in the prose. The merged oracle uses one global key store for both tracks. | Preserve a **global namespace**, with an additional route-identity guard: reuse on the other endpoint is 409, never a wrong-track replay. Clients should prefix keys by logical write/track. Endpoint/client scoping requires a reviewed decision. |
 | B-04 | Schema says null means “not measured”; it does not explicitly define all-null observations, repeated metric ids or count semantics. The merged oracle skips nulls, counts other entries, accepts all-null observations and does not deduplicate metric ids. | Preserve that behavior: zero is counted; null is not stored as a measurement; all-null = 201, accepted, count 0; duplicate entries count individually. Validate the whole request before publishing any observation/audit. Reviewer must ratify or revise these cases. |
-| A-01 | CAD feature prose says explicit null = absent; the shared feature schemas' per-feature `allOf` value constraints reject null, including optional slots, while the live backend treats optional null as missing. | Preserve the approved runtime behavior: required null/absent → 422 `missing_required_feature`; explicit optional null → successful response with the existing missing-feature warning. Validate wrapper shape/unit/extra fields and omit optional null only from a validation copy. Original JSON is still hashed, so null and absent remain different idempotency payloads. **Maintainer approved ADR-001 Option A (D-044, 2026-10-17).** Implementation is sequenced behind a behavior-preserving runtime schema-reader prerequisite (this change-set) because the runtime reads `properties.value["type"]` directly and would otherwise raise `KeyError` for the future `anyOf` shape. The committed schemas remain unchanged here; the schema/fixture correction is deferred to a separate follow-up PR. There is no fitted imputer: missing slots have no synthetic contribution. |
+| A-01 | CAD feature prose says explicit null = absent; the shared feature schemas' per-feature `allOf` value constraints reject null, including optional slots, while the live backend treats optional null as missing. | Preserve the approved runtime behavior: required null/absent → 422 `missing_required_feature`; explicit optional null → successful response with the existing missing-feature warning. Validate wrapper shape/unit/extra fields and omit optional null only from a validation copy. Original JSON is still hashed, so null and absent remain different idempotency payloads. **Maintainer approved ADR-001 Option A (D-044, 2026-10-17).** The behavior-preserving runtime schema-reader prerequisite is **MERGED** (PR #7, `7f850bd`); the schema/fixture correction is in a separate **open** PR (nine optional slots corrected, new fixture F-03c, matching tests) and is not yet merged, so A-01 stays open. There is no fitted imputer: missing slots have no synthetic contribution. |
 | G-01 | Both requests make `request_id` optional, but both success schemas require a UUID; the oracle returns null when it is omitted. | Generate a deterministic prototype correlation UUID for an omitted id. A replay preserves the original id; invalid ids in errors are omitted rather than echoed into a schema-invalid error. No request or response schema change is necessary. |
 | G-02 | README validation-order table places version/schema checks before conflict, while its unconditional-conflict prose, OpenAPI, and the active task say any different payload under a used key is 409. | Follow the **unconditional** rule: parse JSON, require an object and a valid header, then look up conflict/replay **before all semantic checks**, including version/schema. Tests cover invalid versions and missing envelopes under a used key. Malformed JSON/non-object/header failures cannot identify a valid canonical request and remain 400. Reviewer should reconcile the ordering table. |
 | X-01 | Legacy F-11c/registry include a synthetic LIME result with an illustrative fixed local R². The active task explicitly prohibits fabricating a computed LIME result. | The known LIME-only `mock_model_d_v0.1.0` binding is **unavailable in this server**: 503 `model_unavailable`, no score/explanation/fidelity. Its legacy contract fixture/test remains unchanged and still runs. Live HTTP coverage explicitly asserts 503 rather than skipping the case. LIME stays a future integration capability requiring actual method/fidelity validation, never a made-up result. |
@@ -135,17 +135,27 @@ before type checking, and unexpected structures are left unchanged so the
 runtime fails closed. It is a no-op for the current schemas and for every
 required slot, and it
 changes no wire behavior, error code, scoring or audit rule. Coverage lives in
-`tests/backend/test_schema_reader.py`. The committed feature schemas are
-**not** changed by this prerequisite; the schema/fixture correction remains
-the follow-up change-set.
+`tests/backend/test_schema_reader.py`. The committed feature schemas were
+**not** changed by that prerequisite. **PR #7 is MERGED** into `main` at
+merge commit `7f850bd`.
+
+**Schema/fixture correction (separate change-set, PR #8 — OPEN).** The
+follow-up change-set applies the approved Option A patch to the two mock
+feature schemas: the nine optional slots (5 in v1, 4 in v2) now declare
+`{"anyOf": [{"type": "null"}, <the original typed/ranged rule>]}`, and the
+required slots are untouched. It adds the fixture
+`F-03c-optional-null-equivalent-to-absent.json` (both schema versions) and the
+matching contract and HTTP regression tests. It changes **no** backend runtime
+file: `backend/app/validation.py` is untouched, and the merged adapter reads
+the new shape. The pull request is open and under review; A-01 stays open
+until it is merged, reviewed, Windows-tested and its GitHub checks pass.
 
 **Compatibility/versioning.** The backend already accepts this request and
 v1 prose already says null means not provided, so the approved change broadens
 only schema validity and aligns code generation with existing wire behavior;
 it does not change HTTP semantics, scoring or error codes. The maintainer
 approved Option A in D-044. The schema bundle, fixture/test assertions and
-contract artifact revision must be updated together in the follow-up PR; no
-schema, fixture or client change is made in this prerequisite PR.
+contract artifact revision are updated together in the follow-up PR.
 
 ## CI workflow status
 

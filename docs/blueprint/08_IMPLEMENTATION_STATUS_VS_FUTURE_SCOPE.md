@@ -1,9 +1,10 @@
 # 08 — Current Implementation Status versus Future Scope
 
-**Status:** Snapshot as of 2026-10-17 on `arena/ebc5fdbb-cardioassist-ai`,
-baseline merge commit `6c2572c` (PR #5). Verified by re-running the full
-suite locally (370 passed, `-W error`) and `scripts/verify_sources.py`
-(4/4 hashes). Honesty rule: **no trained model exists; all CAD/XAI output is
+**Status:** Snapshot as of 2026-10-17, updated for the ADR-001 Option A
+schema/fixture correction (an **open** pull request on top of the merged
+PR #7 baseline `7f850bd`). Verified by re-running the full suite locally
+(596 passed, `-W error`) and `scripts/verify_sources.py` (4/4 hashes).
+Honesty rule: **no trained model exists; all CAD/XAI output is
 deterministic synthetic fixture data (`MOCK_SYNTHETIC`).**
 
 ---
@@ -28,10 +29,10 @@ deterministic synthetic fixture data (`MOCK_SYNTHETIC`).**
 | `docs/phase0/PHASE0_REVIEW_DRAFT.md` | Rev. 3 feasibility review (1,822 lines) | Merged (PR #1); governing research document |
 | `docs/DECISIONS.md` | D-001…D-044 + P-1…P-6 | Merged; authoritative register |
 | `docs/FEATURE_REGISTER.md` | F01–F12 proposed register | Merged; F13–F18 extensions proposed in [02](02_FEATURE_TRACEABILITY_MATRIX.md) |
-| `shared/contracts/` | OpenAPI, 4 schema families (common, cad request/response, monitoring request/response, mock feature v1/v2), 2 MOCK_ONLY registries, 30 fixtures (33 steps), fixture index | **IMPLEMENTED + TESTED** (M1a.1, PR #3) — approved artifacts; A-01 Option A approved (D-044), runtime prerequisite in review, schema correction pending |
-| `tests/contracts/` | 136 tests + deterministic oracle `reference_contract.py` | **IMPLEMENTED + TESTED** |
+| `shared/contracts/` | OpenAPI, 4 schema families (common, cad request/response, monitoring request/response, mock feature v1/v2), 2 MOCK_ONLY registries, 31 fixtures (38 steps), fixture index | **IMPLEMENTED + TESTED** (M1a.1, PR #3) — approved artifacts; A-01 Option A approved (D-044), runtime prerequisite **merged** (PR #7), schema/fixture correction in an **open** PR |
+| `tests/contracts/` | 249 tests + deterministic oracle `reference_contract.py` | **IMPLEMENTED + TESTED** |
 | `backend/app/` (887 lines: `main.py`, `contracts.py`, `validation.py`, `mock_prediction.py`, `state.py`) | FastAPI mock server: 2 POST endpoints + bundled `/openapi.json`; in-memory idempotency (24 h), audit snapshots, inference counter | **IMPLEMENTED + TESTED + SYNTHETIC/MOCK** (M1a.2, PR #4; cleanup PR #5) |
-| `tests/backend/` | 273 tests: 234 HTTP tests (golden bodies, validation, Track separation, replay/conflict, concurrency, expiry, failures) + 39 ADR-001 schema-reader compatibility tests | **IMPLEMENTED + TESTED** |
+| `tests/backend/` | 347 tests: 235 HTTP tests (golden bodies, validation, Track separation, replay/conflict, concurrency, expiry, failures) + 39 ADR-001 schema-reader compatibility tests + 73 ADR-001 optional-null HTTP tests | **IMPLEMENTED + TESTED** |
 | `.github/workflows/` | `contracts-ci.yml`, `backend-ci.yml` (installed, executing) | **IMPLEMENTED** (runs must be inspected per commit) |
 | `backend/CONTRACT_NOTES.md`, `backend/VERIFICATION.md`, `backend/ci/` | Compat notes (A-01…X-01), verification records, CI notes | Documentation (merged) |
 | `docs/M1A3_INTEGRATION_HANDOFF.md` | Approved plan shape for next milestone | Documentation (merged) |
@@ -55,7 +56,7 @@ deterministic synthetic fixture data (`MOCK_SYNTHETIC`).**
 | Disease modules (F09) | — | — | Registry (M1b/M4); second module (post-M4) |
 | Research workflow (F10) | Methodology documented (Phase 0 §R2-5) | — | M2 audit → M3 models → M4 write-up (research-gated) |
 | Auth/RBAC (F11) | — | — | M1b |
-| API & tests (F12) | **Complete for M1a scope** (370 tests, CI) | Fixture pack | Grows per milestone (contract-first) |
+| API & tests (F12) | **Complete for M1a scope** (596 tests, CI) | Fixture pack | Grows per milestone (contract-first) |
 | History/symptoms/surveys (F13) | — | — | M1b |
 | Lab OCR (F14) | — | — | M5 product track (**required** deliverable; $0 local OCR; scheduling authorization pending) |
 | Extraction verification (F15) | — | — | M5 product track (**required** deliverable; verification ≠ Track-A eligibility, 05 §2.1) |

@@ -10,9 +10,9 @@ baseline `6c2572c`, Linux, Python 3.11.2.
 
 | Suite | Location | Count | What it proves |
 |---|---|---|---|
-| Contract/fixture/oracle tests | `tests/contracts/` (M1a.1, PR #3) | **136** | Schemas, OpenAPI document, fixture pack (30 scenarios / 33 steps), deterministic reference oracle, error catalogue, explanation additivity (F-08), rendering labels |
-| Backend HTTP tests | `tests/backend/` (M1a.2) | **234** | Live FastAPI behavior independent of the oracle: golden bodies, validation, missing/null/zero, Track separation, wearable rejection (F-09), replay/conflict, 24 h expiry, restart reset, concurrency (one result/one audit event), failure paths, Host-header regression (PR #5) |
-| **Total pytest** | repo root | **370** | `python -m pytest -q -W error` → `370 passed` |
+| Contract/fixture/oracle tests | `tests/contracts/` (M1a.1, PR #3) | **249** | Schemas, OpenAPI document, fixture pack (31 scenarios / 38 steps), deterministic reference oracle, error catalogue, explanation additivity (F-08), rendering labels, ADR-001 optional-null semantics (D-044) |
+| Backend HTTP tests | `tests/backend/` (M1a.2) | **347** | Live FastAPI behavior independent of the oracle: golden bodies, validation, missing/null/zero, Track separation, wearable rejection (F-09), replay/conflict, 24 h expiry, restart reset, concurrency (one result/one audit event), failure paths, Host-header regression (PR #5), ADR-001 schema reader + optional-null semantics |
+| **Total pytest** | repo root | **596** | `python -m pytest -q -W error` → `596 passed` |
 | Source integrity | `scripts/verify_sources.py` | 4/4 hashes + supervisor audit | Research sources unchanged; 25 papers (9 GREEN / 1 PINK / 6 ORANGE / 9 RED) |
 
 Reproduce locally ($0, no Docker/accounts):
@@ -52,7 +52,7 @@ sandbox.
 
 | Guard | Command / mechanism | Protects |
 |---|---|---|
-| Full pytest (370+) | `python -m pytest -q -W error` | Wire behavior, idempotency, audit, Track separation |
+| Full pytest (596+) | `python -m pytest -q -W error` | Wire behavior, idempotency, audit, Track separation |
 | Fixture oracle | `tests/contracts/` (incl. `reference_contract.py`) | Approved mock contract semantics |
 | Source integrity | `python scripts/verify_sources.py` | Research-source files + SHA256 manifest |
 | Prohibited-artifact checks | both CI workflows | No datasets/weights/credentials/PHI sneaking in |

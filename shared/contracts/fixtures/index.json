@@ -208,6 +208,19 @@
       ]
     },
     {
+      "file": "F-03c-optional-null-equivalent-to-absent.json",
+      "fixture_id": "F-03c",
+      "title": "An explicit null for an optional feature is equivalent to omitting it (200, same missing-feature and warning semantics)",
+      "track": "A",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_status": 200,
+      "error_code": null,
+      "covers_phase0_fixture_ids": [
+        "F-03",
+        "F-10"
+      ]
+    },
+    {
       "file": "F-04-monitoring-observation-valid.json",
       "fixture_id": "F-04a",
       "title": "Valid mock monitoring observation (201)",

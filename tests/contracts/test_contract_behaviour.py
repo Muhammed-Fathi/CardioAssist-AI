@@ -120,6 +120,17 @@ def _check_assertions(fixture, step):
         assert bool(body.get("missing_features")) is assertions["missing_features_non_empty"], where
     if "missing_features_excludes" in assertions:
         assert assertions["missing_features_excludes"] not in body.get("missing_features", []), where
+    if "missing_features_equals" in assertions:
+        assert body.get("missing_features") == assertions["missing_features_equals"], where
+    if "warnings_equals" in assertions:
+        assert body.get("warnings") == assertions["warnings_equals"], where
+    if "equivalent_missing_semantics_to_step" in assertions:
+        # An explicit null for an optional feature must be indistinguishable
+        # from an omitted one in its missing-feature and warning semantics.
+        # The correlation id, the payload hash and the audit id may differ.
+        other = steps[assertions["equivalent_missing_semantics_to_step"]]
+        assert body.get("missing_features") == other["expected"]["body"].get("missing_features"), where
+        assert body.get("warnings") == other["expected"]["body"].get("warnings"), where
     if "zero_value_is_data" in assertions:
         assert assertions["zero_value_is_data"] is True, where
         contributions = body.get("explanation", {}).get("contributions", [])

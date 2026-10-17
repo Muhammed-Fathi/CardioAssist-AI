@@ -1,10 +1,10 @@
 """Runtime schema-reader compatibility for ADR-001 Option A.
 
 The approved ADR expresses an optional feature value as
-``anyOf: [{"type": "null"}, <existing typed/ranged rule>]``. This module does
-**not** change the committed schemas. It builds an in-memory copy of the
-approved shape so that the runtime adapter can be tested before the separate
-schema/fixture correction is reviewed and merged.
+``anyOf: [{"type": "null"}, <existing typed/ranged rule>]``. The committed
+mock feature schemas now carry exactly that shape for their optional slots,
+so this module checks the runtime adapter against the **committed** artifacts
+and keeps the fail-closed coverage for every other structure.
 
 The acceptance rules under test are the ADR's safeguards: optional null is
 "not provided", required null stays invalid, zero/false stay data, and wrong
@@ -12,8 +12,6 @@ types, invalid units and out-of-range values remain rejected.
 """
 
 from __future__ import annotations
-
-import copy
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -69,19 +67,9 @@ def contracts() -> ContractFiles:
     return ContractFiles()
 
 
-def corrected_schema(contracts: ContractFiles, schema_id: str) -> dict:
-    """In-memory copy with the exact ADR-001 optional-slot ``anyOf`` shape."""
-    schema = copy.deepcopy(contracts.feature_schemas[schema_id])
-    required = set(schema["required"])
-    for name, definition in schema["properties"].items():
-        if name in required:
-            continue
-        value_rule = definition["allOf"][1]["properties"]["value"]
-        assert "type" in value_rule, name
-        definition["allOf"][1]["properties"]["value"] = {
-            "anyOf": [{"type": "null"}, value_rule]
-        }
-    return schema
+def feature_schema(contracts: ContractFiles, schema_id: str) -> dict:
+    """The committed feature schema, with the approved optional-slot shape."""
+    return contracts.feature_schemas[schema_id]
 
 
 def feature_map(schema_id: str, **overrides) -> dict:
@@ -102,14 +90,21 @@ def optional_slots(contracts: ContractFiles, schema_id: str) -> list[str]:
     )
 
 
+def committed_value_rule(contracts: ContractFiles, schema_id: str, name: str) -> dict:
+    """The value rule of one committed feature, exactly as it is stored."""
+    definition = contracts.feature_schemas[schema_id]["properties"][name]
+    return definition["allOf"][1]["properties"]["value"]
+
+
 # --------------------------------------------------------------------------- #
 # adapter mechanics
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("schema_id", SCHEMA_IDS)
-def test_adapter_is_a_no_op_for_the_current_committed_schemas(contracts, schema_id):
-    """The adapter must not reinterpret the schemas that are live today."""
+def test_adapter_leaves_the_required_slots_untouched(contracts, schema_id):
+    """Required slots keep a direct typed rule, so the adapter is a no-op."""
     schema = contracts.feature_schemas[schema_id]
-    for name, definition in schema["properties"].items():
+    for name in schema["required"]:
+        definition = schema["properties"][name]
         rules = feature_rules(definition)
         assert set(rules) == {"value", "unit"}, name
         assert "type" in rules["value"], name
@@ -118,13 +113,18 @@ def test_adapter_is_a_no_op_for_the_current_committed_schemas(contracts, schema_
 
 @pytest.mark.parametrize("schema_id", SCHEMA_IDS)
 def test_adapter_selects_the_single_typed_alternative(contracts, schema_id):
-    corrected = corrected_schema(contracts, schema_id)
-    for name, definition in corrected["properties"].items():
-        value_rule = feature_rules(definition)["value"]
+    """Every optional slot now declares the approved nullable shape."""
+    schema = contracts.feature_schemas[schema_id]
+    for name in optional_slots(contracts, schema_id):
+        rule = committed_value_rule(contracts, schema_id, name)
+        assert set(rule) == {"anyOf"}, name
+        alternatives = rule["anyOf"]
+        assert len(alternatives) == 2, name
+        assert {"type": "null"} in alternatives, name
+        value_rule = feature_rules(schema["properties"][name])["value"]
         assert "anyOf" not in value_rule, name
         assert "type" in value_rule, name
-        if name not in corrected["required"]:
-            assert value_rule["type"] != "null", name
+        assert value_rule["type"] != "null", name
 
 
 @pytest.mark.parametrize(
@@ -186,37 +186,37 @@ def test_adapter_fails_closed_for_unexpected_shapes(rule):
 
 
 # --------------------------------------------------------------------------- #
-# corrected-shape semantics through the runtime validator
+# committed-shape semantics through the runtime validator
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("schema_id", SCHEMA_IDS)
 def test_every_optional_slot_still_accepts_its_valid_non_null_value(
     contracts, schema_id
 ):
-    corrected = corrected_schema(contracts, schema_id)
+    schema = feature_schema(contracts, schema_id)
     for name in optional_slots(contracts, schema_id):
         features = feature_map(
             schema_id, **{name: {"value": OPTIONAL_VALUES[name], "unit": OPTIONAL_UNITS[name]}}
         )
-        provided, missing = validate_features(contracts, corrected, features)
+        provided, missing = validate_features(contracts, schema, features)
         assert name in provided, name
         assert name not in missing, name
 
 
 @pytest.mark.parametrize("schema_id", SCHEMA_IDS)
 def test_every_optional_slot_accepts_explicit_null_as_not_provided(contracts, schema_id):
-    corrected = corrected_schema(contracts, schema_id)
+    schema = feature_schema(contracts, schema_id)
     for name in optional_slots(contracts, schema_id):
         features = feature_map(
             schema_id, **{name: {"value": None, "unit": OPTIONAL_UNITS[name]}}
         )
-        provided, missing = validate_features(contracts, corrected, features)
+        provided, missing = validate_features(contracts, schema, features)
         assert name not in provided, name
         assert name in missing, name
 
 
 @pytest.mark.parametrize("schema_id", SCHEMA_IDS)
 def test_every_required_slot_remains_non_nullable(contracts, schema_id):
-    corrected = corrected_schema(contracts, schema_id)
+    schema = feature_schema(contracts, schema_id)
     required = contracts.feature_schemas[schema_id]["required"]
     for name in required:
         for features in (
@@ -228,19 +228,19 @@ def test_every_required_slot_remains_non_nullable(contracts, schema_id):
             },
         ):
             with pytest.raises(ContractViolation) as excinfo:
-                validate_features(contracts, corrected, features)
+                validate_features(contracts, schema, features)
             assert excinfo.value.status == 422
             assert excinfo.value.code == "missing_required_feature"
 
 
 @pytest.mark.parametrize("schema_id", SCHEMA_IDS)
 def test_zero_and_false_remain_data(contracts, schema_id):
-    corrected = corrected_schema(contracts, schema_id)
+    schema = feature_schema(contracts, schema_id)
     for name in optional_slots(contracts, schema_id):
         features = feature_map(
             schema_id, **{name: {"value": ZERO_VALUES[name], "unit": OPTIONAL_UNITS[name]}}
         )
-        provided, missing = validate_features(contracts, corrected, features)
+        provided, missing = validate_features(contracts, schema, features)
         assert name in provided, name
         assert name not in missing, name
 
@@ -263,12 +263,12 @@ def test_zero_and_false_remain_data(contracts, schema_id):
 def test_invalid_non_null_values_are_not_broadened(
     contracts, schema_id, name, value, status, code
 ):
-    corrected = corrected_schema(contracts, schema_id)
+    schema = feature_schema(contracts, schema_id)
     features = feature_map(
         schema_id, **{name: {"value": value, "unit": OPTIONAL_UNITS[name]}}
     )
     with pytest.raises(ContractViolation) as excinfo:
-        validate_features(contracts, corrected, features)
+        validate_features(contracts, schema, features)
     assert excinfo.value.status == status
     assert excinfo.value.code == code
     assert excinfo.value.details[0]["field"] == f"features.{name}.value"
@@ -276,7 +276,7 @@ def test_invalid_non_null_values_are_not_broadened(
 
 @pytest.mark.parametrize("schema_id", SCHEMA_IDS)
 def test_invalid_units_are_not_broadened(contracts, schema_id):
-    corrected = corrected_schema(contracts, schema_id)
+    schema = feature_schema(contracts, schema_id)
     features = feature_map(
         schema_id,
         **{
@@ -284,7 +284,7 @@ def test_invalid_units_are_not_broadened(contracts, schema_id):
         },
     )
     with pytest.raises(ContractViolation) as excinfo:
-        validate_features(contracts, corrected, features)
+        validate_features(contracts, schema, features)
     assert excinfo.value.status == 422
     assert excinfo.value.code == "unit_mismatch"
 
@@ -293,9 +293,9 @@ def test_invalid_units_are_not_broadened(contracts, schema_id):
 # the same acceptance matrix under Draft 2020-12
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("schema_id", SCHEMA_IDS)
-def test_corrected_shape_under_draft_2020_12(contracts, schema_id):
-    corrected = corrected_schema(contracts, schema_id)
-    validator = Draft202012Validator(corrected)
+def test_committed_shape_under_draft_2020_12(contracts, schema_id):
+    schema = feature_schema(contracts, schema_id)
+    validator = Draft202012Validator(schema)
 
     for name in optional_slots(contracts, schema_id):
         validator.validate(
@@ -327,16 +327,11 @@ def test_corrected_shape_under_draft_2020_12(contracts, schema_id):
 
 
 # --------------------------------------------------------------------------- #
-# full HTTP path with the future shape, without changing committed schemas
+# full HTTP path with the committed shape
 # --------------------------------------------------------------------------- #
 def test_http_path_uses_the_adapter_for_non_null_and_null_optional_values(
-    client, http_app, cad_body
+    client, cad_body
 ):
-    state = http_app.state.mock
-    state.contracts.feature_schemas["mock_clinical_v1"] = corrected_schema(
-        state.contracts, "mock_clinical_v1"
-    )
-
     cad_body["features"]["mock_feature_count"] = {"value": 7, "unit": "u_count"}
     accepted = client.post(CAD, json=cad_body, headers=KEY)
     assert accepted.status_code == 200
