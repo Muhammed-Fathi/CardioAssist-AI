@@ -81,10 +81,12 @@ only for a controlled synthetic-data demo with suitable network restrictions.
 ### GitHub CI (reported separately)
 
 The `contracts-ci.yml` and `backend-ci.yml` workflows are installed. Workflow
-presence does not prove a passing run. The current PR check rollup could not be
-retrieved (`gh pr checks` lacked access to GitHub's check-rollup resource), so
-no CI pass/fail is claimed. Python 3.12 and Windows results are not inferred
-from the Linux local runs. See [`backend/ci/README.md`](../backend/ci/README.md).
+presence does not prove a passing run. The current PR check rollup could not be retrieved: `gh pr checks` and the
+REST check-run/status endpoints returned HTTP 403 `Resource not accessible by
+integration`. PR metadata reports `mergeStateStatus=UNSTABLE`, but individual
+check results could not be inspected; no CI pass/fail is inferred. Python
+3.12 and Windows results are not inferred from the Linux local runs. See
+[`backend/ci/README.md`](../backend/ci/README.md).
 
 ## 2. Regression gates that remain required
 

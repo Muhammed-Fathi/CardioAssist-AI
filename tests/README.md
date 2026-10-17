@@ -47,8 +47,10 @@ Both `.github/workflows/contracts-ci.yml` and
 contract and backend suites (including the SQLite migration/persistence tests),
 `pip check`, source verification and a prohibited-artifact extension check on
 Python 3.11/3.12. **Workflow presence is not evidence of a passing run.** Check
-status must be reported separately from local results; this session could not
-retrieve the GitHub check rollup. See [`backend/ci/README.md`](../backend/ci/README.md).
+status must be reported separately from local results. For PR #9, the check
+rollup and REST check-run/status endpoints returned HTTP 403 `Resource not
+accessible by integration`; individual GitHub results are **UNVERIFIED**. See
+[`backend/ci/README.md`](../backend/ci/README.md).
 
 `tests/__init__.py` and `tests/backend/__init__.py` keep the backend
 `conftest.py` namespaced, so it does not shadow the legacy contract tests'

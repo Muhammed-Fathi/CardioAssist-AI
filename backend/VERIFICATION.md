@@ -295,10 +295,10 @@ pinned `.venv` environment. All test commands used `-W error`.
 
 ```text
 python -m pip check: No broken requirements found.
-python -m pytest tests/contracts -q -W error: 249 passed in 0.76s
-python -m pytest tests/backend -q -W error: 362 passed in 17.35s
-python -m pytest tests/contracts tests/backend -q -W error: 611 passed in 18.86s
-python -m pytest -q -W error: 611 passed in 20.00s
+python -m pytest tests/contracts -q -W error: 249 passed in 0.69s
+python -m pytest tests/backend -q -W error: 362 passed in 18.43s
+python -m pytest tests/contracts tests/backend -q -W error: 611 passed in 19.51s
+python -m pytest -q -W error: 611 passed in 19.43s
 python scripts/verify_sources.py: PASS (4/4 SHA256 hashes; 25 papers; 9/1/6/9)
 git diff --check: PASS
 ```
@@ -315,7 +315,11 @@ and per-test isolation.
 
 All repository inputs remain synthetic/demo-only. Windows, Python 3.12 local,
 PostgreSQL compatibility, and the GitHub Actions result are **UNVERIFIED**;
-local test results are not CI results. M1b.1's monitoring observation,
+local test results are not CI results. For PR #9, `gh pr checks` and the REST
+check-run/status endpoints returned HTTP 403 `Resource not accessible by
+integration`. PR metadata reports `mergeStateStatus=UNSTABLE`, but individual
+check results could not be inspected, so no CI pass/fail is inferred. M1b.1's
+monitoring observation,
 non-null metrics and metadata-only success audit are durable; the 24-hour
 runtime idempotency cache, Python audit snapshots and error-audit events remain
 process-local. A-01's separate technical correction remains complete (D-044,
