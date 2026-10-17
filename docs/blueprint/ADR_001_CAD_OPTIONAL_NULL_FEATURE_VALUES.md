@@ -120,7 +120,8 @@ the `anyOf` shape without an adapter makes a non-null optional value raise
 `KeyError: 'type'` (verified: 20 existing backend tests fail with HTTP 500).
 
 The maintainer therefore authorized a **minimal, behavior-preserving runtime
-schema-reader adapter** as a separate prerequisite PR. The adapter extracts
+schema-reader adapter** as a separate prerequisite PR (**PR #7**,
+<https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/7>). The adapter extracts
 the single non-null typed alternative from `anyOf` for non-null values; null
 continues to be skipped before type checking. It is a no-op for all current
 schemas and required slots. The schema/fixture correction itself remains

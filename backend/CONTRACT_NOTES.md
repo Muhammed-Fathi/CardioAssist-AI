@@ -121,7 +121,7 @@ That HTTP regression already covers the current backend behavior. No existing
 fixture response body needs changing for the proposed optional-null case; the
 new schema acceptance assertion is the missing coverage.
 
-**Runtime prerequisite (maintainer-authorized, separate change-set).** The
+**Runtime prerequisite (maintainer-authorized, separate change-set, PR #7).** The
 original proposal assumed no runtime change was necessary. During the
 implementation audit, `feature_rules`/`validate_features` in
 `backend/app/validation.py` were confirmed to read `properties.value["type"]`
