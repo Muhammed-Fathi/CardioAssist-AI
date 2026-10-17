@@ -1,8 +1,8 @@
-# ADR-001 — CAD optional-null feature values: JSON Schema / backend compatibility (PROPOSAL — maintainer approval required)
+# ADR-001 — CAD optional-null feature values: JSON Schema / backend compatibility (APPROVED — Option A; implementation in progress)
 
 | Field | Value |
 |---|---|
-| Status | **PROPOSED — NOT APPLIED.** Do not modify any approved schema, fixture, or test on the basis of this ADR until the maintainer records an explicit decision in `docs/DECISIONS.md`. |
+| Status | **APPROVED — Option A** (maintainer, 2026-10-17; decision **D-044**). Implementation is **in progress** in two reviewed change-sets: (1) a behavior-preserving runtime schema-reader prerequisite (in review), and (2) the schema/fixture/test correction (not yet applied). Do not describe the schema correction as implemented or merged before change-set (2) is actually merged. |
 | Date | 2026-10-17 |
 | Origin | M1a.2 review finding **A-01** (`backend/CONTRACT_NOTES.md`), re-reported for approval in PR #5 (`security: dependency and contract compatibility cleanup`) |
 | Scope | `shared/contracts/schemas/mock_clinical_feature_schema.v1.json`, `mock_clinical_feature_schema.v2.json` (optional feature slots only) |
@@ -108,8 +108,24 @@ boolean slots included), leaving all range/type/unit constraints otherwise
 byte-identical. Required slots stay non-null, so required null continues to
 produce `422 missing_required_feature` exactly as today. No error code,
 feature definition, registry, target semantic, or response schema changes.
-No backend code change is required — the runtime already accepts the
-request.
+
+### 3.1.1 Implementation prerequisite discovered during the audit (2026-10-17)
+
+The original proposal assumed "no backend code change is required — the
+runtime already accepts the request". That assumption was correct for the
+**wire behavior** but incomplete for the **implementation**: the live runtime
+reads the typed rule directly from each `allOf` member
+(`backend/app/validation.py`, `feature_rules`/`validate_features`). Applying
+the `anyOf` shape without an adapter makes a non-null optional value raise
+`KeyError: 'type'` (verified: 20 existing backend tests fail with HTTP 500).
+
+The maintainer therefore authorized a **minimal, behavior-preserving runtime
+schema-reader adapter** as a separate prerequisite PR. The adapter extracts
+the single non-null typed alternative from `anyOf` for non-null values; null
+continues to be skipped before type checking. It is a no-op for all current
+schemas and required slots. The schema/fixture correction itself remains
+deferred to the follow-up PR and must not be applied until the prerequisite is
+reviewed and merged.
 
 ### 3.2 Required coverage changes (must ship in the same change-set)
 
@@ -192,14 +208,18 @@ fallback and must be delivered as its own reviewed change-set.
 - [ ] `docs/DECISIONS.md` records the maintainer decision (approve Option A /
       approve Option B / reject) before the implementing change-set merges.
 
-## 7. Decision record (to be completed by the maintainer)
+## 7. Decision record (maintainer answers)
 
 | Question | Maintainer answer |
 |---|---|
-| Approve Option A (in-place schema-only correction)? | _pending_ |
-| If no: approve Option B (versioned revision) instead? | _pending_ |
-| Target milestone for the approved option (M1a.3 prep vs. M1b)? | _pending_ |
-| Name/ID of the decision entry added to `docs/DECISIONS.md` | _pending_ |
+| Approve Option A (in-place schema-only correction)? | **YES — approved 2026-10-17.** |
+| If no: approve Option B (versioned revision) instead? | **NO — Option B not selected.** |
+| Target milestone for the approved option (M1a.3 prep vs. M1b)? | **M1a.3 preparation** (client-contract alignment before client code). No M1a.3 implementation authorization is granted by this ADR. |
+| Name/ID of the decision entry added to `docs/DECISIONS.md` | **D-044** |
+| Sequencing after the implementation audit | **Runtime schema-reader prerequisite first** (separate reviewed PR), then the schema/fixture/test correction. The prerequisite changes no wire behavior; the schema correction is **not yet applied**. |
 
-**Until every row above is answered, no schema, fixture, oracle, or test
-file is modified.** This ADR is documentation only.
+The runtime prerequisite is documented in
+`backend/CONTRACT_NOTES.md` §A-01 and covered by
+`tests/backend/test_schema_reader.py`. The schema/fixture correction remains
+pending its own review and is not to be described as implemented or merged
+until that follow-up PR is merged.

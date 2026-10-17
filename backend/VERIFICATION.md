@@ -201,3 +201,28 @@ The backend suite includes the existing HTTP/ASGI integration tests and the
 new malformed-Host regression. No GitHub Actions result is claimed for this
 PR; verify the actual checks against its final commit. No `.github/workflows/`
 file was changed.
+
+## ADR-001 Option A runtime prerequisite (2026-10-17)
+
+This change-set is the maintainer-authorized prerequisite for ADR-001
+Option A (D-044). It does **not** modify the committed feature schemas or
+fixtures; the schema/fixture correction remains a separate follow-up PR.
+
+Executed locally with Python **3.11.2** and the pinned
+`backend/requirements-dev.txt` environment.
+
+```text
+pip check: No broken requirements found
+pytest tests/contracts -q -W error: 136 passed
+pytest tests/backend -q -W error: 262 passed
+  (includes tests/backend/test_schema_reader.py: 28 passed)
+pytest -q -W error: 398 passed
+scripts/verify_sources.py: PASS (4/4 SHA256 hashes; 25 papers; 9/1/6/9)
+git diff --check: PASS
+```
+
+The 28 new tests exercise the future ADR `anyOf` shape only through in-memory
+copies of the schemas. The committed schemas, the oracle
+`tests/contracts/reference_contract.py`, fixture pack and contract tests are
+unchanged in this prerequisite. Python 3.12 and GitHub Actions results are
+not claimed here; inspect the checks attached to the final PR commit.

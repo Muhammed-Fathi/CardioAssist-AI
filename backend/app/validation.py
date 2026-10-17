@@ -79,10 +79,39 @@ def reject_wearable(contracts: ContractFiles, body: dict[str, Any]) -> None:
         )
 
 
+def typed_value_rule(rule: dict[str, Any]) -> dict[str, Any]:
+    """Return the non-null typed alternative of a feature value rule.
+
+    ADR-001 Option A represents an optional feature value as
+    ``anyOf: [{"type": "null"}, <original typed/ranged rule>]``. The runtime
+    has always skipped explicit nulls before type checking, so it only needs
+    the typed alternative for non-null values. Rules that already declare a
+    direct ``type`` (the current schemas, and every required slot) are
+    returned unchanged. An unsupported shape is also returned unchanged so
+    that this adapter cannot silently broaden validation.
+    """
+    if "type" in rule:
+        return rule
+    alternatives = rule.get("anyOf")
+    if not isinstance(alternatives, list):
+        return rule
+    typed = [
+        alternative
+        for alternative in alternatives
+        if isinstance(alternative, dict) and alternative.get("type") != "null"
+    ]
+    if len(typed) == 1 and "type" in typed[0]:
+        return typed[0]
+    return rule
+
+
 def feature_rules(definition: dict[str, Any]) -> dict[str, Any]:
     rules: dict[str, Any] = {}
     for part in definition["allOf"]:
         rules.update(part.get("properties", {}))
+    value_rule = rules.get("value")
+    if isinstance(value_rule, dict):
+        rules["value"] = typed_value_rule(value_rule)
     return rules
 
 
