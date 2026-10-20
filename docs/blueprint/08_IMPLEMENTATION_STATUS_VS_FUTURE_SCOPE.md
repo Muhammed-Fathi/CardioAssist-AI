@@ -9,10 +9,12 @@ review correction. The SQLite/Alembic monitoring persistence slice is
 requirements install and `pip check` pass; source verification passes 4/4
 hashes. See [06](06_TESTING_AND_ACCEPTANCE_MATRIX.md) for exact commands.
 GitHub check status for PR #9 is **UNVERIFIED** because check-run access has
-returned HTTP 403 `Resource not accessible by integration`; no CI pass/fail is
-inferred. The maintainer-reported Windows/Python 3.12.9 result of 611 tests was
-for the pre-correction head and does not verify this change. Windows and local
-Python 3.12 verification of this correction remain **UNVERIFIED**.
+returned HTTP 403 `Resource not accessible by integration`; PR metadata says
+`mergeStateStatus=UNSTABLE`, which is not an individual check result, so no CI
+pass/fail is inferred. The maintainer-reported Windows/Python 3.12.9 result
+of 611 tests was for the pre-correction head and does not verify this change.
+Windows and local Python 3.12 verification of this correction remain
+**UNVERIFIED**.
 
 **Honesty rule:** no trained model exists; all current CAD/XAI output is
 deterministic synthetic fixture data (`MOCK_SYNTHETIC`). No dataset has been
