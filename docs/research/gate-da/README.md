@@ -6,6 +6,7 @@
 | Date | 2026-10-20 |
 | Starting baseline | Verified `main` = `661876cdfeeb0c22e9cdaca850552ba57c4aa52c` (PR #9 merge, M1b.1). PR #9 scope is **not** reopened. |
 | Scope | Documentation and scientific-feasibility assessment **only**. No dataset was downloaded, no model was trained/fitted/tuned/evaluated, no code, schema, database, API, frontend, fixture, or source material was changed. |
+| Correction (2026-10-20 review) | UCI-45 raw vs processed file identity corrected throughout: `cleveland.data` (59.2 KB) is the 76-attribute **raw** Cleveland file; `processed.cleveland.data` (≈18 KB) is the conventional 14-column benchmark and is now explicitly in the DA-A2 request with a per-file role table (document 04 §1.1), alongside processed/raw pairs for Hungary, Switzerland, and VA. H-01 now asserts **only** the verified threshold-*wording* difference (`>50%` vs `≥50%`); whether exactly-50% records exist or how they were coded is **UNVERIFIED**. UCI-411↔412 status is stated as source-supported same-cohort provenance, with row-level identity reserved as a Gate DA audit task. Facts re-verified against the official UCI dataset-45 page and `heart-disease.names` on 2026-10-20; no dataset file was downloaded. |
 | Governing authorities | `AGENTS.md`; `docs/DECISIONS.md` (D-006/D-007 OPEN, D-038…D-045, P-1…P-6); `docs/phase0/PHASE0_REVIEW_DRAFT.md` Rev. 3 (§4, §5, §R2-4, §R2-5, §F-1…§F-6); `docs/DATA_POLICY.md`; `docs/blueprint/05_RESEARCH_METHODOLOGY_AND_APPROVAL_GATES.md`. **Where this package conflicts with those documents, those documents govern.** |
 | Target (provisional) | **T1 — cross-sectional classification of angiographically defined CAD presence** (~50% diameter-narrowing threshold; exact wording is source-specific). Status **PENDING (P-1/D-006)**, not frozen. This is **not** future/30-day cardiovascular risk prediction (Phase 0 §4.1). |
 
@@ -61,7 +62,8 @@ authorization (D-040, P-2).
    per-vessel fields are label-defining/angiography-derived (leakage);
    UCI-411's LAD/LCX/RCA fields define its label (leakage as T1 predictors);
    the UCI-45 `>50%` vs UCI-412 `≥50%` threshold wording differs and is
-   **not yet reconciled**; Kaggle "Framingham"/CVD-70K mirrors have
+   **not yet reconciled** (the wording alone does not establish that
+   exactly-50% records exist or how they were coded — H-01, document 03); Kaggle "Framingham"/CVD-70K mirrors have
    unverified provenance and **must not be acquired**; official Framingham
    is controlled-access (BioLINCC application + IRB evidence + DUA) and is
    a different (longitudinal, T4) target.

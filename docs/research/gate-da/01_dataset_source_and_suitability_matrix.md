@@ -69,9 +69,35 @@ are **not approved research evidence** (D-004).
 
 - **Official source / identifier:** UCI Machine Learning Repository,
   dataset **45**, "Heart Disease"; DOI 10.24432/C52P4X (citation block on
-  the official page). Files as listed: `cleveland.data` 59.2 KB (the one
-  "processed" file), `hungarian.data` 60.7 KB, `switzerland.data` 24.1 KB,
-  `long-beach-va.data` 39 KB, `new.data` 380.6 KB. **[VERIFIED 2026-10-20]**
+  the official page). **Raw vs processed files — corrected 2026-10-20
+  review:** the official dataset page's file table lists the
+  **76-attribute raw** cohort files `cleveland.data` (59.2 KB — raw
+  Cleveland, *not* the processed benchmark; this package previously
+  mislabelled it), `hungarian.data` (60.7 KB), `switzerland.data`
+  (24.1 KB), `long-beach-va.data` (39 KB), and `new.data` (380.6 KB,
+  not requested — see document 04). **[VERIFIED 2026-10-20]** The
+  official `heart-disease.names` documentation (UCI, David Aha, 22 July
+  1988; re-fetched 2026-10-20) states that **two copies of each database
+  were made: one with all (76) attributes and one with the 14 attributes
+  used in past experiments**, and names the raw files exactly as above.
+  The corresponding **processed 14-column files** in the UCI heart-disease
+  directory are `processed.cleveland.data` (≈18 KB — the conventional
+  Cleveland benchmark; 303 rows × 14 columns), `processed.hungarian.data`,
+  `processed.switzerland.data`, and `processed.va.data` (note the VA
+  processed name is not `processed.long-beach-va.data`).
+  **[VERIFIED: raw filenames/sizes and the existence/role of 14-attribute
+  copies — official UCI page + `heart-disease.names`; processed filenames
+  corroborated against the official UCI directory naming, with exact
+  byte sizes for the non-Cleveland processed files UNVERIFIED and to be
+  recorded from the official listing/archive contents on acquisition day
+  (document 04 §4 step 1). The current UCI page also offers a repackaged
+  download; if its contents differ from these legacy names, the audit
+  stops and reports rather than substituting files.]** The raw files use
+  missing-value code `-9.0` per `heart-disease.names` §9; the processed
+  files' missing-value symbol, delimiters, and any recodings (including
+  the legacy `reprocessed.hungarian.data` variant seen in the UCI
+  directory's history) are **format-verification items for the audit**,
+  not asserted here.
 - **Original publication:** Detrano, Jánosi, Steinbrunn, Pfisterer et al.,
   "International application of a new probability algorithm for the
   diagnosis of coronary artery disease," *Am J Cardiol* 1989 — listed as
@@ -91,11 +117,14 @@ are **not approved research evidence** (D-004).
   output, not yet done). **[VERIFIED for definition/counts/files/license;
   missingness distribution UNVERIFIED until audit]**
 - **Target compatibility with T1:** **Direct** — this *is* an angiographic
-  presence label, with two caveats: (i) threshold wording is `>50%`
-  (strictly greater), versus `≥50%` in DS-2 — boundary records at exactly
-  50% cannot currently be identified or reconciled (register L/H items,
-  document 03); (ii) `num` 1–4 must be binarized 0 vs 1–4 for T1;
-  severity/ordinal use is **UNAPPROVED**.
+  presence label, with two caveats: (i) threshold **wording** is `>50%`
+  (strictly greater) versus `≥50%` in DS-2. That wording difference is
+  verified; it does **not** by itself establish that any record sits at
+  exactly 50%, nor how such a record was coded in either distributed
+  dataset — H-01 remains an unresolved harmonization question requiring
+  data-level or original-source evidence (document 03); (ii) `num` 1–4
+  must be binarized 0 vs 1–4 for T1; severity/ordinal use is
+  **UNAPPROVED**.
 - **Feature dictionary (conventional 14):** `age` (years), `sex`, `cp`
   (chest-pain type 1–4), `trestbps` (resting BP on admission, mm Hg),
   `chol` (serum cholesterol, mg/dl), `fbs` (>120 mg/dl binary), `restecg`
@@ -130,9 +159,15 @@ are **not approved research evidence** (D-004).
   patients until then. Statlog (DS-3) is suspected to recirculate
   Cleveland patients.
 - **Suitability (PROPOSED):** **Development + internal validation**
-  (Cleveland, Strategy A); **candidate external validation** for a DS-2
-  model and vice-versa (Hungary first) **only** under Strategy B after
-  the harmonization audit. Era/spectrum limits (1980s referral cohorts)
+  (Cleveland, Strategy A) — with **`processed.cleveland.data` as the
+  intended primary conventional 14-column development file** and the
+  76-attribute `cleveland.data` acquired alongside it for the dictionary,
+  identifier, label-component, and missingness audit (the processed file
+  must not be silently omitted, and the raw file must not be mistaken
+  for it); **candidate external validation** for a DS-2
+  model and vice-versa (Hungary first, processed formats — subject to
+  the format-verification steps in document 04 §4) **only** under
+  Strategy B after the harmonization audit. Era/spectrum limits (1980s referral cohorts)
   prohibit any transfer claim to contemporary, screening, or Egyptian
   outpatient populations.
 
@@ -174,8 +209,10 @@ are **not approved research evidence** (D-004).
 - **Access / licence / redistribution:** **CC BY 4.0** on the official
   page. **[VERIFIED 2026-10-20]** Same project storage/redistribution
   rules as DS-1 (never in git; snapshot licence at acquisition).
-- **Leakage / overlap:** Same 303 patients as DS-411 (below) — **never**
-  an independent cohort. Any feature recorded during/after angiography,
+- **Leakage / overlap:** Treated as the **same cohort** as DS-2b/UCI-411
+  (below) on source-supported provenance — **never** an independent
+  cohort. Row-level identity between the two files is **not** verified
+  and is a Gate DA read-only audit task (document 03, L-04). Any feature recorded during/after angiography,
   or treatment started because of the diagnosis, would be leakage; the
   pre-angiography availability audit is mandatory (Phase 0 §9.2/§R2-5.4).
   Single-centre, single-country referral spectrum: no general-population
@@ -199,10 +236,19 @@ are **not approved research evidence** (D-004).
   only legitimate scientific use is as *separate per-artery targets*
   (T2), which is itself **UNAPPROVED** (P-1).
 - **Suitability (PROPOSED):** **Not a development cohort, never external
-  validation for DS-2** (identical patients). Conditional acquisition
-  only, for (a) the same-cohort feature-superset audit and (b) a possible
-  future T2 protocol — each REQUIRES APPROVAL at Gate DA/PT. Do not count
-  its 303 rows toward any sample-size total.
+  validation for DS-2.** Provenance: both UCI pages (411/412) list the
+  same creators, the same 303 instances, the same CAD definition, and
+  the 411 page explicitly presents itself as an *extension* of the
+  Z-Alizadeh Sani dataset with LAD/LCX/RCA added — that is
+  **source-supported same-cohort provenance [VERIFIED]**, sufficient to
+  prohibit any independence or doubled-sample-size claim. It is **not**
+  row-level identity verification: confirming that rows correspond
+  one-to-one (order, keys, per-row values) is a future Gate DA read-only
+  audit task, and until it is done no row-alignment between 411 and 412
+  may be assumed for analysis either. Conditional acquisition only, for
+  (a) the same-cohort feature-superset/dictionary and row-correspondence
+  audit and (b) a possible future T2 protocol — each REQUIRES APPROVAL
+  at Gate DA/PT. Do not count its 303 rows toward any sample-size total.
 
 ### DS-3 — UCI Statlog (Heart) (id 145)
 
@@ -247,7 +293,8 @@ are **not approved research evidence** (D-004).
    GREEN support). Everything else fails at least one condition by
    construction, not by ranking preference.
 2. **No pair of acquirable datasets is yet proven independent.** DS-2/DS-2b
-   are identical patients; DS-3 is suspect-duplicate vs DS-1; DS-1's four
+   are the same cohort by source-supported provenance (row-level identity
+   still to be audit-verified); DS-3 is suspect-duplicate vs DS-1; DS-1's four
    cohorts are distinct sites but cross-cohort duplicates cannot be ruled
    out from listings. "External validation" is therefore a *conditional,
    audit-gated* claim (Strategy B), never a default.

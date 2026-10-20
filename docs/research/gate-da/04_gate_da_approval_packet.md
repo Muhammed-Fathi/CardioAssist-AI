@@ -15,18 +15,69 @@ generation, or performance evaluation.
 | # | Dataset (official source) | Identifier | Files as listed at source | Licence as stated at source |
 |---|---|---|---|---|
 | DA-A1 | UCI Z-Alizadeh Sani | UCI id **412**, DOI 10.24432/C5Q31T | `Z-Alizadeh sani dataset.xlsx` (120.7 KB) | CC BY 4.0 **[VERIFIED 2026-10-20]** |
-| DA-A2 | UCI Heart Disease (all four cohorts) | UCI id **45**, DOI 10.24432/C52P4X | `cleveland.data` (59.2 KB), `hungarian.data` (60.7 KB), `switzerland.data` (24.1 KB), `long-beach-va.data` (39 KB) | CC BY 4.0 **[VERIFIED 2026-10-20]** |
+| DA-A2 | UCI Heart Disease (all four cohorts, **both formats**) | UCI id **45**, DOI 10.24432/C52P4X | Raw 76-attribute: `cleveland.data` (59.2 KB), `hungarian.data` (60.7 KB), `switzerland.data` (24.1 KB), `long-beach-va.data` (39 KB). Processed 14-column: `processed.cleveland.data` (≈18 KB), `processed.hungarian.data`, `processed.switzerland.data`, `processed.va.data` (sizes for the latter three UNVERIFIED — record from the official listing at acquisition). Documentation (not patient data): `heart-disease.names`. Full file-role table in §1.1 | CC BY 4.0 **[VERIFIED 2026-10-20]** |
 
 Source URLs: `https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani`,
 `https://archive.ics.uci.edu/dataset/45/heart+disease`. Acquisition, if
 approved, is **from these official pages only** — never from Kaggle or
 any mirror, even of the same dataset.
 
+### 1.1 DA-A2 file-role table (corrected 2026-10-20 review — exact filenames and roles)
+
+This package previously misidentified `cleveland.data` (59.2 KB) as the
+processed Cleveland file and omitted the processed files from the
+request. Correction, verified against the official UCI dataset-45 page
+and the official `heart-disease.names` documentation (both re-fetched
+2026-10-20): the raw files carry all 76 attributes; UCI made a second,
+14-attribute copy of **each** database. **Both formats of every cohort
+are requested**, because each has a distinct audit/development role —
+acquiring only one format would either lose the conventional benchmark
+(raw-only) or lose the dictionary/identifier/label-component evidence
+needed to audit that benchmark (processed-only).
+
+| File (exact name) | Format | Intended role if Gate DA grants DA-A2 |
+|---|---|---|
+| `processed.cleveland.data` | Processed, 14 columns (13 conventional predictors + `num`), ≈18 KB | **Primary conventional-feature Cleveland development file** (Strategy A). Must not be silently omitted. Still contains `ca`/`thal` columns — leakage rulings L-01/L-06 apply to its columns exactly as to the raw file |
+| `cleveland.data` | Raw, 76 attributes, 59.2 KB | Dictionary/identifier/label-component audit for Cleveland: full 76-attribute definitions, identifier handling, per-vessel label components (L-02), missing-code (`-9.0`) verification, and raw↔processed correspondence |
+| `processed.hungarian.data` | Processed, 14 columns (to be format-verified) | Candidate Hungary format for Strategy B external evaluation, after format verification (§4 step 2) |
+| `hungarian.data` | Raw, 76 attributes, 60.7 KB | Hungary dictionary/missingness/identifier audit; raw↔processed correspondence |
+| `processed.switzerland.data` | Processed, 14 columns (to be format-verified) | Candidate Switzerland format for Strategy B, only if completeness rules pass (DQ-SCI-6) |
+| `switzerland.data` | Raw, 76 attributes, 24.1 KB | Switzerland missingness audit (expected heavy; audit decides, by rule) |
+| `processed.va.data` | Processed, 14 columns (to be format-verified; note: not `processed.long-beach-va.data`) | Candidate VA Long Beach format for Strategy B |
+| `long-beach-va.data` | Raw, 76 attributes, 39 KB | VA dictionary/missingness/identifier audit; raw↔processed correspondence |
+| `heart-disease.names` | Documentation (no patient rows) | Authoritative in-directory documentation for the 76-attribute dictionary, file provenance, instances per cohort, and attribution request (principal investigators named per institution) |
+
+**Not requested:** `new.data` (380.6 KB as listed; its role is not
+established in the inspected documentation — if the acquisition-day
+listing shows it is required to interpret the requested files, the
+acquirer stops and seeks an amended authorization rather than taking it
+by default). Any legacy variant encountered in the listing (e.g.
+`reprocessed.hungarian.data`) is likewise **recorded, not acquired/used**,
+until its provenance within the official listing is documented and an
+amended authorization names it. If the current UCI download is a
+repackaged archive whose contents do not match the filenames above, the
+acquirer records the actual contents, **stops**, and reports the
+discrepancy for an amended authorization — substituting repackaged or
+mirror files silently is prohibited.
+
+**Hungary/Switzerland/VA format-verification (required, per processed
+file):** confirm exact filename and size in the official listing/archive;
+delimiter and quoting; header presence/absence; column count and order
+against the conventional 14 (`age, sex, cp, trestbps, chol, fbs,
+restecg, thalach, exang, oldpeak, slope, ca, thal, num`); missing-value
+symbol(s) (do not assume the raw `-9.0` code or any other symbol carries
+over); categorical recodings relative to the raw file and to
+`processed.cleveland.data` (in particular whether `thal`/`ca` codings and
+any `num` recoding match); row count against the documented cohort size
+(294/123/200); and raw↔processed row correspondence. A processed cohort
+file that fails format verification is reported as unusable in that
+format — it is not repaired by inference from Kaggle copies or papers.
+
 ### Request DA-B (conditional — approval requested only for the stated audit purposes)
 
 | # | Dataset | Identifier | Sole approved purposes if granted | Licence |
 |---|---|---|---|---|
-| DA-B1 | UCI Extension of Z-Alizadeh Sani | UCI id **411**, DOI 10.24432/C5461K | (a) Same-cohort feature-superset/dictionary audit against DA-A1; (b) preserving the *option* of a future supervisor-approved T2 protocol. **Never** external validation; LAD/LCX/RCA never T1 predictors (L-03/L-04) | CC BY 4.0 **[VERIFIED 2026-10-20]** |
+| DA-B1 | UCI Extension of Z-Alizadeh Sani | UCI id **411**, DOI 10.24432/C5461K | (a) Same-cohort (source-supported provenance; row-level correspondence to be audit-verified, not assumed) feature-superset/dictionary audit against DA-A1; (b) preserving the *option* of a future supervisor-approved T2 protocol. **Never** external validation; LAD/LCX/RCA never T1 predictors (L-03/L-04) | CC BY 4.0 **[VERIFIED 2026-10-20]** |
 | DA-B2 | UCI Statlog (Heart) | UCI id **145**, DOI 10.24432/C57303 | Overlap/duplicate audit against DA-A2 Cleveland (L-05). Sensitivity analyses only if the audit passes; otherwise exclusion is recorded | CC BY 4.0 **[VERIFIED 2026-10-20]** |
 
 DA-B may be approved, deferred, or refused independently of DA-A. Refusing
@@ -86,10 +137,20 @@ M2 deliverable — **not** part of this PR):
 
 1. **Provenance & licence snapshot** (G3) + SHA-256 of every acquired file;
    confirm file list/sizes against the official page; record discrepancies.
-2. **Schema & dictionary inspection:** verbatim feature list, types,
-   units, categorical codings, label coding — resolving H-04 (incl. the
-   DS-2 54/55/56 count and each UCI-45 cohort's 14-feature alignment,
-   re-derived from the unprocessed files, not assumed).
+   For DA-A2 specifically: verify the acquisition-day official
+   listing/archive contents against the §1.1 file-role table filename by
+   filename (including the documentation file `heart-disease.names`);
+   if names, formats, or archive packaging differ from §1.1, **stop and
+   report** for an amended authorization — do not substitute files.
+2. **Schema, dictionary & format inspection:** verbatim feature list,
+   types, units, categorical codings, label coding — resolving H-04
+   (incl. the DS-2 54/55/56 count; and, for UCI-45, a **per-file format
+   record for every raw and processed file** per the §1.1 verification
+   list: delimiter/quoting, header, column count/order vs the
+   conventional 14, missing-value symbols, recodings, row counts vs
+   documented cohort sizes, and raw↔processed row correspondence — the
+   processed files' alignment is *verified*, never assumed from
+   `processed.cleveland.data`).
 3. **Counts:** rows, patients (as far as identifier-free data allow),
    outcome events per class, per site — reported separately, never as a
    single inflated "n" (L-04 discipline).
@@ -99,11 +160,18 @@ M2 deliverable — **not** part of this PR):
    rules).
 5. **Duplicate/overlap screening:** exact + near-duplicate matching on
    shared stable features within UCI-45, across its cohorts, vs Statlog
-   (if DA-B2), and DS-411↔DS-412 identity confirmation (L-04/L-05).
-   Publish counts and the resolution rule proposed for Gate PT.
+   (if DA-B2); and the DS-411↔DS-412 **row-correspondence verification**
+   (L-04): state the matching method, whether rows correspond one-to-one,
+   and any mismatches — same-cohort provenance is source-supported, but
+   row identity is established only here, and no row alignment may be
+   assumed before this step reports. Publish counts and the resolution
+   rule proposed for Gate PT.
 6. **Target verification:** verbatim label definitions vs acquired coding;
-   H-01 threshold ruling evidence (can exactly-50% records be identified?
-   do raw stenosis/per-vessel fields survive?); H-02 binarization map.
+   H-01 evidence-gathering (do raw stenosis/per-vessel fields survive?
+   do exactly-50% records exist in either source and, if so, how were
+   they coded? — the documented wording difference alone does not answer
+   this, and the audit must not present it as doing so); H-02
+   binarization map.
 7. **Feature-availability audit:** per-feature timing ruling table
    (knowable before the angiography decision: yes/no/unknown + evidence)
    closing L-01/L-02/L-03/L-06/L-07/L-08 as *audit findings* for Gate PT
@@ -129,7 +197,7 @@ M2 deliverable — **not** part of this PR):
 **Approval checklist (all boxes empty = Gate DA closed):**
 
 - [ ] R-DA-1 granted for DA-A1 (UCI-412) — authorizer/date: ______
-- [ ] R-DA-1 granted for DA-A2 (UCI-45, four cohorts) — authorizer/date: ______
+- [ ] R-DA-1 granted for DA-A2 (UCI-45, four cohorts, raw + processed files per §1.1) — authorizer/date: ______
 - [ ] R-DA-2 decision recorded for DA-B1 (UCI-411) — grant / defer / refuse, date: ______
 - [ ] R-DA-2 decision recorded for DA-B2 (Statlog-145) — grant / defer / refuse, date: ______
 - [ ] R-DA-3 storage + named acquirer/auditor + environment confirmed — date: ______

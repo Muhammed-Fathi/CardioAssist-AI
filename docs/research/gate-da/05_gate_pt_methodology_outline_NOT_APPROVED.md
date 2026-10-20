@@ -24,8 +24,10 @@
   narrowing in any major vessel) and/or UCI-412 CAD/Normal (`≥50%`
   narrowing) — with the H-01 threshold ruling (document 03) recorded
   word-for-word in the protocol. If the ruling is
-  *related-but-not-identical*, the two sources are reported as related
-  targets, never as one pooled label, until reconciled.
+  *related-but-not-identical* (or remains *unresolved*, e.g. if whether
+  exactly-50% records exist or how they were coded cannot be evidenced),
+  the two sources are reported as related targets, never as one pooled
+  label, until reconciled.
 - **Explicit non-outcomes:** future events at any horizon (incl. 30-day),
   severity/ordinal grades, per-vessel stenosis (T2), self-reported
   disease (T3), ECG statements (T5). Any of these requires its own
