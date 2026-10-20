@@ -1,17 +1,18 @@
 # 08 — Current Implementation Status versus Future Scope
 
-**Snapshot:** 2026-10-17, M1b.1 on the current session branch
-`arena/b8feac51-cardioassist-ai`. The SQLite/Alembic monitoring persistence
-slice is **IMPLEMENTED + TESTED locally** and submitted in standalone PR #9,
-which is **OPEN**; it is not merged. Latest local results are Linux / Python
-3.11.2: **249 contract + 362 backend = 611 passed** with `-W error`; `pip
-check` reports no broken requirements; source verification passes 4/4 hashes.
-See [06](06_TESTING_AND_ACCEPTANCE_MATRIX.md) for exact commands/results.
-GitHub check status for PR #9 is **UNVERIFIED**: `gh pr checks` and REST
-check-run/status endpoints returned HTTP 403 `Resource not accessible by
-integration`. PR metadata currently reports `mergeStateStatus=CLEAN`, but
-that is not an individual check result; no pass/fail is inferred. Windows
-and local Python 3.12 runs are also **UNVERIFIED**.
+**Snapshot:** 2026-10-20, M1b.1 on the current session branch
+`arena/b8feac51-cardioassist-ai`, after the blocking schema-verification
+review correction. The SQLite/Alembic monitoring persistence slice is
+**IMPLEMENTED + TESTED locally** and submitted in standalone PR #9, which is
+**OPEN**; it is not merged. Latest local results are Linux / Python 3.11.2:
+**249 contract + 371 backend = 620 passed** with `-W error`; fresh dev
+requirements install and `pip check` pass; source verification passes 4/4
+hashes. See [06](06_TESTING_AND_ACCEPTANCE_MATRIX.md) for exact commands.
+GitHub check status for PR #9 is **UNVERIFIED** because check-run access has
+returned HTTP 403 `Resource not accessible by integration`; no CI pass/fail is
+inferred. The maintainer-reported Windows/Python 3.12.9 result of 611 tests was
+for the pre-correction head and does not verify this change. Windows and local
+Python 3.12 verification of this correction remain **UNVERIFIED**.
 
 **Honesty rule:** no trained model exists; all current CAD/XAI output is
 deterministic synthetic fixture data (`MOCK_SYNTHETIC`). No dataset has been
@@ -45,9 +46,9 @@ claim is made.
 | `shared/contracts/` | OpenAPI, schema families, 2 MOCK_ONLY registries, 31 fixtures / 38 steps | **IMPLEMENTED + TESTED**, M1a.1; no M1b.1 contract/fixture changes. A-01 Option A schema correction merged in PR #8; technical correction complete |
 | `tests/contracts/` | Contract/oracle suite | **249 passed** locally; fixture pack preserved |
 | `backend/app/` | FastAPI mock backend, two existing POST routes, bundled `/openapi.json`; SQLAlchemy storage boundary | Existing contracts unchanged. M1b.1 persists monitoring observation, non-null metrics and success-audit metadata only. Runtime idempotency and Python audit snapshots remain in memory |
-| `backend/migrations/`, `alembic.ini` | Alembic environment and initial migration | **IMPLEMENTED + TESTED locally** on disposable SQLite databases; explicit migrations; no schema auto-creation at startup |
-| `backend/app/storage/` | SQLAlchemy models, DB configuration/transaction wrapper and monitoring repository | **IMPLEMENTED + TESTED locally**; configurable `CARDIOASSIST_DATABASE_URL`; SQLite only tested |
-| `tests/backend/` | Existing API regressions + migration/persistence tests | **362 passed** locally, including 15 M1b.1 migration/persistence cases |
+| `backend/migrations/`, `alembic.ini` | Alembic environment and initial migration | **IMPLEMENTED + TESTED locally** on disposable SQLite databases; explicit migrations; exact head verification; no schema auto-creation/repair at startup |
+| `backend/app/storage/` | SQLAlchemy models, DB configuration/transaction wrapper and monitoring repository | **IMPLEMENTED + TESTED locally**; configurable `CARDIOASSIST_DATABASE_URL`; startup checks revision, metadata drift and SQLite integrity; SQLite only tested |
+| `tests/backend/` | Existing API regressions + migration/persistence tests | **371 passed** locally, including 24 M1b.1 migration/persistence cases |
 | `.github/workflows/` | Installed contracts and backend CI workflows | Workflows present; current PR #9 check results **UNVERIFIED**. Workflow presence is not a green CI result |
 | `backend/README.md`, `backend/CONTRACT_NOTES.md`, `backend/VERIFICATION.md` | Setup, limitations, contract behavior and verification records | Updated; Windows/CI caveats remain explicit |
 | `docs/M1A3_INTEGRATION_HANDOFF.md` | React/Flutter thin-client plan | Preserved and updated: M1a.3 is deferred/resequenced, not cancelled or completed |
@@ -57,19 +58,27 @@ claim is made.
 
 ### Current local verification record
 
+- Fresh `.venv` install from `backend/requirements-dev.txt` includes importable
+  `httpx==0.28.1` and `httpx2==2.13.1`; no dependency changes were needed.
 - `python -m pip check`: **No broken requirements found**.
-- `python -m pytest tests/contracts -q -W error`: **249 passed**.
-- `python -m pytest tests/backend -q -W error`: **362 passed**.
-- `python -m pytest tests/contracts tests/backend -q -W error`: **611 passed**.
-- `python -m pytest -q -W error`: **611 passed**.
+- `python -m pytest tests/backend/test_persistence.py -q -W error`:
+  **24 passed in 1.00s**; includes empty/outdated/unknown revision, missing
+  column/index/primary/foreign-key/unique constraints, orphan foreign key,
+  and failed lifespan/no auto-repair cases.
+- `python -m pytest tests/backend -q -W error`: **371 passed in 17.49s**.
+- `python -m pytest tests/contracts tests/backend -q -W error`:
+  **620 passed in 17.60s**.
+- `python -m pytest -q -W error`: **620 passed in 18.27s**.
 - Disposable SQLite migration smoke: fresh upgrade, consistency check,
   downgrade, re-upgrade and second consistency check **PASS**. Developer DBs
   were not downgraded or deleted.
 - `python scripts/verify_sources.py`: **PASS**, 4/4 hashes; 25 papers with
   `9 GREEN / 1 PINK / 6 ORANGE / 9 RED`.
 - `git diff --check`: **PASS**.
-- **CI:** PR #9 check rollup **UNVERIFIED/unavailable**; not reported as pass or
-  fail. Local Python 3.12 and Windows execution are also **UNVERIFIED**.
+- **GitHub CI:** PR #9 individual check results **UNVERIFIED** due the
+  integration HTTP 403; no pass/fail inferred. Windows/Python 3.12.9
+  maintainer-reported 611-test result predates this correction; Windows and
+  Python 3.12 verification of this change remain **UNVERIFIED**.
 
 These are local verification results for this checkout. They do not establish
 maintainer approval/merge, Windows compatibility, PostgreSQL parity, research
@@ -90,7 +99,7 @@ validity or clinical readiness.
 | Disease modules (F09) | — | — | Registry scaffolding/second module later, separately authorized and research-gated |
 | Research workflow (F10) | Methodology and gates documented | — | Dataset audit M2 → protocol/models M3 → write-up M4; gates remain closed |
 | Auth/RBAC (F11) | — | — | Not included in M1b.1; requires separate M1b authorization and role-matrix tests |
-| API & tests (F12) | **249 contract + 362 backend = 611 local tests passed**; existing `/v1` contracts/fixtures unchanged; PR #9 open | Fixture pack and synthetic backend | Grows only through reviewed slices; GitHub CI result unverified |
+| API & tests (F12) | **249 contract + 371 backend = 620 local tests passed**; existing `/v1` contracts/fixtures unchanged; PR #9 open | Fixture pack and synthetic backend | Grows only through reviewed slices; GitHub CI result unverified |
 | History/symptoms/surveys (F13) | — | — | Proposed M1b APIs and screens; each new route contract-first |
 | Lab OCR (F14) | — | — | M5 required product vision; synthetic documents only until privacy approvals |
 | Extraction verification (F15) | — | — | M5 required product vision; verification does not imply Track-A eligibility |

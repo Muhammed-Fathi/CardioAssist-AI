@@ -324,3 +324,51 @@ and metadata-only success audit are durable; the 24-hour
 runtime idempotency cache, Python audit snapshots and error-audit events remain
 process-local. A-01's separate technical correction remains complete (D-044,
 PR #7/#8); this verification does not close any unrelated decision/gate.
+
+## PR #9 blocking schema-verification correction — current local verification (2026-10-20)
+
+The maintainer's review found that the original startup check accepted any
+schema with the expected table names, even if columns were missing or the
+stored Alembic revision was invalid. `Database.verify_schema()` is now
+read-only and fail-closed: it compares the recorded revision(s) with the
+checked-in migration head(s), validates the Alembic version table, compares
+live schema metadata (columns/types/nullability, indexes, unique and foreign
+keys), explicitly checks primary keys (not reported by Alembic autogenerate),
+and on SQLite checks foreign-key enforcement, `PRAGMA integrity_check`, and
+`PRAGMA foreign_key_check`. Startup still never migrates or repairs a database.
+
+A fresh `.venv` was created on Linux with **Python 3.11.2**, then installed
+only from `backend/requirements-dev.txt`; no dependency changes were needed.
+The fresh install includes `httpx==0.28.1` and `httpx2==2.13.1`, both imports
+succeed, and `pip check` reports no broken requirements. Test commands used
+`-W error`:
+
+```text
+python -m pytest tests/backend/test_persistence.py -q -W error: 24 passed in 1.00s
+python -m pytest tests/contracts -q -W error: 249 passed in 0.70s
+python -m pytest tests/backend -q -W error: 371 passed in 17.49s
+python -m pytest tests/contracts tests/backend -q -W error: 620 passed in 17.60s
+python -m pytest -q -W error: 620 passed in 18.27s
+python -m pip check: No broken requirements found.
+python -c 'import httpx, httpx2': httpx=0.28.1; httpx2=2.13.1
+python scripts/verify_sources.py: PASS (4/4 SHA256 hashes; 25 papers; 9/1/6/9)
+```
+
+A separate disposable SQLite CLI run completed `upgrade head` → `alembic
+check` → `downgrade base` → `upgrade head` → `alembic check`; both consistency
+checks reported `No new upgrade operations detected.` The disposable directory
+was removed. The added negative cases reject an empty, outdated or unknown
+Alembic revision; a missing column/index/primary key, foreign-key constraint or
+unique constraint; and pre-existing foreign-key violations. Lifespan tests
+prove that missing or malformed schema fails startup without automatic
+migration/repair. No `/v1` contract, fixture,
+validation order, response, Track isolation or transaction behavior changed.
+
+The Windows/Python 3.12.9 **611-test** result reported by the maintainer was
+for the pre-correction PR head; it does not independently verify this fix.
+Re-run the updated commands in the Windows PowerShell section of
+[`docs/blueprint/06_TESTING_AND_ACCEPTANCE_MATRIX.md`](../docs/blueprint/06_TESTING_AND_ACCEPTANCE_MATRIX.md)
+against this commit. Windows/Python 3.12 verification of the correction and
+GitHub CI are **UNVERIFIED**. For PR #9, check-run access has previously
+returned HTTP 403 `Resource not accessible by integration`; workflow presence
+or PR merge state is not a CI result. No CI pass/fail is inferred.

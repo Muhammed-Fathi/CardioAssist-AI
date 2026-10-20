@@ -60,6 +60,51 @@ def build_engine(database_url: str, *, poolclass: type | None = None) -> Engine:
     return engine
 
 
+def _expected_migration_heads() -> tuple[str, ...]:
+    """Load the migration graph's expected heads without touching a database."""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config_path = Path(__file__).resolve().parents[3] / "alembic.ini"
+    if not config_path.is_file():
+        raise RuntimeError(f"Alembic configuration was not found at {config_path}.")
+    heads = tuple(sorted(ScriptDirectory.from_config(Config(str(config_path))).get_heads()))
+    if not heads:
+        raise RuntimeError(f"No Alembic migration heads are configured in {config_path}.")
+    return heads
+
+
+def _schema_change_label(change: tuple[object, ...]) -> str:
+    """Describe a metadata difference compactly for startup diagnostics."""
+    operation = str(change[0]) if change else "unknown schema change"
+    try:
+        if operation == "add_column":
+            return f"add_column {change[2]}.{change[3].name}"
+        if operation == "remove_column":
+            return f"remove_column {change[1]}.{change[2].name}"
+        if operation in {
+            "modify_type",
+            "modify_nullable",
+            "modify_default",
+            "modify_comment",
+            "modify_name",
+        }:
+            return f"{operation} {change[2]}.{change[3]}"
+        if operation in {"add_index", "remove_index"}:
+            return f"{operation} {change[1].name}"
+        if operation in {"add_constraint", "remove_constraint"}:
+            constraint = change[1]
+            return f"{operation} {constraint.name or type(constraint).__name__}"
+        if operation in {"add_fk", "remove_fk"}:
+            constraint = change[1]
+            return f"{operation} {constraint.table.name}"
+        if operation in {"add_table", "remove_table"}:
+            return f"{operation} {change[1].name}"
+    except (AttributeError, IndexError, TypeError):
+        pass
+    return operation
+
+
 class Database:
     """Owns an engine and short, explicit SQLAlchemy transaction scopes."""
 
@@ -89,21 +134,122 @@ class Database:
             session.close()
 
     def verify_schema(self) -> None:
-        """Fail closed when migrations have not created the required schema."""
-        from sqlalchemy import inspect
+        """Fail closed unless the database matches the current migration head.
+
+        This is a read-only startup check. Migrations and repairs remain
+        explicit operator actions; this method never creates or upgrades schema.
+        """
+        from alembic.autogenerate import compare_metadata
+        from alembic.migration import MigrationContext
+        from sqlalchemy import String, inspect
 
         from .models import Base
 
-        inspector = inspect(self.engine)
-        tables = set(inspector.get_table_names())
-        required = set(Base.metadata.tables)
-        missing = required - tables
-        if "alembic_version" not in tables or missing:
-            details = ", ".join(sorted(missing)) or "alembic_version"
-            raise RuntimeError(
-                "Database schema is missing or not migrated (missing: "
-                f"{details}); run `python -m alembic upgrade head` first."
+        expected_heads = _expected_migration_heads()
+        with self.engine.connect() as connection:
+            inspector = inspect(connection)
+            tables = set(inspector.get_table_names())
+            required = set(Base.metadata.tables)
+            missing = required - tables
+            if "alembic_version" not in tables or missing:
+                details = sorted(missing)
+                if "alembic_version" not in tables:
+                    details.append("alembic_version")
+                raise RuntimeError(
+                    "Database schema is missing required tables (missing: "
+                    f"{', '.join(details)}). Run `python -m alembic upgrade head` "
+                    "explicitly; application startup never upgrades the database."
+                )
+
+            version_columns = inspector.get_columns("alembic_version")
+            if (
+                len(version_columns) != 1
+                or version_columns[0]["name"] != "version_num"
+                or version_columns[0]["nullable"]
+                or not version_columns[0]["primary_key"]
+                or not isinstance(version_columns[0]["type"], String)
+                or version_columns[0]["type"].length != 32
+            ):
+                raise RuntimeError(
+                    "The alembic_version table has an incompatible structure; "
+                    "restore a known-good schema or repair it with an explicit, "
+                    "operator-reviewed migration. Startup does not repair schema."
+                )
+
+            actual_heads = tuple(
+                sorted(
+                    str(head)
+                    for head in MigrationContext.configure(connection).get_current_heads()
+                )
             )
+            if actual_heads != expected_heads:
+                expected = ", ".join(expected_heads)
+                found = ", ".join(actual_heads) or "<none>"
+                raise RuntimeError(
+                    "Database Alembic revision mismatch "
+                    f"(expected head(s): {expected}; found: {found}). No migration "
+                    "was run. Review the revision history and explicitly migrate "
+                    "a known older revision or restore a verified backup."
+                )
+
+            # Alembic autogenerate compares columns, indexes, unique constraints
+            # and foreign keys, but does not report primary-key changes. Check
+            # those explicitly so a database cannot pass with its row identity
+            # constraints removed or altered.
+            summaries: list[str] = []
+            for table in Base.metadata.sorted_tables:
+                expected_primary_key = list(table.primary_key.columns.keys())
+                actual_primary_key = inspector.get_pk_constraint(table.name).get(
+                    "constrained_columns", []
+                )
+                if actual_primary_key != expected_primary_key:
+                    summaries.append(
+                        f"primary_key {table.name} "
+                        f"(expected {expected_primary_key}; found {actual_primary_key})"
+                    )
+
+            differences = compare_metadata(
+                MigrationContext.configure(connection, opts={"compare_type": True}),
+                Base.metadata,
+            )
+            summaries.extend(_schema_change_label(change) for change in differences)
+            if summaries:
+                details = ", ".join(summaries[:10])
+                if len(summaries) > 10:
+                    details += f", and {len(summaries) - 10} more"
+                raise RuntimeError(
+                    "Database schema is incompatible with the current Alembic "
+                    f"head (differences: {details}). Restore a verified backup or "
+                    "repair it with an explicit, operator-reviewed migration; "
+                    "startup never changes the schema."
+                )
+
+            if connection.dialect.name == "sqlite":
+                foreign_keys_enabled = connection.exec_driver_sql(
+                    "PRAGMA foreign_keys"
+                ).scalar_one()
+                if foreign_keys_enabled != 1:
+                    raise RuntimeError(
+                        "SQLite foreign-key enforcement is disabled for this "
+                        "connection; database startup verification failed."
+                    )
+
+                integrity_result = connection.exec_driver_sql(
+                    "PRAGMA integrity_check"
+                ).scalar_one()
+                if integrity_result != "ok":
+                    raise RuntimeError(
+                        f"SQLite integrity_check failed: {integrity_result}"
+                    )
+
+                foreign_key_violation = connection.exec_driver_sql(
+                    "PRAGMA foreign_key_check"
+                ).first()
+                if foreign_key_violation is not None:
+                    raise RuntimeError(
+                        "SQLite foreign-key integrity check failed "
+                        f"(first violation: {tuple(foreign_key_violation)})."
+                    )
 
     def dispose(self) -> None:
         self.engine.dispose()

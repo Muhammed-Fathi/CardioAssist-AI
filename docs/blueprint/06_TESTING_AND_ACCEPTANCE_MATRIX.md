@@ -1,10 +1,10 @@
 # 06 — Local Testing and Milestone Acceptance Matrix
 
-**Status:** Updated for D-045 / M1b.1 on 2026-10-17. The results below are
-local runs in the current checkout, Linux, Python 3.11.2. M1b.1 is in
-standalone PR #9 (**OPEN**); this is not a CI result or a merge. The GitHub
-check rollup was not retrievable in this session, so current CI status is
-**UNVERIFIED**.
+**Status:** Updated 2026-10-20 for the blocking schema-verification correction
+in M1b.1. Results below are local runs on Linux / Python 3.11.2 from a fresh
+`.venv`. The change is on standalone PR #9 (**OPEN**, not merged). GitHub CI is
+reported separately and remains **UNVERIFIED** because check-run access was
+blocked; none of the local results are CI results.
 
 ---
 
@@ -12,19 +12,24 @@ check rollup was not retrievable in this session, so current CI status is
 
 | Check | Location / command | Exact result | Scope |
 |---|---|---|---|
-| Contract/fixture/oracle suite | `python -m pytest tests/contracts -q -W error` | **249 passed** | OpenAPI/schemas, all 31 fixture scenarios / 38 steps, oracle, safety and optional-null behavior |
-| Backend suite | `python -m pytest tests/backend -q -W error` | **362 passed** | 347 existing backend regressions + 15 M1b.1 migration/persistence cases |
-| Contract + backend combined | `python -m pytest tests/contracts tests/backend -q -W error` | **611 passed** | Fixture pack and live HTTP/persistence behavior together |
-| Full repository pytest | `python -m pytest -q -W error` | **611 passed** | All pytest tests in the repository |
-| Dependency consistency | `python -m pip check` | **No broken requirements found** | Pinned backend + test dependencies |
-| Migration smoke | Fresh disposable SQLite DB: upgrade → `alembic check` → downgrade → re-upgrade → `alembic check` | **PASS** | No developer database was downgraded or removed |
+| Contract/fixture/oracle suite | `python -m pytest tests/contracts -q -W error` | **249 passed in 0.70s** | OpenAPI/schemas, all 31 fixture scenarios / 38 steps, oracle, safety and optional-null behavior |
+| Backend suite | `python -m pytest tests/backend -q -W error` | **371 passed in 17.49s** | 347 existing backend regressions + 24 SQLite persistence/migration cases |
+| Contract + backend combined | `python -m pytest tests/contracts tests/backend -q -W error` | **620 passed in 17.60s** | Fixture pack and live HTTP/persistence behavior together |
+| Full repository pytest | `python -m pytest -q -W error` | **620 passed in 18.27s** | All pytest tests in the repository |
+| Persistence/schema regressions | `python -m pytest tests/backend/test_persistence.py -q -W error` | **24 passed in 1.00s** | Explicit migrations; wrong/empty revisions; missing columns/constraints; SQLite integrity; lifespan failure/no auto-repair |
+| Fresh dev dependency install | `python -m pip install -r backend/requirements-dev.txt` | **PASS** | Includes importable `httpx==0.28.1` and `httpx2==2.13.1`; no requirements changes |
+| Dependency consistency | `python -m pip check` | **No broken requirements found** | Fresh pinned backend + test dependencies |
+| Migration smoke | Fresh disposable SQLite DB: upgrade → `alembic check` → downgrade → re-upgrade → `alembic check` | **PASS** | Both checks: `No new upgrade operations detected.` No developer DB changed |
 | Source integrity | `python scripts/verify_sources.py` | **PASS: 4/4 SHA256 hashes** | 25 papers: **9 GREEN / 1 PINK / 6 ORANGE / 9 RED** |
 | Diff whitespace | `git diff --check` | **PASS** | No whitespace errors |
 
-The backend tests use a fresh temporary, migrated SQLite database per test.
-Coverage includes configurable DB URL, fresh/repeated migration and metadata
-consistency, read/write, process-reopen durability, transaction rollback,
-foreign-key/uniqueness enforcement, concurrency and in-process replay,
+The backend tests use fresh temporary SQLite files. Coverage includes exact
+Alembic-head verification; empty, stale and unknown revisions; missing
+columns, indexes, primary keys, foreign-key constraints and unique
+constraints; pre-existing foreign-key violations; SQLite integrity checks;
+failed FastAPI lifespan startup without auto-upgrade or repair; configurable
+DB URL; fresh/repeated migration and metadata
+consistency; reads/writes, restart durability, rollback, concurrency/replay,
 validation/malformed-input non-persistence, isolation, and existing fixture,
 synthetic CAD and monitoring regressions. No test uses real patient data,
 external database services, datasets, or model weights.
@@ -46,27 +51,36 @@ python scripts/verify_sources.py
 git diff --check
 ```
 
-Windows PowerShell (the database path is local, configurable, and ignored by
-git):
+Windows PowerShell (use Python **3.12.9** if reproducing the maintainer's
+reported environment). The UUID-named database below is disposable and avoids
+running migration commands against a developer database:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r backend/requirements-dev.txt
 python -m pip check
-$env:CARDIOASSIST_DATABASE_URL = "sqlite:///./var/cardioassist.sqlite3"
+python -c "import httpx, httpx2; print(httpx.__version__, httpx2.__version__)"
+$testDb = Join-Path $env:TEMP ("cardioassist-pr9-" + [guid]::NewGuid().ToString() + ".sqlite3")
+$env:CARDIOASSIST_DATABASE_URL = "sqlite:///$($testDb.Replace('\', '/'))"
 python -m alembic upgrade head
 python -m alembic check
+python -m alembic downgrade base
+python -m alembic upgrade head
+python -m alembic check
+python -m pytest tests/backend/test_persistence.py -q -W error
 python -m pytest tests/contracts tests/backend -q -W error
 python -m pytest -q -W error
 python scripts/verify_sources.py
 git diff --check
 ```
 
-The Windows PowerShell commands are provided for reproducibility; Windows
-execution and Python 3.12 local execution are **UNVERIFIED** in this session.
-For restart, cleanup of a deliberately disposable demo database, and warnings
-about not deleting an existing DB, see [`backend/README.md`](../backend/README.md).
+The maintainer reported 611 passing tests on Windows/Python 3.12.9 for the
+pre-correction PR head; that report does **not** verify this new fix. Windows
+execution of the correction remains **UNVERIFIED** until the above commands
+are rerun against it. For restart, cleanup of a deliberately disposable demo
+database, and warnings about not deleting an existing DB, see
+[`backend/README.md`](../backend/README.md).
 
 Run the local backend after applying migrations (one worker only):
 
@@ -74,8 +88,9 @@ Run the local backend after applying migrations (one worker only):
 python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --workers 1
 ```
 
-The app fails closed if its database is not migrated; it never silently
-creates/upgrades the schema. It remains unauthenticated. Bind beyond loopback
+The app fails closed unless the database revision and schema match the
+checked-in migration head; it never silently creates, upgrades or repairs the
+schema. It remains unauthenticated. Bind beyond loopback
 only for a controlled synthetic-data demo with suitable network restrictions.
 
 ### GitHub CI (reported separately)
@@ -92,7 +107,7 @@ that is not an individual check result; no CI pass/fail is inferred. Python
 
 | Guard | Command / mechanism | Protects |
 |---|---|---|
-| Full suite (**611+** at this snapshot) | `python -m pytest -q -W error` | Wire behavior, fixtures, idempotency, audit boundaries, Track separation and persistence regressions |
+| Full suite (**620+** at this snapshot) | `python -m pytest -q -W error` | Wire behavior, fixtures, idempotency, audit boundaries, Track separation and persistence regressions |
 | Contract oracle | `tests/contracts/` (`reference_contract.py`) | Approved mock semantics and complete fixture pack |
 | Monitoring persistence | `tests/backend/test_persistence.py` + HTTP tests | Atomic observation/metric/success-audit commit; replay/error non-persistence; restart durability; SQLite constraints |
 | Source integrity | `python scripts/verify_sources.py` | Four original source files + SHA256 manifest and supervisor classification |
@@ -115,7 +130,7 @@ rows describe eventual acceptance requirements, not work already done.
 | Milestone | Status | Local acceptance beyond §2 | S / D | Human review / boundary |
 |---|---|---|---|---|
 | **M1a.3** thin React + Flutter | **DEFERRED / RESEQUENCED by D-045; not cancelled or completed** | When separately scheduled: React component/snapshot tests for target/disclaimer/status copy, mock score labels, optional missing values, replay, 409, 422 wearable rejection and 503; Flutter widget tests for fields/status/errors, source labels and absence of CAD output/actions. Preserve relative `/v1`, `--dart-define`, and no browser-side `localhost`. | Demonstrate synthetic prediction and observation submission/retry, changed-key conflict and wearable→CAD 422/no score; record emulator/physical-device evidence or UNVERIFIED limits. | Requires later explicit scheduling/authorization. Carry B-01–B-04, G-02 and X-01; A-01 technical correction is complete (D-044 / PR #7/#8). |
-| **M1b.1** SQLite/Alembic persistence foundation | **AUTHORIZED; IMPLEMENTED + TESTED locally; standalone PR #9 OPEN** | Fresh/repeated migration + `alembic check`; disposable downgrade/re-upgrade; configurable path; isolated reads/writes; transaction rollback; foreign keys/indexes/unique constraints; restart durability; concurrent/replay behavior; malformed/rejected requests create no rows; existing `/v1` fixture, inference and monitoring regressions unchanged. | Synthetic/demo records only. Verify one metadata-only success-audit row in the same transaction; no CAD response, no new route, no contract/fixture change. | Human PR review and GitHub CI remain separate; no merge is claimed. SQLite only; PostgreSQL parity is not claimed. Patient/consent refs remain opaque. |
+| **M1b.1** SQLite/Alembic persistence foundation | **AUTHORIZED; IMPLEMENTED + TESTED locally; blocking schema-verification correction on standalone PR #9 OPEN** | Fresh/repeated migration + `alembic check`; disposable downgrade/re-upgrade; exact Alembic head check; reject empty/unknown/stale revisions, missing columns/indexes/primary keys and FK violations; lifespan fails without auto-migrate/repair; configurable path; isolated reads/writes; transaction rollback; restart durability; concurrent/replay behavior; existing `/v1` fixture, inference and monitoring regressions unchanged. | Synthetic/demo records only. Verify one metadata-only success-audit row in the same transaction; no CAD response, no new route, no contract/fixture change. | Human PR review and GitHub CI remain separate; no merge is claimed. SQLite only; PostgreSQL parity is not claimed. Patient/consent refs remain opaque. |
 | **M1b remaining slices** platform completion | **PROPOSED / not authorized by M1b.1** | Future slices need their own tests/approval: auth/RBAC role matrix, consent lifecycle, durable audit/error/idempotency only after policy review, read/history/review APIs contract-first, offline/batch sync contract-first, admin and registry. | Client text and behavior must remain clearly synthetic; no unapproved clinical copy or inference from Track B. | Q8's durable idempotency/store-of-record policy remains open; no auth/RBAC, history/review/consent API or frontend is included in M1b.1. |
 | **M2** Gate DA audit | **RESEARCH-GATED (P-2)** | Authorized read-only dataset audit, hash/license/availability/duplicate/overlap tooling tests; `verify_sources.py` remains green. | Attach dataset checklist and **“no fitting occurred”** certification. | Named human dataset authorization before any acquisition. |
 | **M3** frozen protocol + real models | **RESEARCH-GATED (P-3 after M2)** | Protocol, leakage checks, negative controls, calibration, explanation fidelity/stability, and full mock-regression suite green behind separately approved real schemas/models. | Report negative as well as positive results; no mock/real confusion. | Supervisor signs Gate PT before fitting, selection, tuning or evaluation. |

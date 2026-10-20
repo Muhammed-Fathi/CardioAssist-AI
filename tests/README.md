@@ -2,15 +2,16 @@
 
 All committed fixtures and persistence test data are **MOCK / SYNTHETIC**.
 The suites need no model, real dataset, patient data, paid service or external
-database account. The backend suite creates isolated temporary SQLite files
-and applies the committed Alembic migration per test; pytest removes its
-throwaway databases afterward.
+database account. Backend tests use isolated temporary SQLite files; tests
+apply the committed Alembic migration where appropriate, and schema-verification
+regressions deliberately use unmigrated or malformed disposable databases.
+Pytest removes its throwaway databases afterward.
 
 | Folder | Milestone | What it does |
 |---|---|---|
 | `contracts/` | M1a.1 (D-043), merged PR #3 | **249 tests** for OpenAPI, schemas, fixture/oracle behavior, and safety/compatibility rules. ADR-001 Option A (D-044) added the optional-null matrix and minimally adapted oracle; no original test was removed. See `contracts/README.md`. |
-| `backend/` | M1a.2 + M1b.1 | **362 tests**: 347 existing API/HTTP behavior regressions plus 15 SQLite persistence/migration tests. Covers fixture HTTP behavior, validation order/errors, Track separation, synthetic inference, replay/conflict and 24-hour runtime expiry, concurrency, restart durability of monitoring rows, rollback, constraints, malformed inputs, configuration-based DB path and test-DB isolation. |
-| **Total** | current checkout | **611 tests** (`249` contract + `362` backend). The exact latest local run, interpreter and CI caveats are recorded in `backend/VERIFICATION.md` and `docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md`. |
+| `backend/` | M1a.2 + M1b.1 | **371 tests**: 347 existing API/HTTP behavior regressions plus 24 SQLite persistence/migration tests. Covers fixture HTTP behavior, validation order/errors, Track separation, synthetic inference, replay/conflict and 24-hour runtime expiry, concurrency, restart durability, rollback, revision/schema drift and integrity rejection, lifespan failure without auto-migration/repair, malformed inputs, configuration-based DB path and test-DB isolation. |
+| **Total** | current checkout | **620 tests** (`249` contract + `371` backend). The current local run, interpreter and CI caveats are recorded in `backend/VERIFICATION.md` and `docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md`. |
 
 ## Local setup and checks (repository root)
 

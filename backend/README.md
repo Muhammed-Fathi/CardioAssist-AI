@@ -34,9 +34,18 @@ is optional: the same relative SQLite URL is the default. Set a different
 Alembic read the same variable. No user-specific absolute path is built into
 the code. Do not put credentials in the URL or commit a database file.
 
-Migrations are explicit. The app fails closed at startup if the migration
-schema is missing; it never silently creates or upgrades tables. For normal
-local development:
+Migrations are explicit and operator-controlled. FastAPI startup fails closed
+unless the recorded Alembic revision is exactly the checked-in migration
+head(s), the `alembic_version` table has the expected structure, and the live
+schema matches SQLAlchemy metadata. The structural comparison covers required
+tables/columns, types, nullability, indexes, unique constraints and foreign
+keys; primary keys are checked explicitly because Alembic autogenerate does
+not report primary-key drift. On SQLite, startup also requires foreign-key
+enforcement and clean `PRAGMA integrity_check` / `PRAGMA foreign_key_check`
+results. Startup does not create tables, upgrade revisions, or repair schema.
+
+For normal local development, inspect the migration history and apply a
+migration explicitly before starting the app:
 
 ```bash
 python -m alembic current
@@ -45,10 +54,15 @@ python -m alembic upgrade head
 python -m alembic check
 ```
 
-`alembic check` verifies that the current revision matches the SQLAlchemy
-metadata. Use `alembic downgrade` only against a disposable test database;
-never downgrade or delete a developer's existing database. Test migration
-downgrade/re-upgrade operations run only in pytest's temporary directories.
+`alembic check` compares the live schema to SQLAlchemy metadata; the app's
+startup check separately compares the recorded revision with the expected
+migration head(s). For a known older revision, back up the database before
+explicitly upgrading. If the recorded revision is unknown or the schema has
+manual drift, restore a verified backup or use an operator-reviewed repair;
+do not stamp or auto-repair an uncertain database. Use `alembic downgrade`
+only against a disposable test database; never downgrade or delete a
+developer's existing database. Test migration downgrade/re-upgrade operations
+run only in pytest's temporary directories.
 
 ## M1b.1 schema and service boundary
 
@@ -182,11 +196,15 @@ python scripts/verify_sources.py
 git diff --check
 ```
 
-The backend tests use a fresh disposable SQLite database per test, apply the
-Alembic migration, and cover migration up/down/re-up on temporary files,
-metadata consistency, successful writes/reads, restart durability, rollback,
-foreign-key/unique constraints, concurrency/replay, malformed and rejected
-inputs, test-database isolation, contract fixtures and synthetic CAD/Track-B
+The backend tests use fresh disposable SQLite databases; they apply the
+Alembic migration where appropriate and deliberately use unmigrated or
+malformed temporary databases for startup-verification regressions. They cover
+migration up/down/re-up on temporary files, recorded revision validation
+(including empty, unknown and stale values),
+column/index/primary-key drift, existing foreign-key violations, read/write,
+restart durability, transaction rollback, concurrency/replay, malformed and
+rejected inputs, startup failure without automatic upgrade or repair,
+test-database isolation, contract fixtures and synthetic CAD/Track-B
 regressions. No migration downgrade or delete is run against a developer's
 local database.
 

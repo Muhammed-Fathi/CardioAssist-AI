@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import sqlite3
 import uuid
 from pathlib import Path
 
@@ -41,6 +42,221 @@ def test_unmigrated_database_fails_closed_with_actionable_error(database_url):
             database.verify_schema()
     finally:
         database.dispose()
+
+
+@pytest.mark.parametrize("revision", ["20261016_00", "unknown_revision"])
+def test_database_rejects_outdated_or_unknown_alembic_revision(database_url, revision):
+    _upgrade(database_url)
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "UPDATE alembic_version SET version_num = ?", (revision,)
+            )
+    finally:
+        engine.dispose()
+
+    database = Database(database_url)
+    try:
+        with pytest.raises(RuntimeError, match="Alembic revision mismatch") as error:
+            database.verify_schema()
+        assert "20261017_01" in str(error.value)
+        assert revision in str(error.value)
+    finally:
+        database.dispose()
+
+
+def test_database_rejects_empty_alembic_revision_table(database_url):
+    _upgrade(database_url)
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("DELETE FROM alembic_version")
+    finally:
+        engine.dispose()
+
+    database = Database(database_url)
+    try:
+        with pytest.raises(RuntimeError, match="Alembic revision mismatch") as error:
+            database.verify_schema()
+        assert "found: <none>" in str(error.value)
+    finally:
+        database.dispose()
+
+
+def test_database_rejects_missing_column_and_critical_index(database_url):
+    _upgrade(database_url)
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE monitoring_observation DROP COLUMN source_detail"
+            )
+            connection.exec_driver_sql("DROP INDEX ix_monitoring_metric_metric_id")
+    finally:
+        engine.dispose()
+
+    database = Database(database_url)
+    try:
+        with pytest.raises(RuntimeError, match="schema is incompatible") as error:
+            database.verify_schema()
+        message = str(error.value)
+        assert "add_column monitoring_observation.source_detail" in message
+        assert "add_index ix_monitoring_metric_metric_id" in message
+    finally:
+        database.dispose()
+
+
+def test_database_rejects_missing_primary_key_constraint(database_url):
+    _upgrade(database_url)
+    database_path = Path(database_url.removeprefix("sqlite:///"))
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute("DROP TABLE monitoring_metric")
+        connection.execute(
+            """
+            CREATE TABLE monitoring_metric (
+                metric_record_id VARCHAR(36) NOT NULL,
+                observation_record_id VARCHAR(36) NOT NULL,
+                ordinal INTEGER NOT NULL,
+                metric_id VARCHAR(64) NOT NULL,
+                value_json JSON NOT NULL,
+                unit VARCHAR(32) NOT NULL,
+                recorded_at VARCHAR(40),
+                quality_note VARCHAR(200),
+                FOREIGN KEY (observation_record_id)
+                    REFERENCES monitoring_observation(record_id) ON DELETE RESTRICT,
+                CONSTRAINT uq_monitoring_metric_observation_ordinal
+                    UNIQUE (observation_record_id, ordinal)
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX ix_monitoring_metric_observation "
+            "ON monitoring_metric (observation_record_id)"
+        )
+        connection.execute(
+            "CREATE INDEX ix_monitoring_metric_metric_id "
+            "ON monitoring_metric (metric_id)"
+        )
+
+    database = Database(database_url)
+    try:
+        with pytest.raises(RuntimeError, match="primary_key monitoring_metric"):
+            database.verify_schema()
+    finally:
+        database.dispose()
+
+
+def test_database_rejects_missing_foreign_key_and_unique_constraints(database_url):
+    _upgrade(database_url)
+    database_path = Path(database_url.removeprefix("sqlite:///"))
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute("DROP TABLE monitoring_metric")
+        connection.execute(
+            """
+            CREATE TABLE monitoring_metric (
+                metric_record_id VARCHAR(36) NOT NULL PRIMARY KEY,
+                observation_record_id VARCHAR(36) NOT NULL,
+                ordinal INTEGER NOT NULL,
+                metric_id VARCHAR(64) NOT NULL,
+                value_json JSON NOT NULL,
+                unit VARCHAR(32) NOT NULL,
+                recorded_at VARCHAR(40),
+                quality_note VARCHAR(200)
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX ix_monitoring_metric_observation "
+            "ON monitoring_metric (observation_record_id)"
+        )
+        connection.execute(
+            "CREATE INDEX ix_monitoring_metric_metric_id "
+            "ON monitoring_metric (metric_id)"
+        )
+
+    database = Database(database_url)
+    try:
+        with pytest.raises(RuntimeError, match="schema is incompatible") as error:
+            database.verify_schema()
+        assert "add_constraint uq_monitoring_metric_observation_ordinal" in str(error.value)
+        assert "add_fk" in str(error.value)
+    finally:
+        database.dispose()
+
+
+def test_database_rejects_existing_foreign_key_violations(database_url):
+    _upgrade(database_url)
+    database_path = Path(database_url.removeprefix("sqlite:///"))
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("PRAGMA foreign_keys = OFF")
+        connection.execute(
+            """
+            INSERT INTO monitoring_metric (
+                metric_record_id, observation_record_id, ordinal, metric_id,
+                value_json, unit, recorded_at, quality_note
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(uuid.uuid4()),
+                str(uuid.uuid4()),
+                0,
+                "mock_metric_heart_rate",
+                "64",
+                "u_rate",
+                None,
+                None,
+            ),
+        )
+
+    database = Database(database_url)
+    try:
+        with pytest.raises(RuntimeError, match="foreign-key integrity check failed"):
+            database.verify_schema()
+    finally:
+        database.dispose()
+
+
+def test_fastapi_lifespan_fails_without_automatically_migrating(database_url):
+    app = create_app(database_url=database_url)
+    with pytest.raises(RuntimeError, match="missing required tables"):
+        with TestClient(app):
+            pytest.fail("An unmigrated database must not start the application.")
+
+    engine = create_engine(database_url)
+    try:
+        assert inspect(engine).get_table_names() == []
+    finally:
+        engine.dispose()
+
+
+def test_fastapi_lifespan_rejects_malformed_schema_without_repairing(database_url):
+    _upgrade(database_url)
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE monitoring_observation DROP COLUMN source_detail"
+            )
+    finally:
+        engine.dispose()
+
+    app = create_app(database_url=database_url)
+    with pytest.raises(RuntimeError, match="schema is incompatible"):
+        with TestClient(app):
+            pytest.fail("A malformed schema must not start the application.")
+
+    engine = create_engine(database_url)
+    try:
+        column_names = {
+            column["name"]
+            for column in inspect(engine).get_columns("monitoring_observation")
+        }
+        assert "source_detail" not in column_names
+    finally:
+        engine.dispose()
 
 
 def test_configured_database_url_is_shared_by_alembic_and_application(tmp_path, monkeypatch):
