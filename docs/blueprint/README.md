@@ -22,6 +22,7 @@ governed elsewhere, this set cites the source and defers to it:
 | `docs/M1A3_INTEGRATION_HANDOFF.md` | Preserved handoff plan for deferred/resequenced M1a.3; not a current implementation authorization |
 | `docs/DECISIONS.md` (D-045) | Current execution-priority ordering and authorization for M1b.1 only |
 | `research/source_materials/` (PDF + speaker notes + CSV/XLSX) | Product vision (47 slides) and supervisor paper classification |
+| [`docs/research/gate-da/`](../research/gate-da/README.md) | **PROPOSED** Gate DA dataset-suitability and decision package (2026-10-20): candidate matrix/ranking, leakage & target-harmonization register, Gate DA approval packet, NOT-APPROVED Gate PT outline, clinician-input feasibility, open decisions, phased handoff. Prepares P-2/P-1 decisions; authorizes no acquisition, training, schema, or contract change |
 
 ## Deliverable map (task items 1–8 + ADR)
 
