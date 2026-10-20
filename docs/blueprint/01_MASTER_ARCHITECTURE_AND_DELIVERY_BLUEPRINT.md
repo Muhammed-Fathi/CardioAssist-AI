@@ -1,9 +1,10 @@
 # 01 — Master Architecture and Delivery Blueprint
 
-**Status:** PROPOSED planning baseline (documentation only), 2026-10-17.
-Supersedes no existing document; where it restates an existing decision it
-cites it and defers to it. Nothing here authorizes implementation, data
-access, training, or merging.
+**Status:** Planning baseline reconciled to maintainer-approved D-045
+(2026-10-17). It supersedes no existing document; where it restates a decision
+it cites and defers to the authoritative record. D-045 authorizes only M1b.1,
+a small SQLite/Alembic persistence slice; this blueprint authorizes no further
+implementation, dataset access, model training, or merging.
 
 ---
 
@@ -78,7 +79,7 @@ alternative (any alternative requires a new decision entry in
 | Patient app | **Flutter** (Android-first) | D-034 | Local emulator + one physical device at $0; iOS/store release out of scope (D-019/D-030) |
 | Clinician site | **React + TypeScript** | D-035 | Vite-class pinned toolchain; relative `/v1` URLs; dev-server proxy to backend |
 | Backend | **Python FastAPI modular monolith**, versioned `/v1` | D-036, D-041 | One deployable process; module boundaries without network boundaries |
-| Persistence | **SQLite for local development**, documented **PostgreSQL migration path** | Task-locked 2026-10-17 (extends Phase 0 §7.2 "SQLite for zero-setup dev") | No database exists yet — see [04](04_DATABASE_AND_API_INTEGRATION_DESIGN.md); persistence is an M1b deliverable |
+| Persistence | **SQLite for local development**, documented **PostgreSQL migration path** | Task-locked 2026-10-17 (extends Phase 0 §7.2 "SQLite for zero-setup dev") | M1b.1 implements a migrated SQLite store for the existing monitoring POST only; broader persistence remains M1b work — see [04](04_DATABASE_AND_API_INTEGRATION_DESIGN.md) |
 | Contracts | OpenAPI 3 + JSON Schema 2020-12, fixtures + tests in `shared/contracts/` | M1a.1 (PR #3), D-043 | Approved artifacts change only via a reviewed change-set (see ADR-001) |
 | AI | Tabular models + **real** TreeSHAP/LIME at research time; deterministic **mock** until Gate PT | D-038, Phase 0 §R2-5 | `ai/` remains empty until M3 |
 | Infrastructure | **Free/local-first, $0** | D-001, D-041 | No mandatory paid services; hosted demo optional + disposable (Phase 0 §7.4) |
@@ -108,23 +109,23 @@ maintainer.
 └──────────────┬────────────────────────────────────────────────────────────────────────────────────┘
                │ SQL (SQLAlchemy/Alembic-class; SQLite dev → PostgreSQL path, 04)
         ┌──────▼───────┐
-        │  SQLite (dev) │  ← planned M1b; today all state is in-memory and resets on restart
+        │  SQLite (dev) │  ← M1b.1 monitoring rows + success audit persist; idempotency remains in-memory
         └──────────────┘
    clinician-web (React+TS) ——— same /v1 contract ——— patient app (Flutter, Android)
 ```
 
-Module rules (enforced from M1b onward; the current mock backend predates
-them and is exempt until persistence lands):
+Module rules (M1b.1 applies these to the monitoring persistence boundary;
+other modules remain deferred until their own reviewed slices):
 
 1. Modules communicate through explicit service interfaces or the SQL layer
    they own; **no cross-module table access** (Phase 0 §7.2 monolith
    discipline).
-2. Every externally visible write emits exactly one audit event; audit rows
-   are append-only. Append-only is enforced by **application design**
-   (insert-only code paths, no update/delete service methods) — SQLite has
-   no per-table `UPDATE`/`DELETE` grant enforcement; the PostgreSQL
-   migration path adds `REVOKE UPDATE, DELETE` (and optionally triggers) as
-   defense-in-depth (see [04](04_DATABASE_AND_API_INTEGRATION_DESIGN.md) §4).
+2. The M1b.1 monitoring write emits one durable success-audit event in the
+   same transaction. Its repository has insert/read paths only. Other existing
+   write/audit behavior remains as before and is not claimed durable yet.
+   Append-only is an **application design** rule; SQLite has no per-table
+   `UPDATE`/`DELETE` grants. PostgreSQL defense-in-depth is only a future path,
+   not tested here (see [04](04_DATABASE_AND_API_INTEGRATION_DESIGN.md) §4).
 3. The model is a versioned artifact **outside git**, loaded by `model_id`;
    artifact hash + training-dataset ids + code commit travel with every
    prediction (provenance, Phase 0 §8.1).
@@ -137,11 +138,11 @@ them and is exempt until persistence lands):
 
 ## 4. Authentication and authorization plan (prototype grade)
 
-Planned for **M1b** (the merged M1a.2 backend is explicitly unauthenticated;
-M1a.3 clients use synthetic refs — `docs/M1A3_INTEGRATION_HANDOFF.md`). This
-deviation from Phase 0 M1a's original "login/RBAC thin proof" wording is a
-documented scope refinement made by the maintainer's M1a.2/M1a.3
-authorizations; the milestone authorization for M1b must re-confirm it.
+Planned for a later M1b slice, **not M1b.1**. The merged backend remains
+unauthenticated; M1b.1 stores synthetic references only and adds no identity,
+authentication or RBAC behavior. The original thin React/Flutter M1a.3
+integration is deferred/resequenced under D-045, not cancelled or complete.
+The exact auth/RBAC scope and authorization remain future reviewed work.
 
 - **Credentials:** local accounts only; passwords hashed with argon2 or
   bcrypt via a maintained library; secrets via environment variables, never
@@ -213,8 +214,9 @@ clinical values in the event payload (current mock behavior preserved).
 - **Batch sync:** a batch observation-ingestion endpoint is an identified
   contract gap (Q11) for M1b; it must preserve per-write idempotency keys,
   per-item acceptance/rejection results, and one audit event per accepted
-  write. Until it exists, M1a.3's single-observation endpoint is the only
-  supported write.
+  write. Until a separately approved batch contract exists, the existing
+  single-observation endpoint is the only supported write; M1a.3 clients are
+  deferred/resequenced under D-045.
 - **Conflict rules:** server is source of truth; no client-side merge of
   measurement values; time is client `observed_at` + server `recorded_at`.
 - **Scope limits of the prototype:** no cross-device live sync, no push

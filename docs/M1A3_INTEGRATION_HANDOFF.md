@@ -1,31 +1,44 @@
-# M1a.3 — React + Flutter integration handoff (plan only)
+# M1a.3 — React + Flutter integration handoff (preserved plan; deferred)
 
-**Do not start this work until a human reviews/merges M1a.2 and explicitly
-authorizes M1a.3.** This file does not approve another milestone, change an API
-schema, close scientific gates or implement a frontend.
+**Status under D-045 (2026-10-17): M1a.3 is deferred/resequenced, not
+cancelled or completed.** M1b.1 is the first authorized implementation
+slice. Resume this client work only when the maintainer separately schedules
+and authorizes it. This file preserves the future plan; it does not approve
+another milestone, change an API schema, close scientific gates or implement a
+frontend. React and Flutter remain thin local integration/demo clients.
 
 ## 1. Freeze the reviewed integration baseline
 
-1. Verify the M1a.2 PR is merged into `main`; read its final approved diff,
-   `AGENTS.md`, `docs/DECISIONS.md`, `backend/CONTRACT_NOTES.md` and the shared
-   OpenAPI/schemas/fixtures. Work on the next session's dedicated branch.
-2. The maintainer has installed `.github/workflows/backend-ci.yml`; the
-   example under `backend/ci/` is historical/reference material, not the
-   executing workflow. Before claiming a green integration baseline, inspect
-   actual CI runs tied to the latest reviewed commit (`backend/ci/README.md`);
-   workflow presence alone proves no result. Ask the reviewer to resolve or
-   explicitly carry forward notes B-01–B-04, A-01, G-02 and X-01. Do not let a
-   TypeScript/Dart client silently tighten the permissive Track-B scalar types
-   or fabricate a LIME panel/result.
+1. After M1a.3 is separately authorized, verify that the reviewed M1b.1
+   persistence slice is present in the selected `main` baseline; read the
+   current `AGENTS.md`, `docs/DECISIONS.md`, `backend/CONTRACT_NOTES.md`,
+   backend README and shared OpenAPI/schemas/fixtures. Work on the next
+   authorized branch and do not assume the current open PR is merged.
+2. The installed `.github/workflows/backend-ci.yml` is distinct from the
+   historical example under `backend/ci/`. Before claiming a green integration
+   baseline, inspect actual CI runs tied to the latest reviewed commit
+   (`backend/ci/README.md`); workflow presence alone proves no result. Carry
+   B-01–B-04, G-02 and X-01 explicitly, and note that A-01's technical
+   correction is complete (PR #7/#8 merged). Do not let a TypeScript/Dart
+   client silently tighten permissive Track-B scalar types or fabricate a
+   LIME panel/result.
 3. From the repo root, run:
 
    ```bash
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install -r backend/requirements-dev.txt
+   python -m pip check
+   python -m alembic -c alembic.ini upgrade head
+   python -m alembic -c alembic.ini check
    python -m pytest tests/contracts tests/backend -q -W error
    python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
    ```
+
+   For database URL, working directory, Windows PowerShell and cleanup
+   details, follow `backend/README.md`. Runtime idempotency/replay state remains
+   in-memory; the monitoring observation, non-null metrics and success-audit
+   metadata persist in SQLite.
 
 4. Use `GET /openapi.json` (self-contained/offline refs) and the committed
    JSON Schemas as the sole wire definitions. If generating DTOs, pin the
@@ -80,8 +93,11 @@ schema, close scientific gates or implement a frontend.
    real wearable adapter.
 4. Show 201 acceptance, observation id, recorded count, source/synthetic
    labeling, disclaimer and errors. Preserve a logical write's idempotency
-   key on retry. Do not claim a consent record was verified or that data will
-   survive a server restart. No history/batch-sync endpoint exists yet.
+   key on retry. The monitoring observation, non-null metrics and success-audit
+   metadata persist across restart, but the 24-hour idempotency cache remains
+   process-local; do not promise durable replay or exactly-once behavior after
+   restart. Do not claim a consent record was verified. No history/batch-sync
+   endpoint exists.
 5. The patient screen must not call CAD inference from monitoring values or
    show a Track-A personal score. Monitoring arrivals/changes must not trigger
    CAD reassessment. Full offline queue/history/consent lifecycle belongs to
@@ -99,13 +115,18 @@ schema, close scientific gates or implement a frontend.
   Flutter → monitoring → retry with same observation id; changed payload under
   a used key → 409; wearable → CAD endpoint → 422 and no score. Prove that
   monitoring does not increase the backend inference counter.
-- Use the Python test-visible in-memory audit snapshots to prove one event
-  per accepted logical write. Do **not** invent an HTTP audit/history API or
+- Use isolated test/database inspection to prove exactly one durable,
+  metadata-only success-audit row for the first accepted monitoring write and
+  none on an in-process replay. Do **not** invent an HTTP audit/history API or
   pretend the read-only review state is a completed clinician-review workflow.
+  Error-audit snapshots and CAD-write auditing remain outside M1b.1's durable
+  scope.
 - Record emulator/physical-device evidence (or explicit UNVERIFIED limits),
   rendered mandatory wording, commands and full test output in the M1a.3 PR.
-- No training/downloads, real data, production auth/RBAC, persistent database,
-  risk thresholds/alerts, paid services, LIME fabrication or unreviewed API
-  changes. Keep other gates P-1–P-6 open.
+- M1a.3 may only add the thin client paths; it must not expand M1b.1's
+  persistence schema, retention/idempotency policy or API surface without a
+  separate authorization. No training/downloads, real data, production
+  auth/RBAC, risk thresholds/alerts, paid services, LIME fabrication or
+  unreviewed API changes. Keep other gates P-1–P-6 open.
 - Open one scoped PR targeting `main`, then stop for human review; never
   self-approve or merge.

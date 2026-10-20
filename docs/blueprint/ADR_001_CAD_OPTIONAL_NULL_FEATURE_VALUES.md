@@ -1,8 +1,8 @@
-# ADR-001 — CAD optional-null feature values: JSON Schema / backend compatibility (APPROVED — Option A; implementation in progress)
+# ADR-001 — CAD optional-null feature values: JSON Schema / backend compatibility (APPROVED — Option A; technical correction complete)
 
 | Field | Value |
 |---|---|
-| Status | **APPROVED — Option A** (maintainer, 2026-10-17; decision **D-044**). Implementation is **in progress** in two reviewed change-sets: (1) the behavior-preserving runtime schema-reader prerequisite — **PR #7, MERGED** into `main` at merge commit `7f850bd` — and (2) the normative schema/fixture/test correction — **this change-set, OPEN and under review**. Finding **A-01 stays open / pending closure** until change-set (2) is verified and merged. Do not describe the schema correction as merged before that merge. |
+| Status | **APPROVED — Option A; technical correction complete** (maintainer, 2026-10-17; decision **D-044**). The behavior-preserving runtime schema-reader prerequisite (**PR #7**) and normative schema/fixture/test correction (**PR #8**) are both merged into `main`; PR #8 merged at `156bde2`. A-01's technical correction is complete. This status does not assert independent Windows testing or retrievable GitHub check results; those remain separately reported as unverified. |
 | Date | 2026-10-17 |
 | Origin | M1a.2 review finding **A-01** (`backend/CONTRACT_NOTES.md`), re-reported for approval in PR #5 (`security: dependency and contract compatibility cleanup`) |
 | Scope | `shared/contracts/schemas/mock_clinical_feature_schema.v1.json`, `mock_clinical_feature_schema.v2.json` (optional feature slots only) |
@@ -126,12 +126,12 @@ the single non-null typed alternative from `anyOf` for non-null values; null
 continues to be skipped before type checking. It is a no-op for all current
 schemas and required slots.
 
-**PR #7 was merged on 2026-10-17** (merge commit `7f850bd`) after independent
-review and Windows testing. The schema/fixture correction is applied in the
-follow-up change-set (this PR, **open**); it depends on the merged adapter and
-does not modify a single line of `backend/app/validation.py`.
+**PR #7 was merged on 2026-10-17** (merge commit `7f850bd`) as the
+behavior-preserving adapter prerequisite. The schema/fixture correction was
+subsequently merged in PR #8 at `156bde2`; it depends on that adapter and does
+not modify a single line of `backend/app/validation.py`.
 
-### 3.1.2 The correction as applied in this change-set (PR #8, open)
+### 3.1.2 The correction as merged in PR #8
 
 The nine optional feature slots of the two mock feature schemas now carry the
 approved `anyOf` shape. Nothing else in the schemas changed: the `allOf`
@@ -243,34 +243,30 @@ fallback and must be delivered as its own reviewed change-set.
   exist yet and will be written to this corrected pattern from day one
   (recorded in `docs/blueprint/04_DATABASE_AND_API_INTEGRATION_DESIGN.md`).
 
-## 6. Regression test checklist (acceptance for the implementing PR)
+## 6. Regression test checklist (PR #8 acceptance record)
 
-State in this change-set (PR #8, **open**). Every box is a *local* result;
-final acceptance additionally requires maintainer review, independent Windows
-testing and the required GitHub checks.
+The following local results are the historical PR #8 results, not a result for
+the current M1b.1 branch. The technical correction merged in PR #8 on
+2026-10-17 at `156bde2`.
 
-- [x] `python -m pytest tests/contracts tests/backend -q -W error` green
-      (existing counts preserved or increased; nothing deleted).
+- [x] `python -m pytest tests/contracts tests/backend -q -W error` green:
       **596 passed** (249 contract + 347 backend); the merged PR #7 baseline
       was 409 (136 + 273). Nothing was deleted.
 - [x] New fixture/step present in `shared/contracts/fixtures/index.json` and
-      validated by both oracle and HTTP layers.
-      `F-03c` is indexed and is executed by the oracle pack test and by the
-      HTTP golden test.
+      validated by both oracle and HTTP layers (`F-03c`).
 - [x] `test_required_null_optional_null_and_zero_are_distinct` unchanged and
-      passing. (The file was not edited at all.)
-- [x] Required-null still 422 `missing_required_feature` (fixture F-03b
-      unchanged — byte-identical).
-- [x] Zero/false still accepted as data.
-- [x] Null vs absent still hash differently under idempotency
-      (canonical-payload rule unchanged).
-- [x] `python scripts/verify_sources.py` still passes (4/4 hashes).
-- [x] `docs/DECISIONS.md` records the maintainer decision (approve Option A /
-      approve Option B / reject) before the implementing change-set merges.
-      **D-044 — approved 2026-10-17.**
-- [ ] **Maintainer review of this PR, independent Windows testing and the
-      required GitHub checks are still outstanding. A-01 therefore stays open
-      until this PR is merged.**
+      passing; required-null still returns 422 `missing_required_feature`
+      (fixture F-03b unchanged); zero/false remain accepted; null vs absent
+      continue to hash differently under idempotency.
+- [x] `python scripts/verify_sources.py` passed (4/4 hashes) in the PR #8
+      verification record.
+- [x] D-044 records the maintainer's approval of Option A.
+- [x] Schema/fixture/test correction merged in PR #8; A-01 technical
+      correction complete.
+- [ ] Independent Windows test result is not recorded here.
+- [ ] GitHub check rollup was not retrievable in this session; no CI pass/fail
+      claim is made. These evidence gaps do not change the maintainer-recorded
+      technical-correction status.
 
 ## 7. Decision record (maintainer answers)
 
@@ -278,13 +274,13 @@ testing and the required GitHub checks.
 |---|---|
 | Approve Option A (in-place schema-only correction)? | **YES — approved 2026-10-17.** |
 | If no: approve Option B (versioned revision) instead? | **NO — Option B not selected.** |
-| Target milestone for the approved option (M1a.3 prep vs. M1b)? | **M1a.3 preparation** (client-contract alignment before client code). No M1a.3 implementation authorization is granted by this ADR. |
+| Target milestone for the approved option (M1a.3 prep vs. M1b)? | **M1a.3 preparation** was the original D-044 sequencing context; the correction shipped in PR #8. D-045 later deferred/resequenced M1a.3 without cancelling it or changing this contract correction. |
 | Name/ID of the decision entry added to `docs/DECISIONS.md` | **D-044** |
 | Sequencing after the implementation audit | **Runtime schema-reader prerequisite first** (separate reviewed PR), then the schema/fixture/test correction. The prerequisite changes no wire behavior. |
 
 The runtime prerequisite is PR #7, **merged** into `main` at merge commit
 `7f850bd`; it is documented in `backend/CONTRACT_NOTES.md` §A-01 and covered
 by `tests/backend/test_schema_reader.py`. The schema/fixture correction is
-the change-set of this PR, which is **open and under review**: it is not to
-be described as implemented or merged until that PR is merged, and **A-01
-remains open until then**.
+**merged in PR #8** at `156bde2`; together they complete A-01's technical
+correction. D-045's M1a.3 resequencing does not reopen A-01 or alter the
+approved `/v1` contract.

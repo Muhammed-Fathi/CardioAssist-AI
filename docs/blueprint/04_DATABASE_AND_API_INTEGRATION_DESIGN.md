@@ -1,11 +1,11 @@
 # 04 — Database and API Integration Design
 
-**Status:** PROPOSED (documentation only), 2026-10-17. **No database exists
-today** — the merged backend keeps all state in process memory (documented
-limitation, `backend/README.md`). This design is the implementation plan for
-M1b persistence and the M1b+ API surface. It changes no approved contract
-artifact. Table/endpoint names are proposals for review at the M1b
-authorization.
+**Status:** The full M1b schema/API design below remains **PROPOSED**; its first
+small persistence slice, M1b.1, is **IMPLEMENTED + TESTED locally** in this
+change-set. The database is configured as SQLite by default and created only
+by explicit Alembic migrations. The existing contract/fixture artifacts are
+unchanged. Exact as-built entities and intentional deferrals are listed in
+§1.1; the larger ERD is the future M1b target, not the current schema.
 
 ---
 
@@ -17,14 +17,37 @@ authorization.
 2. One SQL layer used by the modular monolith (Phase 0 §7.2 rules); module
    ownership of tables enforced by convention + review (no cross-module
    table access).
-3. **Persistence must not change wire behavior.** The 370-test suite
-   (esp. the fixture/golden-body tests) is the merge gate; idempotency and
-   one-audit-event-per-write semantics move from RAM to tables unchanged.
+3. **Persistence must not change wire behavior.** The approved contract
+   fixture pack and existing backend regression behavior, plus migration/
+   storage tests, are the regression gate. M1b.1
+   makes accepted monitoring records and their success-audit metadata durable;
+   idempotency remains process-local because Q8's durable-store decision is
+   still open.
 4. Raw datasets, model weights, lab documents and PHI stay **out of git**
-   (`docs/DATA_POLICY.md`); the database file itself is git-ignored.
-5. Migrations are versioned, reversible (up/down), and tested in CI.
+   (`docs/DATA_POLICY.md`); the configurable SQLite file and sidecars are
+   git-ignored. Inputs in this prototype remain synthetic/demo-only.
+5. Migrations are explicit, versioned and reversible. Fresh-upgrade,
+   downgrade/re-upgrade and metadata consistency checks use disposable test
+   databases; no migration is run destructively against a developer database.
 
-## 2. Proposed ERD (M1b baseline)
+### 1.1 M1b.1 as-built scope (IMPLEMENTED + TESTED locally)
+
+| Entity | M1b.1 behavior | Explicit boundary |
+|---|---|---|
+| `monitoring_observation` | Durable row written by the existing `POST /v1/monitoring/observations`; private UUID PK, indexed public `observation_id`, request id, opaque `patient_ref`/`consent_id`, source, timestamp. | Public ID is not unique because current process-local deterministic IDs can repeat after restart. `patient_ref` and `consent_id` are not FKs: the endpoint has no patient/consent lookup. |
+| `monitoring_metric` | One child row for each non-null metric; FK to its observation, unique `(observation_record_id, ordinal)`, preserving duplicates/order/current scalar behavior. | Null stays “not measured” and is omitted; no `UNIQUE(observation, metric_id)` because B-04 permits repeated IDs. |
+| `audit_event` | One metadata-only success event per accepted monitoring write, inserted in the same transaction; unique FK to its observation. Application has insert/read paths only. | Error-event snapshots remain in memory; SQLite does not provide PostgreSQL GRANT/REVOKE permissions. No audit/history HTTP API. |
+
+These three tables and their Alembic migration are the only entities in this
+slice. `PatientProfile`, `ConsentRecord`, `idempotency_record`, auth/RBAC,
+Track-A prediction/feature-set, history/review, document, registry and other
+M1b tables remain **DEFERRED**. The opaque consent reference keeps the current
+non-empty-only validation; no consent grant is created or inferred. Durable
+idempotency remains deferred until Q8 is reviewed. This scope distinction is
+intentional; it preserves the current contract while still providing real,
+transactional monitoring storage.
+
+## 2. Full M1b target ERD (PROPOSED; not all entities are implemented)
 
 ````
                                  ┌────────────────────┐
@@ -118,10 +141,12 @@ authorization.
                                └───────────────────────┘  └─────────────────────────┘
 ````
 
-`patient_ref` (wire) is a pseudonymous external key; `patient_id` is the
-internal PK. Linkage is server-side only. `audit_id` doubles as the
-prediction's public result id (current mock behavior: the response's
-`audit_id` is the replay identity).
+In the full target schema, `patient_ref` (wire) maps server-side to an
+internal `patient_id`. **That mapping is not implemented in M1b.1:** the
+existing monitoring request stores its synthetic `patient_ref` and
+`consent_id` as opaque strings, because the endpoint does not resolve either
+to a master record. `audit_id` remains the mock prediction's public result id;
+Track-A prediction persistence is deferred.
 
 **Laboratory-data boundary (binding, [05 §2.1](05_RESEARCH_METHODOLOGY_AND_APPROVAL_GATES.md)):**
 `extraction_field` rows are Track-B document records. The
@@ -136,18 +161,18 @@ to `clinical_feature_set` or `prediction_result`; the API rejects wearable
 sources for CAD inference with `422 wearable_input_not_valid_for_cad_inference`
 (F-09), permanently.
 
-## 3. Table catalog (grouped by module)
+## 3. Full table catalog and current status
 
-| Module | Tables (proposed) | Notes |
+| Module | Tables | Current status / notes |
 |---|---|---|
-| identity | `user_account`, `role_assignment` (or role column + constraints), `session_token` | argon2/bcrypt hashes only; roles: patient/clinician/researcher/admin |
-| records | `patient_profile`, `clinician_profile`, `clinician_patient` (assignment), `medical_history_entry`, `symptom_entry`, `survey_definition`, `survey_response`, `clinical_feature_set` | survey instruments versioned; feature sets keyed by `feature_schema_id` |
-| documents | `lab_document`, `extraction_field`, `verification_event` | F14/F15 (M5); storage refs point to ignored local/object storage; sha256 always |
-| inference | `prediction_result`, `model_artifact_registry` | provenance columns mandatory (Phase 0 §8.1); explanation stored as JSON on the log-odds scale |
-| ingestion | `monitoring_observation`, `monitoring_metric` | mirrors today's wire objects; `source` closed set; consent FK required |
-| review | `review_action`, `reassessment_request`, `follow_up_task`, `notification_record`, `visit_summary` | F06; validity rules enforced server-side (§R2-2.2) |
-| audit | `audit_event` | Append-only by **application design** (insert-only code paths). SQLite cannot enforce per-table `UPDATE`/`DELETE` grants; the PostgreSQL path adds `REVOKE UPDATE, DELETE` (and optionally triggers) as defense-in-depth. One row per accepted logical write |
-| platform | `idempotency_record`, `content_item`, `disease_module` | 24 h replay retention is the **implemented & tested runtime behavior** (M1a.2, window read from the merged OpenAPI text); formal ratification of the window and the durable store of record remains **pending (Q8)** — see §5.1 |
+| identity | `user_account`, `role_assignment`, `session_token` | **DEFERRED** — no auth/RBAC in M1b.1. |
+| records | `patient_profile`, `clinician_profile`, `clinician_patient`, `medical_history_entry`, `symptom_entry`, `survey_definition`, `survey_response`, `clinical_feature_set` | **DEFERRED** — patient/consent linking is not invented from the current opaque references. |
+| documents | `lab_document`, `extraction_field`, `verification_event` | **DEFERRED** to M5 (F14/F15); synthetic samples only when authorized. |
+| inference | `prediction_result`, `model_artifact_registry` | **DEFERRED** — CAD remains mock; no prediction rows/models are stored in M1b.1. |
+| ingestion | `monitoring_observation`, `monitoring_metric` | **IMPLEMENTED + TESTED** for the existing monitoring POST. Metric rows have an observation FK and ordinal uniqueness; null metrics are omitted; duplicate metric IDs remain accepted. `patient_ref` and `consent_id` are opaque strings for now. |
+| review | `review_action`, `reassessment_request`, `follow_up_task`, `notification_record`, `visit_summary` | **DEFERRED** — F06 rules and routes require later approval/contract-first work. |
+| audit | `audit_event` | **IMPLEMENTED + TESTED** for successful monitoring writes only. Append-only application layer, one row per observation in the same transaction. SQLite cannot enforce PostgreSQL-style `UPDATE`/`DELETE` grants; no such permissions are claimed. Error events remain in-memory. |
+| platform | `idempotency_record`, `content_item`, `disease_module` | **DEFERRED**. The 24-hour monotonic idempotency runtime behavior remains implemented/tested in RAM; Q8's formal retention/store-of-record decision stays **OPEN**. |
 
 ## 4. SQLite → PostgreSQL migration path (documented rules)
 
@@ -158,10 +183,10 @@ sources for CAD inference with `422 wearable_input_not_valid_for_cad_inference`
 | JSON columns | Use `JSON` type with text-serialized JSON; avoid SQLite `->>` operators in queries; parse in Python (PG offers `JSONB` later as an optimization, not a semantic change) |
 | Booleans | SQLAlchemy `Boolean` (both backends); never 0/1 integers on the wire |
 | Date/time | Store UTC ISO-8601 or naive-UTC datetimes consistently; never local time |
-| Concurrency | SQLite: single writer, `WAL` mode, `BEGIN IMMEDIATE` for idempotency transactions (mirrors today's one coarse lock). PG: row-level locking + unique constraint on `idempotency_record.key`; semantics tests must pass on both |
+| Concurrency | SQLite: single writer and `WAL` mode. If durable idempotency is separately authorized, use an explicit write transaction (e.g. `BEGIN IMMEDIATE`) plus tested uniqueness; M1b.1 stores no idempotency rows. PostgreSQL locking/constraints require separate PG tests; parity is not claimed |
 | Migrations | Alembic up/down per change; CI runs the suite on SQLite always; a **PG compatibility job** (local `postgres` service or container) runs the same suite before any non-local deployment (target: M4) |
 | Audit append-only | Enforced in application code on both backends (insert-only service methods; no update/delete paths). **SQLite has no GRANT/REVOKE**, so table permissions cannot enforce this there; on PostgreSQL add `REVOKE UPDATE, DELETE ON audit_event` (plus optional triggers) as defense-in-depth — never claim SQLite provides PG-style permission enforcement |
-| Cutover | Export/import script for SQLite→PG (data is synthetic/demo-only at that point); documented in the M1b PR; no zero-downtime claim |
+| Cutover | Export/import script for SQLite→PG (synthetic/demo-only data); requires a separately authorized/tested migration slice; no zero-downtime claim |
 | What we never introduce without a measured need | Redis, InfluxDB, Kafka, ORM caches (Phase 0 §7.3) |
 
 ## 5. API integration map
@@ -170,8 +195,8 @@ sources for CAD inference with `422 wearable_input_not_valid_for_cad_inference`
 
 | Method/Path | Track | Status | Clients |
 |---|---|---|---|
-| `POST /v1/predictions/cad-tabular` | A | Mock, IMPLEMENTED | React (M1a.3 form), tests |
-| `POST /v1/monitoring/observations` | B | Mock, IMPLEMENTED | Flutter (M1a.3 screen), tests |
+| `POST /v1/predictions/cad-tabular` | A | Mock, IMPLEMENTED; **not persisted in M1b.1** | Tests; clients are thin local integrations, M1a.3 deferred/resequenced |
+| `POST /v1/monitoring/observations` | B | Mock, IMPLEMENTED; **durably persists observation + non-null metrics + success audit in M1b.1 SQLite** | Tests; no history/read route is added |
 | `GET /openapi.json` | — | IMPLEMENTED (self-contained) | codegen + tests |
 
 Behavioral summary: idempotency (24 h retention — **implemented & tested
@@ -182,7 +207,7 @@ original response + flag;
 (`400 malformed_request`, `409 idempotency_key_conflict`, `422` family incl.
 `wearable_input_not_valid_for_cad_inference`, `503 model_unavailable`/schema
 mismatch), deterministic synthetic scores/SHAP-shaped offsets, optional-null =
-missing (backend; the schema side is corrected under ADR-001 Option A — D-044 — in an open PR), Track-B scalars permissive
+missing (backend; the schema side was corrected under ADR-001 Option A — D-044 — PR #8 merged; A-01 technical correction complete), Track-B scalars permissive
 (B-01 open), Track-B replay = 201 (B-02 open), global key namespace with
 route guard (B-03), null/count semantics (B-04), deterministic correlation id
 (G-01). Full detail: `shared/contracts/README.md`, `backend/CONTRACT_NOTES.md`.
@@ -249,8 +274,12 @@ uses `API_BASE_URL` via `--dart-define` (M1a.3 handoff §2–3).
   only; Track-A model eligibility is a separate, stricter condition
   ([05 §2.1](05_RESEARCH_METHODOLOGY_AND_APPROVAL_GATES.md)) and is never
   implied by the verification event.
-- Every accepted write emits exactly one `audit_event` (entity ids + hashes,
-  never raw values); replays emit none (current rule preserved); conflicts
-  and validation failures emit none; unexpected 500s emit an error audit id.
-- `idempotency_record.response_snapshot` preserves the original response
-  verbatim (only `idempotent_replay` flips on replay).
+- The existing runtime keeps one in-memory audit snapshot per accepted write
+  across both tracks; replays emit none; conflicts and validation failures emit
+  none; unexpected 500s have an in-memory error audit id only. In M1b.1, an
+  accepted monitoring write additionally creates one durable, metadata-only
+  `audit_event` row in the same transaction. CAD success events and error
+  events are not durably audited by this slice.
+- Idempotency request/response snapshots remain in memory. A replay preserves
+  the original response verbatim except `idempotent_replay`; Q8's durable
+  idempotency store policy remains open.

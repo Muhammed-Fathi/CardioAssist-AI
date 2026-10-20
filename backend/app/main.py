@@ -1,8 +1,9 @@
-"""Run from the repository root:
+"""Run from the repository root after `python -m alembic upgrade head`:
 
 python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
 
-Synthetic/demo inputs only. No auth, durable storage or production guarantees.
+CAD output remains MOCK_SYNTHETIC. Only the existing monitoring write path
+has durable storage; authentication and production guarantees are absent.
 """
 
 from __future__ import annotations
@@ -10,6 +11,8 @@ from __future__ import annotations
 import json
 import math
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any, Callable
 
 from fastapi import FastAPI, Request
@@ -18,6 +21,8 @@ from starlette.concurrency import run_in_threadpool
 
 from .contracts import CAD_PATH, MONITORING_PATH, ContractFiles, ContractViolation
 from .state import MockState
+from .storage.database import Database
+from .storage.monitoring import MonitoringRepository
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -54,15 +59,34 @@ async def _read_json(request: Request) -> Any:
         raise ContractViolation(400, "malformed_request", "Request body is not valid UTF-8 JSON.") from error
 
 
-def create_app(*, clock: Callable[[], float] = time.monotonic) -> FastAPI:
+def create_app(
+    *,
+    clock: Callable[[], float] = time.monotonic,
+    database_url: str | None = None,
+) -> FastAPI:
     contracts = ContractFiles()
-    state = MockState(contracts, clock=clock)
+    database = Database(database_url)
+    monitoring_repository = MonitoringRepository(database)
+    state = MockState(contracts, monitoring_repository, clock=clock)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        try:
+            # Do not silently create/upgrade tables at service startup.
+            database.verify_schema()
+            yield
+        finally:
+            database.dispose()
+
     app = FastAPI(
         title="CardioAssist AI — MOCK_SYNTHETIC backend",
         docs_url=None, redoc_url=None,  # No CDN or external documentation assets.
         redirect_slashes=False,
+        lifespan=lifespan,
     )
     app.state.mock = state
+    app.state.database = database
+    app.state.monitoring_repository = monitoring_repository
     app.openapi = contracts.bundled_openapi
 
     async def handle(request: Request, path: str) -> JSONResponse:

@@ -1,44 +1,63 @@
 # Tests
 
-All current tests run on committed **MOCK / SYNTHETIC** contracts/inputs only.
-No model, dataset, database, service or account is needed at test time.
+All committed fixtures and persistence test data are **MOCK / SYNTHETIC**.
+The suites need no model, real dataset, patient data, paid service or external
+database account. Backend tests use isolated temporary SQLite files; tests
+apply the committed Alembic migration where appropriate, and schema-verification
+regressions deliberately use unmigrated or malformed disposable databases.
+Pytest removes its throwaway databases afterward.
 
 | Folder | Milestone | What it does |
 |---|---|---|
-| `contracts/` | M1a.1 (D-043), merged PR #3 | 249 contract/fixture/oracle tests. Historical proposal markers do not imply scientific/clinical approval. The ADR-001 Option A correction (D-044) adds the optional-null matrix and a minimally adapted oracle; the original tests are kept. See `contracts/README.md`. |
-| `backend/` | M1a.2 | 347 actual FastAPI HTTP tests, independent of the fixture-generating oracle. Golden HTTP responses, schema/error compliance, missing/null/zero, Track separation, XAI additivity, replay/conflict, 24-hour expiry, restart reset, failure paths, concurrent one-result/one-event guarantees and the ADR-001 optional-null semantics. |
+| `contracts/` | M1a.1 (D-043), merged PR #3 | **249 tests** for OpenAPI, schemas, fixture/oracle behavior, and safety/compatibility rules. ADR-001 Option A (D-044) added the optional-null matrix and minimally adapted oracle; no original test was removed. See `contracts/README.md`. |
+| `backend/` | M1a.2 + M1b.1 | **371 tests**: 347 existing API/HTTP behavior regressions plus 24 SQLite persistence/migration tests. Covers fixture HTTP behavior, validation order/errors, Track separation, synthetic inference, replay/conflict and 24-hour runtime expiry, concurrency, restart durability, rollback, revision/schema drift and integrity rejection, lifespan failure without auto-migration/repair, malformed inputs, configuration-based DB path and test-DB isolation. |
+| **Total** | current checkout | **620 tests** (`249` contract + `371` backend). The current local run, interpreter and CI caveats are recorded in `backend/VERIFICATION.md` and `docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md`. |
 
-## Combined suite (repository root)
+## Local setup and checks (repository root)
+
+Python 3.11 or 3.12; no Docker or external DB service is required. Install the
+pinned open-source dependencies (package-index access is needed to install):
 
 ```bash
 python -m venv .venv
-. .venv/bin/activate            # Windows: .venv\Scripts\activate
+. .venv/bin/activate                 # Windows PowerShell: .\.venv\Scripts\Activate.ps1
 python -m pip install -r backend/requirements-dev.txt
 python -m pip check
 python -m pytest tests/contracts tests/backend -q -W error
-# Or discover every pytest test in the repository:
 python -m pytest -q -W error
+python scripts/verify_sources.py
+git diff --check
 ```
 
-Only original contract tests:
+For Windows PowerShell, explicit Alembic migrations, configured SQLite path,
+app restart and safe disposable-database cleanup, use
+[`backend/README.md`](../backend/README.md). Tests create migrated temporary
+SQLite databases; they do not use or delete a developer's configured database.
+
+Only contract tests, without the backend dependencies:
 
 ```bash
 python -m pip install -r tests/contracts/requirements.txt
-python -m pytest tests/contracts -q
+python -m pytest tests/contracts -q -W error
 ```
 
-The original `.github/workflows/contracts-ci.yml` is unchanged. The proposed
-backend workflow is a **non-executing template** at
-`backend/ci/backend-ci.yml.example`; its exact intended destination is
-`.github/workflows/backend-ci.yml`. The maintainer must install it manually
-and inspect actual runs. **GitHub Actions status is UNVERIFIED** until then.
-See `backend/ci/README.md` for exact content/location and installation steps.
-The template covers contracts + HTTP tests on Python 3.11/3.12, with pinned
-dependencies/actions and no network during tests.
-`tests/__init__.py` and `tests/backend/__init__.py` keep the new suite's conftest
-namespaced, so it does not shadow the legacy contract tests' `from conftest`
-imports. No original contract test is rewritten to accommodate the server.
+## CI status and scope
 
-See `backend/CONTRACT_NOTES.md` for reported ambiguities/compatibility behavior
-and the explicit 503 for the legacy LIME-only binding. Its HTTP test is not
-skipped, and the unchanged M1a.1 LIME fixture/oracle tests still run.
+Both `.github/workflows/contracts-ci.yml` and
+`.github/workflows/backend-ci.yml` are installed. The backend workflow runs
+contract and backend suites (including the SQLite migration/persistence tests),
+`pip check`, source verification and a prohibited-artifact extension check on
+Python 3.11/3.12. **Workflow presence is not evidence of a passing run.** Check
+status must be reported separately from local results. For PR #9, the check
+rollup and REST check-run/status endpoints returned HTTP 403 `Resource not
+accessible by integration`; individual GitHub results are **UNVERIFIED**. See
+[`backend/ci/README.md`](../backend/ci/README.md).
+
+`tests/__init__.py` and `tests/backend/__init__.py` keep the backend
+`conftest.py` namespaced, so it does not shadow the legacy contract tests'
+`from conftest` imports. The contract oracle and actual HTTP tests remain
+independent. No original contract test was rewritten to accommodate the server.
+
+See [`backend/CONTRACT_NOTES.md`](../backend/CONTRACT_NOTES.md) for preserved
+behavior, open questions, and the 503 response for the legacy LIME-only
+binding. The unchanged M1a.1 LIME fixture/oracle tests still run.

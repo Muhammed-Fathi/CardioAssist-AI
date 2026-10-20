@@ -1,10 +1,11 @@
 # Backend CI status and local verification
 
-The maintainer has installed the backend workflow at
+The maintainer-installed backend workflow is at
 [`.github/workflows/backend-ci.yml`](../../.github/workflows/backend-ci.yml).
-It is an executing GitHub Actions workflow, not merely a proposed template.
-The existing [`contracts-ci.yml`](../../.github/workflows/contracts-ci.yml)
-remains a separate workflow. Neither workflow file is changed by this cleanup.
+It is an executing GitHub Actions workflow, not merely a proposed template;
+its backend test command now includes the M1b.1 SQLite migration/persistence
+suite. The existing [`contracts-ci.yml`](../../.github/workflows/contracts-ci.yml)
+remains separate and unchanged.
 
 **GitHub Actions results are not asserted here.** Workflow presence does not
 prove that a run was triggered, completed, or passed for a particular commit.
@@ -14,12 +15,14 @@ latest commit before reporting CI status.
 ## What the workflow covers
 
 The backend workflow tests Python 3.11 and 3.12, installs the pinned backend
-and contract-test dependencies, runs dependency consistency checks, runs
-contract and HTTP backend tests with warnings treated as errors, verifies the
-source-integrity baseline, and rejects a narrow set of prohibited artifact
-extensions. The extension guard is not a secrets or PHI scanner. Dependency
-installation requires package-index access; the tests do not require a model,
-dataset, database, cloud service, credentials, or paid service.
+and contract-test dependencies, runs dependency consistency checks, runs the
+contract and backend suites with warnings treated as errors (including the
+SQLite migration/persistence tests), verifies the source-integrity baseline,
+and rejects a narrow set of prohibited artifact extensions. The extension
+guard is not a secrets or PHI scanner. Dependency installation requires
+package-index access; tests use isolated temporary SQLite files but require
+no external database service, model, dataset, cloud service, credentials or
+paid service.
 
 `backend-ci.yml.example` is retained as historical/reference material only.
 The installed workflow under `.github/workflows/` is authoritative; do not
@@ -51,6 +54,8 @@ A local pass is useful verification but is not a GitHub Actions result.
 - **Clinical deployment:** not approved or implemented. No clinical validity,
   patient-care use, production readiness, or diagnostic capability is claimed.
 
-Human review and explicit authorization are required before moving beyond the
-mock integration milestone. Workflow CI passing would validate software
-checks only; it would not establish model validity or clinical approval.
+D-045 authorizes the M1b.1 persistence slice only; further implementation
+requires separate human authorization. Workflow CI passing would validate
+software checks only; it would not establish model validity, research-gate
+approval or clinical approval. Current-session GitHub check status is reported
+separately and is not inferred from this workflow's presence.

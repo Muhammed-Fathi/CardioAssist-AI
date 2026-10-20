@@ -1,118 +1,161 @@
 # 08 — Current Implementation Status versus Future Scope
 
-**Status:** Snapshot as of 2026-10-17, updated for the ADR-001 Option A
-schema/fixture correction (an **open** pull request on top of the merged
-PR #7 baseline `7f850bd`). Verified by re-running the full suite locally
-(596 passed, `-W error`) and `scripts/verify_sources.py` (4/4 hashes).
-Honesty rule: **no trained model exists; all CAD/XAI output is
-deterministic synthetic fixture data (`MOCK_SYNTHETIC`).**
+**Snapshot:** 2026-10-20, M1b.1 on the current session branch
+`arena/b8feac51-cardioassist-ai`, after the blocking schema-verification
+review correction. The SQLite/Alembic monitoring persistence slice is
+**IMPLEMENTED + TESTED locally** and submitted in standalone PR #9, which is
+**OPEN**; it is not merged. Latest local results are Linux / Python 3.11.2:
+**249 contract + 371 backend = 620 passed** with `-W error`; fresh dev
+requirements install and `pip check` pass; source verification passes 4/4
+hashes. See [06](06_TESTING_AND_ACCEPTANCE_MATRIX.md) for exact commands.
+GitHub check status for PR #9 is **UNVERIFIED**: the latest `gh pr checks 9`
+query reported no checks on the branch, while check-run and Actions-run API
+access returned HTTP 403 `Resource not accessible by integration`. PR metadata
+reported `mergeStateStatus=UNKNOWN`, which is not an individual check result;
+no CI pass/fail is inferred. The maintainer-reported Windows/Python 3.12.9 result
+of 611 tests was for the pre-correction head and does not verify this change.
+Windows and local Python 3.12 verification of this correction remain
+**UNVERIFIED**.
+
+**Honesty rule:** no trained model exists; all current CAD/XAI output is
+deterministic synthetic fixture data (`MOCK_SYNTHETIC`). No dataset has been
+acquired and no clinical performance, validation, diagnostic or deployment
+claim is made.
 
 ---
 
-## 1. Status taxonomy recap
+## 1. Status taxonomy
 
 | Class | Meaning |
 |---|---|
-| **IMPLEMENTED + TESTED** | In the repo, covered by tests, human-reviewed/merged |
-| **SYNTHETIC/MOCK** | Real software producing synthetic results — not AI, not clinical evidence |
-| **PROPOSED** | Designed/scheduled, not built |
+| **IMPLEMENTED** | Code or documents are present in this checkout; merge status is stated separately |
+| **TESTED** | The named local tests/checks actually passed; a green result is not inferred from code presence |
+| **SYNTHETIC/MOCK** | Real software producing deterministic synthetic results — not trained AI, not clinical evidence |
+| **PROPOSED** | Designed but not implemented/authorized in this slice |
 | **RESEARCH-GATED** | Blocked by Gate DA/PT or dataset/protocol approvals |
 | **CLINICALLY-GATED** | Blocked by clinician/supervisor review |
-| **ACCESS-GATED** | Blocked by hardware/accounts/vendor/controlled data |
-| **PROHIBITED** | Rejected design input; will not be built as described |
+| **ACCESS-GATED** | Blocked by hardware, account, vendor terms or controlled data |
+| **UNVERIFIED** | Not established by available local or GitHub evidence |
+| **PROHIBITED** | Rejected design input; may not be implemented as described |
 
 ## 2. Repository inventory → status
 
 | Path | What exists | Status |
 |---|---|---|
-| `research/source_materials/` | 47-slide PDF, speaker notes, literature XLSX/CSV, SHA256 manifest | Source of truth (immutable); integrity verified |
-| `docs/phase0/PHASE0_REVIEW_DRAFT.md` | Rev. 3 feasibility review (1,822 lines) | Merged (PR #1); governing research document |
-| `docs/DECISIONS.md` | D-001…D-044 + P-1…P-6 | Merged; authoritative register |
-| `docs/FEATURE_REGISTER.md` | F01–F12 proposed register | Merged; F13–F18 extensions proposed in [02](02_FEATURE_TRACEABILITY_MATRIX.md) |
-| `shared/contracts/` | OpenAPI, 4 schema families (common, cad request/response, monitoring request/response, mock feature v1/v2), 2 MOCK_ONLY registries, 31 fixtures (38 steps), fixture index | **IMPLEMENTED + TESTED** (M1a.1, PR #3) — approved artifacts; A-01 Option A approved (D-044), runtime prerequisite **merged** (PR #7), schema/fixture correction in an **open** PR |
-| `tests/contracts/` | 249 tests + deterministic oracle `reference_contract.py` | **IMPLEMENTED + TESTED** |
-| `backend/app/` (887 lines: `main.py`, `contracts.py`, `validation.py`, `mock_prediction.py`, `state.py`) | FastAPI mock server: 2 POST endpoints + bundled `/openapi.json`; in-memory idempotency (24 h), audit snapshots, inference counter | **IMPLEMENTED + TESTED + SYNTHETIC/MOCK** (M1a.2, PR #4; cleanup PR #5) |
-| `tests/backend/` | 347 tests: 235 HTTP tests (golden bodies, validation, Track separation, replay/conflict, concurrency, expiry, failures) + 39 ADR-001 schema-reader compatibility tests + 73 ADR-001 optional-null HTTP tests | **IMPLEMENTED + TESTED** |
-| `.github/workflows/` | `contracts-ci.yml`, `backend-ci.yml` (installed, executing) | **IMPLEMENTED** (runs must be inspected per commit) |
-| `backend/CONTRACT_NOTES.md`, `backend/VERIFICATION.md`, `backend/ci/` | Compat notes (A-01…X-01), verification records, CI notes | Documentation (merged) |
-| `docs/M1A3_INTEGRATION_HANDOFF.md` | Approved plan shape for next milestone | Documentation (merged) |
-| `frontend/clinician-web/`, `frontend/patient-mobile/` | Placeholder READMEs only (3 lines each) | **PROPOSED** — no code |
-| `ai/` | Placeholder README | **PROPOSED** — deliberately empty until M3 |
-| `infra/`, `research/experiments/` | Placeholder READMEs | **PROPOSED** |
-| `docs/blueprint/` (this set) | Master blueprint docs + ADR-001 | **PROPOSED** (this PR) |
+| `research/source_materials/` | Supplied presentation, notes, literature workbook/CSV and SHA256 manifest | Preserved; latest local integrity check **4/4 hashes**; supervisor classification **25 papers (9 GREEN / 1 PINK / 6 ORANGE / 9 RED)** |
+| `docs/phase0/PHASE0_REVIEW_DRAFT.md` | Rev. 3 feasibility review | Merged (PR #1); historical research/gate baseline |
+| `docs/DECISIONS.md` | D-001…D-045 and pending P-1…P-6 | Authoritative register; D-044 technical correction complete; D-045 authorizes M1b.1 only and does not close unrelated gates |
+| `docs/FEATURE_REGISTER.md` | F01–F12 | Preserved proposed feature register; blueprint F13–F18 extensions are tracked separately and are not silently ratified here |
+| `shared/contracts/` | OpenAPI, schema families, 2 MOCK_ONLY registries, 31 fixtures / 38 steps | **IMPLEMENTED + TESTED**, M1a.1; no M1b.1 contract/fixture changes. A-01 Option A schema correction merged in PR #8; technical correction complete |
+| `tests/contracts/` | Contract/oracle suite | **249 passed** locally; fixture pack preserved |
+| `backend/app/` | FastAPI mock backend, two existing POST routes, bundled `/openapi.json`; SQLAlchemy storage boundary | Existing contracts unchanged. M1b.1 persists monitoring observation, non-null metrics and success-audit metadata only. Runtime idempotency and Python audit snapshots remain in memory |
+| `backend/migrations/`, `alembic.ini` | Alembic environment and initial migration | **IMPLEMENTED + TESTED locally** on disposable SQLite databases; explicit migrations; exact head verification; no schema auto-creation/repair at startup |
+| `backend/app/storage/` | SQLAlchemy models, DB configuration/transaction wrapper and monitoring repository | **IMPLEMENTED + TESTED locally**; configurable `CARDIOASSIST_DATABASE_URL`; startup checks revision, metadata drift and SQLite integrity; SQLite only tested |
+| `tests/backend/` | Existing API regressions + migration/persistence tests | **371 passed** locally, including 24 M1b.1 migration/persistence cases |
+| `.github/workflows/` | Installed contracts and backend CI workflows | Workflows present; current PR #9 check results **UNVERIFIED**. Workflow presence is not a green CI result |
+| `backend/README.md`, `backend/CONTRACT_NOTES.md`, `backend/VERIFICATION.md` | Setup, limitations, contract behavior and verification records | Updated; Windows/CI caveats remain explicit |
+| `docs/M1A3_INTEGRATION_HANDOFF.md` | React/Flutter thin-client plan | Preserved and updated: M1a.3 is deferred/resequenced, not cancelled or completed |
+| `docs/blueprint/` | Architecture, feature, roadmap, data/API, research-gate, test, open-decision and status docs | Reconciled to D-044/D-045/M1b.1; planning documents do not authorize work beyond D-045 |
+| `frontend/clinician-web/`, `frontend/patient-mobile/` | Candidate React and Flutter projects | **PROPOSED**; no implementation. Thin local integration/demo clients remain preserved, deferred requirements |
+| `ai/`, `infra/`, `research/experiments/` | Placeholder/future locations | **PROPOSED**; no trained model, dataset, deployment or experiment results |
 
-## 3. Feature status snapshot (detail: [02](02_FEATURE_TRACEABILITY_MATRIX.md))
+### Current local verification record
 
-| Capability | Implemented + tested today | Synthetic/mock today | Not built yet |
+- Fresh `.venv` install from `backend/requirements-dev.txt` includes importable
+  `httpx==0.28.1` and `httpx2==2.13.1`; no dependency changes were needed.
+- `python -m pip check`: **No broken requirements found**.
+- `python -m pytest tests/backend/test_persistence.py -q -W error`:
+  **24 passed in 1.00s**; includes empty/outdated/unknown revision, missing
+  column/index/primary/foreign-key/unique constraints, orphan foreign key,
+  and failed lifespan/no auto-repair cases.
+- `python -m pytest tests/backend -q -W error`: **371 passed in 17.49s**.
+- `python -m pytest tests/contracts tests/backend -q -W error`:
+  **620 passed in 17.60s**.
+- `python -m pytest -q -W error`: **620 passed in 18.27s**.
+- Disposable SQLite migration smoke: fresh upgrade, consistency check,
+  downgrade, re-upgrade and second consistency check **PASS**. Developer DBs
+  were not downgraded or deleted.
+- `python scripts/verify_sources.py`: **PASS**, 4/4 hashes; 25 papers with
+  `9 GREEN / 1 PINK / 6 ORANGE / 9 RED`.
+- `git diff --check`: **PASS**.
+- **GitHub CI:** PR #9 individual check results **UNVERIFIED** due the
+  integration HTTP 403; no pass/fail inferred. Windows/Python 3.12.9
+  maintainer-reported 611-test result predates this correction; Windows and
+  Python 3.12 verification of this change remain **UNVERIFIED**.
+
+These are local verification results for this checkout. They do not establish
+maintainer approval/merge, Windows compatibility, PostgreSQL parity, research
+validity or clinical readiness.
+
+## 3. Feature status snapshot
+
+| Capability | Implemented/tested today | Synthetic/mock today | Not built / boundary |
 |---|---|---|---|
-| CAD prediction (F01) | Contract, validation, determinism, provenance fields | Mock scoring (SHA-256-derived offsets, mock model registry A/B/C/E; D = 503) | Real trained model (M3, research-gated) |
-| Explainability (F02) | Sum-check (log-odds), rendering labels, F-08 fixture | Synthetic SHAP-shaped offsets | Real TreeSHAP/LIME + stability/fidelity (M3) |
-| Clinician dashboard (F03) | — | — | Thin screen (M1a.3) → full (M1b) |
-| Patient app (F04) | — | — | One screen (M1a.3) → full (M1b) |
-| Wearables/monitoring (F05) | Track-B ingestion, consent ref, source labelling, wearable→CAD 422 | `simulated_wearable` source (always-available fallback) | History/trends (M1b); Health Connect capability/device spike (M4, simulator fallback deliverable); vendor (P-6) |
-| Reassessment/follow-up (F06) | Read-only `pending_review` state in responses | — | Validity-gated mechanics + notifications/summaries (M1b) |
-| Audit/consent (F07) | In-memory events, one-per-write tests | Test-only introspection | Durable audit + consent lifecycle (M1b) |
-| FHIR (F08) | — | — | Thin export (M4 opt., D-020) |
-| Disease modules (F09) | — | — | Registry (M1b/M4); second module (post-M4) |
-| Research workflow (F10) | Methodology documented (Phase 0 §R2-5) | — | M2 audit → M3 models → M4 write-up (research-gated) |
-| Auth/RBAC (F11) | — | — | M1b |
-| API & tests (F12) | **Complete for M1a scope** (596 tests, CI) | Fixture pack | Grows per milestone (contract-first) |
-| History/symptoms/surveys (F13) | — | — | M1b |
-| Lab OCR (F14) | — | — | M5 product track (**required** deliverable; $0 local OCR; scheduling authorization pending) |
-| Extraction verification (F15) | — | — | M5 product track (**required** deliverable; verification ≠ Track-A eligibility, 05 §2.1) |
-| Research-safe assistant (F16) | — | — | M5 (proposed; clinician-gated) |
-| Administration (F17) | — | — | Basic M1b; console M5 |
-| Persistence/deployment (F18) | In-memory state (documented) | — | SQLite M1b; PG path M4; hosting optional |
+| CAD prediction (F01) | Contract, validation, deterministic response behavior | SHA-256-derived mock scoring; model D remains 503 | Real trained model, approved target and evaluation (M2/M3, P-1…P-3 gated) |
+| Explainability (F02) | Contract/additivity behavior | Synthetic SHAP-shaped offsets | Real TreeSHAP/LIME, fidelity/stability (M3, research-gated) |
+| Clinician dashboard (F03) | — | — | Thin React path M1a.3 deferred/resequenced; full surface later M1b, separately authorized |
+| Patient app (F04) | — | — | Thin Flutter path M1a.3 deferred/resequenced; full surface later M1b, separately authorized |
+| Monitoring (F05) | Existing Track-B POST; M1b.1 durable observation + non-null metrics + success-audit metadata, transactionally | `simulated_wearable` remains synthetic; no CAD score | No history/read/batch/consent API; real adapters P-6 gated; wearable→CAD prohibited |
+| Reassessment/follow-up (F06) | Existing response state only | — | Validity-gated workflows, notifications and summaries remain proposed M1b work |
+| Audit/consent (F07) | One durable metadata-only event per accepted monitoring write in M1b.1; runtime snapshots for existing behavior | Test-only/runtime snapshots remain in memory | Consent lifecycle, read/error/CAD durable audit remain deferred; no tamper-resistance claim |
+| FHIR (F08) | — | — | Thin export proposed for M4, subject to D-020 |
+| Disease modules (F09) | — | — | Registry scaffolding/second module later, separately authorized and research-gated |
+| Research workflow (F10) | Methodology and gates documented | — | Dataset audit M2 → protocol/models M3 → write-up M4; gates remain closed |
+| Auth/RBAC (F11) | — | — | Not included in M1b.1; requires separate M1b authorization and role-matrix tests |
+| API & tests (F12) | **249 contract + 371 backend = 620 local tests passed**; existing `/v1` contracts/fixtures unchanged; PR #9 open | Fixture pack and synthetic backend | Grows only through reviewed slices; GitHub CI result unverified |
+| History/symptoms/surveys (F13) | — | — | Proposed M1b APIs and screens; each new route contract-first |
+| Lab OCR (F14) | — | — | M5 required product vision; synthetic documents only until privacy approvals |
+| Extraction verification (F15) | — | — | M5 required product vision; verification does not imply Track-A eligibility |
+| Research-safe assistant (F16) | — | — | M5 proposed and clinician-gated |
+| Administration (F17) | — | — | Basic M1b / console M5 proposed; auth/RBAC required |
+| Persistence/deployment (F18) | M1b.1 SQLite/Alembic monitoring slice implemented/tested locally | Synthetic/demo records only | PostgreSQL path is proposed/unverified; hosting optional and unverified; broad persistence remains future work |
 
-## 4. What is explicitly NOT implemented and NOT claimed
+## 4. Explicit non-claims and limitations
 
-- **No real AI.** No dataset acquired, no model trained, no SHAP/LIME
-  computed, no accuracy/AUC/calibration result exists in this project.
-  Mock scores are synthetic and meaningless as clinical values.
-- **No clinical validity.** No diagnosis, risk probability, alert
-  threshold, treatment recommendation, or clinical-readiness claim exists
-  or may be added (P-5 prohibited).
-- **No production service.** No auth, no durable DB, no multi-process
-  support, no PHI protection guarantee, no tamper-proof audit, no SLA.
-- **No real wearable/device integration**, no push notifications, no
-  telehealth integration, no EHR/FHIR server, no app-store release.
-- **No lab-report OCR**, no admin console, no assistant — F14–F17 are
-  preserved vision only.
-- **No external-validation claims**; the research gap remains provisional
-  (D-025).
+- **No real AI:** no dataset acquired, no model trained, no real SHAP/LIME,
+  no accuracy/AUC/calibration result exists. Mock scores have no clinical
+  meaning.
+- **No clinical validity:** no diagnosis, risk probability, alert threshold,
+  treatment recommendation, clinical readiness or patient-care use.
+- **No production service:** no auth/RBAC, no real patient data, no history or
+  review API, no PHI protection guarantee, no tamper-proof audit, no SLA.
+- **No durable idempotency:** the 24-hour runtime behavior stays in process
+  memory. Q8's formal retention/store-of-record policy remains open. A retry
+  after process restart may be treated as a new write; the durable monitoring
+  observation itself survives restart.
+- **No consent/patient lookup:** references are stored as opaque synthetic/demo
+  values; no patient/consent master rows or foreign keys are invented.
+- **No PostgreSQL parity:** no PostgreSQL test run. SQLite has no PostgreSQL
+  `GRANT`/`REVOKE`; append-only audit is an application-level design rule.
+- **No research/data/clinical gates waived:** D-045 changes execution priority
+  only. No dataset download, model training, clinical integration or research
+  approval was authorized.
 
-## 5. Near-term future scope (in order)
+## 5. Delivery priority and future scope
 
-**Research completion (M4) is not product completion.** M4 closes the
-research prototype (integrated walkthrough + TRIPOD+AI write-up). The
-product vision additionally requires the M5 product track (F14–F17,
-required deliverables) and the capability/device-dependent Health Connect
-delivery plan (simulator fallback). Neither completion implies clinical
-deployment or regulatory readiness (P-5).
+D-045 prioritizes: **(1) genuine, reproducible CAD AI research and inference;
+(2) a complete, integration-ready FastAPI backend; (3) a durable, tested
+database.** This ordering does not waive the scientific, data or clinical
+gates. M1b.1 is the first authorized implementation slice and delivers only
+the existing monitoring POST persistence described above.
 
-1. **M1a.3** (next planned; **implementation authorization pending** — do
-   not start until the maintainer explicitly authorizes): thin React +
-   Flutter paths vs the unchanged mock contract, per
-   `docs/M1A3_INTEGRATION_HANDOFF.md`; carries A-01 etc.
-2. **M1b**: persistence (SQLite→PG path), auth/RBAC, consent + durable
-   audit, history/review/reassessment APIs ("M1b.1 contracts first"),
-   full dashboard + full patient app, offline sync + batch ingestion,
-   basic admin, module registry scaffolding. Clinician/conservative copy
-   review closes what it can of P-4.
-3. **M2** (after P-2): authorized dataset acquisition + read-only audit.
-4. **M3** (after P-3): frozen protocol, real models, real SHAP/LIME,
-   calibration, IC-3.
-5. **M4** (research completion): integrated prototype, TRIPOD+AI write-up,
-   optional FHIR export / Health Connect capability-device spike (with
-   simulator fallback deliverable) / disposable hosted demo.
-6. **M5 product track** (scheduling authorization pending; deliverables
-   **required**): F14 lab OCR, F15 extraction verification, F16
-   research-safe assistant (clinician-gated), F17 admin console.
+- **M1a.3:** deferred/resequenced, not cancelled or completed. Preserve its
+  React/Flutter thin local integration/demo plan in
+  `docs/M1A3_INTEGRATION_HANDOFF.md`; implement only after separately scheduled
+  and authorized.
+- **Remaining M1b:** proposed, not authorized by M1b.1. Future APIs remain
+  contract-first; consent, authentication/RBAC, patient/history/review, durable
+  idempotency and expanded audit each need their own decisions and tests.
+- **M2:** Gate DA; no dataset acquisition before P-2 authorization and a named
+  dataset/storage plan.
+- **M3:** Gate PT; no fitting, selection, tuning or evaluation before P-3,
+  after the read-only M2 audit.
+- **M4:** research prototype completion and write-up; not product or clinical
+  completion.
+- **M5:** F14–F17 remain required product-vision deliverables, but are
+  separately scheduled/authorized and do not block the current M1b.1 slice.
 
-## 6. Change control for this snapshot
-
-This file is rewritten per milestone (documentation-only edits allowed);
-the historical snapshots live in git history and in the merged verification
-records (`backend/VERIFICATION.md`). When status rows change, the milestone
-PR must update this file in the same change-set — status drift is itself a
-defect.
+The research integrity target remains 4/4 hashes and the reviewed paper
+classification **25 total: 9 GREEN / 1 PINK / 6 ORANGE / 9 RED**. Do not
+download datasets, train models, close approvals, merge PR #9, or begin a
+subsequent milestone without separate authorization and human review.

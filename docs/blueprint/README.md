@@ -1,12 +1,13 @@
 # CardioAssist AI — Master Product & Research Blueprint (documentation set)
 
-**Status:** PROPOSED — documentation-only. Merged into review on the session
-branch `arena/ebc5fdbb-cardioassist-ai` on 2026-10-17. This set does **not**
-authorize any implementation, dataset download, model training, schema
-change, or clinical claim. It is the implementation-ready planning baseline
-for the next feature-development milestone; every item it describes remains
-subject to the gates in `docs/DECISIONS.md` (P-1 … P-6) and the approval
-workflow below.
+**Status:** This is a planning/traceability document set, not blanket
+implementation authorization. Updated on 2026-10-17 to reflect D-045: the
+first authorized implementation slice is M1b.1 (durable SQLite foundation on
+an existing monitoring path); the React/Flutter M1a.3 integration is
+deferred/resequenced, not cancelled or completed. This set does **not**
+authorize work beyond M1b.1, dataset download, model training, new API
+contracts, or clinical claims. Research/data/clinical approvals and all
+remaining implementation authorizations stay governed by `docs/DECISIONS.md`.
 
 **This set never duplicates authority.** Where a statement is already
 governed elsewhere, this set cites the source and defers to it:
@@ -17,8 +18,9 @@ governed elsewhere, this set cites the source and defers to it:
 | `docs/phase0/PHASE0_REVIEW_DRAFT.md` (Rev. 3) | Scientific feasibility, datasets, protocol, risks, gates DA/PT |
 | `docs/FEATURE_REGISTER.md` | Proposed feature register F01–F12 and its preservation rule |
 | `shared/contracts/README.md` + `shared/contracts/openapi.yaml` | Approved `/v1` wire contract (M1a.1) and its open questions |
-| `backend/CONTRACT_NOTES.md`, `backend/VERIFICATION.md` | M1a.2 mock-backend behavior, ambiguities (A-01, B-01…X-01), verification record |
-| `docs/M1A3_INTEGRATION_HANDOFF.md` | The approved plan shape for the next milestone (M1a.3) |
+| `backend/CONTRACT_NOTES.md`, `backend/VERIFICATION.md` | Existing mock-backend behavior, A-01 technical correction (PR #7/#8 merged), remaining ambiguities and verification record |
+| `docs/M1A3_INTEGRATION_HANDOFF.md` | Preserved handoff plan for deferred/resequenced M1a.3; not a current implementation authorization |
+| `docs/DECISIONS.md` (D-045) | Current execution-priority ordering and authorization for M1b.1 only |
 | `research/source_materials/` (PDF + speaker notes + CSV/XLSX) | Product vision (47 slides) and supervisor paper classification |
 
 ## Deliverable map (task items 1–8 + ADR)
@@ -33,12 +35,12 @@ governed elsewhere, this set cites the source and defers to it:
 | 6 | Local testing and milestone acceptance matrix | [06_TESTING_AND_ACCEPTANCE_MATRIX.md](06_TESTING_AND_ACCEPTANCE_MATRIX.md) |
 | 7 | Open decisions, risks, assumptions, $0-budget constraints | [07_OPEN_DECISIONS_RISKS_ASSUMPTIONS.md](07_OPEN_DECISIONS_RISKS_ASSUMPTIONS.md) |
 | 8 | Current implementation status versus future scope | [08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md](08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md) |
-| ADR | CAD optional-null JSON Schema / backend compatibility issue (A-01) — **Option A approved** (D-044); runtime prerequisite merged, schema/fixture correction in an open PR | [ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md](ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md) |
+| ADR | CAD optional-null JSON Schema / backend compatibility issue (A-01) — **Option A approved** (D-044); PR #7/#8 merged, technical correction complete | [ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md](ADR_001_CAD_OPTIONAL_NULL_FEATURE_VALUES.md) |
 
 ## Reading order for a new developer
 
 1. `README.md` (repo root) and `AGENTS.md` — operating rules.
-2. `docs/DECISIONS.md` — what is approved (D-034…D-043) and what is not (P-1…P-6).
+2. `docs/DECISIONS.md` — decisions D-034…D-045, current M1b.1 authorization, and pending approvals/gates (including P-1…P-6).
 3. This file, then **01** (architecture) → **03** (what to build when) →
    **02** (feature-by-feature detail) → **04** (data/API) → **06** (how a
    milestone is accepted) → **05** (research gates) → **07**/**08** (open
@@ -65,9 +67,14 @@ governed elsewhere, this set cites the source and defers to it:
 - **No silent feature deletion** (`docs/FEATURE_REGISTER.md`): the vision is
   preserved in the traceability matrix (02); blocked items are labelled with
   the named blocker, not removed.
-- **M1a.3 is next *planned*, not authorized:** explicit implementation
-  authorization is pending (see 03); work must not start until the
-  maintainer grants it.
+- **M1a.3 is deferred/resequenced by D-045, not cancelled or completed.**
+  The plan remains in `docs/M1A3_INTEGRATION_HANDOFF.md`; it is not the current
+  slice. M1b.1 is authorized first. React/Flutter remain thin local
+  integration/demo clients.
+- **D-045 execution priority:** genuine, reproducible CAD AI research and
+  inference; then a complete, integration-ready FastAPI backend; then durable,
+  tested database. This ordering does not waive scientific/data/clinical gates,
+  authorize datasets or training, or change the `/v1` contract.
 - **Research completion (M4) ≠ product completion:** full product delivery
   requires the M5 product track (F14–F17 are required deliverables, not
   optional) plus the capability/device-dependent Health Connect plan with

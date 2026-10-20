@@ -1,14 +1,14 @@
 # 03 — Milestone Roadmap and Dependency Graph
 
-**Status:** PROPOSED planning baseline (documentation only), 2026-10-17.
-Sequence M1a → M1b → M2 → M3 → M4 is maintainer-approved (D-029, Phase 0
-§R2-7.6/§F-5). M0/M1a.x are complete (merged). **M1a.3 is the next planned
-milestone; explicit implementation authorization is still pending** — work
-must not start until the maintainer grants it (the plan is
-`docs/M1A3_INTEGRATION_HANDOFF.md`; this status wording is used
-consistently across the blueprint set). M5 is the **product track** for
-preserved product-vision scope (F14–F17) not covered by M1a–M4; it contains
-**required** product deliverables (especially F14/F15) and needs its own
+**Status:** Planning baseline updated for maintainer-approved D-045 (2026-10-17).
+The broad sequence M1a → M1b → M2 → M3 → M4 remains, subject to the individual
+research gates. PR #7 and PR #8 are both merged; A-01's technical correction
+is complete. **M1b.1 Database & Persistence Foundation is the first authorized
+M1b implementation slice** and is the current standalone PR. The originally
+planned M1a.3 thin React/Flutter integration is **deferred/resequenced, not
+cancelled and not completed**; both frontends remain preserved requirements
+and thin local integration/demo clients for the team. M5 remains the **product
+track** for preserved F14–F17 deliverables and still needs its own
 scope/scheduling authorization.
 
 **Research completion ≠ product completion.** M4 completes the *research
@@ -28,19 +28,21 @@ merge** (AGENTS.md; no self-merge).
 | ID | Name | Scope (summary) | Status |
 |---|---|---|---|
 | M0 | Phase 0 research & feasibility review | `docs/phase0/PHASE0_REVIEW_DRAFT.md` Rev. 3, source-integrity fix | **COMPLETE** — PR #1 merged (`0ae333f`) |
-| M1a.1 | `/v1` contract-first pack | OpenAPI + JSON Schemas + MOCK registries + 30 fixtures + 136 contract tests | **COMPLETE** — PR #3 merged (`6e677b7`) |
-| M1a.2 | Mock FastAPI backend | 2 endpoints + bundled openapi.json, idempotency/audit in memory, 234 HTTP tests | **COMPLETE** — PR #4 merged (`dbb6d18`) |
-| M1a.2+ | Security/dependency cleanup | Pinned dep security fixes (anyio/starlette/pytest), A-01 finding reported | **COMPLETE** — PR #5 merged (`6c2572c`) |
-| **M1a.3** | **Thin React + Flutter integration** | One React synthetic-record form/action + one Flutter synthetic observation screen vs the unchanged mock contract; client tests; network config discipline | **NEXT PLANNED — implementation authorization PENDING** (plan in handoff doc; do not start until explicitly authorized) |
-| M1b | Platform completion on mocks | Persistence (SQLite, F18), auth/RBAC (F11), consent lifecycle + durable audit (F07), history/read APIs, review + reassessment mechanics (F06), full dashboard + full patient app (F03/F04/F13 manual entry), offline sync + batch ingestion (Q11), basic admin (F17), registry scaffolding (F09) | PROPOSED |
+| M1a.1 | `/v1` contract-first pack | OpenAPI + JSON Schemas + MOCK registries + 31 fixtures / 38 steps; 249 contract tests after ADR-001 | **COMPLETE** — PR #3 merged (`6e677b7`); A-01 correction later merged in PR #8 |
+| M1a.2 | Mock FastAPI backend | 2 existing POST endpoints + bundled openapi.json; 347 backend regressions at the PR #8 baseline; runtime idempotency/audit snapshots remain in memory | **COMPLETE** — PR #4 merged (`dbb6d18`); behavior-preserving maintenance in PR #5 and ADR-001 PR #7/#8 |
+| M1a.2+ | Security/dependency cleanup | Pinned dependency security fixes; A-01 finding reported, then technically corrected in PR #7/#8 | **COMPLETE** — PR #5 merged (`6c2572c`); A-01 resolved (D-044) |
+| **M1a.3** | **Thin React + Flutter integration** | One React synthetic-record form/action + one Flutter synthetic observation screen against unchanged mock contracts; client tests; network config discipline | **DEFERRED / RESEQUENCED by D-045** — not cancelled, not completed; revisit when the team schedules thin local integration/demo clients |
+| **M1b.1** | **Database & Persistence Foundation** | SQLite + explicit Alembic migration; durable monitoring observation, non-null metrics and success-audit metadata through the existing POST; transaction, restart and integrity tests; no new routes | **AUTHORIZED — IMPLEMENTED + TESTED locally; standalone PR #9 OPEN** |
+| M1b (remaining slices) | Platform completion on mocks | Later slices: auth/RBAC (F11), consent lifecycle, patient/history/read APIs, review/reassessment (F06), full dashboard/app (F03/F04/F13), offline sync/batch (Q11), admin (F17), registries (F09), expanded durable audit/idempotency after relevant decisions | **PROPOSED / not authorized by M1b.1** |
 | M2 | Gate DA — data access & read-only audit | Authorized local-only acquisition of named datasets; §R2-4.4 checklists; coding/missingness/duplicate/overlap/availability audits; **"no fitting occurred" certification** | RESEARCH-GATED (needs P-2) |
 | M3 | Gate PT — frozen protocol + first real models | Supervisor-approved frozen protocol; Strategy-A benchmarks; Strategy-B external evaluation; cross-fitted calibration; **real TreeSHAP/LIME** + stability; first real model behind **backward-compatible `/v1` behavior with the existing mock regression fixtures preserved and green** (IC-3); separately approved, versioned **real clinical feature schemas and model registries** may be added after Gate DA/PT — a real model must **not** depend on provisional mock feature identifiers (`mock_clinical_v1/v2`, `mock_model_*`) | RESEARCH-GATED (needs P-3, after M2) |
 | M4 | Integrated **research prototype** + write-up (**not** product completion, see above) | IC-4 walkthrough; TRIPOD+AI manuscript; replication package; optional time-boxed FHIR export (F08) and Health Connect capability/device spike (F05: supported-device plan + **simulator fallback deliverable**); PostgreSQL-path validation; optional disposable hosted demo | RESEARCH/REVIEW-GATED |
 | M5 | **Product track** — required product-vision surfaces | Lab-report upload + OCR (F14, required), extraction verification (F15, required), research-safe content/assistant (F16, clinician-gated), admin console (F17), notifications delivery polish, second disease-module prep (F09) | **PROPOSED — scheduling authorization pending; deliverables are required vision, not optional** |
 
-Workstream A (research: M2/M3/M4 gates) runs **in parallel** with platform
-work (M1a.3/M1b/M5) under its own approvals (Phase 0 §R2-7). Dataset work
-never blocks platform work and vice versa.
+Workstream A (research: M2/M3/M4 gates) remains independently gated and
+runs **in parallel** with platform work. M1b.1 is the current database slice;
+M1a.3 is deferred/resequenced and may later supply thin client integration
+checks. Dataset work never blocks platform work and vice versa.
 
 ## 2. Dependency graph
 
@@ -51,17 +53,17 @@ never blocks platform work and vice versa.
                         │ gates — parallel, each unlocks its dependents)│
                         └───────┬──────────────┬───────────────┬───────┘
                                 │              │               │
- M0 Phase 0 ──► M1a.1 ──► M1a.2 ──► M1a.2+ ──► M1a.3 ──► M1b ──┬──► M5 (F14–F17)
- (COMPLETE)     contracts  mock API   cleanup   thin UIs   platform   (product track)
-                                │                  │         │
-                                │                  │         ├── F11 auth/RBAC ──► F17 admin
-                                │                  │         ├── F18 persistence ──► F07 durable audit/consent
-                                │                  │         ├── F06 review/reassessment ◄── F11, F07
-                                │                  │         ├── F13 inputs ◄── F11, F18
-                                │                  │         └── Q11 batch sync ◄── F04 offline queue
-                                │                  │
-                                │                  └── client tests pin F01/F02/F05 rendering rules
-                                │                        (guards M3 UI re-snapshot, IC-3)
+ M0 Phase 0 ──► M1a.1 ──► M1a.2 ──► M1a.2+ ──► M1b.1 ──► later M1b ──┬──► M5
+ (COMPLETE)     contracts  mock API   cleanup   persistence   platform    (product track)
+                                │                    │              │
+                                │                    │              ├── F11 auth/RBAC ──► F17 admin
+                                │                    │              ├── consent + durable audit expansion
+                                │                    │              ├── F06 review/reassessment
+                                │                    │              ├── F13 records/history APIs
+                                │                    │              └── Q11 batch sync (contract-first)
+                                │                    │
+                                └── M1a.3 thin local React/Flutter demo integration
+                                    DEFERRED/RESEQUENCED by D-045; not cancelled
                                 │
         P-2 (Gate DA) ──► M2 data audit ──► P-3 (Gate PT) ──► M3 real models
               │                                    │            │
@@ -90,12 +92,16 @@ Hard edges worth restating:
   added after Gate DA/PT — a real model must never depend on provisional
   mock feature identifiers. Contract changes for research convenience are
   out of scope; use the ADR process if unavoidable.
-- **M1b read/history/review APIs are new contract surface** → each needs the
-  same contract-first treatment (schema + fixtures + tests before server),
-  i.e. an "M1b.1 contracts" slice inside M1b.
-- **M5 items never block M1a.3/M1b/M2/M3/M4** (separate product track,
-  §4), but they are required product-vision deliverables — unscheduled
-  ≠ optional.
+- **M1b read/history/review/consent APIs are new contract surface** → each
+  still needs contract-first approval, schemas, fixtures and tests before
+  server code. This authorized M1b.1 slice avoids all new routes. D-045
+  re-sequences the earlier proposed "M1b.1 contracts first" step; it does not
+  waive that requirement for future APIs.
+- **The M1a.3 integration plan remains preserved but deferred/resequenced**
+  under D-045; it is not complete or cancelled. React/Flutter remain thin
+  local demo/integration clients, not the maintainer's primary deliverables.
+- **M5 items never block M1b.1/M2/M3/M4** (separate product track, §4), but
+  they remain required product-vision deliverables — unscheduled ≠ optional.
 
 ## 3. Milestone exit criteria (acceptance gates)
 
@@ -113,7 +119,24 @@ The universal exit gate for **every** milestone PR:
 6. Human review (scientific and/or engineering as applicable) recorded on
    the PR; **no self-merge**.
 
-### M1a.3 (next) — concrete exit criteria (from `docs/M1A3_INTEGRATION_HANDOFF.md`)
+### M1b.1 — Database & Persistence Foundation exit criteria (current slice)
+
+- SQLite default with configurable `CARDIOASSIST_DATABASE_URL`, explicit
+  Alembic migrations and fresh/re-upgrade/schema-consistency checks.
+- Durable `monitoring_observation`, `monitoring_metric` and success `audit_event`
+  rows from the existing monitoring POST only; no new routes or changed
+  contract fixture bodies/statuses.
+- Accepted observation, non-null metrics and one metadata-only audit row
+  commit/rollback together; foreign keys, useful indexes and uniqueness are
+  tested. Successful writes survive app restart/reopen.
+- 24-hour idempotency runtime behavior remains process-local; Q8 and its
+  durable store-of-record decision remain open. Consent/patient references are
+  stored opaquely without inventing master records or FK semantics.
+- SQLite tests only; PostgreSQL compatibility is **UNVERIFIED**. No auth/RBAC,
+  patient/history API, frontend, AI training or dataset work in this slice.
+
+### M1a.3 (deferred/resequenced; not cancelled) — eventual thin-client criteria
+(from `docs/M1A3_INTEGRATION_HANDOFF.md`)
 
 - React thin path + Flutter thin path built with pinned toolchains; all
   backend/contract tests + React client/component tests + Flutter
@@ -128,21 +151,21 @@ The universal exit gate for **every** milestone PR:
   `API_BASE_URL` via `--dart-define`; no `localhost` from browser to other
   services; no broad credentialed CORS.
 - Emulator/physical-device evidence or explicit UNVERIFIED limits recorded.
-- Open items B-01–B-04, A-01, G-02, X-01 explicitly carried (not silently
-  changed).
+- Open items B-01–B-04, G-02, X-01 explicitly carried (not silently
+  changed); A-01's technical correction is complete (D-044 / PR #8).
 
-### M1b — exit criteria (draft, to be ratified at M1b authorization)
+### M1b (remaining slices) — exit criteria (PROPOSED; separate authorization)
 
-- SQLite persistence with migrations; full suite green; in-memory
-  limitations removed **without wire-behavior changes** (fixture suite
-  unchanged and green).
-- Auth/RBAC role-matrix tests; consent lifecycle + durable append-only audit
-  (one event per accepted write); IC-2 checkpoint (consent, RBAC,
-  reassessment-validity on mocks) demonstrated.
+- Extend the M1b.1 SQLite foundation by independently reviewed, contract-first
+  slices; preserve wire behavior unless an ADR authorizes a change. In-memory
+  idempotency/error-audit limitations remain until their policy is reviewed.
+- Auth/RBAC role-matrix tests and consent lifecycle only after a separate
+  authorization; durable append-only audit coverage expands with each accepted
+  write. IC-2 remains future work.
 - Clinician/conservative-copy review of all user-facing text (P-4/D-016
-  outcome recorded).
+  outcome recorded) when those surfaces are implemented.
 - Offline→sync test (emulator + physical device or recorded UNVERIFIED);
-  batch ingestion contract approved first.
+  batch-ingestion contract approved first.
 
 ### M2 — exit criteria (draft)
 
@@ -201,7 +224,7 @@ them — but M4 alone never closes the product vision.
 
 | Checkpoint | Proves | Target milestone |
 |---|---|---|
-| IC-1 | End-to-end on fixtures: clinician reviews mock prediction + patient submits monitoring + audit shows both | M1a.3 |
+| IC-1 | End-to-end on fixtures: clinician reviews mock prediction + patient submits monitoring + audit shows both | M1a.3 when resumed (deferred/resequenced by D-045) |
 | IC-2 | Consent, RBAC, reassessment-validity behavior on mocks | M1b |
 | IC-3 | First real model behind **backward-compatible `/v1` behavior**; existing mock regression fixtures preserved and green unchanged; explanation checks green; real model served on a separately approved, versioned real feature schema + model registry (never provisional mock identifiers) | M3 |
 | IC-4 | Full research-prototype walkthrough + manuscript draft | M4 |
@@ -213,4 +236,4 @@ them — but M4 alone never closes the product vision.
 | M1b silently expands into M5 scope | Scope list in §1 is exhaustive for M1b; anything else goes to M5 or a new decision |
 | Clients tighten Track-B scalar types or fabricate LIME (called out in handoff §1.2) | Client test lists in [06](06_TESTING_AND_ACCEPTANCE_MATRIX.md) include negative assertions |
 | Research pressure to bypass Gate DA/PT | Gates are human sign-offs named in `docs/DECISIONS.md`; agent must refuse and record the request |
-| Contract drift while building M1b read APIs | "M1b.1 contracts first" rule (§2); ADR process; fixture suite is the merge gate |
+| Contract drift while building future M1b read/consent/review APIs | Contract-first approval + ADR process + fixture suite are required before server implementation; this M1b.1 slice adds no route |

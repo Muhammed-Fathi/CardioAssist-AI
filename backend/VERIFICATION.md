@@ -1,4 +1,8 @@
-# M1a.2 verification record
+# Backend verification record
+
+The first sections below are **historical M1a.2 / PR #7 / PR #8** results;
+see the final M1b.1 section for this session's current local verification.
+They do not report current GitHub CI or Windows results.
 
 Executed locally on **2026-10-16**, Linux, **Python 3.11.2**, from the
 repository root, using the pinned `backend/requirements-dev.txt` environment.
@@ -230,14 +234,16 @@ The schema-reader tests also pin fail-closed behavior for unexpected `anyOf`
 shapes (missing or inexact null alternatives, extra alternatives, sibling
 constraints).
 
-## ADR-001 Option A schema/fixture correction (2026-10-17)
+## ADR-001 Option A schema/fixture correction — PR #8 merged (2026-10-17)
 
-This change-set is the follow-up to the merged runtime prerequisite (PR #7,
-merge commit `7f850bd`). It applies the approved Option A patch to the two
-**mock** feature schemas, adds the matching fixture and the regression tests.
-**No backend runtime file is modified** — `backend/app/validation.py` and
-every other module under `backend/app/` are byte-identical to the merged PR #7
-baseline; the already-merged `typed_value_rule()` adapter reads the new shape.
+PR #8 is the follow-up to the merged runtime prerequisite (PR #7, merge
+commit `7f850bd7e2eaceb16bfa664f394021837c678f93`). PR #8 merged into `main`
+at `156bde2582671ad08f187850e3a7cc20790b19d2`. It applies the approved Option
+A patch to the two **mock** feature schemas, adds the matching fixture and
+regression tests. **No backend runtime file was modified** —
+`backend/app/validation.py` and every other module under `backend/app/` are
+byte-identical to the merged PR #7 baseline; the already-merged
+`typed_value_rule()` adapter reads the new shape.
 
 Executed locally with Python **3.11.2** and the pinned
 `backend/requirements-dev.txt` environment.
@@ -276,7 +282,95 @@ affected optional slot (5 in v1, 4 in v2 — nine in total):
   same key with the other form is a `409 idempotency_key_conflict`, a replay
   creates no second inference and no second audit event.
 
-Python 3.12 and GitHub Actions results are **not** claimed here; inspect the
-checks attached to the final PR commit. The pull request is **open** and under
-review: finding **A-01 stays open** until it is merged, reviewed, tested
-independently on Windows and its required checks have passed.
+This historical record reports the local Python 3.11.2 results captured for
+PR #8. **A-01's technical correction is complete** because PR #8 is merged.
+It does not itself assert independent Windows verification or a GitHub Actions
+result. CI status must be reported separately from local tests; no result is
+inferred from workflow presence or merge state.
+
+## M1b.1 SQLite persistence foundation — current local verification (2026-10-17)
+
+Executed from the repository root on Linux with **Python 3.11.2** in the
+pinned `.venv` environment. All test commands used `-W error`.
+
+```text
+python -m pip check: No broken requirements found.
+python -m pytest tests/contracts -q -W error: 249 passed in 0.69s
+python -m pytest tests/backend -q -W error: 362 passed in 18.43s
+python -m pytest tests/contracts tests/backend -q -W error: 611 passed in 19.51s
+python -m pytest -q -W error: 611 passed in 19.43s
+python scripts/verify_sources.py: PASS (4/4 SHA256 hashes; 25 papers; 9/1/6/9)
+git diff --check: PASS
+```
+
+A separate Alembic CLI smoke run used a disposable SQLite file selected via
+`CARDIOASSIST_DATABASE_URL`. `upgrade head` → `alembic check` → `downgrade
+base` → `upgrade head` → `alembic check` all exited successfully. Both
+consistency checks reported `No new upgrade operations detected.` The
+temporary directory was removed; no developer database was downgraded or
+deleted. The persistence tests also cover configuration-based URL selection,
+fresh/repeated migrations, rollback, reads/writes, restart/reopen durability,
+foreign-key/unique constraints, concurrency/replay, invalid input rejection
+and per-test isolation.
+
+All repository inputs remain synthetic/demo-only. Windows, Python 3.12 local,
+PostgreSQL compatibility, and the GitHub Actions result are **UNVERIFIED**;
+local test results are not CI results. For PR #9, `gh pr checks` and the REST
+check-run/status endpoints returned HTTP 403 `Resource not accessible by
+integration`. PR metadata currently reports `mergeStateStatus=CLEAN`; that is
+not an individual check result. Check details could not be inspected, so no CI
+pass/fail is inferred. M1b.1's monitoring observation, non-null metrics
+and metadata-only success audit are durable; the 24-hour
+runtime idempotency cache, Python audit snapshots and error-audit events remain
+process-local. A-01's separate technical correction remains complete (D-044,
+PR #7/#8); this verification does not close any unrelated decision/gate.
+
+## PR #9 blocking schema-verification correction — current local verification (2026-10-20)
+
+The maintainer's review found that the original startup check accepted any
+schema with the expected table names, even if columns were missing or the
+stored Alembic revision was invalid. `Database.verify_schema()` is now
+read-only and fail-closed: it compares the recorded revision(s) with the
+checked-in migration head(s), validates the Alembic version table, compares
+live schema metadata (columns/types/nullability, indexes, unique and foreign
+keys), explicitly checks primary keys (not reported by Alembic autogenerate),
+and on SQLite checks foreign-key enforcement, `PRAGMA integrity_check`, and
+`PRAGMA foreign_key_check`. Startup still never migrates or repairs a database.
+
+A fresh `.venv` was created on Linux with **Python 3.11.2**, then installed
+only from `backend/requirements-dev.txt`; no dependency changes were needed.
+The fresh install includes `httpx==0.28.1` and `httpx2==2.13.1`, both imports
+succeed, and `pip check` reports no broken requirements. Test commands used
+`-W error`:
+
+```text
+python -m pytest tests/backend/test_persistence.py -q -W error: 24 passed in 1.00s
+python -m pytest tests/contracts -q -W error: 249 passed in 0.70s
+python -m pytest tests/backend -q -W error: 371 passed in 17.49s
+python -m pytest tests/contracts tests/backend -q -W error: 620 passed in 17.60s
+python -m pytest -q -W error: 620 passed in 18.27s
+python -m pip check: No broken requirements found.
+python -c 'import httpx, httpx2': httpx=0.28.1; httpx2=2.13.1
+python scripts/verify_sources.py: PASS (4/4 SHA256 hashes; 25 papers; 9/1/6/9)
+```
+
+A separate disposable SQLite CLI run completed `upgrade head` → `alembic
+check` → `downgrade base` → `upgrade head` → `alembic check`; both consistency
+checks reported `No new upgrade operations detected.` The disposable directory
+was removed. The added negative cases reject an empty, outdated or unknown
+Alembic revision; a missing column/index/primary key, foreign-key constraint or
+unique constraint; and pre-existing foreign-key violations. Lifespan tests
+prove that missing or malformed schema fails startup without automatic
+migration/repair. No `/v1` contract, fixture,
+validation order, response, Track isolation or transaction behavior changed.
+
+The Windows/Python 3.12.9 **611-test** result reported by the maintainer was
+for the pre-correction PR head; it does not independently verify this fix.
+Re-run the updated commands in the Windows PowerShell section of
+[`docs/blueprint/06_TESTING_AND_ACCEPTANCE_MATRIX.md`](../docs/blueprint/06_TESTING_AND_ACCEPTANCE_MATRIX.md)
+against this commit. Windows/Python 3.12 verification of the correction and
+GitHub CI are **UNVERIFIED**. At the time of this verification,
+`gh pr checks 9` reported no checks on the branch; the REST check-runs and
+GitHub Actions-run endpoints returned HTTP 403 `Resource not accessible by
+integration`. PR metadata reported `mergeStateStatus=UNKNOWN`, not an
+individual check result. No CI pass/fail is inferred.
