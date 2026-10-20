@@ -96,11 +96,11 @@ only for a controlled synthetic-data demo with suitable network restrictions.
 ### GitHub CI (reported separately)
 
 The `contracts-ci.yml` and `backend-ci.yml` workflows are installed. Workflow
-presence does not prove a passing run. The current PR check rollup could not be
-retrieved: `gh pr checks` is denied, and the REST check-runs endpoint returns
-HTTP 403 `Resource not accessible by integration`. PR metadata reports
-`mergeStateStatus=UNSTABLE`, but that aggregate is not an individual check
-result; CI pass/fail remains **UNVERIFIED**. Python 3.12 and Windows results
+presence does not prove a passing run. At the final PR head, `gh pr checks 9` reported no checks on the branch; the
+REST check-runs and GitHub Actions-run endpoints returned HTTP 403 `Resource
+not accessible by integration`. PR metadata reports `mergeStateStatus=UNKNOWN`,
+which is not an individual check result. CI pass/fail remains **UNVERIFIED**.
+Python 3.12 and Windows results
 are not inferred from the Linux local runs. See
 [`backend/ci/README.md`](../backend/ci/README.md).
 

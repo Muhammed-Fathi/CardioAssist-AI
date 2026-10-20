@@ -369,8 +369,8 @@ for the pre-correction PR head; it does not independently verify this fix.
 Re-run the updated commands in the Windows PowerShell section of
 [`docs/blueprint/06_TESTING_AND_ACCEPTANCE_MATRIX.md`](../docs/blueprint/06_TESTING_AND_ACCEPTANCE_MATRIX.md)
 against this commit. Windows/Python 3.12 verification of the correction and
-GitHub CI are **UNVERIFIED**. After push, `gh pr checks 9` remained
-inaccessible and the REST check-runs endpoint returned HTTP 403
-`Resource not accessible by integration`. PR metadata reports
-`mergeStateStatus=UNSTABLE`; this aggregate is not an individual check result,
-so no CI pass/fail is inferred.
+GitHub CI are **UNVERIFIED**. At the time of this verification,
+`gh pr checks 9` reported no checks on the branch; the REST check-runs and
+GitHub Actions-run endpoints returned HTTP 403 `Resource not accessible by
+integration`. PR metadata reported `mergeStateStatus=UNKNOWN`, not an
+individual check result. No CI pass/fail is inferred.
