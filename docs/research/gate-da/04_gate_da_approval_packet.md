@@ -217,3 +217,63 @@ M2 deliverable — **not** part of this PR):
 - Any change to the exact dataset list requires an amended authorization.
   Downloading a dataset "because it was mentioned in a paper" is never
   authorized.
+
+## 7. M2a Proposed Maintainer-Led Gate DA Workflow and Access Decisions (`D-046` — PENDING HUMAN ACCEPTANCE)
+
+Under proposed decision **D-046** (`docs/DECISIONS.md` and
+`research/audit/gate_da_authorization.json`), the project team documents a
+transparent, maintainer-led Gate DA workflow so preparatory read-only dataset
+audits are not blocked on an immediate academic supervisor meeting, while
+**never fabricating or implying supervisor approval**:
+
+1. **Maintainer-authorized local read-only audit:** The human maintainer can
+   explicitly authorize local, read-only audits of specified publicly
+   accessible benchmark datasets after provenance and license verification.
+2. **Mandatory authorization fields:** Authorization must record the exact
+   datasets and filenames, permitted purpose, responsible acquirer, target
+   environment (`E:\CardioAssist_AI_GitHub_Starter`, Windows local, Python
+   3.12), data-custody rules (`/data/` git-ignored, `git check-ignore` verified
+   before acquisition, byte-identical originals, download-day license and
+   SHA-256 snapshots, zero patient-level commits/uploads/prints), authorization
+   date, and audit reviewer.
+3. **Effective only after human PR acceptance:** This workflow is a proposed
+   governance change (`D-046`) and becomes effective **only** after explicit
+   human maintainer review and acceptance of the M2a PR.
+4. **Honest supervisor status:** Academic supervisor review is deferred to a
+   later research-review stage; its absence is recorded honestly
+   (`DEFERRED_TO_LATER_RESEARCH_STAGE_NOT_ASSERTED`), and no supervisor
+   approval is asserted.
+5. **Standing claim prohibitions:** Final clinical, publication, novelty, or
+   external-validation claims remain prohibited (`NOT MADE — prohibited`) until
+   their actual evidence and review requirements are met.
+6. **Gate PT preserved:** Existing Gate PT (`P-3` / `D-032`) requires
+   supervisor sign-off and is **not** silently bypassed. A separately
+   reviewable proposal (`D-046-EP`, see document 05 §11) documents how a future
+   governance amendment could permit preliminary experiments under a frozen
+   internal exploratory protocol clearly distinguished from supervisor-approved
+   research.
+7. **No model fitting authorized:** Neither this document nor M2a authorizes
+   any model fitting, feature selection, hyperparameter tuning, performance
+   evaluation, calibration, SHAP, or LIME.
+
+### Proposed Access Scope Summary (All **PENDING HUMAN ACCEPTANCE**)
+
+- **`DA-A1` (UCI-412 Z-Alizadeh Sani):** `Z-Alizadeh sani dataset.xlsx` —
+  **PENDING HUMAN ACCEPTANCE** (read-only audit of primary candidate).
+- **`DA-A2` (UCI-45 Heart Disease, four cohorts, raw + processed + `heart-disease.names`):**
+  `processed.cleveland.data`, `cleveland.data`, `processed.hungarian.data`,
+  `hungarian.data`, `processed.switzerland.data`, `switzerland.data`,
+  `processed.va.data`, `long-beach-va.data`, `heart-disease.names` (excluding
+  `new.data` and `reprocessed.hungarian.data`) — **PENDING HUMAN ACCEPTANCE**
+  (read-only audit of primary and sibling cohorts).
+- **`DA-B1` (UCI-411 Extension of Z-Alizadeh Sani):**
+  `extention of Z-Alizadeh sani dataset.xlsx` — **PENDING HUMAN ACCEPTANCE**
+  (**audit-only and never an independent cohort**; must never become a training
+  or external-validation dataset merely because audit access is granted).
+- **`DA-B2` (UCI-145 Statlog Heart):** `heart.dat` — **PENDING HUMAN ACCEPTANCE**
+  (**audit-only for duplicate/overlap investigation** against Cleveland; must
+  never become a training or external-validation dataset merely because audit
+  access is granted).
+
+For the Windows PowerShell commands to execute after maintainer acceptance, see
+[09_m2a_windows_local_audit_handoff.md](09_m2a_windows_local_audit_handoff.md).

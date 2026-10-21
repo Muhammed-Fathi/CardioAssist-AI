@@ -12,10 +12,11 @@ blocked; none of the local results are CI results.
 
 | Check | Location / command | Exact result | Scope |
 |---|---|---|---|
-| Contract/fixture/oracle suite | `python -m pytest tests/contracts -q -W error` | **249 passed in 0.70s** | OpenAPI/schemas, all 31 fixture scenarios / 38 steps, oracle, safety and optional-null behavior |
-| Backend suite | `python -m pytest tests/backend -q -W error` | **371 passed in 17.49s** | 347 existing backend regressions + 24 SQLite persistence/migration cases |
-| Contract + backend combined | `python -m pytest tests/contracts tests/backend -q -W error` | **620 passed in 17.60s** | Fixture pack and live HTTP/persistence behavior together |
-| Full repository pytest | `python -m pytest -q -W error` | **620 passed in 18.27s** | All pytest tests in the repository |
+| Contract/fixture/oracle suite | `python -m pytest tests/contracts -q -W error` | **249 passed** | OpenAPI/schemas, all 31 fixture scenarios / 38 steps, oracle, safety and optional-null behavior |
+| Backend suite | `python -m pytest tests/backend -q -W error` | **371 passed** | 347 existing backend regressions + 24 SQLite persistence/migration cases |
+| M2a dataset audit suite (synthetic) | `python -m pytest tests/audit -q -W error` | **41 passed** | D-046 global + dataset governance checks, strict provenance path/symlink containment, locked report/provenance output paths (`data/reports/`, `data/manifests/provenance_manifest.json`), separated provenance timestamps, `STOP_REQUIRES_REVIEW` ZIP inspection and controlled extraction (`extract-authorized-archive`) with existing-file overwrite protection, `ByteIdentityGuard` across parsing and report generation on success/failure, `git check-ignore`, UCI-412/45/411/145 validators, duplicate/overlap/correspondence, leakage, strict metadata report schema + secondary multi-format redaction scanner, and proposed audit CI workflow (`audit-toolchain-validation`) + official dataset reference checks |
+| Contract + backend combined | `python -m pytest tests/contracts tests/backend -q -W error` | **620 passed** | Fixture pack and live HTTP/persistence behavior together |
+| Full repository pytest | `python -m pytest -q -W error` | **661 passed** | All pytest tests in the repository (`249` contract + `371` backend + `41` audit) |
 | Persistence/schema regressions | `python -m pytest tests/backend/test_persistence.py -q -W error` | **24 passed in 1.00s** | Explicit migrations; wrong/empty revisions; missing columns/constraints; SQLite integrity; lifespan failure/no auto-repair |
 | Fresh dev dependency install | `python -m pip install -r backend/requirements-dev.txt` | **PASS** | Includes importable `httpx==0.28.1` and `httpx2==2.13.1`; no requirements changes |
 | Dependency consistency | `python -m pip check` | **No broken requirements found** | Fresh pinned backend + test dependencies |
@@ -80,7 +81,7 @@ pre-correction PR head; that report does **not** verify this new fix. Windows
 execution of the correction remains **UNVERIFIED** until the above commands
 are rerun against it. For restart, cleanup of a deliberately disposable demo
 database, and warnings about not deleting an existing DB, see
-[`backend/README.md`](../backend/README.md).
+[`backend/README.md`](../../backend/README.md).
 
 Run the local backend after applying migrations (one worker only):
 
@@ -102,7 +103,7 @@ not accessible by integration`. PR metadata reports `mergeStateStatus=UNKNOWN`,
 which is not an individual check result. CI pass/fail remains **UNVERIFIED**.
 Python 3.12 and Windows results
 are not inferred from the Linux local runs. See
-[`backend/ci/README.md`](../backend/ci/README.md).
+[`backend/ci/README.md`](../../backend/ci/README.md).
 
 ## 2. Regression gates that remain required
 

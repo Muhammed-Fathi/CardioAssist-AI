@@ -1,13 +1,18 @@
 # CardioAssist AI
 
-**Status (2026-10-17):** Phase 1 mock `/v1` contracts and FastAPI backend are
-merged. The first authorized M1b slice is **M1b.1: durable SQLite persistence
-for the existing monitoring POST**; see [D-045](docs/DECISIONS.md) and the
-[backend setup/verification guide](backend/README.md). The M1a.3 React/Flutter
-integration is **deferred/resequenced, not cancelled or completed**. No model
-has been trained, no dataset acquired, and no clinical performance claim is
-made. Report each milestone as implemented, tested, proposed, or unverified;
-see [current implementation status](docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md).
+**Status (2026-10-21):** Phase 1 mock `/v1` contracts, FastAPI backend, M1b.1
+SQLite monitoring persistence (PR #9, `661876c`), and the Gate DA dataset
+suitability package (PR #10, `fb928bb`) are merged into `main`. The current
+milestone slice is **M2a: Maintainer-Led Gate DA Governance Proposal (`D-046`,
+`PENDING HUMAN ACCEPTANCE`) and Read-Only Local Dataset Audit Toolchain**
+([`research/audit/README.md`](research/audit/README.md),
+[`docs/research/gate-da/09_m2a_windows_local_audit_handoff.md`](docs/research/gate-da/09_m2a_windows_local_audit_handoff.md)).
+The M1a.3 React/Flutter integration remains **deferred/resequenced, not
+cancelled or completed** ([D-045](docs/DECISIONS.md)). No model has been
+trained, no real dataset has been downloaded, and no clinical performance or
+supervisor-approval claim is made. Report each milestone as implemented, tested,
+proposed, or unverified; see
+[current implementation status](docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md).
 
 **Run the synthetic mock backend and SQLite persistence locally:**
 [backend/README.md](backend/README.md). See

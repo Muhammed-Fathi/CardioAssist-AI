@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.1.0",
+  "description": "Template for data/manifests/provenance_manifest.json (local out-of-git provenance record generated after human-authorized acquisition).",
+  "governance_decision_id": "D-046",
+  "manifest_recorded_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+  "provenance_verification_semantics": {
+    "local_file_integrity_status": "VERIFIED",
+    "official_source_provenance_status": "HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH",
+    "explanation": "Local SHA-256 digests and byte sizes are VERIFIED directly on disk before and after the read-only audit. However, a human-entered official_source_url, downloaded_at_utc, or newly generated local SHA-256 is human-attested provenance metadata and is NOT treated as independent cryptographic proof of upstream origin."
+  },
+  "acquirer": "REPLACE_WITH_NAMED_HUMAN_ACQUIRER",
+  "audit_reviewer": "REPLACE_WITH_NAMED_HUMAN_AUDIT_REVIEWER",
+  "environment": "E:\\CardioAssist_AI_GitHub_Starter",
+  "files": [
+    {
+      "dataset_id": "DA-A1",
+      "uci_id": 412,
+      "doi": "10.24432/C5Q31T",
+      "official_source_url": "https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani",
+      "download_method": "official_uci_human_attested_download",
+      "filename": "Z-Alizadeh sani dataset.xlsx",
+      "relative_path": "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx",
+      "downloaded_at_utc": "UNKNOWN_PENDING_HUMAN_VERIFICATION",
+      "manifest_recorded_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+      "download_timestamp_evidence_status": "UNVERIFIED",
+      "local_file_integrity_status": "VERIFIED",
+      "official_source_provenance_status": "HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH",
+      "license_spdx": "CC-BY-4.0",
+      "license_snapshot_path": "data/manifests/licenses/uci-412-license-snapshot.txt",
+      "license_snapshot_sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "size_bytes": 0
+    }
+  ]
+}

@@ -39,10 +39,19 @@ the track waits, and no substitute dataset is acquired (document 04 §6).
 
 ## Handoff checklist for the reviewer of this PR
 
-- [ ] Gate DA decision recorded per dataset (DA-A1, DA-A2, DA-B1, DA-B2)
-      in `docs/DECISIONS.md` or the PR record — grant / defer / refuse
+- [ ] Proposed governance decision **D-046** (`docs/DECISIONS.md`) reviewed:
+      maintainer-led Gate DA workflow, honest recording of deferred supervisor
+      review, separately reviewable `D-046-EP` proposal (not approved), and no
+      model fitting authorized
+- [ ] Gate DA decision recorded per dataset (`DA-A1`, `DA-A2`, `DA-B1`, `DA-B2`)
+      in `docs/DECISIONS.md` and `research/audit/gate_da_authorization.json` —
+      grant / defer / refuse (all remain `PENDING_HUMAN_ACCEPTANCE` until
+      explicitly approved by the human maintainer)
 - [ ] If granted: acquirer, auditor(s), storage path (`git check-ignore`
-      verified), and target environment named
-- [ ] Acknowledgement recorded that Gate PT + supervisor sign-off remain
-      required before any modelling (P-3), and P-1/P-4/P-5 remain open
+      verified), and target Windows environment (`E:\CardioAssist_AI_GitHub_Starter`)
+      named per [09_m2a_windows_local_audit_handoff.md](09_m2a_windows_local_audit_handoff.md)
+- [ ] Acknowledgement recorded that `DA-B1` and `DA-B2` never become training or
+      external-validation datasets by audit grant, Gate PT + supervisor sign-off
+      remain required before supervisor-approved modelling (P-3), and P-1/P-4/P-5
+      remain open
 - [ ] This PR left **OPEN** for independent human review; not self-merged
