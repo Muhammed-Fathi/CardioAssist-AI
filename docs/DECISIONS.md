@@ -74,7 +74,55 @@ Recorded 2026-10-17 from the maintainer's explicit M1b.1 authorization.
 
 | ID | Decision | Status | Approver / rationale |
 |---|---|---|---|
-| D-045 | Prioritize final delivery in this order: **(1) real, reproducible CAD AI research and inference; (2) a complete, integration-ready FastAPI backend; (3) a durable, tested database.** React and Flutter are thin local integration/demo clients and are not the maintainer's primary deliverables. | **APPROVED** by the maintainer 2026-10-17. The first authorized M1b implementation slice is M1b.1, a small SQLite/Alembic persistence foundation. | This is an execution-priority/resequencing decision only. The originally planned M1a.3 thin React/Flutter integration is **deferred/resequenced, not cancelled and not completed**; client applications remain preserved product requirements and may be used by the team for local integration testing. The priority adjustment does not waive any research/data/clinical approval gate, does not authorize dataset acquisition or model training, does not change the `/v1` contract, and does not authorize unrelated product features. M1b.1 is limited to the persistence scope in this PR; later endpoints remain contract-first. |
+| D-045 | Prioritize final delivery in this order: **(1) real, reproducible CAD AI research and inference; (2) a complete, integration-ready FastAPI backend; (3) a durable, tested database.** React and Flutter are thin local integration/demo clients and are not the maintainer's primary deliverables. | **APPROVED** by the maintainer 2026-10-17. The first authorized M1b implementation slice is M1b.1, a small SQLite/Alembic persistence foundation (merged in PR #9, `661876c`). | This is an execution-priority/resequencing decision only. The originally planned M1a.3 thin React/Flutter integration is **deferred/resequenced, not cancelled and not completed**; client applications remain preserved product requirements and may be used by the team for local integration testing. The priority adjustment does not waive any research/data/clinical approval gate, does not authorize dataset acquisition or model training, does not change the `/v1` contract, and does not authorize unrelated product features. M1b.1 is limited to the persistence scope in PR #9; later endpoints remain contract-first. |
+
+## Proposed maintainer-led Gate DA governance and local read-only dataset audit access — PENDING HUMAN ACCEPTANCE (D-046)
+
+Prepared 2026-10-21 for milestone **M2a** after PR #10 (`fb928bb`, Gate DA
+dataset suitability & decision package). **This entry is a proposed governance
+change and proposed dataset-access scope. It is NOT self-approved and becomes
+effective ONLY after explicit human maintainer review and acceptance of the
+M2a PR.**
+
+| ID | Decision | Status | Approver / rationale |
+|---|---|---|---|
+| D-046 | **Maintainer-led Gate DA authorization workflow for local, read-only public benchmark dataset audits**, plus explicit proposed dataset access decisions (`DA-A1`, `DA-A2`, `DA-B1`, `DA-B2`) and a separately reviewable proposal for a future **Internal Exploratory Protocol** (`D-046-EP`). | **PROPOSED — PENDING HUMAN ACCEPTANCE** (awaiting human maintainer review and acceptance of the M2a PR; **no dataset is downloaded in M2a and no model fitting is authorized**). | **Maintainer-led workflow rules (1–7):** (1) The maintainer can explicitly authorize local, read-only audits of specified publicly accessible benchmark datasets after provenance and license verification. (2) Authorization must name exact datasets/files, purpose, responsible acquirer, environment (`E:\CardioAssist_AI_GitHub_Starter`, Windows local, Python 3.12), data-custody rules (`/data/` git-ignored, `git check-ignore` verified prior to acquisition, byte-identical originals, SHA-256 + download-day license snapshots, zero patient-level commits/uploads/prints), date, and audit reviewer. (3) This workflow is a **proposed change to existing approval governance** (P-2 / D-031) and becomes effective **only after explicit human maintainer review and acceptance of this PR**. (4) **Supervisor review is deferred to a later research-review stage; its absence is recorded honestly and no supervisor approval is asserted or implied.** (5) Final clinical, publication, novelty, or external-validation claims remain **prohibited** (`NOT MADE — prohibited`, P-5, D-010/D-025) until their actual evidence and review requirements are met. (6) Existing Gate PT (P-3 / D-032) requires supervisor sign-off and is **not** silently bypassed; a separately reviewable proposal (`D-046-EP`, below) documents how a future governance amendment could permit preliminary experiments under a frozen internal exploratory protocol clearly distinguished from supervisor-approved research. (7) **No model fitting, feature selection, hyperparameter tuning, performance evaluation, calibration, SHAP, or LIME is authorized in this PR.** Machine-enforced record: `research/audit/gate_da_authorization.json`. |
+
+### D-046 Proposed Dataset Access Decisions (All **PENDING HUMAN ACCEPTANCE**)
+
+None of the access decisions below take effect until the human maintainer
+explicitly approves the listed scope and populates the named sign-off fields
+(`authorized_by`, `authorized_date`, `responsible_acquirer`, `audit_reviewer`,
+`environment`) in `research/audit/gate_da_authorization.json`. **`DA-B1` and
+`DA-B2` must never become training or external-validation datasets merely
+because audit access is granted.**
+
+| Access ID | Official Dataset & DOI | Exact Authorized Files (and Excluded Files) | Permitted Purpose & Hard Role Restrictions | Proposed Status |
+|---|---|---|---|---|
+| **DA-A1** | **UCI-412 Z-Alizadeh Sani** (`https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani`, DOI `10.24432/C5Q31T`, CC BY 4.0) | `Z-Alizadeh sani dataset.xlsx` under `data/raw/uci-412/` | Local read-only audit of workbook sheets, `Cath` target labels (`CAD` vs `Normal`), columns, data types, 54/55/56 feature-count discrepancy, missingness, within-cohort duplicates, H-01 threshold wording (`>=50%`), and L-08 pre-angiography feature availability timing. **No model fitting authorized.** | **PENDING HUMAN ACCEPTANCE** |
+| **DA-A2** | **UCI-45 Heart Disease — four cohorts, raw and processed files + official documentation** (`https://archive.ics.uci.edu/dataset/45/heart+disease`, DOI `10.24432/C52P4X`, CC BY 4.0) | Under `data/raw/uci-45/`: Processed 14-column files: `processed.cleveland.data`, `processed.hungarian.data`, `processed.switzerland.data`, `processed.va.data`. Raw 76-attribute files: `cleveland.data`, `hungarian.data`, `switzerland.data`, `long-beach-va.data`. Official documentation: `heart-disease.names` (exactly as defined in PR #10 / `docs/research/gate-da/04_gate_da_approval_packet.md` §1.1). **Explicitly excluded:** `new.data`, `reprocessed.hungarian.data`, `processed.long-beach-va.data`. | Local read-only audit of raw 76-attribute and processed 14-column files separately across all four cohorts; confirmation of `processed.cleveland.data` conventional 14-column benchmark schema and raw/processed roles; missingness (`-9.0` vs `?`), invalid codings, suspicious values (e.g. `chol=0`); within/cross-cohort duplicate screening; L-01/L-02/L-06/L-07 feature availability/leakage review; and H-01/H-02 target verification (`>50%` wording and `0` vs `1–4` binarization). **No model fitting authorized.** | **PENDING HUMAN ACCEPTANCE** |
+| **DA-B1** | **UCI-411 Extension of Z-Alizadeh Sani** (`https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani`, DOI `10.24432/C5461K`, CC BY 4.0) | `extention of Z-Alizadeh sani dataset.xlsx` under `data/raw/uci-411/` | **Audit-only and NEVER an independent cohort.** Sole purpose: confirm same-cohort provenance with DA-A1 (UCI-412), evaluate 1-to-1 row correspondence and feature superset against DA-A1, and verify L-03 leakage rules (`LAD`, `LCX`, `RCA`, `Cath`). **Must never become a training or external-validation dataset or additive sample size (`n=606`) merely because audit access is granted.** | **PENDING HUMAN ACCEPTANCE** |
+| **DA-B2** | **UCI-145 Statlog (Heart)** (`https://archive.ics.uci.edu/dataset/145/statlog+heart`, DOI `10.24432/C57303`, CC BY 4.0) | `heart.dat` (and optional official companion doc `heart.doc` if present) under `data/raw/uci-145/` | **Audit-only for duplicate/overlap investigation** against DA-A2 Cleveland (`L-05`). **Must never become a training or external-validation dataset merely because audit access is granted.** | **PENDING HUMAN ACCEPTANCE** |
+
+### Separately Reviewable Proposal: Internal Exploratory Protocol (`D-046-EP` — NOT Approved in This PR)
+
+- **Why documented now:** The existing Gate PT (`P-3` / `D-032`) requires
+  academic supervisor sign-off on a frozen pre-training protocol after the
+  Gate DA read-only audit. To prevent silent gate-skipping while documenting a
+  transparent path if supervisor review remains deferred after the M2 read-only
+  audit completes, `D-046-EP` is recorded as a **separately reviewable
+  proposal** (detailed in `docs/research/gate-da/05_gate_pt_methodology_outline_NOT_APPROVED.md` §11).
+- **Proposed scope if later adopted via a separate governance amendment:**
+  Only **after** (a) the M2 local read-only dataset audit report is completed
+  and reviewed on GitHub, and (b) a **separate, explicit governance amendment
+  PR** freezes a timestamped protocol and authorizes `D-046-EP`, the team could
+  run preliminary internal experiments strictly labeled
+  `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`.
+- **Hard boundaries:** `D-046-EP` is **PROPOSED — NOT APPROVED** in M2a. It
+  does **not** bypass or close `P-3` (Gate PT supervisor sign-off remains
+  mandatory before any supervisor-approved research, publication, novelty,
+  external-validation, or clinical claim), and **no model fitting is
+  authorized in this PR**.
 
 ## Pending approvals — explicitly preserved, NOT approved
 

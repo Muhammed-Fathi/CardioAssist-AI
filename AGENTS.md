@@ -68,3 +68,23 @@ No dataset download, model training, real patient data, paid APIs/hosting/
 compute, card-required trials, or changes to source research materials are
 authorized. If a required policy or contract semantic blocks safe persistence,
 stop and report the precise blocker.
+
+## M2a context: Maintainer-Led Gate DA Proposal & Read-Only Audit Toolchain (2026-10-21)
+Following the merge of PR #9 (M1b.1 SQLite foundation, `661876c`) and PR #10
+(Gate DA dataset suitability package, `fb928bb`), milestone **M2a** prepares:
+1. Proposed governance decision **D-046** (`docs/DECISIONS.md` and
+   `research/audit/gate_da_authorization.json`, status **PENDING HUMAN
+   ACCEPTANCE**), documenting the maintainer-led local read-only dataset audit
+   workflow, honest deferral of supervisor review (never fabricating or implying
+   supervisor approval), explicit proposed access decisions for `DA-A1`,
+   `DA-A2`, `DA-B1` (audit-only, never independent cohort), and `DA-B2`
+   (audit-only duplicate/overlap investigation), and a separately reviewable
+   proposal for an internal exploratory protocol (`D-046-EP`, **PROPOSED — NOT
+   APPROVED**).
+2. A $0, Python 3.12-compatible, Windows-local read-only dataset audit
+   toolchain (`research/audit/`) and synthetic fixture test suite
+   (`tests/audit/`).
+
+M2a does **not** authorize the agent to download datasets, fit models, publish
+results, or self-approve any governance change. Existing `/v1` contracts,
+FastAPI backend, SQLite persistence, and source materials remain unchanged.

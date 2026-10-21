@@ -1,0 +1,167 @@
+{
+  "schema_version": "1.0.0",
+  "governance_decision_id": "D-046",
+  "milestone": "M2a",
+  "workflow_status": "PENDING_HUMAN_ACCEPTANCE",
+  "effective_condition": "Becomes effective ONLY after explicit human maintainer review, acceptance of the M2a PR, and population of the named authorization fields below.",
+  "supervisor_review_status": "DEFERRED_TO_LATER_RESEARCH_STAGE_NOT_ASSERTED",
+  "supervisor_approval_claimed": false,
+  "gate_pt_status": "CLOSED_REQUIRES_SUPERVISOR_SIGNOFF_P3",
+  "internal_exploratory_protocol_proposal": {
+    "proposal_id": "D-046-EP",
+    "status": "PROPOSED_SEPARATELY_REVIEWABLE_NOT_APPROVED",
+    "requires_separate_governance_amendment": true,
+    "requires_completed_m2_read_only_audit_first": true,
+    "requires_frozen_timestamped_protocol": true,
+    "mandatory_distinction_label": "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
+    "bypasses_gate_pt_p3": false,
+    "authorizes_model_fitting_in_this_pr": false
+  },
+  "model_fitting_authorized": false,
+  "feature_selection_authorized": false,
+  "hyperparameter_tuning_authorized": false,
+  "performance_evaluation_authorized": false,
+  "calibration_authorized": false,
+  "shap_or_lime_authorized": false,
+  "prohibited_claims": [
+    "clinical_readiness_or_validation",
+    "external_validation_completion",
+    "novelty_or_publication_contribution",
+    "30_day_or_future_event_risk_prediction",
+    "supervisor_approval_or_endorsement",
+    "proven_patient_independence_from_identifier_free_data"
+  ],
+  "data_custody_rules": {
+    "input_root_relative": "data/raw",
+    "manifest_root_relative": "data/manifests",
+    "require_git_check_ignore_before_acquisition": true,
+    "require_zero_git_tracked_files_under_data": true,
+    "require_byte_identical_originals": true,
+    "require_sha256_and_license_snapshot": true,
+    "forbid_patient_level_commit_upload_or_print": true,
+    "forbid_kaggle_and_third_party_mirrors": true,
+    "forbid_automatic_research_data_deletion": true
+  },
+  "datasets": {
+    "DA-A1": {
+      "dataset_id": "DA-A1",
+      "uci_id": 412,
+      "title": "UCI Z-Alizadeh Sani",
+      "doi": "10.24432/C5Q31T",
+      "official_source_url": "https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani",
+      "expected_license_spdx": "CC-BY-4.0",
+      "local_subdir": "data/raw/uci-412",
+      "authorized_files": [
+        "Z-Alizadeh sani dataset.xlsx"
+      ],
+      "optional_documentation_files": [],
+      "excluded_unapproved_files": [
+        "extention of Z-Alizadeh sani dataset.xlsx"
+      ],
+      "purpose": "Local read-only audit of workbook sheets, Cath target labels (CAD vs Normal), columns, data types, 54/55/56 feature-count discrepancy, missingness, duplicates, H-01 threshold wording (>=50%), and L-08 pre-angiography feature availability timing.",
+      "permitted_role": "READ_ONLY_AUDIT_PRIMARY_CANDIDATE",
+      "never_independent_cohort": false,
+      "never_training_or_external_validation_by_audit_grant": true,
+      "training_authorized": false,
+      "external_validation_authorized": false,
+      "authorization_status": "PENDING_HUMAN_ACCEPTANCE",
+      "authorized_by": null,
+      "authorized_date": null,
+      "responsible_acquirer": null,
+      "audit_reviewer": null,
+      "environment": "E:\\CardioAssist_AI_GitHub_Starter (Windows 10/11 PowerShell, Python 3.12, local read-only)"
+    },
+    "DA-A2": {
+      "dataset_id": "DA-A2",
+      "uci_id": 45,
+      "title": "UCI Heart Disease (Cleveland, Hungary, Switzerland, VA Long Beach — Raw 76-Attribute and Processed 14-Column Files + Official Documentation)",
+      "doi": "10.24432/C52P4X",
+      "official_source_url": "https://archive.ics.uci.edu/dataset/45/heart+disease",
+      "expected_license_spdx": "CC-BY-4.0",
+      "local_subdir": "data/raw/uci-45",
+      "authorized_files": [
+        "processed.cleveland.data",
+        "cleveland.data",
+        "processed.hungarian.data",
+        "hungarian.data",
+        "processed.switzerland.data",
+        "switzerland.data",
+        "processed.va.data",
+        "long-beach-va.data",
+        "heart-disease.names"
+      ],
+      "optional_documentation_files": [],
+      "excluded_unapproved_files": [
+        "new.data",
+        "reprocessed.hungarian.data",
+        "processed.long-beach-va.data"
+      ],
+      "purpose": "Local read-only audit of raw 76-attribute and processed 14-column files across all four cohorts, confirmation of processed.cleveland.data conventional benchmark schema and raw/processed roles, missingness (-9.0 vs ?), invalid codings, suspicious values (e.g. chol=0), within/cross-cohort duplicate screening, L-01/L-02/L-06/L-07 leakage and availability review, and H-01/H-02 target verification (>50% wording and 0 vs 1-4 binarization).",
+      "permitted_role": "READ_ONLY_AUDIT_PRIMARY_AND_SIBLING_CANDIDATE",
+      "never_independent_cohort": false,
+      "never_training_or_external_validation_by_audit_grant": true,
+      "training_authorized": false,
+      "external_validation_authorized": false,
+      "authorization_status": "PENDING_HUMAN_ACCEPTANCE",
+      "authorized_by": null,
+      "authorized_date": null,
+      "responsible_acquirer": null,
+      "audit_reviewer": null,
+      "environment": "E:\\CardioAssist_AI_GitHub_Starter (Windows 10/11 PowerShell, Python 3.12, local read-only)"
+    },
+    "DA-B1": {
+      "dataset_id": "DA-B1",
+      "uci_id": 411,
+      "title": "UCI Extension of Z-Alizadeh Sani",
+      "doi": "10.24432/C5461K",
+      "official_source_url": "https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani",
+      "expected_license_spdx": "CC-BY-4.0",
+      "local_subdir": "data/raw/uci-411",
+      "authorized_files": [
+        "extention of Z-Alizadeh sani dataset.xlsx"
+      ],
+      "optional_documentation_files": [],
+      "excluded_unapproved_files": [],
+      "purpose": "Audit-only: confirm same-cohort provenance with DA-A1 (UCI-412), evaluate 1-to-1 row correspondence and feature superset against DA-A1, and verify L-03 leakage rules for LAD/LCX/RCA/Cath. NEVER an independent cohort, NEVER additive sample size, and NEVER a training or external-validation dataset merely because audit access is granted.",
+      "permitted_role": "AUDIT_ONLY_NEVER_INDEPENDENT_COHORT",
+      "never_independent_cohort": true,
+      "never_training_or_external_validation_by_audit_grant": true,
+      "training_authorized": false,
+      "external_validation_authorized": false,
+      "authorization_status": "PENDING_HUMAN_ACCEPTANCE",
+      "authorized_by": null,
+      "authorized_date": null,
+      "responsible_acquirer": null,
+      "audit_reviewer": null,
+      "environment": "E:\\CardioAssist_AI_GitHub_Starter (Windows 10/11 PowerShell, Python 3.12, local read-only)"
+    },
+    "DA-B2": {
+      "dataset_id": "DA-B2",
+      "uci_id": 145,
+      "title": "UCI Statlog (Heart)",
+      "doi": "10.24432/C57303",
+      "official_source_url": "https://archive.ics.uci.edu/dataset/145/statlog+heart",
+      "expected_license_spdx": "CC-BY-4.0",
+      "local_subdir": "data/raw/uci-145",
+      "authorized_files": [
+        "heart.dat"
+      ],
+      "optional_documentation_files": [
+        "heart.doc"
+      ],
+      "excluded_unapproved_files": [],
+      "purpose": "Audit-only: exact and near-duplicate/overlap investigation against DA-A2 Cleveland (L-05). NEVER becomes a training or external-validation dataset merely because audit access is granted.",
+      "permitted_role": "AUDIT_ONLY_DUPLICATE_OVERLAP_INVESTIGATION",
+      "never_independent_cohort": true,
+      "never_training_or_external_validation_by_audit_grant": true,
+      "training_authorized": false,
+      "external_validation_authorized": false,
+      "authorization_status": "PENDING_HUMAN_ACCEPTANCE",
+      "authorized_by": null,
+      "authorized_date": null,
+      "responsible_acquirer": null,
+      "audit_reviewer": null,
+      "environment": "E:\\CardioAssist_AI_GitHub_Starter (Windows 10/11 PowerShell, Python 3.12, local read-only)"
+    }
+  }
+}

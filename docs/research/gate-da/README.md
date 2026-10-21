@@ -2,12 +2,12 @@
 
 | Field | Value |
 |---|---|
-| Status | **PROPOSED — awaiting Gate DA decision (P-2 / D-031). Nothing in this package is approved, executed, or a dataset acquisition.** |
-| Date | 2026-10-20 |
-| Starting baseline | Verified `main` = `661876cdfeeb0c22e9cdaca850552ba57c4aa52c` (PR #9 merge, M1b.1). PR #9 scope is **not** reopened. |
-| Scope | Documentation and scientific-feasibility assessment **only**. No dataset was downloaded, no model was trained/fitted/tuned/evaluated, no code, schema, database, API, frontend, fixture, or source material was changed. |
+| Status | **PROPOSED — awaiting Gate DA decision (P-2 / D-031 / proposed D-046). Nothing in this package is approved, executed, or a dataset acquisition.** |
+| Date | 2026-10-21 (updated for M2a after PR #10 merge `fb928bb96d000044c3a8617767c345555ea8c683`) |
+| Starting baseline | Verified `main` = `fb928bb96d000044c3a8617767c345555ea8c683` (PR #10 merge, on top of PR #9 M1b.1 `661876cdfeeb0c22e9cdaca850552ba57c4aa52c`). PR #9 and PR #10 scopes are preserved. |
+| M2a addition (2026-10-21) | Adds proposed maintainer-led Gate DA governance decision **D-046** (`PENDING HUMAN ACCEPTANCE`) and separately reviewable internal exploratory protocol proposal **D-046-EP** (`PROPOSED — NOT APPROVED`) in `docs/DECISIONS.md`; implements the $0, Python 3.12-compatible, Windows-local read-only dataset audit toolchain in `research/audit/` with synthetic fixture tests in `tests/audit/`; and documents exact Windows PowerShell handoff steps from `E:\CardioAssist_AI_GitHub_Starter` in [09_m2a_windows_local_audit_handoff.md](09_m2a_windows_local_audit_handoff.md). **No real dataset was downloaded and no model was trained.** |
 | Correction (2026-10-20 review) | UCI-45 raw vs processed file identity corrected throughout: `cleveland.data` (59.2 KB) is the 76-attribute **raw** Cleveland file; `processed.cleveland.data` (≈18 KB) is the conventional 14-column benchmark and is now explicitly in the DA-A2 request with a per-file role table (document 04 §1.1), alongside processed/raw pairs for Hungary, Switzerland, and VA. H-01 now asserts **only** the verified threshold-*wording* difference (`>50%` vs `≥50%`); whether exactly-50% records exist or how they were coded is **UNVERIFIED**. UCI-411↔412 status is stated as source-supported same-cohort provenance, with row-level identity reserved as a Gate DA audit task. Facts re-verified against the official UCI dataset-45 page and `heart-disease.names` on 2026-10-20; no dataset file was downloaded. |
-| Governing authorities | `AGENTS.md`; `docs/DECISIONS.md` (D-006/D-007 OPEN, D-038…D-045, P-1…P-6); `docs/phase0/PHASE0_REVIEW_DRAFT.md` Rev. 3 (§4, §5, §R2-4, §R2-5, §F-1…§F-6); `docs/DATA_POLICY.md`; `docs/blueprint/05_RESEARCH_METHODOLOGY_AND_APPROVAL_GATES.md`. **Where this package conflicts with those documents, those documents govern.** |
+| Governing authorities | `AGENTS.md`; `docs/DECISIONS.md` (D-006/D-007 OPEN, D-038…D-045 APPROVED, D-046 PROPOSED/PENDING, P-1…P-6); `docs/phase0/PHASE0_REVIEW_DRAFT.md` Rev. 3 (§4, §5, §R2-4, §R2-5, §F-1…§F-6); `docs/DATA_POLICY.md`; `docs/blueprint/05_RESEARCH_METHODOLOGY_AND_APPROVAL_GATES.md`. **Where this package conflicts with those documents, those documents govern.** |
 | Target (provisional) | **T1 — cross-sectional classification of angiographically defined CAD presence** (~50% diameter-narrowing threshold; exact wording is source-specific). Status **PENDING (P-1/D-006)**, not frozen. This is **not** future/30-day cardiovascular risk prediction (Phase 0 §4.1). |
 
 ## How to read this package — evidence levels
@@ -40,6 +40,7 @@ authorization (D-040, P-2).
 | 6 | Clinician-input feature availability & backend integration feasibility | [06_clinician_input_and_integration_feasibility.md](06_clinician_input_and_integration_feasibility.md) |
 | 7 | Decision register — unresolved scientific, access, licensing, privacy, integration questions | [07_decision_register_unresolved_questions.md](07_decision_register_unresolved_questions.md) |
 | 8 | Phased handoff — the exact next authorized research task after Gate DA | [08_phased_handoff_after_gate_da.md](08_phased_handoff_after_gate_da.md) |
+| 9 | M2a Windows-local read-only dataset audit handoff (`E:\CardioAssist_AI_GitHub_Starter`) | [09_m2a_windows_local_audit_handoff.md](09_m2a_windows_local_audit_handoff.md) |
 
 ## Headline conclusions (all PROPOSED unless labelled otherwise)
 

@@ -11,7 +11,8 @@ Pytest removes its throwaway databases afterward.
 |---|---|---|
 | `contracts/` | M1a.1 (D-043), merged PR #3 | **249 tests** for OpenAPI, schemas, fixture/oracle behavior, and safety/compatibility rules. ADR-001 Option A (D-044) added the optional-null matrix and minimally adapted oracle; no original test was removed. See `contracts/README.md`. |
 | `backend/` | M1a.2 + M1b.1 | **371 tests**: 347 existing API/HTTP behavior regressions plus 24 SQLite persistence/migration tests. Covers fixture HTTP behavior, validation order/errors, Track separation, synthetic inference, replay/conflict and 24-hour runtime expiry, concurrency, restart durability, rollback, revision/schema drift and integrity rejection, lifespan failure without auto-migration/repair, malformed inputs, configuration-based DB path and test-DB isolation. |
-| **Total** | current checkout | **620 tests** (`249` contract + `371` backend). The current local run, interpreter and CI caveats are recorded in `backend/VERIFICATION.md` and `docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md`. |
+| `audit/` | M2a (D-046 proposed) | **33 tests**: synthetic unit and negative tests for the read-only local dataset audit toolchain (`research/audit/`). Covers D-046 governance/authorization checks (`PENDING_HUMAN_ACCEPTANCE`), unapproved-source rejection, `git check-ignore` protection, byte-identical guards, archive traversal/exclusion checks, UCI-412/45/411/145 parsing, null vs zero semantics, wrong delimiters/columns, raw-vs-processed confusion, duplicate/near-duplicate and correspondence checks, leakage-column detection, and zero patient-row report redaction. See `audit/README.md`. |
+| **Total** | current checkout | **653 tests** (`249` contract + `371` backend + `33` audit). The current local run, interpreter and CI caveats are recorded in `backend/VERIFICATION.md` and `docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md`. |
 
 ## Local setup and checks (repository root)
 

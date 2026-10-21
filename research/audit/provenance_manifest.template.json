@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Template for data/manifests/provenance_manifest.json (local out-of-git provenance record generated after human-authorized acquisition).",
+  "governance_decision_id": "D-046",
+  "generated_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+  "acquirer": "REPLACE_WITH_NAMED_HUMAN_ACQUIRER",
+  "audit_reviewer": "REPLACE_WITH_NAMED_HUMAN_AUDIT_REVIEWER",
+  "environment": "E:\\CardioAssist_AI_GitHub_Starter",
+  "files": [
+    {
+      "dataset_id": "DA-A1",
+      "uci_id": 412,
+      "doi": "10.24432/C5Q31T",
+      "official_source_url": "https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani",
+      "download_method": "official_uci_download",
+      "filename": "Z-Alizadeh sani dataset.xlsx",
+      "relative_path": "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx",
+      "download_date_utc": "YYYY-MM-DDTHH:MM:SSZ",
+      "license_spdx": "CC-BY-4.0",
+      "license_snapshot_path": "data/manifests/licenses/uci-412-license-snapshot.txt",
+      "license_snapshot_sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "size_bytes": 0
+    }
+  ]
+}

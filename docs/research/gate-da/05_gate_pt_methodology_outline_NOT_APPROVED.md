@@ -207,3 +207,47 @@
 - [ ] Stopping/reporting rules incl. null-result reporting
 
 **Sign-off: NOT SOUGHT by this document. NOT SIGNED. NOT EXECUTED.**
+
+---
+
+## 11. Separately Reviewable Proposal: Internal Exploratory Protocol (`D-046-EP` — NOT Approved)
+
+> **Status: SEPARATELY REVIEWABLE PROPOSAL ONLY — NOT APPROVED, NOT EFFECTIVE,
+> AND AUTHORIZES ZERO MODEL FITTING IN M2a.**
+
+The existing Gate PT (`P-3` / `D-032`) requires academic supervisor sign-off
+before any model fitting, feature selection, hyperparameter tuning, or
+performance evaluation. This project **never** silently bypasses Gate PT and
+**never** fabricates or implies supervisor approval.
+
+To document how the team could conduct preliminary technical exploration if an
+academic supervisor meeting remains deferred *after* the M2 local read-only
+dataset audit is completed and reviewed, **D-046-EP** (`docs/DECISIONS.md`)
+defines the requirements for a potential future governance amendment:
+
+1. **Prerequisite 1 — Completed M2 Read-Only Audit:** The Gate DA read-only
+   dataset audit report (`M2`) must first be completed on the maintainer's
+   Windows machine and merged via an independently reviewed PR, closing the
+   data-level findings in document 03 (`H-01`..`H-07`, `L-01`..`L-08`).
+2. **Prerequisite 2 — Separate Governance Amendment PR:** A separate,
+   standalone governance amendment PR must be opened, reviewed, and explicitly
+   approved by the human maintainer to activate `D-046-EP`. Approving M2a
+   (`D-046` Gate DA audit readiness) does **not** approve `D-046-EP`.
+3. **Prerequisite 3 — Frozen Timestamped Exploratory Protocol:** Before any
+   preliminary experiment runs under `D-046-EP`, the exact target wording,
+   feature dictionary, leakage exclusions (`ca`, per-vessel fields,
+   `LAD`/`LCX`/`RCA`/`Cath` excluded), nested-CV fold structure, seeds,
+   within-fold preprocessing, and label-shuffle negative control must be frozen
+   in a timestamped protocol file.
+4. **Mandatory Distinction from Supervisor-Approved Research:** Every run,
+   artifact, table, and document produced under an internal exploratory
+   protocol must carry the explicit banner
+   `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`. It does **not** satisfy or
+   close `P-3` (Gate PT supervisor sign-off), cannot be presented as
+   supervisor-approved research, and remains subject to all `P-5` / `D-010`
+   prohibitions on clinical, external-validation, novelty, and publication
+   claims.
+5. **Audit-Only Datasets Remain Excluded from Modelling:** Even under a future
+   approved `D-046-EP`, `DA-B1` (UCI-411) and `DA-B2` (UCI-145 Statlog) remain
+   strictly audit-only and may never be used as training or external-validation
+   cohorts for T1.

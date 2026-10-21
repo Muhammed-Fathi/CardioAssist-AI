@@ -1,0 +1,23 @@
+# Pinned free ($0) dependencies for the CardioAssist AI M2a read-only dataset
+# audit toolchain (Python 3.11 / 3.12, Windows + Linux compatible).
+#
+# Isolated from backend/requirements.txt: no FastAPI, SQLAlchemy, Starlette,
+# model-training library, or cloud SDK is required.
+#
+# Windows PowerShell setup from E:\CardioAssist_AI_GitHub_Starter:
+#   python -m venv .venv-audit
+#   .\.venv-audit\Scripts\Activate.ps1
+#   python -m pip install -r research/audit/requirements.txt
+#   python -m pip check
+
+# --- Excel (.xlsx) read-only inspection for UCI-412 / UCI-411 -------------- #
+openpyxl==3.1.5
+et-xmlfile==2.0.0
+
+# --- Test runner (matches tests/contracts/requirements.txt pins) ----------- #
+pytest==9.0.3
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+Pygments==2.21.0
+colorama==0.4.6; sys_platform == 'win32'
