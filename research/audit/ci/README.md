@@ -43,8 +43,8 @@ if (Test-Path ".github\workflows\audit-ci.yml") {
 Copy-Item "research\audit\ci\audit-ci.yml.example" ".github\workflows\audit-ci.yml" -ErrorAction Stop
 
 # 5. Run the local audit test suite to confirm everything passes before pushing
-pytest tests/audit -q
-python -m research.audit --dry-run
+pytest tests/audit -q -W error
+python -m research.audit dry-run
 python -m research.audit self-test
 
 # 6. Commit and push to the PR #11 branch (only after confirming no remote divergence)
@@ -61,4 +61,4 @@ git push origin arena/a1f1816a-cardioassist-ai
 
 After pushing `.github/workflows/audit-ci.yml` to `arena/a1f1816a-cardioassist-ai`:
 1. Check PR #11 checks (`gh pr checks 11` or the GitHub Actions tab).
-2. Verify that **`Audit Toolchain & Source Integrity CI`** runs `pytest tests/audit -q`, `python -m research.audit --dry-run`, `python -m research.audit self-test`, and `python scripts/verify_sources.py` on **both Python `3.11` and Python `3.12`** and succeeds before merging PR #11.
+2. Verify that the **`audit-toolchain-validation`** workflow (jobs `Dataset audit toolchain (Python 3.11)` and `Dataset audit toolchain (Python 3.12)`) runs `python -m pytest tests/audit -q -W error`, `python -m research.audit check-auth`, `python -m research.audit verify-ignore`, `python -m research.audit dry-run`, `python -m research.audit self-test`, and `python scripts/verify_sources.py` on **both Python `3.11` and Python `3.12`** and succeeds before merging PR #11.

@@ -317,13 +317,16 @@ def test_cli_subcommands_execute_cleanly_and_fail_closed_on_unauthorized_run(
 
 
 def test_proposed_audit_ci_workflow_template_is_complete_and_properly_scoped() -> None:
-    """Important 7: Verify the proposed GitHub Actions audit CI workflow template is ready for maintainer installation."""
+    """Important 7 & Final Review 1/3: Verify CI workflow template, workflow name consistency, and official dataset references."""
     wf_path = REPO_ROOT / "research/audit/ci/audit-ci.yml.example"
     readme_path = REPO_ROOT / "research/audit/ci/README.md"
+    handoff_path = REPO_ROOT / "docs/research/gate-da/09_m2a_windows_local_audit_handoff.md"
     assert wf_path.is_file()
     assert readme_path.is_file()
+    assert handoff_path.is_file()
 
     wf_text = wf_path.read_text(encoding="utf-8")
+    assert "name: audit-toolchain-validation" in wf_text
     assert "pytest tests/audit -q" in wf_text
     assert "python -m research.audit dry-run" in wf_text
     assert "python -m research.audit self-test" in wf_text
@@ -334,3 +337,17 @@ def test_proposed_audit_ci_workflow_template_is_complete_and_properly_scoped() -
     readme_text = readme_path.read_text(encoding="utf-8")
     assert "arena/a1f1816a-cardioassist-ai" in readme_text
     assert "git fetch origin arena/a1f1816a-cardioassist-ai" in readme_text
+    assert "audit-toolchain-validation" in readme_text
+    assert "Audit Toolchain & Source Integrity CI" not in readme_text
+
+    handoff_text = handoff_path.read_text(encoding="utf-8")
+    assert "audit-toolchain-validation" in handoff_text
+    assert "Audit Toolchain & Source Integrity CI" not in handoff_text
+
+    # Verify all 4 official dataset DOIs and canonical URLs in gate_da_authorization.json match the Windows handoff
+    auth_manifest = json.loads(DEFAULT_AUTH_MANIFEST_PATH.read_text(encoding="utf-8"))
+    for ds_id, ds_cfg in auth_manifest["datasets"].items():
+        assert ds_cfg["doi"] in handoff_text, f"DOI {ds_cfg['doi']} for {ds_id} missing from Windows handoff"
+        assert (
+            ds_cfg["official_source_url"] in handoff_text
+        ), f"Canonical URL {ds_cfg['official_source_url']} for {ds_id} missing from Windows handoff"

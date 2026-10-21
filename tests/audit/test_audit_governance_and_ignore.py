@@ -711,6 +711,104 @@ def test_archive_inspector_and_controlled_extraction_enforce_all_safety_gates(
         inspect_zip_archive(exe_zip, "DA-A1", auth_manifest)
 
 
+def test_extract_authorized_archive_prevents_overwriting_existing_originals_and_partial_collisions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Requirement 2: Reject extraction if any authorized destination file already exists, without overwriting originals."""
+    suite = materialize_synthetic_audit_suite(tmp_path, authorize_all=True)
+    auth_manifest = load_authorization_manifest(suite["auth_manifest_path"])
+
+    # Build two valid DA-A2 archives with distinct file contents
+    zip_v1 = tmp_path / "da_a2_v1.zip"
+    with zipfile.ZipFile(zip_v1, "w") as zf:
+        for req_name in auth_manifest["datasets"]["DA-A2"]["authorized_files"]:
+            zf.writestr(req_name, f"original-v1-content-{req_name}")
+
+    zip_v2 = tmp_path / "da_a2_v2.zip"
+    with zipfile.ZipFile(zip_v2, "w") as zf:
+        for req_name in auth_manifest["datasets"]["DA-A2"]["authorized_files"]:
+            zf.writestr(req_name, f"OVERWRITTEN-v2-content-{req_name}")
+
+    # 1. Initial extraction into a clean workspace succeeds
+    ws_repeat = tmp_path / "ws_repeat"
+    ws_repeat.mkdir(parents=True, exist_ok=True)
+    res1 = extract_authorized_archive(
+        zip_v1,
+        "DA-A2",
+        auth_manifest,
+        base_root=ws_repeat,
+        repo_root=REPO_ROOT,
+        allow_external_tmp_root=ws_repeat,
+    )
+    assert res1["status"] == "OK_AUTHORIZED_FILES_EXTRACTED"
+    uci45_dir = ws_repeat / "data/raw/uci-45"
+    pre_hashes = {p.name: sha256_file(p) for p in uci45_dir.iterdir() if p.is_file()}
+    assert len(pre_hashes) == 9
+
+    # 2. Repeated extraction into the same directory fails closed and leaves all 9 originals byte-identical
+    with pytest.raises(ArchiveSecurityError, match="Refusing to overwrite existing dataset file"):
+        extract_authorized_archive(
+            zip_v2,
+            "DA-A2",
+            auth_manifest,
+            base_root=ws_repeat,
+            repo_root=REPO_ROOT,
+            allow_external_tmp_root=ws_repeat,
+        )
+    post_hashes = {p.name: sha256_file(p) for p in uci45_dir.iterdir() if p.is_file()}
+    assert post_hashes == pre_hashes
+
+    # 3. Partial existing-file collision: only 'va.data' / 'switzerland.data' (later in archive order) pre-exists.
+    #    Extraction must reject upfront BEFORE writing earlier archive members like 'cleveland.data'.
+    ws_partial = tmp_path / "ws_partial"
+    partial_uci45 = ws_partial / "data/raw/uci-45"
+    partial_uci45.mkdir(parents=True, exist_ok=True)
+    existing_single = partial_uci45 / "switzerland.data"
+    existing_single.write_bytes(b"preexisting-switzerland-original-bytes")
+    pre_single_sha, pre_single_size = sha256_file(existing_single)
+
+    with pytest.raises(ArchiveSecurityError, match="Refusing to overwrite existing dataset file.*switzerland.data"):
+        extract_authorized_archive(
+            zip_v2,
+            "DA-A2",
+            auth_manifest,
+            base_root=ws_partial,
+            repo_root=REPO_ROOT,
+            allow_external_tmp_root=ws_partial,
+        )
+
+    # Confirm the pre-existing file is untouched AND no other files (like cleveland.data) were written
+    assert [p.name for p in partial_uci45.iterdir()] == ["switzerland.data"]
+    assert sha256_file(existing_single) == (pre_single_sha, pre_single_size)
+
+    # 4. Mid-extraction failure cleanup: if an error occurs after writing the first new file, newly created
+    #    incomplete files are cleaned up.
+    ws_cleanup = tmp_path / "ws_cleanup"
+    ws_cleanup.mkdir(parents=True, exist_ok=True)
+    orig_open = zipfile.ZipFile.open
+    call_count = {"n": 0}
+
+    def failing_zip_open(self_zf: zipfile.ZipFile, name_or_info: object, mode: str = "r", *args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            raise ArchiveSecurityError("Simulated mid-extraction stream corruption on 2nd member")
+        return orig_open(self_zf, name_or_info, mode, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", failing_zip_open)
+    with pytest.raises(ArchiveSecurityError, match="Simulated mid-extraction stream corruption"):
+        extract_authorized_archive(
+            zip_v1,
+            "DA-A2",
+            auth_manifest,
+            base_root=ws_cleanup,
+            repo_root=REPO_ROOT,
+            allow_external_tmp_root=ws_cleanup,
+        )
+    cleanup_dir = ws_cleanup / "data/raw/uci-45"
+    assert list(cleanup_dir.iterdir()) == []
+
+
 def test_byte_identity_guard_verifies_on_both_success_and_failure_paths(tmp_path: Path) -> None:
     """Important 4: Run byte-identity verification on both success and failure paths."""
     f = tmp_path / "sample.data"

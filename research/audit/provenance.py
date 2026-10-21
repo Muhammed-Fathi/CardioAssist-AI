@@ -1296,68 +1296,101 @@ def extract_authorized_archive(
     )
 
     allowed_to_extract = set(summary["required_files_verified"]) | set(summary["optional_files_found"])
-    extracted_records: list[dict[str, Any]] = []
 
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        for info in zf.infolist():
-            basename = PurePosixPath(info.filename.replace("\\", "/")).name
-            if basename not in allowed_to_extract:
-                continue
+    # Pre-extraction collision check: reject before modifying or creating any file if any target already exists.
+    existing_collisions: list[str] = []
+    target_paths_by_basename: dict[str, tuple[PurePosixPath, Path]] = {}
+    existing_lower_map = {p.name.lower(): p.name for p in resolved_ds_dir.iterdir()}
 
-            rel_target_posix = expected_dir_posix / basename
-            unres_target = _verify_no_symlinks_under_base(
-                base_root,
-                rel_target_posix,
-                field_name=f"{dataset_id}:{basename} extraction target",
-            )
-            if unres_target.exists() and unres_target.is_dir():
-                raise ArchiveSecurityError(
-                    f"Extraction target '{unres_target}' is a directory."
-                )
-
-            resolved_target = (resolved_ds_dir / basename).resolve()
-            if resolved_target.parent != resolved_ds_dir:
-                raise ArchiveSecurityError(
-                    f"Extraction target '{resolved_target}' escapes '{resolved_ds_dir}'."
-                )
-
-            digest = hashlib.sha256()
-            written_bytes = 0
-            with zf.open(info, "r") as src_stream, resolved_target.open("wb") as dst_stream:
-                while True:
-                    chunk = src_stream.read(65536)
-                    if not chunk:
-                        break
-                    written_bytes += len(chunk)
-                    if written_bytes > max_member_bytes or written_bytes > info.file_size:
-                        dst_stream.close()
-                        resolved_target.unlink(missing_ok=True)
-                        raise ArchiveSecurityError(
-                            f"Archive member '{basename}' exceeded declared or maximum byte size during extraction."
-                        )
-                    digest.update(chunk)
-                    dst_stream.write(chunk)
-
-            if written_bytes != info.file_size or written_bytes <= 0:
-                resolved_target.unlink(missing_ok=True)
-                raise ArchiveSecurityError(
-                    f"Extracted byte count ({written_bytes}) for '{basename}' did not match declared size ({info.file_size})."
-                )
-
-            extracted_records.append(
-                {
-                    "filename": basename,
-                    "relative_path": rel_target_posix.as_posix(),
-                    "size_bytes": written_bytes,
-                    "sha256": digest.hexdigest(),
-                }
-            )
-
-    for item in sorted(resolved_ds_dir.iterdir()):
-        if item.is_symlink() or not item.is_file() or item.name not in allowed_to_extract:
+    for basename in sorted(allowed_to_extract):
+        rel_target_posix = expected_dir_posix / basename
+        unres_target = _verify_no_symlinks_under_base(
+            base_root,
+            rel_target_posix,
+            field_name=f"{dataset_id}:{basename} extraction target",
+        )
+        resolved_target = (resolved_ds_dir / basename).resolve()
+        if resolved_target.parent != resolved_ds_dir:
             raise ArchiveSecurityError(
-                f"Post-extraction directory check failed: unexpected entry '{item.name}' in '{resolved_ds_dir}'."
+                f"Extraction target '{resolved_target}' escapes '{resolved_ds_dir}'."
             )
+        if (
+            unres_target.exists()
+            or unres_target.is_symlink()
+            or resolved_target.exists()
+            or resolved_target.is_symlink()
+            or basename.lower() in existing_lower_map
+        ):
+            existing_collisions.append(basename)
+        target_paths_by_basename[basename] = (rel_target_posix, resolved_target)
+
+    if existing_collisions:
+        raise ArchiveSecurityError(
+            f"Refusing to overwrite existing dataset file(s) in '{expected_dir_posix.as_posix()}' "
+            f"for '{dataset_id}': {sorted(existing_collisions)}. "
+            "Existing dataset originals are never overwritten, replaced, or deleted."
+        )
+
+    extracted_records: list[dict[str, Any]] = []
+    newly_created_files: list[Path] = []
+
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            for info in zf.infolist():
+                basename = PurePosixPath(info.filename.replace("\\", "/")).name
+                if basename not in allowed_to_extract:
+                    continue
+
+                rel_target_posix, resolved_target = target_paths_by_basename[basename]
+
+                digest = hashlib.sha256()
+                written_bytes = 0
+                with zf.open(info, "r") as src_stream:
+                    try:
+                        with resolved_target.open("xb") as dst_stream:
+                            newly_created_files.append(resolved_target)
+                            while True:
+                                chunk = src_stream.read(65536)
+                                if not chunk:
+                                    break
+                                written_bytes += len(chunk)
+                                if written_bytes > max_member_bytes or written_bytes > info.file_size:
+                                    raise ArchiveSecurityError(
+                                        f"Archive member '{basename}' exceeded declared or maximum byte size during extraction."
+                                    )
+                                digest.update(chunk)
+                                dst_stream.write(chunk)
+                    except FileExistsError as exc:
+                        raise ArchiveSecurityError(
+                            f"Refusing to overwrite existing file '{resolved_target}' during extraction."
+                        ) from exc
+
+                if written_bytes != info.file_size or written_bytes <= 0:
+                    raise ArchiveSecurityError(
+                        f"Extracted byte count ({written_bytes}) for '{basename}' did not match declared size ({info.file_size})."
+                    )
+
+                extracted_records.append(
+                    {
+                        "filename": basename,
+                        "relative_path": rel_target_posix.as_posix(),
+                        "size_bytes": written_bytes,
+                        "sha256": digest.hexdigest(),
+                    }
+                )
+
+        for item in sorted(resolved_ds_dir.iterdir()):
+            if item.is_symlink() or not item.is_file() or item.name not in allowed_to_extract:
+                raise ArchiveSecurityError(
+                    f"Post-extraction directory check failed: unexpected entry '{item.name}' in '{resolved_ds_dir}'."
+                )
+    except Exception:
+        for created_path in newly_created_files:
+            try:
+                created_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
 
     extracted_records.sort(key=lambda r: str(r["filename"]))
     return {

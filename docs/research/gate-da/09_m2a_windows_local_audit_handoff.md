@@ -61,7 +61,7 @@ git commit -m "ci(audit): enable GitHub Actions workflow for M2a read-only audit
 git push origin arena/a1f1816a-cardioassist-ai
 ```
 
-Wait for the **`Audit Toolchain & Source Integrity CI`** check on PR #11 to finish on Python `3.11` and `3.12` and confirm it is green before merging PR #11.
+Wait for the **`audit-toolchain-validation`** workflow (jobs `Dataset audit toolchain (Python 3.11)` and `Dataset audit toolchain (Python 3.12)`) on PR #11 to finish and confirm it is green before merging PR #11.
 
 ---
 
@@ -154,8 +154,10 @@ Download **only** from the exact official UCI landing pages listed below (never 
 |---|---|---|---|
 | `DA-A1` | `https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani` | `10.24432/C5Q31T` | `data\raw\uci-412\` |
 | `DA-A2` | `https://archive.ics.uci.edu/dataset/45/heart+disease` | `10.24432/C52P4X` | `data\raw\uci-45\` |
-| `DA-B1` | `https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset` | `10.24432/C54W4R` | `data\raw\uci-411\` |
-| `DA-B2` | `https://archive.ics.uci.edu/dataset/145/statlog+heart` | `10.24432/C57P55` | `data\raw\uci-145\` |
+| `DA-B1` | `https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani` | `10.24432/C5461K` | `data\raw\uci-411\` |
+| `DA-B2` | `https://archive.ics.uci.edu/dataset/145/statlog+heart` | `10.24432/C57303` | `data\raw\uci-145\` |
+
+> **Canonical URL Note for `DA-B1` (UCI ID 411)**: `https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani` is the canonical `official_source_url` recorded in `research/audit/gate_da_authorization.json` and `docs/DECISIONS.md` (`D-046`). (UCI's web router also resolves the slug variant `https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset` to dataset ID `411`, while provenance validation enforces the exact canonical URL `https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani`.)
 
 ### Acquisition Procedure (Blocker 2 Controls: Direct Official Files vs Inspected ZIP Extraction)
 
@@ -167,7 +169,7 @@ If the official UCI landing page allows downloading individual files directly:
 - If `DA-B2` is authorized, save `heart.dat` into `E:\CardioAssist_AI_GitHub_Starter\data\raw\uci-145\`.
 
 #### Option B (If the Official UCI Landing Page Provides a `.zip` Bundle): Mandatory Inspection + Controlled Extraction
-Never use `Expand-Archive` or ad-hoc inline Python extraction scripts. Use the built-in `inspect-archive` and `extract-authorized-archive` subcommands, which enforce Gate DA authorization, member path safety, symlink/executable rejection, duplicate basename rejection, and member/total size limits before writing a single byte:
+Never use `Expand-Archive` or ad-hoc inline Python extraction scripts. Use the built-in `inspect-archive` and `extract-authorized-archive` subcommands, which enforce Gate DA authorization, member path safety, symlink/executable rejection, duplicate basename rejection, member/total size limits, and **existing-file overwrite protection** (rejecting extraction before modifying any destination file if any authorized file already exists in `data/raw/uci-<id>/`):
 
 **1. For `DA-A1` (`z+alizadeh+sani.zip`), `DA-B1`, and `DA-B2`**:
 
@@ -179,8 +181,8 @@ python -m research.audit inspect-archive --dataset-id DA-A1 --zip-path "E:\UCI_D
 python -m research.audit extract-authorized-archive --dataset-id DA-A1 --zip-path "E:\UCI_Downloads\z+alizadeh+sani.zip"
 
 # Repeat for DA-B1 and DA-B2 if authorized:
-python -m research.audit inspect-archive --dataset-id DA-B1 --zip-path "E:\UCI_Downloads\extention+of+z+alizadeh+sani+dataset.zip"
-python -m research.audit extract-authorized-archive --dataset-id DA-B1 --zip-path "E:\UCI_Downloads\extention+of+z+alizadeh+sani+dataset.zip"
+python -m research.audit inspect-archive --dataset-id DA-B1 --zip-path "E:\UCI_Downloads\extention+of+z+alizadeh+sani.zip"
+python -m research.audit extract-authorized-archive --dataset-id DA-B1 --zip-path "E:\UCI_Downloads\extention+of+z+alizadeh+sani.zip"
 
 python -m research.audit inspect-archive --dataset-id DA-B2 --zip-path "E:\UCI_Downloads\statlog+heart.zip"
 python -m research.audit extract-authorized-archive --dataset-id DA-B2 --zip-path "E:\UCI_Downloads\statlog+heart.zip"
