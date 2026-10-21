@@ -1,4 +1,4 @@
-"""Governance authorization checks, provenance/license verification, archive inspection, and byte-identity guards."""
+"""Governance authorization checks, provenance/license verification, archive inspection/extraction, output-path guards, and byte-identity guards."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,6 +17,7 @@ from research.audit.exceptions import (
     GovernanceAuthorizationError,
     ProvenanceVerificationError,
 )
+from research.audit.git_safety import verify_data_root_containment
 from research.audit.registry import (
     DATASET_AUTHORIZED_STATUS,
     EVIDENCE_SOURCE_REPORTED,
@@ -27,6 +28,7 @@ from research.audit.registry import (
     OFFICIAL_UCI_HOST,
     PENDING_HUMAN_ACCEPTANCE_STATUS,
     SOURCE_ORIGIN_HUMAN_ATTESTED_STATUS,
+    UCI_45_FILE_ROLES,
     UCI_45_UNAPPROVED_FILES,
     UCI_ARCHIVE_HARMLESS_METADATA_ALLOWLIST,
     UNKNOWN_DOWNLOAD_TIMESTAMP,
@@ -35,7 +37,46 @@ from research.audit.registry import (
 AUTHORIZED_STATUS_VALUE = DATASET_AUTHORIZED_STATUS
 PENDING_STATUS_VALUE = PENDING_HUMAN_ACCEPTANCE_STATUS
 ISO_UTC_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$")
+SAFE_REPORT_FILENAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$")
+
 APPROVED_LICENSE_DIR_POSIX = PurePosixPath("data/manifests/licenses")
+APPROVED_ARCHIVE_REVIEWS_DIR_POSIX = PurePosixPath("data/manifests/archive_reviews")
+APPROVED_PROVENANCE_MANIFEST_DIR_POSIX = PurePosixPath("data/manifests")
+APPROVED_PROVENANCE_MANIFEST_FILENAME = "provenance_manifest.json"
+APPROVED_PROVENANCE_MANIFEST_REL_POSIX = PurePosixPath("data/manifests/provenance_manifest.json")
+APPROVED_REPORTS_DIR_POSIX = PurePosixPath("data/reports")
+
+DEFAULT_MAX_ARCHIVE_MEMBER_BYTES = 50 * 1024 * 1024
+DEFAULT_MAX_ARCHIVE_TOTAL_BYTES = 100 * 1024 * 1024
+MAX_ZIP_COMPRESSION_RATIO = 200.0
+
+FORBIDDEN_OUTPUT_FILENAMES: frozenset[str] = (
+    frozenset(UCI_45_FILE_ROLES.keys())
+    | UCI_45_UNAPPROVED_FILES
+    | frozenset(
+        {
+            "Z-Alizadeh sani dataset.xlsx",
+            "extention of Z-Alizadeh sani dataset.xlsx",
+            "heart.dat",
+            "heart.doc",
+            "gate_da_authorization.json",
+            "gate_da_authorization.synthetic.json",
+            "provenance_manifest.json",
+            "provenance_manifest.template.json",
+            "uci-412-license-snapshot.txt",
+            "uci-45-license-snapshot.txt",
+            "uci-411-license-snapshot.txt",
+            "uci-145-license-snapshot.txt",
+            "uci-412-archive-review.json",
+            "uci-45-archive-review.json",
+            "uci-411-archive-review.json",
+            "uci-145-archive-review.json",
+        }
+    )
+)
+FORBIDDEN_OUTPUT_FILENAMES_LOWER: frozenset[str] = frozenset(
+    name.lower() for name in FORBIDDEN_OUTPUT_FILENAMES
+)
 
 
 def sha256_file(path: Path) -> tuple[str, int]:
@@ -55,7 +96,7 @@ def sha256_file(path: Path) -> tuple[str, int]:
 
 
 def _validate_safe_relative_posix_path(raw_path: str, *, field_name: str) -> PurePosixPath:
-    """Validate that a manifest path is strictly relative and contains no traversal or drive prefixes."""
+    """Validate that a path string is strictly relative and contains no traversal or drive prefixes."""
     if not isinstance(raw_path, str) or not raw_path.strip():
         raise ProvenanceVerificationError(f"Missing or empty path in '{field_name}'.")
     if "\x00" in raw_path:
@@ -109,6 +150,40 @@ def _verify_no_symlinks_under_base(
                 "Symlinks escaping or redirecting authorized data directories are prohibited."
             )
     return current
+
+
+def _ensure_safe_directory_under_base(
+    base_root: Path,
+    dir_posix: PurePosixPath,
+    *,
+    field_name: str,
+) -> Path:
+    """Verify no symlinks exist along dir_posix under base_root, create the directory if absent, and resolve."""
+    if base_root.is_symlink():
+        raise ProvenanceVerificationError(
+            f"Base root '{base_root}' is a symlink; refusing directory setup for '{field_name}'."
+        )
+    current = base_root
+    for part in dir_posix.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ProvenanceVerificationError(
+                f"Symlink detected at '{current}' while preparing '{field_name}' ('{dir_posix}')."
+            )
+        if current.exists() and not current.is_dir():
+            raise ProvenanceVerificationError(
+                f"Non-directory file exists at directory path '{current}' for '{field_name}'."
+            )
+        current.mkdir(exist_ok=True)
+
+    resolved_base = base_root.resolve()
+    resolved_dir = current.resolve()
+    expected_resolved = (resolved_base / Path(*dir_posix.parts)).resolve()
+    if resolved_dir != expected_resolved or resolved_base not in resolved_dir.parents:
+        raise ProvenanceVerificationError(
+            f"Directory '{dir_posix}' for '{field_name}' resolved outside expected base root."
+        )
+    return resolved_dir
 
 
 def _verify_existing_contained_directory(
@@ -180,6 +255,140 @@ def _verify_contained_file_in_directory(
     return resolved_file
 
 
+def validate_and_resolve_provenance_output_path(
+    base_root: Path,
+    output_manifest_path: Path | str | None = None,
+    *,
+    repo_root: Path | None = None,
+    allow_external_tmp_root: Path | None = None,
+) -> Path:
+    """Validate and resolve the provenance manifest output path.
+
+    Restricts output strictly to `<base_root>/data/manifests/provenance_manifest.json`.
+    Rejects absolute/external paths, `..` traversal, symlinks, `data/raw/` paths, and collisions.
+    """
+    raw_str = (
+        APPROVED_PROVENANCE_MANIFEST_REL_POSIX.as_posix()
+        if output_manifest_path is None
+        else str(output_manifest_path)
+    )
+    rel_posix = _validate_safe_relative_posix_path(raw_str, field_name="output_manifest_path")
+    if rel_posix != APPROVED_PROVENANCE_MANIFEST_REL_POSIX:
+        raise ProvenanceVerificationError(
+            f"Provenance manifest output path '{raw_str}' is prohibited; provenance manifest output is "
+            f"restricted strictly to '{APPROVED_PROVENANCE_MANIFEST_REL_POSIX}'."
+        )
+
+    resolved_manifests_dir = _ensure_safe_directory_under_base(
+        base_root,
+        APPROVED_PROVENANCE_MANIFEST_DIR_POSIX,
+        field_name="output_manifest_path directory",
+    )
+    unres_target = _verify_no_symlinks_under_base(
+        base_root,
+        rel_posix,
+        field_name="output_manifest_path",
+    )
+    if unres_target.exists() and unres_target.is_dir():
+        raise ProvenanceVerificationError(
+            f"Provenance manifest output path '{unres_target}' is a directory."
+        )
+
+    resolved_target = (resolved_manifests_dir / APPROVED_PROVENANCE_MANIFEST_FILENAME).resolve()
+    if resolved_target.parent != resolved_manifests_dir:
+        raise ProvenanceVerificationError(
+            f"Provenance manifest output path '{resolved_target}' escapes '{resolved_manifests_dir}'."
+        )
+
+    effective_repo = (repo_root or base_root).resolve()
+    verify_data_root_containment(
+        effective_repo,
+        resolved_target,
+        allow_external_tmp_root=allow_external_tmp_root,
+    )
+    return resolved_target
+
+
+def validate_and_resolve_report_output_path(
+    base_root: Path,
+    raw_output_path: Path | str,
+    *,
+    expected_suffix: str,
+    repo_root: Path | None = None,
+    allow_external_tmp_root: Path | None = None,
+) -> Path:
+    """Validate and resolve a report output path (`json_output_path` or `markdown_output_path`).
+
+    Restricts report outputs strictly to `<base_root>/data/reports/<filename>`.
+    Rejects absolute/external paths, `..` traversal, symlinks, `data/raw/` or `data/manifests/` paths,
+    and any filename colliding with dataset originals, license snapshots, authorization manifests,
+    or tracked repository files.
+    """
+    raw_str = str(raw_output_path)
+    rel_posix = _validate_safe_relative_posix_path(raw_str, field_name="report_output_path")
+
+    if rel_posix.parent != APPROVED_REPORTS_DIR_POSIX:
+        raise ProvenanceVerificationError(
+            f"Report output path '{raw_str}' is prohibited; report outputs must reside directly inside "
+            f"'{APPROVED_REPORTS_DIR_POSIX}/' (got parent '{rel_posix.parent}')."
+        )
+
+    filename = rel_posix.name
+    lower_name = filename.lower()
+    if lower_name in FORBIDDEN_OUTPUT_FILENAMES_LOWER or any(
+        lower_name.startswith(forbidden_lower) for forbidden_lower in FORBIDDEN_OUTPUT_FILENAMES_LOWER
+    ):
+        raise ProvenanceVerificationError(
+            f"Report output filename '{filename}' collides with a protected dataset original, "
+            "license snapshot, or governance/provenance manifest filename."
+        )
+
+    if not SAFE_REPORT_FILENAME_RE.match(filename):
+        raise ProvenanceVerificationError(
+            f"Report output filename '{filename}' contains invalid characters."
+        )
+
+    if Path(filename).suffix.lower() != expected_suffix.lower():
+        raise ProvenanceVerificationError(
+            f"Report output filename '{filename}' must end with '{expected_suffix}'."
+        )
+
+    resolved_reports_dir = _ensure_safe_directory_under_base(
+        base_root,
+        APPROVED_REPORTS_DIR_POSIX,
+        field_name="report_output_path directory",
+    )
+    unres_target = _verify_no_symlinks_under_base(
+        base_root,
+        rel_posix,
+        field_name="report_output_path",
+    )
+    if unres_target.exists() and unres_target.is_dir():
+        raise ProvenanceVerificationError(
+            f"Report output path '{unres_target}' is a directory."
+        )
+
+    resolved_target = (resolved_reports_dir / filename).resolve()
+    if resolved_target.parent != resolved_reports_dir:
+        raise ProvenanceVerificationError(
+            f"Resolved report output path '{resolved_target}' escapes '{resolved_reports_dir}'."
+        )
+
+    raw_dir_resolved = (base_root.resolve() / "data/raw").resolve()
+    if resolved_target == raw_dir_resolved or raw_dir_resolved in resolved_target.parents:
+        raise ProvenanceVerificationError(
+            f"Report output path '{resolved_target}' must never resolve inside 'data/raw/'."
+        )
+
+    effective_repo = (repo_root or base_root).resolve()
+    verify_data_root_containment(
+        effective_repo,
+        resolved_target,
+        allow_external_tmp_root=allow_external_tmp_root,
+    )
+    return resolved_target
+
+
 def _validate_iso_utc_timestamp(value: str, *, field_name: str, allow_unknown: bool = False) -> str:
     """Validate an ISO-8601 UTC timestamp (or UNKNOWN_PENDING_HUMAN_VERIFICATION when allowed)."""
     if not isinstance(value, str) or not value.strip():
@@ -235,14 +444,16 @@ class ByteIdentityGuard:
             self._pre_hashes[path] = (actual_sha, actual_size)
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+    def verify_unchanged_now(self) -> list[FileHashSnapshot]:
+        """Verify all guarded files are byte-identical right now and return current snapshots."""
+        current_snapshots: list[FileHashSnapshot] = []
         mutation_messages: list[str] = []
         for rel_label, path, _, _ in self._files:
             pre_sha, pre_size = self._pre_hashes[path]
             try:
                 post_sha, post_size = sha256_file(path)
             except Exception as hash_exc:
-                self.snapshots.append(
+                current_snapshots.append(
                     FileHashSnapshot(
                         filename=path.name,
                         relative_path=rel_label,
@@ -258,7 +469,7 @@ class ByteIdentityGuard:
                 continue
 
             identical = (pre_sha == post_sha) and (pre_size == post_size)
-            self.snapshots.append(
+            current_snapshots.append(
                 FileHashSnapshot(
                     filename=path.name,
                     relative_path=rel_label,
@@ -275,16 +486,22 @@ class ByteIdentityGuard:
                     f"pre_size={pre_size}, post_size={post_size})!"
                 )
 
+        self.snapshots = current_snapshots
         if mutation_messages:
-            joined = " ".join(mutation_messages)
-            if exc_val is not None:
-                err = ProvenanceVerificationError(
-                    f"{joined} (detected on failure path after {type(exc_val).__name__}: {exc_val})"
-                )
-                err.original_exception = exc_val  # type: ignore[attr-defined]
-                raise err from exc_val
-            raise ProvenanceVerificationError(joined)
+            raise ProvenanceVerificationError(" ".join(mutation_messages))
+        return current_snapshots
 
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+        try:
+            self.verify_unchanged_now()
+        except ProvenanceVerificationError as mutation_err:
+            if exc_val is not None and exc_val is not mutation_err:
+                chained = ProvenanceVerificationError(
+                    f"{mutation_err} (detected on failure path after {type(exc_val).__name__}: {exc_val})"
+                )
+                chained.original_exception = exc_val  # type: ignore[attr-defined]
+                raise chained from exc_val
+            raise
         return False
 
 
@@ -353,8 +570,8 @@ def verify_global_workflow_authorized(auth_manifest: dict[str, Any]) -> None:
         raise GovernanceAuthorizationError(
             f"Global Gate DA workflow_status is '{workflow_status}' "
             f"(required: '{GLOBAL_AUTHORIZED_WORKFLOW_STATUS}'). "
-            "No local dataset audit or provenance recording may proceed until the human maintainer "
-            "explicitly accepts D-046 and updates workflow_status."
+            "No local dataset audit, archive extraction, or provenance recording may proceed until the "
+            "human maintainer explicitly accepts D-046 and updates workflow_status."
         )
 
 
@@ -377,7 +594,6 @@ def verify_dataset_authorized_for_audit(
             "Gate DA permits read-only dataset audit only; training and external validation are forbidden."
         )
 
-    # Enforce global Gate DA workflow_status before dataset-level status
     verify_global_workflow_authorized(auth_manifest)
 
     ds_cfg = datasets[dataset_id]
@@ -486,7 +702,6 @@ def validate_provenance_manifest(
         allow_unknown=False,
     )
 
-    # Ensure each target dataset's authorized local_subdir exists and is contained before inspecting files
     resolved_ds_dirs: dict[str, Path] = {}
     for ds_id in authorized_dataset_ids:
         ds_spec = auth_manifest["datasets"][ds_id]
@@ -497,7 +712,6 @@ def validate_provenance_manifest(
             context_label=f"{ds_id} authorized directory",
         )
 
-    # Ensure approved license snapshot directory exists and is contained
     _verify_existing_contained_directory(
         base_root,
         APPROVED_LICENSE_DIR_POSIX,
@@ -555,7 +769,6 @@ def validate_provenance_manifest(
             allow_unknown=False,
         )
 
-        # Enforce honest distinction between locally verified file integrity and human-attested source provenance
         local_integrity_status = str(entry.get("local_file_integrity_status", LOCAL_INTEGRITY_VERIFIED_STATUS)).strip()
         if local_integrity_status != LOCAL_INTEGRITY_VERIFIED_STATUS:
             raise ProvenanceVerificationError(
@@ -658,7 +871,6 @@ def validate_provenance_manifest(
             "verified_license_size_bytes": lic_size,
         }
 
-    # Verify all required files for each authorized dataset are present, and no unexpected files or symlinks sit in local_subdir
     for ds_id in authorized_dataset_ids:
         ds_spec = auth_manifest["datasets"][ds_id]
         required_files = set(ds_spec["authorized_files"])
@@ -690,24 +902,21 @@ def validate_provenance_manifest(
     return indexed_by_ds
 
 
-def inspect_zip_archive(
+def _inspect_zip_members(
     zip_path: Path,
     dataset_id: str,
     auth_manifest: dict[str, Any],
+    *,
+    max_member_bytes: int = DEFAULT_MAX_ARCHIVE_MEMBER_BYTES,
+    max_total_bytes: int = DEFAULT_MAX_ARCHIVE_TOTAL_BYTES,
 ) -> dict[str, Any]:
-    """Inspect a downloaded UCI .zip archive in read-only mode before extraction.
-
-    Fails closed with ArchiveSecurityError (STOP_REQUIRES_REVIEW) if the archive:
-    - contains unsafe path traversal, absolute paths, drive letters, subdirectories, or symlinks;
-    - contains executable or script files;
-    - is missing any required authorized file for the dataset;
-    - contains any excluded/unapproved dataset file (e.g. new.data, reprocessed.hungarian.data);
-    - contains any unexpected extra file not in the explicit harmless archive metadata allowlist.
-    """
+    """Validate all ZIP archive members against path, symlink, duplicate, size, and allowlist invariants."""
     if dataset_id not in auth_manifest.get("datasets", {}):
         raise GovernanceAuthorizationError(f"Unknown dataset_id '{dataset_id}'.")
     if not zip_path.exists() or not zip_path.is_file():
         raise FormatValidationError(f"Archive file does not exist: '{zip_path}'.")
+    if zip_path.is_symlink():
+        raise ArchiveSecurityError(f"Archive path '{zip_path}' must not be a symlink.")
     if not zipfile.is_zipfile(zip_path):
         raise FormatValidationError(f"File '{zip_path}' is not a valid ZIP archive.")
 
@@ -724,6 +933,11 @@ def inspect_zip_archive(
     harmless_metadata_found: list[str] = []
     flagged_excluded: list[str] = []
     unexpected_entries: list[str] = []
+    archive_inventory: list[dict[str, Any]] = []
+
+    seen_basenames_exact: set[str] = set()
+    seen_basenames_lower: set[str] = set()
+    total_uncompressed_bytes = 0
 
     archive_sha256, archive_size = sha256_file(zip_path)
 
@@ -734,6 +948,11 @@ def inspect_zip_archive(
 
         for info in infos:
             raw_name = info.filename
+            if "\x00" in raw_name:
+                raise ArchiveSecurityError(
+                    f"Null byte in archive entry name inside '{zip_path.name}'."
+                )
+
             normalized_entry = raw_name.replace("\\", "/")
             posix_parts = PurePosixPath(normalized_entry).parts
 
@@ -748,7 +967,6 @@ def inspect_zip_archive(
                     f"Unsafe path traversal entry '{raw_name}' detected in archive '{zip_path.name}'."
                 )
 
-            # Check POSIX symlink file mode bit (0o120000) in external_attr
             unix_mode = (info.external_attr >> 16) & 0o170000
             if unix_mode == 0o120000:
                 raise ArchiveSecurityError(
@@ -766,6 +984,33 @@ def inspect_zip_archive(
                 )
 
             basename = posix_parts[0]
+            if basename in seen_basenames_exact or basename.lower() in seen_basenames_lower:
+                raise ArchiveSecurityError(
+                    f"Duplicate or colliding entry basename '{basename}' detected in archive '{zip_path.name}'."
+                )
+            seen_basenames_exact.add(basename)
+            seen_basenames_lower.add(basename.lower())
+
+            if info.file_size < 0 or info.file_size > max_member_bytes:
+                raise ArchiveSecurityError(
+                    f"Archive member '{basename}' uncompressed size ({info.file_size} bytes) exceeds "
+                    f"safety limit ({max_member_bytes} bytes) in '{zip_path.name}'."
+                )
+            total_uncompressed_bytes += info.file_size
+            if total_uncompressed_bytes > max_total_bytes:
+                raise ArchiveSecurityError(
+                    f"Archive '{zip_path.name}' total uncompressed size ({total_uncompressed_bytes} bytes) "
+                    f"exceeds safety limit ({max_total_bytes} bytes)."
+                )
+            if (
+                info.compress_size > 0
+                and info.file_size > 1024 * 1024
+                and (info.file_size / info.compress_size) > MAX_ZIP_COMPRESSION_RATIO
+            ):
+                raise ArchiveSecurityError(
+                    f"Suspicious compression ratio on '{basename}' in '{zip_path.name}'."
+                )
+
             suffix = Path(basename).suffix.lower()
             if suffix in forbidden_extensions:
                 raise ArchiveSecurityError(
@@ -773,16 +1018,36 @@ def inspect_zip_archive(
                 )
 
             if basename in required_files:
+                if info.file_size == 0:
+                    raise ArchiveSecurityError(
+                        f"Required dataset file '{basename}' in archive '{zip_path.name}' is empty (0 bytes)."
+                    )
                 found_required.add(basename)
+                classification = "required_authorized"
             elif basename in optional_files:
                 found_optional.add(basename)
+                classification = "optional_authorized"
             elif basename in harmless_metadata_allowlist:
                 harmless_metadata_found.append(raw_name)
+                classification = "harmless_metadata_allowlisted"
             elif basename in known_excluded_dataset_files:
                 flagged_excluded.append(raw_name)
+                classification = "excluded_unapproved_do_not_extract"
             else:
                 unexpected_entries.append(raw_name)
+                classification = "unexpected_unrecognized"
 
+            archive_inventory.append(
+                {
+                    "filename": raw_name,
+                    "uncompressed_size_bytes": info.file_size,
+                    "compressed_size_bytes": info.compress_size,
+                    "crc32": f"{info.CRC:08x}",
+                    "classification": classification,
+                }
+            )
+
+    archive_inventory.sort(key=lambda item: str(item["filename"]))
     missing_required = sorted(required_files - found_required)
     if missing_required:
         raise ArchiveSecurityError(
@@ -791,30 +1056,321 @@ def inspect_zip_archive(
             "Stop and do not substitute repackaged files."
         )
 
-    if flagged_excluded or unexpected_entries:
-        err = ArchiveSecurityError(
-            f"STOP_REQUIRES_REVIEW: Archive '{zip_path.name}' for '{dataset_id}' differs from the authorized "
-            f"dataset file list. Excluded/unapproved dataset file(s) present: {sorted(flagged_excluded)}; "
-            f"unexpected extra entry/entries present: {sorted(unexpected_entries)}. "
-            "Stop and review before extracting any file."
-        )
-        err.outcome = "STOP_REQUIRES_REVIEW"  # type: ignore[attr-defined]
-        err.excluded_files_detected = sorted(flagged_excluded)  # type: ignore[attr-defined]
-        err.unexpected_entries_detected = sorted(unexpected_entries)  # type: ignore[attr-defined]
-        raise err
-
     return {
         "dataset_id": dataset_id,
         "archive_filename": zip_path.name,
         "archive_sha256": archive_sha256,
         "archive_size_bytes": archive_size,
-        "outcome": "PASS_AUTHORIZED_CONTENTS",
+        "total_uncompressed_bytes": total_uncompressed_bytes,
+        "archive_inventory": archive_inventory,
         "required_files_verified": sorted(found_required),
         "optional_files_found": sorted(found_optional),
         "harmless_metadata_allowlist_matched": sorted(harmless_metadata_found),
-        "excluded_files_detected": [],
-        "unexpected_entries_detected": [],
+        "excluded_files_detected": sorted(flagged_excluded),
+        "unexpected_entries_detected": sorted(unexpected_entries),
+    }
+
+
+def inspect_zip_archive(
+    zip_path: Path,
+    dataset_id: str,
+    auth_manifest: dict[str, Any],
+    *,
+    max_member_bytes: int = DEFAULT_MAX_ARCHIVE_MEMBER_BYTES,
+    max_total_bytes: int = DEFAULT_MAX_ARCHIVE_TOTAL_BYTES,
+) -> dict[str, Any]:
+    """Inspect a downloaded UCI .zip archive in read-only mode before extraction.
+
+    Fails closed with ArchiveSecurityError (STOP_REQUIRES_REVIEW) if the archive:
+    - contains unsafe path traversal, absolute paths, drive letters, subdirectories, or symlinks;
+    - contains duplicate or case-colliding member basenames;
+    - exceeds member or total uncompressed byte limits;
+    - contains executable or script files;
+    - is missing any required authorized file for the dataset;
+    - contains any excluded/unapproved dataset file (e.g. new.data, reprocessed.hungarian.data);
+    - contains any unexpected extra file not in the explicit harmless archive metadata allowlist.
+    """
+    summary = _inspect_zip_members(
+        zip_path,
+        dataset_id,
+        auth_manifest,
+        max_member_bytes=max_member_bytes,
+        max_total_bytes=max_total_bytes,
+    )
+    flagged_excluded = summary["excluded_files_detected"]
+    unexpected_entries = summary["unexpected_entries_detected"]
+
+    if flagged_excluded or unexpected_entries:
+        err = ArchiveSecurityError(
+            f"STOP_REQUIRES_REVIEW: Archive '{zip_path.name}' for '{dataset_id}' differs from the authorized "
+            f"dataset file list. Excluded/unapproved dataset file(s) present: {flagged_excluded}; "
+            f"unexpected extra entry/entries present: {unexpected_entries}. "
+            "Stop and review the complete archive inventory before any extraction."
+        )
+        err.outcome = "STOP_REQUIRES_REVIEW"  # type: ignore[attr-defined]
+        err.archive_sha256 = summary["archive_sha256"]  # type: ignore[attr-defined]
+        err.archive_size_bytes = summary["archive_size_bytes"]  # type: ignore[attr-defined]
+        err.archive_inventory = summary["archive_inventory"]  # type: ignore[attr-defined]
+        err.excluded_files_detected = flagged_excluded  # type: ignore[attr-defined]
+        err.unexpected_entries_detected = unexpected_entries  # type: ignore[attr-defined]
+        raise err
+
+    return {
+        **summary,
+        "outcome": "PASS_AUTHORIZED_CONTENTS",
         "passed": True,
+    }
+
+
+def _validate_archive_review_approval(
+    base_root: Path,
+    raw_review_path: Path | str,
+    *,
+    dataset_id: str,
+    uci_id: int,
+    archive_summary: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate a human archive review approval file required before extracting from a STOP_REQUIRES_REVIEW archive."""
+    expected_review_filename = f"uci-{uci_id}-archive-review.json"
+    review_file_path = _verify_contained_file_in_directory(
+        base_root,
+        str(raw_review_path),
+        expected_dir_posix=APPROVED_ARCHIVE_REVIEWS_DIR_POSIX,
+        expected_filename=expected_review_filename,
+        field_name="review_approval_path",
+    )
+    try:
+        review_doc = json.loads(review_file_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ArchiveSecurityError(
+            f"Invalid JSON in archive review approval file '{review_file_path}': {exc}"
+        ) from exc
+
+    if not isinstance(review_doc, dict):
+        raise ArchiveSecurityError("Archive review approval root must be a JSON object.")
+    if review_doc.get("governance_decision_id") != "D-046":
+        raise ArchiveSecurityError("Archive review approval must reference governance_decision_id 'D-046'.")
+    if review_doc.get("dataset_id") != dataset_id:
+        raise ArchiveSecurityError(
+            f"Archive review approval dataset_id mismatch: expected '{dataset_id}', got '{review_doc.get('dataset_id')}'."
+        )
+    if review_doc.get("review_outcome") != "APPROVED_SELECTIVE_EXTRACTION_OF_AUTHORIZED_FILES_ONLY":
+        raise ArchiveSecurityError(
+            "Archive review approval must record review_outcome='APPROVED_SELECTIVE_EXTRACTION_OF_AUTHORIZED_FILES_ONLY'."
+        )
+
+    reviewed_by = review_doc.get("reviewed_by")
+    if not isinstance(reviewed_by, str) or not reviewed_by.strip() or "REPLACE" in reviewed_by.upper():
+        raise ArchiveSecurityError("Archive review approval must name a valid human 'reviewed_by'.")
+
+    _validate_iso_utc_timestamp(
+        str(review_doc.get("reviewed_at_utc", "")),
+        field_name="archive_review.reviewed_at_utc",
+        allow_unknown=False,
+    )
+
+    if str(review_doc.get("archive_filename", "")).strip() != archive_summary["archive_filename"]:
+        raise ArchiveSecurityError(
+            f"Archive review filename mismatch: review recorded '{review_doc.get('archive_filename')}', "
+            f"actual archive is '{archive_summary['archive_filename']}'."
+        )
+    if str(review_doc.get("archive_sha256", "")).strip().lower() != archive_summary["archive_sha256"].lower():
+        raise ArchiveSecurityError(
+            f"Archive review SHA-256 mismatch: review recorded '{review_doc.get('archive_sha256')}', "
+            f"actual archive SHA-256 is '{archive_summary['archive_sha256']}'."
+        )
+    if int(review_doc.get("archive_size_bytes", -1)) != int(archive_summary["archive_size_bytes"]):
+        raise ArchiveSecurityError(
+            f"Archive review size_bytes mismatch: review recorded '{review_doc.get('archive_size_bytes')}', "
+            f"actual archive size is '{archive_summary['archive_size_bytes']}'."
+        )
+
+    actual_inventory_names = sorted(item["filename"] for item in archive_summary["archive_inventory"])
+    reviewed_inv = review_doc.get("reviewed_archive_inventory")
+    if not isinstance(reviewed_inv, list) or sorted(str(x) for x in reviewed_inv) != actual_inventory_names:
+        raise ArchiveSecurityError(
+            "Archive review 'reviewed_archive_inventory' does not match the complete member list of the archive."
+        )
+
+    ack_excluded = review_doc.get("excluded_historical_files_acknowledged_do_not_extract")
+    if (
+        not isinstance(ack_excluded, list)
+        or sorted(str(x) for x in ack_excluded) != archive_summary["excluded_files_detected"]
+    ):
+        raise ArchiveSecurityError(
+            "Archive review 'excluded_historical_files_acknowledged_do_not_extract' does not match "
+            f"detected excluded files {archive_summary['excluded_files_detected']}."
+        )
+
+    expected_approved_extract = sorted(
+        set(archive_summary["required_files_verified"]) | set(archive_summary["optional_files_found"])
+    )
+    approved_extract = review_doc.get("authorized_files_approved_for_extraction")
+    if (
+        not isinstance(approved_extract, list)
+        or sorted(str(x) for x in approved_extract) != expected_approved_extract
+    ):
+        raise ArchiveSecurityError(
+            "Archive review 'authorized_files_approved_for_extraction' does not match the exact authorized "
+            f"files {expected_approved_extract}."
+        )
+
+    return review_doc
+
+
+def extract_authorized_archive(
+    zip_path: Path,
+    dataset_id: str,
+    auth_manifest: dict[str, Any],
+    *,
+    base_root: Path,
+    repo_root: Path | None = None,
+    review_approval_path: Path | str | None = None,
+    allow_external_tmp_root: Path | None = None,
+    max_member_bytes: int = DEFAULT_MAX_ARCHIVE_MEMBER_BYTES,
+    max_total_bytes: int = DEFAULT_MAX_ARCHIVE_TOTAL_BYTES,
+) -> dict[str, Any]:
+    """Safely extract ONLY authorized dataset files from an inspected official UCI ZIP archive.
+
+    Enforces:
+    1. Global workflow_status ('AUTHORIZED_FOR_LOCAL_READ_ONLY_AUDIT') AND dataset authorization
+       ('AUTHORIZED_FOR_READ_ONLY_AUDIT') — rejects unapproved datasets even if the ZIP is on disk.
+    2. Complete archive member inspection (no traversal, no nested paths, no symlinks, no duplicate/colliding
+       basenames, member and total size limits, all required files present, zero unexpected unrecognized files).
+    3. Never auto-extracts after a STOP_REQUIRES_REVIEW outcome: if the archive contains known excluded
+       historical files (e.g. new.data, reprocessed.hungarian.data in DA-A2), extraction fails closed unless
+       a human-signed archive review approval file (--review-approval) matching the exact archive SHA-256,
+       byte size, and complete member inventory is provided.
+    4. Extracts only explicitly authorized dataset files directly into the exact approved `data/raw/uci-<id>/`
+       directory with bounded byte streaming and post-extraction directory verification.
+    """
+    verify_dataset_authorized_for_audit(auth_manifest, dataset_id)
+    ds_spec = auth_manifest["datasets"][dataset_id]
+    expected_dir_posix = _expected_dataset_dir_posix(dataset_id, ds_spec)
+
+    effective_repo = (repo_root or base_root).resolve()
+    verify_data_root_containment(
+        effective_repo,
+        (base_root / "data").resolve() if (base_root / "data").exists() else (base_root.resolve() / "data"),
+        allow_external_tmp_root=allow_external_tmp_root,
+    )
+
+    summary = _inspect_zip_members(
+        zip_path,
+        dataset_id,
+        auth_manifest,
+        max_member_bytes=max_member_bytes,
+        max_total_bytes=max_total_bytes,
+    )
+
+    if summary["unexpected_entries_detected"]:
+        raise ArchiveSecurityError(
+            f"STOP_REQUIRES_REVIEW: Archive '{zip_path.name}' for '{dataset_id}' contains unrecognized "
+            f"unexpected file(s): {summary['unexpected_entries_detected']}. Extraction is unconditionally prohibited."
+        )
+
+    review_doc: dict[str, Any] | None = None
+    if summary["excluded_files_detected"]:
+        if review_approval_path is None:
+            err = ArchiveSecurityError(
+                f"STOP_REQUIRES_REVIEW: Archive '{zip_path.name}' for '{dataset_id}' contains excluded "
+                f"historical file(s): {summary['excluded_files_detected']}. Automatic or unreviewed extraction "
+                "after STOP_REQUIRES_REVIEW is prohibited. Inspect the complete archive inventory and provide "
+                "a human-verified archive review approval file (--review-approval) before selective extraction."
+            )
+            err.outcome = "STOP_REQUIRES_REVIEW"  # type: ignore[attr-defined]
+            raise err
+
+        review_doc = _validate_archive_review_approval(
+            base_root,
+            review_approval_path,
+            dataset_id=dataset_id,
+            uci_id=int(ds_spec["uci_id"]),
+            archive_summary=summary,
+        )
+
+    resolved_ds_dir = _ensure_safe_directory_under_base(
+        base_root,
+        expected_dir_posix,
+        field_name=f"{dataset_id} extraction directory",
+    )
+
+    allowed_to_extract = set(summary["required_files_verified"]) | set(summary["optional_files_found"])
+    extracted_records: list[dict[str, Any]] = []
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for info in zf.infolist():
+            basename = PurePosixPath(info.filename.replace("\\", "/")).name
+            if basename not in allowed_to_extract:
+                continue
+
+            rel_target_posix = expected_dir_posix / basename
+            unres_target = _verify_no_symlinks_under_base(
+                base_root,
+                rel_target_posix,
+                field_name=f"{dataset_id}:{basename} extraction target",
+            )
+            if unres_target.exists() and unres_target.is_dir():
+                raise ArchiveSecurityError(
+                    f"Extraction target '{unres_target}' is a directory."
+                )
+
+            resolved_target = (resolved_ds_dir / basename).resolve()
+            if resolved_target.parent != resolved_ds_dir:
+                raise ArchiveSecurityError(
+                    f"Extraction target '{resolved_target}' escapes '{resolved_ds_dir}'."
+                )
+
+            digest = hashlib.sha256()
+            written_bytes = 0
+            with zf.open(info, "r") as src_stream, resolved_target.open("wb") as dst_stream:
+                while True:
+                    chunk = src_stream.read(65536)
+                    if not chunk:
+                        break
+                    written_bytes += len(chunk)
+                    if written_bytes > max_member_bytes or written_bytes > info.file_size:
+                        dst_stream.close()
+                        resolved_target.unlink(missing_ok=True)
+                        raise ArchiveSecurityError(
+                            f"Archive member '{basename}' exceeded declared or maximum byte size during extraction."
+                        )
+                    digest.update(chunk)
+                    dst_stream.write(chunk)
+
+            if written_bytes != info.file_size or written_bytes <= 0:
+                resolved_target.unlink(missing_ok=True)
+                raise ArchiveSecurityError(
+                    f"Extracted byte count ({written_bytes}) for '{basename}' did not match declared size ({info.file_size})."
+                )
+
+            extracted_records.append(
+                {
+                    "filename": basename,
+                    "relative_path": rel_target_posix.as_posix(),
+                    "size_bytes": written_bytes,
+                    "sha256": digest.hexdigest(),
+                }
+            )
+
+    for item in sorted(resolved_ds_dir.iterdir()):
+        if item.is_symlink() or not item.is_file() or item.name not in allowed_to_extract:
+            raise ArchiveSecurityError(
+                f"Post-extraction directory check failed: unexpected entry '{item.name}' in '{resolved_ds_dir}'."
+            )
+
+    extracted_records.sort(key=lambda r: str(r["filename"]))
+    return {
+        "status": "OK_AUTHORIZED_FILES_EXTRACTED",
+        "dataset_id": dataset_id,
+        "archive_filename": summary["archive_filename"],
+        "archive_sha256": summary["archive_sha256"],
+        "target_directory": expected_dir_posix.as_posix(),
+        "extracted_files": extracted_records,
+        "excluded_files_skipped": summary["excluded_files_detected"],
+        "harmless_metadata_skipped": summary["harmless_metadata_allowlist_matched"],
+        "human_archive_review_verified": review_doc is not None,
+        "reviewed_by": review_doc["reviewed_by"] if review_doc is not None else None,
     }
 
 
@@ -828,10 +1384,13 @@ def build_provenance_manifest(
     environment: str,
     downloaded_at_utc: str = UNKNOWN_DOWNLOAD_TIMESTAMP,
     manifest_recorded_at_utc: str | None = None,
-    output_manifest_path: Path | None = None,
+    output_manifest_path: Path | str | None = None,
+    repo_root: Path | None = None,
+    allow_external_tmp_root: Path | None = None,
 ) -> dict[str, Any]:
     """Generate and validate a local provenance_manifest.json for human-acquired official files.
 
+    Restricts output strictly to `<base_root>/data/manifests/provenance_manifest.json`.
     Separates `downloaded_at_utc` (human-attested acquisition time or UNKNOWN_PENDING_HUMAN_VERIFICATION)
     from `manifest_recorded_at_utc` (automatically generated when the manifest is recorded), and
     explicitly distinguishes locally verified file integrity (`VERIFIED`) from human-attested
@@ -841,6 +1400,13 @@ def build_provenance_manifest(
         raise ProvenanceVerificationError("Both 'acquirer' and 'audit_reviewer' must be non-empty strings.")
 
     verify_global_workflow_authorized(auth_manifest)
+
+    target_out = validate_and_resolve_provenance_output_path(
+        base_root,
+        output_manifest_path,
+        repo_root=repo_root,
+        allow_external_tmp_root=allow_external_tmp_root,
+    )
 
     recorded_ts = _validate_iso_utc_timestamp(
         manifest_recorded_at_utc or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -934,10 +1500,7 @@ def build_provenance_manifest(
         "files": files_entries,
     }
 
-    target_out = output_manifest_path or (base_root / "data/manifests/provenance_manifest.json")
-    target_out.parent.mkdir(parents=True, exist_ok=True)
     target_out.write_text(json.dumps(manifest_doc, indent=2) + "\n", encoding="utf-8")
 
-    # Verify the written manifest immediately
     validate_provenance_manifest(target_out, base_root, auth_manifest, dataset_ids)
     return manifest_doc

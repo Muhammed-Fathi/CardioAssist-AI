@@ -232,7 +232,9 @@ def materialize_synthetic_audit_suite(
             environment="E:\\CardioAssist_AI_GitHub_Starter (Synthetic Test)",
             downloaded_at_utc="2026-10-21T09:30:00Z",
             manifest_recorded_at_utc="2026-10-21T10:00:00Z",
-            output_manifest_path=prov_path,
+            output_manifest_path="data/manifests/provenance_manifest.json",
+            repo_root=repo_root,
+            allow_external_tmp_root=base_dir,
         )
 
     return {

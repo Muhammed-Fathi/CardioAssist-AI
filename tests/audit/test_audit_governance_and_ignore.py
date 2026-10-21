@@ -1,4 +1,4 @@
-"""Tests for Gate DA governance authorization, provenance/hash/containment checks, archive safety, and git-ignore guards."""
+"""Tests for Gate DA governance authorization, provenance/hash/containment checks, archive safety/extraction, output-path protection, and git-ignore guards."""
 from __future__ import annotations
 
 import copy
@@ -21,9 +21,12 @@ from research.audit.git_safety import verify_data_root_containment, verify_git_i
 from research.audit.provenance import (
     ByteIdentityGuard,
     build_provenance_manifest,
+    extract_authorized_archive,
     inspect_zip_archive,
     load_authorization_manifest,
     sha256_file,
+    validate_and_resolve_provenance_output_path,
+    validate_and_resolve_report_output_path,
     validate_official_source_url,
     validate_provenance_manifest,
     verify_dataset_authorized_for_audit,
@@ -86,7 +89,6 @@ def test_dataset_authorized_rejected_when_global_workflow_status_is_pending(tmp_
     suite = materialize_synthetic_audit_suite(tmp_path, authorize_all=True)
     manifest = load_authorization_manifest(suite["auth_manifest_path"])
 
-    # Keep DA-A1 individually authorized with full metadata, but revert global workflow_status
     manifest["workflow_status"] = "PENDING_HUMAN_ACCEPTANCE"
     pending_global_path = tmp_path / "auth_pending_global.json"
     pending_global_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -102,6 +104,7 @@ def test_dataset_authorized_rejected_when_global_workflow_status_is_pending(tmp_
             acquirer="Synthetic Test Acquirer",
             audit_reviewer="Synthetic Test Reviewer",
             environment="E:\\CardioAssist_AI_GitHub_Starter (Synthetic Test)",
+            allow_external_tmp_root=tmp_path,
         )
 
     with pytest.raises(GovernanceAuthorizationError, match="Global Gate DA workflow_status"):
@@ -128,11 +131,9 @@ def test_authorization_rejects_missing_human_metadata_or_prohibited_roles() -> N
     manifest = copy.deepcopy(load_authorization_manifest(DEFAULT_AUTH_MANIFEST_PATH))
     manifest["workflow_status"] = GLOBAL_AUTHORIZED_WORKFLOW_STATUS
     manifest["datasets"]["DA-A1"]["authorization_status"] = "AUTHORIZED_FOR_READ_ONLY_AUDIT"
-    # Missing authorized_by, authorized_date, etc.
     with pytest.raises(GovernanceAuthorizationError, match="authorized_by"):
         verify_dataset_authorized_for_audit(manifest, "DA-A1")
 
-    # Populate all required fields
     manifest["datasets"]["DA-A1"].update(
         {
             "authorized_by": "Maintainer",
@@ -144,7 +145,6 @@ def test_authorization_rejects_missing_human_metadata_or_prohibited_roles() -> N
     )
     verify_dataset_authorized_for_audit(manifest, "DA-A1")
 
-    # Reject non-audit roles (e.g. training or external validation)
     with pytest.raises(GovernanceAuthorizationError, match="prohibited"):
         verify_dataset_authorized_for_audit(
             manifest,
@@ -257,7 +257,7 @@ def test_provenance_hash_size_license_and_unapproved_file_mismatches(tmp_path: P
 def test_provenance_path_containment_rejects_external_traversal_symlinks_and_mismatched_dirs(
     tmp_path: Path,
 ) -> None:
-    """Blocker 1: Enforce strict containment for dataset files, license snapshots, symlinks, and subdirectories."""
+    """Blocker 1 (Input Containment): Enforce strict containment for dataset files, license snapshots, symlinks, and subdirectories."""
     suite = materialize_synthetic_audit_suite(tmp_path, authorize_all=True)
     auth_manifest = load_authorization_manifest(suite["auth_manifest_path"])
     prov_path = Path(suite["provenance_manifest_path"])
@@ -358,13 +358,125 @@ def test_provenance_path_containment_rejects_external_traversal_symlinks_and_mis
         shutil.move(str(moved_dir), str(uci_412_dir))
 
 
+def test_output_path_protection_prevents_overwriting_originals_symlinks_and_outside_dirs(
+    tmp_path: Path,
+) -> None:
+    """Follow-up Blocker 1: Restrict report outputs to data/reports/ and provenance output to data/manifests/provenance_manifest.json."""
+    suite = materialize_synthetic_audit_suite(tmp_path, authorize_all=True)
+    auth_manifest = load_authorization_manifest(suite["auth_manifest_path"])
+
+    orig_412 = tmp_path / "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx"
+    orig_clev = tmp_path / "data/raw/uci-45/processed.cleveland.data"
+    pre_412_sha, pre_412_size = sha256_file(orig_412)
+    pre_clev_sha, pre_clev_size = sha256_file(orig_clev)
+
+    # 1. Valid report output inside data/reports/ succeeds
+    ok_json = validate_and_resolve_report_output_path(
+        tmp_path,
+        "data/reports/audit_out.json",
+        expected_suffix=".json",
+        repo_root=REPO_ROOT,
+        allow_external_tmp_root=tmp_path,
+    )
+    assert ok_json == (tmp_path / "data/reports/audit_out.json").resolve()
+
+    # 2. Dangerous report output paths (raw dataset path, traversal into raw, real-input filename in data/reports/,
+    #    absolute path, Windows path, provenance manifest collision, authorization manifest collision, tracked file)
+    dangerous_report_paths = [
+        "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx",
+        "data/raw/uci-45/processed.cleveland.data",
+        "data/reports/../raw/uci-45/processed.cleveland.data",
+        "data/reports/Z-Alizadeh sani dataset.xlsx",
+        "data/reports/processed.cleveland.data",
+        "data/reports/processed.cleveland.data.json",
+        "data/reports/cleveland.data.json",
+        "data/reports/heart.dat.json",
+        "data/reports/provenance_manifest.json",
+        "data/reports/gate_da_authorization.json",
+        "data/manifests/provenance_manifest.json",
+        "README.md",
+        str((tmp_path / "outside.json").resolve()),
+        "E:\\CardioAssist_AI_GitHub_Starter\\data\\reports\\out.json",
+        "data/reports/subdir/nested.json",
+    ]
+    for bad_out in dangerous_report_paths:
+        with pytest.raises(ProvenanceVerificationError):
+            validate_and_resolve_report_output_path(
+                tmp_path,
+                bad_out,
+                expected_suffix=".json",
+                repo_root=REPO_ROOT,
+                allow_external_tmp_root=tmp_path,
+            )
+        with pytest.raises(ProvenanceVerificationError):
+            run_local_dataset_audit(
+                repo_root=REPO_ROOT,
+                base_data_parent=tmp_path,
+                auth_manifest_path=suite["auth_manifest_path"],
+                provenance_manifest_path=suite["provenance_manifest_path"],
+                is_synthetic_fixture_run=True,
+                allow_external_tmp_root=tmp_path,
+                json_output_path=bad_out,
+            )
+
+    # 3. Symlink inside data/reports/ pointing to a dataset original is rejected before writing
+    reports_dir = tmp_path / "data/reports"
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    symlink_report = reports_dir / "symlink_to_dataset.json"
+    symlink_report.symlink_to(orig_clev)
+    try:
+        with pytest.raises(ProvenanceVerificationError, match="Symlink detected"):
+            run_local_dataset_audit(
+                repo_root=REPO_ROOT,
+                base_data_parent=tmp_path,
+                auth_manifest_path=suite["auth_manifest_path"],
+                provenance_manifest_path=suite["provenance_manifest_path"],
+                is_synthetic_fixture_run=True,
+                allow_external_tmp_root=tmp_path,
+                json_output_path="data/reports/symlink_to_dataset.json",
+            )
+    finally:
+        symlink_report.unlink()
+
+    # 4. Dangerous provenance manifest output paths rejected
+    for bad_prov_out in (
+        "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx",
+        "data/manifests/custom_name.json",
+        "data/manifests/../raw/uci-45/processed.cleveland.data",
+        "data/reports/provenance_manifest.json",
+        str((tmp_path / "data/manifests/provenance_manifest.json").resolve()),
+    ):
+        with pytest.raises(ProvenanceVerificationError):
+            validate_and_resolve_provenance_output_path(
+                tmp_path,
+                bad_prov_out,
+                repo_root=REPO_ROOT,
+                allow_external_tmp_root=tmp_path,
+            )
+        with pytest.raises(ProvenanceVerificationError):
+            build_provenance_manifest(
+                tmp_path,
+                auth_manifest,
+                ["DA-A1"],
+                acquirer="Named Acquirer",
+                audit_reviewer="Named Reviewer",
+                environment="E:\\CardioAssist_AI_GitHub_Starter",
+                output_manifest_path=bad_prov_out,
+                repo_root=REPO_ROOT,
+                allow_external_tmp_root=tmp_path,
+            )
+
+    # 5. Confirm original dataset files remain 100% byte-identical after all rejected output attempts
+    assert sha256_file(orig_412) == (pre_412_sha, pre_412_size)
+    assert sha256_file(orig_clev) == (pre_clev_sha, pre_clev_size)
+
+
 def test_provenance_timestamp_and_origin_semantics(tmp_path: Path) -> None:
     """Important 5: Separate downloaded_at_utc from manifest_recorded_at_utc and distinguish local hash from origin proof."""
     suite = materialize_synthetic_audit_suite(tmp_path, authorize_all=True)
     auth_manifest = load_authorization_manifest(suite["auth_manifest_path"])
 
     # 1. Default build_provenance_manifest uses UNKNOWN_PENDING_HUMAN_VERIFICATION for downloaded_at_utc
-    default_prov_out = tmp_path / "data/manifests/prov_default_ts.json"
     doc_default = build_provenance_manifest(
         tmp_path,
         auth_manifest,
@@ -373,19 +485,19 @@ def test_provenance_timestamp_and_origin_semantics(tmp_path: Path) -> None:
         audit_reviewer="Named Reviewer",
         environment="E:\\CardioAssist_AI_GitHub_Starter",
         manifest_recorded_at_utc="2026-10-21T12:00:00Z",
-        output_manifest_path=default_prov_out,
+        repo_root=REPO_ROOT,
+        allow_external_tmp_root=tmp_path,
     )
     assert doc_default["manifest_recorded_at_utc"] == "2026-10-21T12:00:00Z"
     f0 = doc_default["files"][0]
     assert f0["downloaded_at_utc"] == UNKNOWN_DOWNLOAD_TIMESTAMP
     assert f0["manifest_recorded_at_utc"] == "2026-10-21T12:00:00Z"
-    assert f0[" downloaded_at_utc" if False else "downloaded_at_utc"] != f0["manifest_recorded_at_utc"]
+    assert f0["downloaded_at_utc"] != f0["manifest_recorded_at_utc"]
     assert f0["download_timestamp_evidence_status"] == EVIDENCE_UNVERIFIED
     assert f0["local_file_integrity_status"] == LOCAL_INTEGRITY_VERIFIED_STATUS
     assert f0["official_source_provenance_status"] == SOURCE_ORIGIN_HUMAN_ATTESTED_STATUS
 
     # 2. Explicit human downloaded_at_utc is preserved separately from manifest_recorded_at_utc
-    explicit_prov_out = tmp_path / "data/manifests/prov_explicit_ts.json"
     doc_explicit = build_provenance_manifest(
         tmp_path,
         auth_manifest,
@@ -395,7 +507,8 @@ def test_provenance_timestamp_and_origin_semantics(tmp_path: Path) -> None:
         environment="E:\\CardioAssist_AI_GitHub_Starter",
         downloaded_at_utc="2026-10-20T08:15:00Z",
         manifest_recorded_at_utc="2026-10-21T12:00:00Z",
-        output_manifest_path=explicit_prov_out,
+        repo_root=REPO_ROOT,
+        allow_external_tmp_root=tmp_path,
     )
     f_exp = doc_explicit["files"][0]
     assert f_exp["downloaded_at_utc"] == "2026-10-20T08:15:00Z"
@@ -413,17 +526,19 @@ def test_provenance_timestamp_and_origin_semantics(tmp_path: Path) -> None:
         validate_provenance_manifest(p_bad_origin, tmp_path, auth_manifest, ["DA-A1"])
 
 
-def test_archive_inspector_stops_on_unexpected_extras_excluded_files_and_unsafe_paths(
+def test_archive_inspector_and_controlled_extraction_enforce_all_safety_gates(
     tmp_path: Path,
 ) -> None:
-    """Blocker 3: ZIP inspection allows only authorized files + explicit harmless metadata allowlist; stops on extras/excluded."""
-    auth_manifest = load_authorization_manifest(DEFAULT_AUTH_MANIFEST_PATH)
+    """Follow-up Blocker 2: ZIP inspection and controlled extraction enforce member safety, duplicates, size, auth, and review gates."""
+    suite = materialize_synthetic_audit_suite(tmp_path, authorize_all=True)
+    auth_manifest = load_authorization_manifest(suite["auth_manifest_path"])
+    pending_manifest = load_authorization_manifest(DEFAULT_AUTH_MANIFEST_PATH)
 
     # 1. Valid UCI-45 archive containing the 9 required files + allowlisted harmless 'Index' metadata
     clean_zip = tmp_path / "heart+disease_clean.zip"
     with zipfile.ZipFile(clean_zip, "w") as zf:
         for req_name in auth_manifest["datasets"]["DA-A2"]["authorized_files"]:
-            zf.writestr(req_name, "placeholder")
+            zf.writestr(req_name, "placeholder-content")
         zf.writestr("Index", "harmless index metadata")
 
     res = inspect_zip_archive(clean_zip, "DA-A2", auth_manifest)
@@ -431,14 +546,27 @@ def test_archive_inspector_stops_on_unexpected_extras_excluded_files_and_unsafe_
     assert res["outcome"] == "PASS_AUTHORIZED_CONTENTS"
     assert res["harmless_metadata_allowlist_matched"] == ["Index"]
 
-    # 2. ZIP with all required files PLUS excluded unapproved dataset files (new.data, reprocessed.hungarian.data)
-    # must fail closed with STOP_REQUIRES_REVIEW
+    # 2. Unapproved dataset rejected during extraction even when valid archive exists on disk
+    with pytest.raises(GovernanceAuthorizationError):
+        extract_authorized_archive(
+            clean_zip,
+            "DA-A2",
+            pending_manifest,
+            base_root=tmp_path,
+            repo_root=REPO_ROOT,
+            allow_external_tmp_root=tmp_path,
+        )
+
+    # 3. ZIP with all required files PLUS excluded historical files (new.data, reprocessed.hungarian.data):
+    #    - inspect_zip_archive fails closed with STOP_REQUIRES_REVIEW
+    #    - extract_authorized_archive WITHOUT review_approval_path fails closed (never auto-extracts after STOP!)
     excluded_zip = tmp_path / "heart+disease_with_excluded.zip"
     with zipfile.ZipFile(excluded_zip, "w") as zf:
         for req_name in auth_manifest["datasets"]["DA-A2"]["authorized_files"]:
-            zf.writestr(req_name, "placeholder")
-        zf.writestr("new.data", "excluded")
-        zf.writestr("reprocessed.hungarian.data", "excluded")
+            zf.writestr(req_name, f"authorized-{req_name}")
+        zf.writestr("Index", "harmless index")
+        zf.writestr("new.data", "excluded historical file")
+        zf.writestr("reprocessed.hungarian.data", "excluded historical file 2")
 
     with pytest.raises(ArchiveSecurityError, match="STOP_REQUIRES_REVIEW") as exc_excl:
         inspect_zip_archive(excluded_zip, "DA-A2", auth_manifest)
@@ -448,27 +576,115 @@ def test_archive_inspector_stops_on_unexpected_extras_excluded_files_and_unsafe_
         "reprocessed.hungarian.data",
     ]
 
-    # 3. ZIP with all required files PLUS unexpected extra file on DA-A2 must also fail closed (no broad DA-A2 exception)
+    with pytest.raises(ArchiveSecurityError, match="Automatic or unreviewed extraction"):
+        extract_authorized_archive(
+            excluded_zip,
+            "DA-A2",
+            auth_manifest,
+            base_root=tmp_path,
+            repo_root=REPO_ROOT,
+            allow_external_tmp_root=tmp_path,
+        )
+
+    # 4. Reviewed selective extraction succeeds ONLY when human review approval matches exact SHA-256, size, and inventory
+    excl_sha, excl_size = sha256_file(excluded_zip)
+    review_dir = tmp_path / "data/manifests/archive_reviews"
+    review_dir.mkdir(parents=True, exist_ok=True)
+    review_file = review_dir / "uci-45-archive-review.json"
+    all_members_sorted = sorted(
+        list(auth_manifest["datasets"]["DA-A2"]["authorized_files"])
+        + ["Index", "new.data", "reprocessed.hungarian.data"]
+    )
+
+    # 4a. Mismatched SHA-256 in review approval is rejected
+    bad_review_doc = {
+        "governance_decision_id": "D-046",
+        "dataset_id": "DA-A2",
+        "review_outcome": "APPROVED_SELECTIVE_EXTRACTION_OF_AUTHORIZED_FILES_ONLY",
+        "reviewed_by": "Muhammed Fathi",
+        "reviewed_at_utc": "2026-10-21T11:00:00Z",
+        "archive_filename": excluded_zip.name,
+        "archive_sha256": "0" * 64,
+        "archive_size_bytes": excl_size,
+        "reviewed_archive_inventory": all_members_sorted,
+        "excluded_historical_files_acknowledged_do_not_extract": [
+            "new.data",
+            "reprocessed.hungarian.data",
+        ],
+        "authorized_files_approved_for_extraction": sorted(
+            auth_manifest["datasets"]["DA-A2"]["authorized_files"]
+        ),
+    }
+    review_file.write_text(json.dumps(bad_review_doc, indent=2), encoding="utf-8")
+    with pytest.raises(ArchiveSecurityError, match="SHA-256 mismatch"):
+        extract_authorized_archive(
+            excluded_zip,
+            "DA-A2",
+            auth_manifest,
+            base_root=tmp_path,
+            repo_root=REPO_ROOT,
+            review_approval_path="data/manifests/archive_reviews/uci-45-archive-review.json",
+            allow_external_tmp_root=tmp_path,
+        )
+
+    # 4b. Valid human review approval extracts ONLY the 9 authorized files and skips excluded + metadata files
+    valid_review_doc = {**bad_review_doc, "archive_sha256": excl_sha}
+    review_file.write_text(json.dumps(valid_review_doc, indent=2), encoding="utf-8")
+    extract_base = tmp_path / "extracted_workspace"
+    extract_base.mkdir(parents=True, exist_ok=True)
+    (extract_base / "data/manifests/archive_reviews").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(
+        review_file,
+        extract_base / "data/manifests/archive_reviews/uci-45-archive-review.json",
+    )
+    ext_res = extract_authorized_archive(
+        excluded_zip,
+        "DA-A2",
+        auth_manifest,
+        base_root=extract_base,
+        repo_root=REPO_ROOT,
+        review_approval_path="data/manifests/archive_reviews/uci-45-archive-review.json",
+        allow_external_tmp_root=extract_base,
+    )
+    assert ext_res["status"] == "OK_AUTHORIZED_FILES_EXTRACTED"
+    assert ext_res["human_archive_review_verified"] is True
+    extracted_names = sorted(p.name for p in (extract_base / "data/raw/uci-45").iterdir())
+    assert extracted_names == sorted(auth_manifest["datasets"]["DA-A2"]["authorized_files"])
+    assert not (extract_base / "data/raw/uci-45/new.data").exists()
+    assert not (extract_base / "data/raw/uci-45/reprocessed.hungarian.data").exists()
+
+    # 5. ZIP with unexpected unrecognized extra file is rejected by both inspect and extract (even on DA-A2)
     extra_da_a2_zip = tmp_path / "heart+disease_with_extra.zip"
     with zipfile.ZipFile(extra_da_a2_zip, "w") as zf:
         for req_name in auth_manifest["datasets"]["DA-A2"]["authorized_files"]:
             zf.writestr(req_name, "placeholder")
         zf.writestr("unexpected_extra.csv", "1,2,3")
 
-    with pytest.raises(ArchiveSecurityError, match="STOP_REQUIRES_REVIEW") as exc_extra:
-        inspect_zip_archive(extra_da_a2_zip, "DA-A2", auth_manifest)
-    assert getattr(exc_extra.value, "outcome", None) == "STOP_REQUIRES_REVIEW"
-    assert getattr(exc_extra.value, "unexpected_entries_detected", None) == ["unexpected_extra.csv"]
-
-    # 4. ZIP with all required files PLUS unexpected extra file on DA-A1 must fail closed
-    extra_da_a1_zip = tmp_path / "z_alizadeh_with_extra.zip"
-    with zipfile.ZipFile(extra_da_a1_zip, "w") as zf:
-        zf.writestr("Z-Alizadeh sani dataset.xlsx", "ok")
-        zf.writestr("bonus_notes.txt", "unexpected")
     with pytest.raises(ArchiveSecurityError, match="STOP_REQUIRES_REVIEW"):
-        inspect_zip_archive(extra_da_a1_zip, "DA-A1", auth_manifest)
+        inspect_zip_archive(extra_da_a2_zip, "DA-A2", auth_manifest)
+    with pytest.raises(ArchiveSecurityError, match="unconditionally prohibited"):
+        extract_authorized_archive(
+            extra_da_a2_zip,
+            "DA-A2",
+            auth_manifest,
+            base_root=extract_base,
+            repo_root=REPO_ROOT,
+            allow_external_tmp_root=extract_base,
+        )
 
-    # 5. Path traversal, nested path, or absolute path entries rejected
+    # 6. Duplicate or case-colliding basenames inside ZIP rejected
+    dup_name_zip = tmp_path / "dup_names.zip"
+    with zipfile.ZipFile(dup_name_zip, "w") as zf:
+        zf.writestr("Z-Alizadeh sani dataset.xlsx", "first")
+        zf.writestr("z-alizadeh sani dataset.xlsx", "case-colliding second")
+    with pytest.raises(ArchiveSecurityError, match="Duplicate or colliding entry basename"):
+        inspect_zip_archive(dup_name_zip, "DA-A1", auth_manifest)
+
+    # 7. Member size limit enforced
+    with pytest.raises(ArchiveSecurityError, match="exceeds safety limit"):
+        inspect_zip_archive(clean_zip, "DA-A2", auth_manifest, max_member_bytes=5)
+
+    # 8. Path traversal, nested path, or absolute path entries rejected
     for unsafe_entry in ("../evil.txt", "/abs/evil.txt", "C:\\evil.txt", "nested/Z-Alizadeh sani dataset.xlsx"):
         unsafe_zip = tmp_path / "unsafe.zip"
         with zipfile.ZipFile(unsafe_zip, "w") as zf:
@@ -476,21 +692,23 @@ def test_archive_inspector_stops_on_unexpected_extras_excluded_files_and_unsafe_
             zf.writestr(unsafe_entry, "bad")
         with pytest.raises(ArchiveSecurityError):
             inspect_zip_archive(unsafe_zip, "DA-A1", auth_manifest)
+        with pytest.raises(ArchiveSecurityError):
+            extract_authorized_archive(
+                unsafe_zip,
+                "DA-A1",
+                auth_manifest,
+                base_root=extract_base,
+                repo_root=REPO_ROOT,
+                allow_external_tmp_root=extract_base,
+            )
 
-    # 6. Executable/script entry rejected
+    # 9. Executable/script entry rejected
     exe_zip = tmp_path / "exe.zip"
     with zipfile.ZipFile(exe_zip, "w") as zf:
         zf.writestr("Z-Alizadeh sani dataset.xlsx", "ok")
         zf.writestr("run.ps1", "bad")
     with pytest.raises(ArchiveSecurityError, match="executable/script"):
         inspect_zip_archive(exe_zip, "DA-A1", auth_manifest)
-
-    # 7. Repackaged archive missing required official filenames rejected
-    repackaged_zip = tmp_path / "repackaged.zip"
-    with zipfile.ZipFile(repackaged_zip, "w") as zf:
-        zf.writestr("merged_heart_clean.csv", "1,2,3")
-    with pytest.raises(ArchiveSecurityError, match="missing required official file"):
-        inspect_zip_archive(repackaged_zip, "DA-A2", auth_manifest)
 
 
 def test_byte_identity_guard_verifies_on_both_success_and_failure_paths(tmp_path: Path) -> None:
@@ -539,15 +757,12 @@ def test_git_ignore_protection_and_data_root_containment(tmp_path: Path) -> None
     assert res.passed is True
     assert len(res.tracked_files_under_data) == 0
 
-    # Non-ignored path must fail git check-ignore
     with pytest.raises(GitIgnoreProtectionError, match="git check-ignore failed"):
         verify_git_ignore(REPO_ROOT, probe_relative_paths=("README.md",))
 
-    # Containment inside <repo_root>/data/ succeeds
     contained = verify_data_root_containment(REPO_ROOT, REPO_ROOT / "data/raw/uci-412")
     assert contained == (REPO_ROOT / "data/raw/uci-412").resolve()
 
-    # Path outside <repo_root>/data/ without explicit test allowance fails closed
     with pytest.raises(GitIgnoreProtectionError, match="resolves outside"):
         verify_data_root_containment(REPO_ROOT, REPO_ROOT / "research/source_materials")
     with pytest.raises(GitIgnoreProtectionError, match="resolves outside"):

@@ -27,43 +27,60 @@ Windows machine **only after** human maintainer approval of **D-046** (Gate DA).
    Python standard-library OOXML parser (`zipfile` + `xml.etree.ElementTree`)
    so tests run in both the isolated `.venv-audit` environment and the backend
    `.venv`.
-2. **Git-ignored `/data/` root and strict per-file path containment**: All raw
-   datasets and provenance manifests live under `<repo_root>/data/`. Every
-   command runs `git check-ignore -v` and `git ls-files -- data/` before
-   touching any data path. Furthermore, `validate_provenance_manifest()`
-   enforces that each dataset file resolves directly inside its exact approved
-   `data/raw/uci-<id>/` directory, each license snapshot resolves directly
-   inside `data/manifests/licenses/`, and any absolute path, `..` traversal,
-   symlink, mismatched subdirectory, or absent authorized dataset directory
-   fails closed immediately.
-3. **Global + dataset-level Gate DA authorization**: `verify_dataset_authorized_for_audit()`
-   requires both the global `workflow_status` to be explicitly set to
+2. **Git-ignored `/data/` root, input containment, and locked output paths**:
+   All raw datasets, provenance manifests, and generated reports live under
+   `<repo_root>/data/`. Every command runs `git check-ignore -v` and
+   `git ls-files -- data/` before touching any data path.
+   - `validate_provenance_manifest()` enforces that each dataset file resolves
+     directly inside its exact approved `data/raw/uci-<id>/` directory and each
+     license snapshot resolves directly inside `data/manifests/licenses/`.
+   - `validate_and_resolve_report_output_path()` restricts JSON and Markdown
+     report outputs strictly to `data/reports/<filename>`, and
+     `validate_and_resolve_provenance_output_path()` restricts provenance
+     manifest output strictly to `data/manifests/provenance_manifest.json`.
+   - Any absolute/external path, `..` traversal, symlink target, `data/raw/`
+     target, tracked repository file, or filename colliding with a dataset
+     original is rejected before any file is opened for writing.
+3. **Global + dataset-level Gate DA authorization**:
+   `verify_dataset_authorized_for_audit()` requires both the global
+   `workflow_status` to be explicitly set to
    `AUTHORIZED_FOR_LOCAL_READ_ONLY_AUDIT` and the individual dataset's
    `authorization_status` to be `AUTHORIZED_FOR_READ_ONLY_AUDIT` with all human
-   sign-off fields populated before any real audit or provenance recording can
-   run.
-4. **Byte-identical originals on both success and failure paths**:
-   `ByteIdentityGuard` computes and verifies SHA-256 and exact byte size before
-   and after reading every dataset file, running post-audit verification even if
-   an exception occurs during parsing/auditing while preserving the original
-   failure and surfacing any file mutation.
+   sign-off fields populated before any real audit, archive extraction, or
+   provenance recording can run.
+4. **Byte-identical originals across parsing, report generation, and writing**:
+   `ByteIdentityGuard` remains active across dataset parsing, report assembly,
+   privacy validation, and report writing, verifying SHA-256 and exact byte
+   size on both success and failure paths while preserving the original
+   exception and surfacing any file mutation.
 5. **Honest provenance timestamp and origin semantics**:
    `build_provenance_manifest()` separates `downloaded_at_utc` (human-attested
    acquisition timestamp or `UNKNOWN_PENDING_HUMAN_VERIFICATION` by default)
    from `manifest_recorded_at_utc` (automatically generated when the manifest is
-   recorded), and distinguishes `local_file_integrity_status: "VERIFIED"` from
-   `official_source_provenance_status: "HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH"`.
-6. **Zero patient-level row output**: The toolchain never commits, uploads,
-   logs, or prints patient-level rows. `verify_report_no_patient_rows` scans
-   all generated JSON and Markdown reports for forbidden keys, raw 14-column
-   lines, and row fingerprints before writing to disk.
-7. **Fail-closed validation & `STOP_REQUIRES_REVIEW` archive inspection**:
-   `inspect_zip_archive()` distinguishes harmless archive metadata on an
-   explicit documented allowlist (`UCI_ARCHIVE_HARMLESS_METADATA_ALLOWLIST`)
-   from unapproved/excluded dataset files (`new.data`,
-   `reprocessed.hungarian.data`, `processed.long-beach-va.data`) and unexpected
-   extras, failing closed with `STOP_REQUIRES_REVIEW` whenever an archive
-   differs from authorized contents.
+   recorded), and distinguishes `local_file_integrity_status:
+   "VERIFIED_LOCAL_SHA256_AND_BYTE_SIZE"` from
+   `official_source_provenance_status:
+   "HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH"`.
+6. **Report privacy controls and limitations**:
+   `validate_strict_metadata_report_schema()` enforces an explicit allowlisted
+   schema of metadata and integer/float aggregates as the primary control
+   (rejecting unexpected top-level or nested keys and non-aggregate values),
+   and `verify_report_no_patient_rows()` acts as a secondary defense-in-depth
+   scanner for forbidden keys, 14-column rows, 76-attribute raw record
+   fragments, multi-column patient rows, and in-memory row fingerprints.
+   Because heuristic scanners are not a formal proof against arbitrary free-text
+   encodings, human maintainer inspection of any generated report remains
+   required before PR sharing.
+7. **Fail-closed archive inspection and controlled selective extraction**:
+   `inspect_zip_archive()` and `extract_authorized_archive()` enforce Gate DA
+   authorization, member path safety, no symlinks, no duplicate/case-colliding
+   basenames, and member/total size limits. When `inspect_zip_archive()` stops
+   with `STOP_REQUIRES_REVIEW` on known excluded historical files (`new.data`,
+   `reprocessed.hungarian.data` in `DA-A2`), auto-extraction is blocked;
+   `extract_authorized_archive()` requires an explicit human-reviewed approval
+   manifest (`data/manifests/archive_reviews/uci-<id>-archive-review.json`)
+   matching the exact archive SHA-256, byte size, and full inventory before
+   extracting only the authorized files.
 
 ---
 
@@ -82,7 +99,7 @@ Windows machine **only after** human maintainer approval of **D-046** (Gate DA).
 | 9 | Maintain the Feature Availability & Leakage Review Table covering `ca` (`L-01`), raw per-vessel angiography fields (`L-02`), `LAD`/`LCX`/`RCA`/`Cath` (`L-03`), `thal` (`L-06`), exercise-test variables (`L-07`), and UCI-412 echo/lab/clinical features (`L-08`) | `registry.py::FEATURE_AVAILABILITY_AND_LEAKAGE_TABLE` |
 | 10 | Document UCI-45 (`>50%`) vs UCI-412 (`>=50%`) threshold wording (`H-01`) and the unresolved 50% boundary status (`UNVERIFIED` / `REQUIRES APPROVAL`) without inventing reconciliation evidence | `registry.py::TARGET_HARMONIZATION_SPEC` |
 | 11 | Generate metadata-only JSON and Markdown audit reports distinguishing `VERIFIED`, `SOURCE-REPORTED`, `UNVERIFIED`, and `REQUIRES APPROVAL` | `reporting.py::build_and_verify_reports`, `render_markdown_report` |
-| 12 | Keep patient-level inputs, cleaned copies, and intermediate derivatives out of GitHub and remote AI services via `git check-ignore`, `/data/` containment, read-only execution, and report redaction guards | `git_safety.py`, `provenance.py`, `reporting.py::verify_report_no_patient_rows` |
+| 12 | Keep patient-level inputs, cleaned copies, and intermediate derivatives out of GitHub and remote AI services via `git check-ignore`, `/data/` containment, locked output paths, read-only execution, strict metadata report schema validation, and secondary redaction guards | `git_safety.py`, `provenance.py`, `reporting.py::validate_strict_metadata_report_schema`, `reporting.py::verify_report_no_patient_rows` |
 
 ---
 
@@ -104,11 +121,14 @@ python -m research.audit dry-run --json-out data/reports/preflight_report.json -
 python -m research.audit self-test
 
 # 5. Inspect a downloaded official UCI .zip archive in read-only mode before extraction
-python -m research.audit inspect-archive --dataset-id DA-A1 --zip-path data/downloads/z+alizadeh+sani.zip
+python -m research.audit inspect-archive --dataset-id DA-A1 --zip-path E:\UCI_Downloads\z+alizadeh+sani.zip
 
-# 6. Record SHA-256 hashes, byte sizes, and license snapshots after authorized human download
+# 6. Safely extract ONLY authorized dataset files from an inspected official UCI .zip archive
+python -m research.audit extract-authorized-archive --dataset-id DA-A1 --zip-path E:\UCI_Downloads\z+alizadeh+sani.zip
+
+# 7. Record SHA-256 hashes, byte sizes, and license snapshots after authorized human download
 python -m research.audit record-provenance --datasets DA-A1 DA-A2 DA-B1 DA-B2 --acquirer "<Maintainer Name>" --audit-reviewer "<Reviewer Name>"
 
-# 7. Execute the read-only local dataset audit after human authorization
+# 8. Execute the read-only local dataset audit after human authorization
 python -m research.audit run-audit --json-out data/reports/m2_audit_report.json --markdown-out data/reports/m2_audit_report.md
 ```

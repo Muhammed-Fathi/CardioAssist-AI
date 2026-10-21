@@ -19,8 +19,10 @@ from research.audit.provenance import (
     AUTHORIZED_STATUS_VALUE,
     ByteIdentityGuard,
     build_provenance_manifest,
+    extract_authorized_archive,
     inspect_zip_archive,
     load_authorization_manifest,
+    validate_and_resolve_report_output_path,
     validate_provenance_manifest,
     verify_dataset_authorized_for_audit,
     verify_global_workflow_authorized,
@@ -47,11 +49,31 @@ DEFAULT_AUTH_MANIFEST_PATH = REPO_ROOT / "research/audit/gate_da_authorization.j
 def run_dry_run_preflight(
     *,
     repo_root: Path = REPO_ROOT,
+    base_data_parent: Path | None = None,
     auth_manifest_path: Path = DEFAULT_AUTH_MANIFEST_PATH,
-    json_output_path: Path | None = None,
-    markdown_output_path: Path | None = None,
+    allow_external_tmp_root: Path | None = None,
+    json_output_path: Path | str | None = None,
+    markdown_output_path: Path | str | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Execute dry-run/preflight validation without downloading or reading any dataset files."""
+    effective_parent = (base_data_parent or repo_root).resolve()
+    if json_output_path is not None:
+        validate_and_resolve_report_output_path(
+            effective_parent,
+            json_output_path,
+            expected_suffix=".json",
+            repo_root=repo_root,
+            allow_external_tmp_root=allow_external_tmp_root,
+        )
+    if markdown_output_path is not None:
+        validate_and_resolve_report_output_path(
+            effective_parent,
+            markdown_output_path,
+            expected_suffix=".md",
+            repo_root=repo_root,
+            allow_external_tmp_root=allow_external_tmp_root,
+        )
+
     git_res = verify_git_ignore(repo_root)
     auth_manifest = load_authorization_manifest(auth_manifest_path)
 
@@ -76,6 +98,9 @@ def run_dry_run_preflight(
         uci_145_cleveland_overlap=stat_ovl,
         byte_identity_snapshots=(),
         is_synthetic_fixture_run=False,
+        base_root=effective_parent,
+        repo_root=repo_root,
+        allow_external_tmp_root=allow_external_tmp_root,
         json_output_path=json_output_path,
         markdown_output_path=markdown_output_path,
     )
@@ -91,8 +116,8 @@ def run_local_dataset_audit(
     is_synthetic_fixture_run: bool = False,
     allow_external_tmp_root: Path | None = None,
     forbidden_substrings: Sequence[str] = (),
-    json_output_path: Path | None = None,
-    markdown_output_path: Path | None = None,
+    json_output_path: Path | str | None = None,
+    markdown_output_path: Path | str | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Execute the full read-only local dataset audit on explicitly authorized datasets."""
     git_res = verify_git_ignore(repo_root)
@@ -169,6 +194,24 @@ def run_local_dataset_audit(
     statlog_rows: Sequence[dict[str, Any]] | None = None
 
     with ByteIdentityGuard(guard_entries) as guard:
+        # Validate report output paths inside ByteIdentityGuard before reading or writing anything
+        if json_output_path is not None:
+            validate_and_resolve_report_output_path(
+                effective_parent,
+                json_output_path,
+                expected_suffix=".json",
+                repo_root=repo_root,
+                allow_external_tmp_root=allow_external_tmp_root,
+            )
+        if markdown_output_path is not None:
+            validate_and_resolve_report_output_path(
+                effective_parent,
+                markdown_output_path,
+                expected_suffix=".md",
+                repo_root=repo_root,
+                allow_external_tmp_root=allow_external_tmp_root,
+            )
+
         if "DA-A1" in target_ds_ids:
             f_412 = Path(verified_prov["DA-A1"]["Z-Alizadeh sani dataset.xlsx"]["resolved_path"])
             uci_412_parsed = audit_uci_412_or_411_workbook(f_412, dataset_id="DA-A1")
@@ -230,46 +273,52 @@ def run_local_dataset_audit(
             cohort_14_rows_map["DA-B2:statlog"] = statlog_rows
             all_fingerprints.extend(stat_parsed["raw_row_fingerprints"])
 
-    snapshots_dicts = [
-        {
-            "filename": s.filename,
-            "relative_path": s.relative_path,
-            "pre_sha256": s.pre_sha256,
-            "post_sha256": s.post_sha256,
-            "size_bytes": s.size_bytes,
-            "byte_identical": s.byte_identical,
-        }
-        for s in guard.snapshots
-    ]
+        current_snapshots = guard.verify_unchanged_now()
+        snapshots_dicts = [
+            {
+                "filename": s.filename,
+                "relative_path": s.relative_path,
+                "pre_sha256": s.pre_sha256,
+                "post_sha256": s.post_sha256,
+                "size_bytes": s.size_bytes,
+                "byte_identical": s.byte_identical,
+            }
+            for s in current_snapshots
+        ]
 
-    cross_dups = compute_cross_cohort_duplicates(cohort_14_rows_map)
-    corr_411 = evaluate_uci_411_412_correspondence(
-        uci_412_parsed,
-        uci_411_parsed,
-        da_b1_authorized=("DA-B1" in target_ds_ids),
-    )
-    stat_ovl = investigate_statlog_cleveland_overlap(
-        cleveland_proc_rows,
-        statlog_rows,
-        da_b2_authorized=("DA-B2" in target_ds_ids),
-    )
+        cross_dups = compute_cross_cohort_duplicates(cohort_14_rows_map)
+        corr_411 = evaluate_uci_411_412_correspondence(
+            uci_412_parsed,
+            uci_411_parsed,
+            da_b1_authorized=("DA-B1" in target_ds_ids),
+        )
+        stat_ovl = investigate_statlog_cleveland_overlap(
+            cleveland_proc_rows,
+            statlog_rows,
+            da_b2_authorized=("DA-B2" in target_ds_ids),
+        )
 
-    mode = "SYNTHETIC_SELF_TEST" if is_synthetic_fixture_run else "AUTHORIZED_READ_ONLY_LOCAL_AUDIT"
-    return build_and_verify_reports(
-        execution_mode=mode,
-        auth_manifest=auth_manifest,
-        git_ignore_result=git_res.to_dict(),
-        dataset_audits=dataset_audits,
-        cross_cohort_duplicates=cross_dups,
-        uci_411_412_correspondence=corr_411,
-        uci_145_cleveland_overlap=stat_ovl,
-        byte_identity_snapshots=snapshots_dicts,
-        is_synthetic_fixture_run=is_synthetic_fixture_run,
-        forbidden_row_fingerprints=all_fingerprints,
-        forbidden_substrings=forbidden_substrings,
-        json_output_path=json_output_path,
-        markdown_output_path=markdown_output_path,
-    )
+        mode = "SYNTHETIC_SELF_TEST" if is_synthetic_fixture_run else "AUTHORIZED_READ_ONLY_LOCAL_AUDIT"
+        report_dict, markdown_text = build_and_verify_reports(
+            execution_mode=mode,
+            auth_manifest=auth_manifest,
+            git_ignore_result=git_res.to_dict(),
+            dataset_audits=dataset_audits,
+            cross_cohort_duplicates=cross_dups,
+            uci_411_412_correspondence=corr_411,
+            uci_145_cleveland_overlap=stat_ovl,
+            byte_identity_snapshots=snapshots_dicts,
+            is_synthetic_fixture_run=is_synthetic_fixture_run,
+            forbidden_row_fingerprints=all_fingerprints,
+            forbidden_substrings=forbidden_substrings,
+            base_root=effective_parent,
+            repo_root=repo_root,
+            allow_external_tmp_root=allow_external_tmp_root,
+            json_output_path=json_output_path,
+            markdown_output_path=markdown_output_path,
+        )
+
+    return report_dict, markdown_text
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -295,8 +344,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     # 3. dry-run
     p_dry = subparsers.add_parser("dry-run", help="Run dry-run preflight validation without reading data.")
     p_dry.add_argument("--auth-manifest", type=Path, default=DEFAULT_AUTH_MANIFEST_PATH)
-    p_dry.add_argument("--json-out", type=Path, default=None)
-    p_dry.add_argument("--markdown-out", type=Path, default=None)
+    p_dry.add_argument("--json-out", default=None, help="Relative output path under data/reports/ (*.json).")
+    p_dry.add_argument("--markdown-out", default=None, help="Relative output path under data/reports/ (*.md).")
 
     # 4. self-test
     subparsers.add_parser(
@@ -313,7 +362,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_zip.add_argument("--zip-path", required=True, type=Path)
     p_zip.add_argument("--auth-manifest", type=Path, default=DEFAULT_AUTH_MANIFEST_PATH)
 
-    # 6. record-provenance
+    # 6. extract-authorized-archive
+    p_ext = subparsers.add_parser(
+        "extract-authorized-archive",
+        help=(
+            "Safely extract ONLY authorized dataset files from an inspected official UCI .zip archive "
+            "into data/raw/uci-<id>/ (requires --review-approval if inspect-archive reported STOP_REQUIRES_REVIEW)."
+        ),
+    )
+    p_ext.add_argument("--dataset-id", required=True, choices=["DA-A1", "DA-A2", "DA-B1", "DA-B2"])
+    p_ext.add_argument("--zip-path", required=True, type=Path)
+    p_ext.add_argument(
+        "--review-approval",
+        default=None,
+        help="Relative path to human archive review approval JSON under data/manifests/archive_reviews/.",
+    )
+    p_ext.add_argument("--auth-manifest", type=Path, default=DEFAULT_AUTH_MANIFEST_PATH)
+
+    # 7. record-provenance
     p_prov = subparsers.add_parser(
         "record-provenance",
         help="Record SHA-256 hashes, sizes, and license snapshots for human-acquired official files.",
@@ -334,9 +400,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         default="E:\\CardioAssist_AI_GitHub_Starter (Windows 10/11 PowerShell, Python 3.12)",
     )
     p_prov.add_argument("--auth-manifest", type=Path, default=DEFAULT_AUTH_MANIFEST_PATH)
-    p_prov.add_argument("--output", type=Path, default=None)
+    p_prov.add_argument(
+        "--output",
+        default=None,
+        help="Must be omitted or 'data/manifests/provenance_manifest.json'.",
+    )
 
-    # 7. run-audit
+    # 8. run-audit
     p_run = subparsers.add_parser(
         "run-audit",
         help="Execute read-only local dataset audit on authorized datasets in /data/raw/.",
@@ -344,8 +414,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_run.add_argument("--datasets", nargs="*", default=None)
     p_run.add_argument("--auth-manifest", type=Path, default=DEFAULT_AUTH_MANIFEST_PATH)
     p_run.add_argument("--provenance-manifest", type=Path, default=None)
-    p_run.add_argument("--json-out", type=Path, default=None)
-    p_run.add_argument("--markdown-out", type=Path, default=None)
+    p_run.add_argument("--json-out", default=None, help="Relative output path under data/reports/ (*.json).")
+    p_run.add_argument("--markdown-out", default=None, help="Relative output path under data/reports/ (*.md).")
 
     args = parser.parse_args(argv)
 
@@ -416,6 +486,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     is_synthetic_fixture_run=True,
                     allow_external_tmp_root=tmp_path,
                     forbidden_substrings=(str(SYNTHETIC_PLANTED_SENTINEL_FLOAT),),
+                    json_output_path="data/reports/selftest_report.json",
+                    markdown_output_path="data/reports/selftest_report.md",
                 )
                 print(
                     json.dumps(
@@ -441,6 +513,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(res_dict, indent=2))
             return 0
 
+        if args.subcommand == "extract-authorized-archive":
+            verify_git_ignore(REPO_ROOT)
+            manifest = load_authorization_manifest(args.auth_manifest)
+            ext_res = extract_authorized_archive(
+                args.zip_path,
+                args.dataset_id,
+                manifest,
+                base_root=REPO_ROOT,
+                repo_root=REPO_ROOT,
+                review_approval_path=args.review_approval,
+            )
+            print(json.dumps(ext_res, indent=2))
+            return 0
+
         if args.subcommand == "record-provenance":
             verify_git_ignore(REPO_ROOT)
             manifest = load_authorization_manifest(args.auth_manifest)
@@ -453,6 +539,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 environment=args.environment,
                 downloaded_at_utc=args.downloaded_at_utc,
                 output_manifest_path=args.output,
+                repo_root=REPO_ROOT,
             )
             print(
                 json.dumps(
@@ -496,15 +583,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         return 1
     except AuditError as exc:
-        print(
-            json.dumps(
-                {
-                    "status": "FAILED_CLOSED",
-                    "error_code": exc.error_code,
-                    "message": str(exc),
-                },
-                indent=2,
-            ),
-            file=sys.stderr,
-        )
+        err_payload: dict[str, Any] = {
+            "status": "FAILED_CLOSED",
+            "error_code": exc.error_code,
+            "message": str(exc),
+        }
+        if hasattr(exc, "outcome"):
+            err_payload["outcome"] = getattr(exc, "outcome")
+        if hasattr(exc, "archive_sha256"):
+            err_payload["archive_sha256"] = getattr(exc, "archive_sha256")
+        if hasattr(exc, "archive_size_bytes"):
+            err_payload["archive_size_bytes"] = getattr(exc, "archive_size_bytes")
+        if hasattr(exc, "excluded_files_detected"):
+            err_payload["excluded_files_detected"] = getattr(exc, "excluded_files_detected")
+        if hasattr(exc, "unexpected_entries_detected"):
+            err_payload["unexpected_entries_detected"] = getattr(exc, "unexpected_entries_detected")
+        if hasattr(exc, "archive_inventory"):
+            err_payload["archive_inventory"] = getattr(exc, "archive_inventory")
+        print(json.dumps(err_payload, indent=2), file=sys.stderr)
         return 2

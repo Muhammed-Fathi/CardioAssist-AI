@@ -5,17 +5,20 @@
 merged on top of PR #9 M1b.1 SQLite persistence `661876c`). The M2a read-only
 local dataset audit toolchain (`research/audit/`) and synthetic fixture test
 suite (`tests/audit/`) are **IMPLEMENTED + TESTED locally** on Linux / Python
-3.11.2: **249 contract + 371 backend + 37 audit = 657 passed** with `-W error`;
+3.11.2: **249 contract + 371 backend + 40 audit = 660 passed** with `-W error`;
 isolated `research/audit/requirements.txt` and `backend/requirements-dev.txt`
 installs and `pip check` pass; source verification passes 4/4 hashes. Note on
 GitHub Actions CI: `.github/workflows/backend-ci.yml` executes
 `python -m pytest tests/contracts tests/backend -q -W error` (`620 passed`) and
-does **not** run `tests/audit`; green backend checks do not validate `tests/audit`.
+does **not** run `tests/audit`; green backend checks do not validate `tests/audit`,
+and GitHub Actions has not validated `tests/audit` until a maintainer installs
+`.github/workflows/audit-ci.yml` on the PR #11 branch (`arena/a1f1816a-cardioassist-ai`)
+and a run completes.
 Pushing `.github/workflows/audit-ci.yml` from the Arena GitHub App integration
 is rejected by GitHub (`refusing to allow a GitHub App to create or update workflow .github/workflows/audit-ci.yml without workflows permission`); the exact
 proposed workflow is provided in
 [`research/audit/ci/audit-ci.yml.example`](../../research/audit/ci/audit-ci.yml.example)
-with maintainer installation instructions in
+with PR-branch maintainer installation instructions in
 [`research/audit/ci/README.md`](../../research/audit/ci/README.md).
 Proposed governance decision **D-046** (`docs/DECISIONS.md` and
 `research/audit/gate_da_authorization.json`) and its dataset access decisions
@@ -56,7 +59,7 @@ claim is made.
 | `docs/DECISIONS.md` | D-001…D-045 and proposed D-046 (`PENDING HUMAN ACCEPTANCE`) + pending P-1…P-6 | Authoritative register; D-044 technical correction complete; D-045 M1b.1 merged; D-046 proposed maintainer-led Gate DA governance and dataset access scope (`DA-A1`, `DA-A2`, `DA-B1`, `DA-B2`) awaiting human maintainer acceptance |
 | `docs/research/gate-da/` | Gate DA dataset suitability & decision package (01–08, merged in PR #10) + M2a Windows handoff (`09_m2a_windows_local_audit_handoff.md`) | Merged baseline + M2a Windows PowerShell execution handoff; no real dataset downloaded |
 | `research/audit/` | M2a Python 3.11/3.12-compatible, $0, Windows-local read-only dataset audit toolchain + `gate_da_authorization.json` | **IMPLEMENTED + TESTED locally on synthetic fixtures**; all dataset authorizations remain `PENDING_HUMAN_ACCEPTANCE`; fails closed on unapproved access, hash/format mismatch, or patient-row leakage |
-| `tests/audit/` | M2a synthetic fixture unit & negative tests | **37 passed** locally; synthetic software test fixtures only |
+| `tests/audit/` | M2a synthetic fixture unit & negative tests | **40 passed** locally; synthetic software test fixtures only |
 | `docs/FEATURE_REGISTER.md` | F01–F12 | Preserved proposed feature register; blueprint F13–F18 extensions are tracked separately and are not silently ratified here |
 | `shared/contracts/` | OpenAPI, schema families, 2 MOCK_ONLY registries, 31 fixtures / 38 steps | **IMPLEMENTED + TESTED**, M1a.1; no M1b.1 contract/fixture changes. A-01 Option A schema correction merged in PR #8; technical correction complete |
 | `tests/contracts/` | Contract/oracle suite | **249 passed** locally; fixture pack preserved |
