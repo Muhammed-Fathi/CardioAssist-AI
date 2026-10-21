@@ -14,9 +14,9 @@ blocked; none of the local results are CI results.
 |---|---|---|---|
 | Contract/fixture/oracle suite | `python -m pytest tests/contracts -q -W error` | **249 passed** | OpenAPI/schemas, all 31 fixture scenarios / 38 steps, oracle, safety and optional-null behavior |
 | Backend suite | `python -m pytest tests/backend -q -W error` | **371 passed** | 347 existing backend regressions + 24 SQLite persistence/migration cases |
-| M2a dataset audit suite (synthetic) | `python -m pytest tests/audit -q -W error` | **33 passed** | D-046 governance/authorization checks, `git check-ignore`, archive safety, byte-identity, UCI-412/45/411/145 validators, duplicate/overlap/correspondence, leakage, and zero-patient-row report redaction |
+| M2a dataset audit suite (synthetic) | `python -m pytest tests/audit -q -W error` | **37 passed** | D-046 global + dataset governance checks, strict provenance path/symlink containment, separated provenance timestamps, `STOP_REQUIRES_REVIEW` ZIP inspection, `ByteIdentityGuard` on success/failure, `git check-ignore`, UCI-412/45/411/145 validators, duplicate/overlap/correspondence, leakage, zero-patient-row report redaction, and proposed audit CI workflow template |
 | Contract + backend combined | `python -m pytest tests/contracts tests/backend -q -W error` | **620 passed** | Fixture pack and live HTTP/persistence behavior together |
-| Full repository pytest | `python -m pytest -q -W error` | **653 passed** | All pytest tests in the repository (`249` contract + `371` backend + `33` audit) |
+| Full repository pytest | `python -m pytest -q -W error` | **657 passed** | All pytest tests in the repository (`249` contract + `371` backend + `37` audit) |
 | Persistence/schema regressions | `python -m pytest tests/backend/test_persistence.py -q -W error` | **24 passed in 1.00s** | Explicit migrations; wrong/empty revisions; missing columns/constraints; SQLite integrity; lifespan failure/no auto-repair |
 | Fresh dev dependency install | `python -m pip install -r backend/requirements-dev.txt` | **PASS** | Includes importable `httpx==0.28.1` and `httpx2==2.13.1`; no requirements changes |
 | Dependency consistency | `python -m pip check` | **No broken requirements found** | Fresh pinned backend + test dependencies |

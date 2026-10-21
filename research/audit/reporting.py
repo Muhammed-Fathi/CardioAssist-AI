@@ -13,6 +13,8 @@ from research.audit.registry import (
     EVIDENCE_UNVERIFIED,
     EVIDENCE_VERIFIED,
     FEATURE_AVAILABILITY_AND_LEAKAGE_TABLE,
+    LOCAL_INTEGRITY_VERIFIED_STATUS,
+    SOURCE_ORIGIN_HUMAN_ATTESTED_STATUS,
     TARGET_HARMONIZATION_SPEC,
     VALID_EVIDENCE_LABELS,
 )
@@ -109,6 +111,7 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         "- **SOURCE-REPORTED**: Recorded from `research/source_materials/literature_review_status.csv` or official UCI landing-page summaries prior to local file inspection; never cited as project model performance.",
         "- **UNVERIFIED**: Not yet established by local file inspection or primary-source evidence.",
         "- **REQUIRES APPROVAL**: Blocked on explicit human maintainer Gate DA acceptance (D-046 / P-2), clinician review (P-4), or academic supervisor Gate PT sign-off (P-3).",
+        "- **Provenance vs Local Integrity Distinction**: Local file SHA-256 digests and byte sizes are `VERIFIED` on disk before and after the read-only audit; however, a human-entered `official_source_url`, `downloaded_at_utc`, or newly generated local SHA-256 is recorded as `HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH` (never treated as independent cryptographic proof of upstream origin).",
         "",
         "## 2. Git-Ignore and Data Custody Verification",
         "",
@@ -333,6 +336,8 @@ def build_and_verify_reports(
             if byte_identity_snapshots
             else True,
             "supervisor_approval_claimed": False,
+            "local_file_integrity_status": LOCAL_INTEGRITY_VERIFIED_STATUS,
+            "official_source_provenance_status": SOURCE_ORIGIN_HUMAN_ATTESTED_STATUS,
             "evidence_status": EVIDENCE_VERIFIED,
         },
         "governance_and_authorization": {

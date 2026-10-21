@@ -179,11 +179,19 @@ python -m research.audit inspect-archive --dataset-id DA-B1 --zip-path data\down
 python -m research.audit inspect-archive --dataset-id DA-B2 --zip-path data\downloads\uci-145.zip
 ```
 
-> **Important (`DA-A2` UCI-45 exclusion rule):** The official UCI-45 zip archive
-> contains legacy files such as `new.data` and `reprocessed.hungarian.data` that
-> are **NOT authorized** by `DA-A2`. `inspect-archive` flags them under
-> `excluded_files_detected_do_not_extract`. Extract **only** the 9 authorized
-> files listed in `research/audit/gate_da_authorization.json`!
+> **Important (`STOP_REQUIRES_REVIEW` Archive Policy & `DA-A2` UCI-45 Exclusion Rule):**
+> `inspect-archive` enforces an explicit fail-closed **`STOP_REQUIRES_REVIEW`**
+> outcome whenever a ZIP archive differs from the authorized dataset contents.
+> It distinguishes harmless archive metadata on the explicit documented allowlist
+> (`UCI_ARCHIVE_HARMLESS_METADATA_ALLOWLIST`, e.g., `Index`, `WARNING`, `bak` for
+> `DA-A2`) from genuinely unapproved or excluded dataset files (`new.data`,
+> `reprocessed.hungarian.data`, `processed.long-beach-va.data`, `cleve.mod`,
+> `ask-detrano`, `costs`) and unexpected extra entries. Because the upstream
+> UCI-45 ZIP (`heart+disease.zip`) includes excluded legacy files (`new.data`
+> and `reprocessed.hungarian.data`), `inspect-archive` on the raw upstream
+> `uci-45.zip` will stop with `STOP_REQUIRES_REVIEW` and report the exact
+> excluded files so the human reviewer can verify no unexpected extras exist and
+> extract **only** the 9 authorized `DA-A2` files into `data\raw\uci-45\`.
 
 ```powershell
 # Safe selective extraction of ONLY the authorized files into data\raw\...
@@ -250,11 +258,20 @@ License verified on official UCI page at acquisition: Creative Commons Attributi
 Snapshot Date (UTC): $( (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") )
 "@ | Set-Content -Encoding UTF8 data\manifests\licenses\uci-145-license-snapshot.txt
 
-# Generate and validate data\manifests\provenance_manifest.json with SHA-256 hashes and byte sizes
+# Generate and validate data\manifests\provenance_manifest.json with SHA-256 hashes and byte sizes.
+# Note on timestamp and provenance semantics:
+# - --downloaded-at-utc records the human-attested UTC download time (or defaults to
+#   UNKNOWN_PENDING_HUMAN_VERIFICATION if omitted); it is NEVER conflated with
+#   manifest_recorded_at_utc (automatically generated when record-provenance runs).
+# - Local SHA-256 and byte sizes are marked local_file_integrity_status = VERIFIED,
+#   while human-entered source URLs and timestamps are marked
+#   official_source_provenance_status = HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH.
+$downloadTimestampUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 python -m research.audit record-provenance `
   --datasets DA-A1 DA-A2 DA-B1 DA-B2 `
   --acquirer "Muhammed Fathi" `
   --audit-reviewer "Muhammed Fathi" `
+  --downloaded-at-utc $downloadTimestampUtc `
   --environment "E:\CardioAssist_AI_GitHub_Starter (Windows PowerShell, Python 3.12)"
 ```
 

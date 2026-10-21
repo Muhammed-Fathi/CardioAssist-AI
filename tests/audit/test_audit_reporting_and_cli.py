@@ -145,7 +145,7 @@ def test_cli_subcommands_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixtur
     out_self = json.loads(capsys.readouterr().out)
     assert out_self["status"] == "OK_SYNTHETIC_SELF_TEST"
 
-    # 5. inspect-archive
+    # 5. inspect-archive (clean vs STOP_REQUIRES_REVIEW on unexpected/excluded entries)
     z_path = tmp_path / "z_alizadeh_sani.zip"
     with zipfile.ZipFile(z_path, "w") as zf:
         zf.writestr("Z-Alizadeh sani dataset.xlsx", "dummy")
@@ -153,6 +153,18 @@ def test_cli_subcommands_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert rc == 0
     out_zip = json.loads(capsys.readouterr().out)
     assert out_zip["passed"] is True
+    assert out_zip["outcome"] == "PASS_AUTHORIZED_CONTENTS"
+
+    bad_z_path = tmp_path / "z_alizadeh_sani_extra.zip"
+    with zipfile.ZipFile(bad_z_path, "w") as zf:
+        zf.writestr("Z-Alizadeh sani dataset.xlsx", "dummy")
+        zf.writestr("unexpected_extra.csv", "1,2,3")
+    rc = main(["inspect-archive", "--dataset-id", "DA-A1", "--zip-path", str(bad_z_path)])
+    assert rc == 2
+    err_zip = json.loads(capsys.readouterr().err)
+    assert err_zip["status"] == "FAILED_CLOSED"
+    assert err_zip["error_code"] == "archive_security_error"
+    assert "STOP_REQUIRES_REVIEW" in err_zip["message"]
 
     # 6. run-audit fails closed with exit code 2 when authorization status is PENDING_HUMAN_ACCEPTANCE
     rc = main(["run-audit"])
@@ -160,3 +172,19 @@ def test_cli_subcommands_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixtur
     err_out = json.loads(capsys.readouterr().err)
     assert err_out["status"] == "FAILED_CLOSED"
     assert err_out["error_code"] == "governance_authorization_error"
+
+
+def test_proposed_audit_ci_workflow_template_is_complete_and_properly_scoped() -> None:
+    """Blocker 6: Verify proposed audit CI workflow template pins deps, runs tests/audit, verify_sources, and artifact guards."""
+    repo_root = Path(__file__).resolve().parents[2]
+    wf_path = repo_root / "research/audit/ci/audit-ci.yml.example"
+    assert wf_path.exists() and wf_path.is_file()
+    content = wf_path.read_text(encoding="utf-8")
+
+    assert "python-version: ['3.11', '3.12']" in content
+    assert "python -m pip install -r research/audit/requirements.txt" in content
+    assert "python -m pip check" in content
+    assert "python -m pytest tests/audit -q -W error" in content
+    assert "python scripts/verify_sources.py" in content
+    assert "find research/audit tests/audit -type f" in content
+    assert "persist-credentials: false" in content

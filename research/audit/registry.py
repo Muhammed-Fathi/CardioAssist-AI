@@ -21,6 +21,27 @@ VALID_EVIDENCE_LABELS = frozenset(
 # Official UCI host and dataset endpoints (mirrors/Kaggle strictly forbidden)
 OFFICIAL_UCI_HOST = "archive.ics.uci.edu"
 
+# Global and per-dataset authorization status constants (D-046)
+GLOBAL_AUTHORIZED_WORKFLOW_STATUS = "AUTHORIZED_FOR_LOCAL_READ_ONLY_AUDIT"
+DATASET_AUTHORIZED_STATUS = "AUTHORIZED_FOR_READ_ONLY_AUDIT"
+PENDING_HUMAN_ACCEPTANCE_STATUS = "PENDING_HUMAN_ACCEPTANCE"
+
+# Provenance timestamp and origin-verification constants
+UNKNOWN_DOWNLOAD_TIMESTAMP = "UNKNOWN_PENDING_HUMAN_VERIFICATION"
+LOCAL_INTEGRITY_VERIFIED_STATUS = "VERIFIED"
+SOURCE_ORIGIN_HUMAN_ATTESTED_STATUS = "HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH"
+
+# Explicit documented allowlist of harmless non-dataset archive metadata files
+# known to accompany official UCI ZIP archives. Any ZIP entry not in
+# (authorized_files | optional_documentation_files | harmless_metadata_allowlist)
+# causes inspect_zip_archive() to fail closed with STOP_REQUIRES_REVIEW.
+UCI_ARCHIVE_HARMLESS_METADATA_ALLOWLIST: dict[str, frozenset[str]] = {
+    "DA-A1": frozenset(),
+    "DA-A2": frozenset({"Index", "WARNING", "bak"}),
+    "DA-B1": frozenset(),
+    "DA-B2": frozenset(),
+}
+
 FORBIDDEN_SOURCE_HOSTS_SUBSTRINGS = (
     "kaggle.com",
     "github.com",

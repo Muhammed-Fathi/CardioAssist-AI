@@ -27,26 +27,43 @@ Windows machine **only after** human maintainer approval of **D-046** (Gate DA).
    Python standard-library OOXML parser (`zipfile` + `xml.etree.ElementTree`)
    so tests run in both the isolated `.venv-audit` environment and the backend
    `.venv`.
-2. **Git-ignored `/data/` root only**: All raw datasets and provenance
-   manifests live under `<repo_root>/data/` (`data/raw/uci-412`,
-   `data/raw/uci-45`, `data/raw/uci-411`, `data/raw/uci-145`,
-   `data/manifests/`). Every command runs `git check-ignore -v` and
-   `git ls-files -- data/` before touching any data path and fails closed if
-   any path is not ignored or is tracked by Git.
-3. **Byte-identical originals**: `ByteIdentityGuard` computes and verifies
-   SHA-256 and exact byte size before and after reading every dataset file.
-   No dataset file is ever modified, overwritten, or rewritten in place.
-4. **Zero patient-level row output**: The toolchain never commits, uploads,
+2. **Git-ignored `/data/` root and strict per-file path containment**: All raw
+   datasets and provenance manifests live under `<repo_root>/data/`. Every
+   command runs `git check-ignore -v` and `git ls-files -- data/` before
+   touching any data path. Furthermore, `validate_provenance_manifest()`
+   enforces that each dataset file resolves directly inside its exact approved
+   `data/raw/uci-<id>/` directory, each license snapshot resolves directly
+   inside `data/manifests/licenses/`, and any absolute path, `..` traversal,
+   symlink, mismatched subdirectory, or absent authorized dataset directory
+   fails closed immediately.
+3. **Global + dataset-level Gate DA authorization**: `verify_dataset_authorized_for_audit()`
+   requires both the global `workflow_status` to be explicitly set to
+   `AUTHORIZED_FOR_LOCAL_READ_ONLY_AUDIT` and the individual dataset's
+   `authorization_status` to be `AUTHORIZED_FOR_READ_ONLY_AUDIT` with all human
+   sign-off fields populated before any real audit or provenance recording can
+   run.
+4. **Byte-identical originals on both success and failure paths**:
+   `ByteIdentityGuard` computes and verifies SHA-256 and exact byte size before
+   and after reading every dataset file, running post-audit verification even if
+   an exception occurs during parsing/auditing while preserving the original
+   failure and surfacing any file mutation.
+5. **Honest provenance timestamp and origin semantics**:
+   `build_provenance_manifest()` separates `downloaded_at_utc` (human-attested
+   acquisition timestamp or `UNKNOWN_PENDING_HUMAN_VERIFICATION` by default)
+   from `manifest_recorded_at_utc` (automatically generated when the manifest is
+   recorded), and distinguishes `local_file_integrity_status: "VERIFIED"` from
+   `official_source_provenance_status: "HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH"`.
+6. **Zero patient-level row output**: The toolchain never commits, uploads,
    logs, or prints patient-level rows. `verify_report_no_patient_rows` scans
    all generated JSON and Markdown reports for forbidden keys, raw 14-column
    lines, and row fingerprints before writing to disk.
-5. **Fail-closed validation**: Missing files, unexpected archive entries,
-   path traversal, unapproved files (`new.data`, `reprocessed.hungarian.data`,
-   `processed.long-beach-va.data`), unknown file formats, wrong delimiters or
-   column counts, raw-versus-processed file confusion, unrecognized columns,
-   corrupt files, non-UCI/mirror/Kaggle source URLs, missing license snapshots,
-   or SHA-256 mismatches immediately abort with a structured `AuditError`
-   (exit code `2`).
+7. **Fail-closed validation & `STOP_REQUIRES_REVIEW` archive inspection**:
+   `inspect_zip_archive()` distinguishes harmless archive metadata on an
+   explicit documented allowlist (`UCI_ARCHIVE_HARMLESS_METADATA_ALLOWLIST`)
+   from unapproved/excluded dataset files (`new.data`,
+   `reprocessed.hungarian.data`, `processed.long-beach-va.data`) and unexpected
+   extras, failing closed with `STOP_REQUIRES_REVIEW` whenever an archive
+   differs from authorized contents.
 
 ---
 

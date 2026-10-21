@@ -23,7 +23,9 @@ from research.audit.provenance import (
     load_authorization_manifest,
     validate_provenance_manifest,
     verify_dataset_authorized_for_audit,
+    verify_global_workflow_authorized,
 )
+from research.audit.registry import UNKNOWN_DOWNLOAD_TIMESTAMP
 from research.audit.reporting import build_and_verify_reports
 from research.audit.synthetic_fixtures import (
     SYNTHETIC_PLANTED_SENTINEL_FLOAT,
@@ -113,6 +115,8 @@ def run_local_dataset_audit(
             if ds_cfg.get("authorization_status") == AUTHORIZED_STATUS_VALUE
         ]
 
+    verify_global_workflow_authorized(auth_manifest)
+
     if not target_ds_ids:
         raise GovernanceAuthorizationError(
             "No datasets are authorized for local audit in gate_da_authorization.json "
@@ -124,15 +128,32 @@ def run_local_dataset_audit(
         verify_dataset_authorized_for_audit(auth_manifest, ds_id)
 
     prov_path = provenance_manifest_path or (effective_parent / "data/manifests/provenance_manifest.json")
+    verify_data_root_containment(
+        repo_root,
+        prov_path,
+        allow_external_tmp_root=allow_external_tmp_root,
+    )
     verified_prov = validate_provenance_manifest(prov_path, effective_parent, auth_manifest, target_ds_ids)
 
     guard_entries: list[tuple[str, Path, str | None, int | None]] = []
     for ds_id in target_ds_ids:
         for fname, fmeta in verified_prov[ds_id].items():
+            resolved_file = Path(fmeta["resolved_path"])
+            resolved_lic = Path(fmeta["resolved_license_path"])
+            verify_data_root_containment(
+                repo_root,
+                resolved_file,
+                allow_external_tmp_root=allow_external_tmp_root,
+            )
+            verify_data_root_containment(
+                repo_root,
+                resolved_lic,
+                allow_external_tmp_root=allow_external_tmp_root,
+            )
             guard_entries.append(
                 (
                     str(fmeta["relative_path"]),
-                    Path(fmeta["resolved_path"]),
+                    resolved_file,
                     str(fmeta["verified_sha256"]),
                     int(fmeta["verified_size_bytes"]),
                 )
@@ -301,6 +322,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_prov.add_argument("--acquirer", required=True)
     p_prov.add_argument("--audit-reviewer", required=True)
     p_prov.add_argument(
+        "--downloaded-at-utc",
+        default=UNKNOWN_DOWNLOAD_TIMESTAMP,
+        help=(
+            "Human-attested UTC download timestamp ('YYYY-MM-DDTHH:MM:SSZ') or "
+            "'UNKNOWN_PENDING_HUMAN_VERIFICATION' (default). Never conflated with manifest_recorded_at_utc."
+        ),
+    )
+    p_prov.add_argument(
         "--environment",
         default="E:\\CardioAssist_AI_GitHub_Starter (Windows 10/11 PowerShell, Python 3.12)",
     )
@@ -422,6 +451,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 acquirer=args.acquirer,
                 audit_reviewer=args.audit_reviewer,
                 environment=args.environment,
+                downloaded_at_utc=args.downloaded_at_utc,
                 output_manifest_path=args.output,
             )
             print(
@@ -429,7 +459,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     {
                         "status": "OK_PROVENANCE_RECORDED",
                         "files_recorded_count": len(doc["files"]),
-                        "generated_at_utc": doc["generated_at_utc"],
+                        "downloaded_at_utc": args.downloaded_at_utc,
+                        "manifest_recorded_at_utc": doc["manifest_recorded_at_utc"],
+                        "provenance_verification_semantics": doc["provenance_verification_semantics"],
                     },
                     indent=2,
                 )

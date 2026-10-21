@@ -230,7 +230,8 @@ def materialize_synthetic_audit_suite(
             acquirer="Synthetic Test Acquirer",
             audit_reviewer="Synthetic Test Reviewer",
             environment="E:\\CardioAssist_AI_GitHub_Starter (Synthetic Test)",
-            download_date_utc="2026-10-21T10:00:00Z",
+            downloaded_at_utc="2026-10-21T09:30:00Z",
+            manifest_recorded_at_utc="2026-10-21T10:00:00Z",
             output_manifest_path=prov_path,
         )
 
