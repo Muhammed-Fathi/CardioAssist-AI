@@ -88,3 +88,18 @@ Following the merge of PR #9 (M1b.1 SQLite foundation, `661876c`) and PR #10
 M2a does **not** authorize the agent to download datasets, fit models, publish
 results, or self-approve any governance change. Existing `/v1` contracts,
 FastAPI backend, SQLite persistence, and source materials remain unchanged.
+
+
+## D-047 / M2c proposal — INTERNAL Cleveland exploratory experiments (2026-10-23)
+
+**NOT EFFECTIVE UNTIL HUMAN MAINTAINER RATIFICATION; NO TRAINING IS CURRENTLY AUTHORIZED BY THIS SECTION.** The earlier M1b.1 and D-046 audit authorizations above are historical, scoped decisions, not blanket permission to fit real-data models.
+
+The separate D-047 governance amendment proposes a limited, maintainer-owned **internal, not supervisor-approved** exploratory pilot. See:
+- `docs/DECISIONS.md` D-047 proposal
+- `docs/research/gate-pt/02_d047_internal_exploratory_cleveland_PROTOCOL_PROPOSED.md`
+
+The implementation agent may **prepare synthetic-only tests and fail-closed local-only runner code** after a human-approved milestone prompt, but cannot download datasets, fit/evaluate models on real records, handle local patient data or write clinical results in its cloud environment.
+
+Only after the explicit D-047 PR review keyword, maintainer merge, and locally signed, ignored, hash-bound authorization can the **human local operator** run approved internal experimental training on `DA-A2/processed.cleveland.data`. A successful PR/CI alone is not approval. Never set an artificial `synthetic=true` flag for real records to bypass the synthetic-only validator.
+
+Required experimental labels are **`INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`** on all reports/artifacts. Gate PT P-3 remains CLOSED for formal supervisor-approved research and any clinical performance/publication/use claim. No pooling, UCI-411, Statlog, other sites, wearables, identifiers or downstream clinical integration. Leave code PRs open for maintainer review and do not forge local authorization.

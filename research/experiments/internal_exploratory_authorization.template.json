@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1.0",
+  "decision_id": "D-047",
+  "authorization_status": "NOT_AUTHORIZED_TEMPLATE_ONLY",
+  "experiment_type": "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
+  "supervisor_signoff_claimed": false,
+  "maintainer_approval_comment_exact": null,
+  "approval_pr_number": null,
+  "approval_pr_merged_commit_sha": null,
+  "local_signer": null,
+  "local_signed_at_iso8601": null,
+  "pinned_protocol_git_commit_sha": null,
+  "dataset_id": "DA-A2",
+  "allowed_original_relative_file": "data/raw/uci-45/processed.cleveland.data",
+  "expected_sha256_from_protected_provenance_manifest": null,
+  "authorized_source_row_count": 303,
+  "allowlisted_model_families": [
+    "prevalence_dummy",
+    "l2_logistic_regression",
+    "constrained_random_forest"
+  ],
+  "allowed_operations_if_approved": [
+    "read_only_source_loading",
+    "internal_model_fitting",
+    "internal_nested_cv",
+    "internal_model_family_comparison",
+    "internal_negative_control",
+    "internal_aggregate_metrics_report"
+  ],
+  "forbidden_operations": [
+    "remote_patient_data_upload",
+    "model_serving",
+    "clinical_decision",
+    "external_validation_claim",
+    "multi_cohort_pooling",
+    "unapproved_dataset_ingestion",
+    "patient_level_git_commit"
+  ],
+  "allowed_runtime": "LOCAL_WINDOWS_CPU_ONLY",
+  "protected_outputs_relative_root": "data/experiments",
+  "frozen_protocol_sha256": null
+}

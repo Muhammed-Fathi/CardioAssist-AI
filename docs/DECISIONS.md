@@ -190,6 +190,24 @@ sign-off before the dependent work starts.
 | P-5 | **Any claims of external validation or clinical readiness** | NOT MADE — prohibited | Requires external validation completed under the frozen protocol; governed by the `validation_status` lifecycle and serving policy (D-033, Phase 0 §R2-5.9/§R2-6.4) and the claims discipline (§R2-5.9); internal-only models are served and labelled strictly as such |
 | P-6 | **Real wearable integrations and access-dependent features** | PENDING | Named device owner, developer-account resolution at $0, and vendor approvals per Phase 0 §10 (D-019); simulated adapter only until then; wearable data never feeds CAD inference (D-039) |
 
+## D-047 — Proposed maintainer-authorized INTERNAL exploratory experiment (NOT APPROVED)
+
+**Proposed date:** 2026-10-23; **status:** `PENDING_EXPLICIT_HUMAN_RATIFICATION`; **supersedes no prior P-3 supervisor gate.**
+
+The team requested a **self-executed, documented preliminary comparison before supervisor review**. This was contemplated by `D-046-EP` but the D-046 read-only audit authorization explicitly did **not** authorize fitting. A **separate governance PR** now proposes activating `D-046-EP` for one narrow experiment under a human maintainer's own research responsibility:
+
+- **In scope only after ratification:** privately run internal *exploratory* model development/comparison on the previously locally audited **processed UCI-45 Cleveland** 303-record public benchmark; fixed source `num=0` vs `1..4` binary label, five prespecified historical fields, bounded dummy / L2 LR / constrained RF nested-CV procedure, local-only model/score custody and reproducible report.
+- **Evidence prerequisite:** D-046 ratified local audit; data-level report(s) merged. Unresolved warnings or harmonization questions remain OPEN and **exclude other cohorts**; they are not silently signed off.
+- **Human activation condition:** an **explicit maintainer review comment** `AUTHORIZE-D047-INTERNAL-CLEVELAND` on the separate PR **AND** its human-approved merge, plus locally signed ignored authorization manifest binding the adopted protocol commit, actual source hash and allowed tasks. No agent may record human approval itself.
+- **Science / product boundary:** every internal output marked exactly `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`. P-1/P-3 stay PENDING/CLOSED for **formal supervisor-approved research**; no patient-facing use, clinical recommendation, published accuracy/novelty claim, medical outcome guarantee, inferred supervisor approval or independently validated result. Distinguish this narrow exploratory exception from the old P-3 requirement for formal research.
+- **Data boundary:** Existing D-046 audit permission **remains unchanged** and cannot be relabeled as training permission. D-047 is separate; it may authorize local research-model fitting only after human ratification and guarded preflight. `DA-B1` UCI-411 and `DA-B2` Statlog remain audit-only. UCI-412 and all other UCI-45 sites are excluded from this first experiment, no pooling or external validation claim.
+- **Approved-method scope (if accepted):** [first internal experiment protocol](research/gate-pt/02_d047_internal_exploratory_cleveland_PROTOCOL_PROPOSED.md). Require a version-stamped frozen protocol SHA before data-fitting; future revisions after first fitting must be logged as exploratory amendments, never silently modified to improve results.
+- **Result delivery:** produce a full internal transparent report and check the methods against TRIPOD+AI/PROBAST+AI before eventual presentation to the supervisor. No automatic promotion of internal results to formal clinical/scientific approval.
+
+**Status of D-047 on this proposed PR: NOT APPROVED; no local manifest or actual human approval recorded.** No training permitted until the listed conditions are met. This section records only the proposed amendment; changing this text later requires a named human decision.
+
+---
+
 ## Standing rules
 
 - Status vocabulary: **CONFIRMED** (project team), **APPROVED** (maintainer,
