@@ -1,12 +1,16 @@
 # M2a Read-Only Local Dataset Audit Toolchain (`research/audit/`)
 
-**Status:** Toolchain **IMPLEMENTED + TESTED locally on synthetic fixtures**
-(milestone **M2a**). Proposed governance decision **D-046** and dataset access
-decisions (`DA-A1`, `DA-A2`, `DA-B1`, `DA-B2`) in
-`research/audit/gate_da_authorization.json` are **PENDING HUMAN ACCEPTANCE**.
-**No real dataset has been downloaded, and no model fitting, feature selection,
+**Status update (2026-10-22):** D-046 is now **human-ratified for
+local read-only audits only** (see `docs/DECISIONS.md`); the checked-in
+`gate_da_authorization.json` is deliberately **pending / fail-closed**.
+The maintainer used an **untracked local authorization manifest** to audit
+DA-A1/UCI-412 and DA-B1/UCI-411; aggregate-only results and unresolved
+scientific flags are documented in
+[`docs/research/gate-da/10_m2a_uci412_uci411_evidence_and_decisions.md`](../../docs/research/gate-da/10_m2a_uci412_uci411_evidence_and_decisions.md).
+Raw datasets and local JSON/Markdown reports **must remain Git-ignored and
+must never be committed**. **No model fitting, feature selection,
 hyperparameter tuning, calibration, SHAP/LIME computation, or performance
-evaluation is authorized or implemented.**
+evaluation is authorized. Gate PT remains CLOSED.**
 
 For the complete step-by-step Windows PowerShell execution guide from
 `E:\CardioAssist_AI_GitHub_Starter`, see
