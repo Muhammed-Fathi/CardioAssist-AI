@@ -428,11 +428,63 @@ def _validate_uci_45_audit_schema(payload: Any) -> None:
                 "positional_13_predictor_matches",
                 "positional_14_col_exact_num_matches",
                 "positional_14_col_binary_num_matches",
+                "unordered_13_predictor_multiset_matches",
+                "unordered_14_col_exact_num_multiset_matches",
+                "unordered_14_col_binary_num_multiset_matches",
+                "per_feature_positional_equal_counts",
+                "per_feature_unordered_value_multiset_matches",
                 "num_recoded_to_binary_in_processed",
                 "evidence_status",
             },
             context=f"{ctx}.raw_vs_processed_correspondence.{coh_k}",
         )
+        # Only counts / known names are admissible; never report row signatures,
+        # matched pairs, patient identifiers or actual clinical values.
+        n = min(coh_rep["raw_row_count"], coh_rep["processed_row_count"])
+        _assert_int_not_bool(n, context="DA-A2 raw/processed comparison denominator")
+        if n < 0:
+            raise PatientLevelLeakageError("Negative DA-A2 cohort row count.")
+        scalar_counts = (
+            "positional_13_predictor_matches",
+            "positional_14_col_exact_num_matches",
+            "positional_14_col_binary_num_matches",
+            "unordered_13_predictor_multiset_matches",
+            "unordered_14_col_exact_num_multiset_matches",
+            "unordered_14_col_binary_num_multiset_matches",
+        )
+        for field in scalar_counts:
+            count = coh_rep[field]
+            _assert_int_not_bool(count, context=f"{ctx}.{coh_k}.{field}")
+            if not 0 <= count <= n:
+                raise PatientLevelLeakageError(f"Out-of-bounds count for '{coh_k}.{field}'.")
+        for dict_field in (
+            "per_feature_positional_equal_counts",
+            "per_feature_unordered_value_multiset_matches",
+        ):
+            counts = coh_rep[dict_field]
+            if not isinstance(counts, dict) or set(counts) != set(UCI_45_CONVENTIONAL_14_COLUMNS[:13]):
+                raise PatientLevelLeakageError(f"Invalid predictor-only count keys in '{coh_k}.{dict_field}'.")
+            for col, count in counts.items():
+                _assert_int_not_bool(count, context=f"{ctx}.{coh_k}.{dict_field}.{col}")
+                if not 0 <= count <= n:
+                    raise PatientLevelLeakageError("Out-of-bounds feature count in DA-A2 correspondence report.")
+        if coh_rep["positional_14_col_exact_num_matches"] > coh_rep["positional_13_predictor_matches"]:
+            raise PatientLevelLeakageError("Exact 14-column matches exceed 13-predictor matches.")
+        if coh_rep["positional_14_col_binary_num_matches"] > coh_rep["positional_13_predictor_matches"]:
+            raise PatientLevelLeakageError("Binary 14-column matches exceed 13-predictor matches.")
+        for positional, unordered in (
+            ("positional_13_predictor_matches", "unordered_13_predictor_multiset_matches"),
+            ("positional_14_col_exact_num_matches", "unordered_14_col_exact_num_multiset_matches"),
+            ("positional_14_col_binary_num_matches", "unordered_14_col_binary_num_multiset_matches"),
+        ):
+            if coh_rep[positional] > coh_rep[unordered]:
+                raise PatientLevelLeakageError("Positional match exceeds unordered multiset overlap.")
+        if (coh_rep["unordered_14_col_exact_num_multiset_matches"] > coh_rep["unordered_13_predictor_multiset_matches"]
+            or coh_rep["unordered_14_col_binary_num_multiset_matches"] > coh_rep["unordered_13_predictor_multiset_matches"]):
+            raise PatientLevelLeakageError("Full-row multiset overlap exceeds predictor-only overlap.")
+        for col in UCI_45_CONVENTIONAL_14_COLUMNS[:13]:
+            if coh_rep["per_feature_positional_equal_counts"][col] > coh_rep["per_feature_unordered_value_multiset_matches"][col]:
+                raise PatientLevelLeakageError("Feature positional matches exceed unordered value overlap.")
 
     _assert_exact_keys(
         payload["documentation_file"],

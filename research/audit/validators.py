@@ -779,6 +779,49 @@ def compare_uci_45_raw_and_processed(
     proc_rows: Sequence[dict[str, Any]] = proc_parsed["normalized_rows"]
 
     min_len = min(len(raw_rows), len(proc_rows))
+    predictor_columns = UCI_45_CONVENTIONAL_14_COLUMNS[:13]
+    all_columns = UCI_45_CONVENTIONAL_14_COLUMNS
+
+    def row_signature(row: dict[str, Any], columns: Sequence[str], *, binary_target: bool = False) -> tuple[Any, ...]:
+        # In-memory normalized values only. Never emit a tuple or any patient-level key.
+        if binary_target:
+            return tuple(row.get(col) for col in predictor_columns) + (row.get("binary_target"),)
+        return tuple(row.get(col) for col in columns)
+
+    def multiset_overlap(raw_signatures: Sequence[tuple[Any, ...]], proc_signatures: Sequence[tuple[Any, ...]]) -> int:
+        # Min multiplicities mean exact duplicates cannot inflate matches.
+        a = Counter(raw_signatures)
+        b = Counter(proc_signatures)
+        return sum(min(a[key], b[key]) for key in a.keys() & b.keys())
+
+    unordered_13 = multiset_overlap(
+        [row_signature(row, predictor_columns) for row in raw_rows],
+        [row_signature(row, predictor_columns) for row in proc_rows],
+    )
+    unordered_14_exact = multiset_overlap(
+        [row_signature(row, all_columns) for row in raw_rows],
+        [row_signature(row, all_columns) for row in proc_rows],
+    )
+    unordered_14_binary = multiset_overlap(
+        [row_signature(row, all_columns, binary_target=True) for row in raw_rows],
+        [row_signature(row, all_columns, binary_target=True) for row in proc_rows],
+    )
+    per_feature_positional = {
+        col: sum(raw_rows[i].get(col) == proc_rows[i].get(col) for i in range(min_len))
+        for col in predictor_columns
+    }
+    per_feature_unordered = {
+        col: sum(
+            min(raw_counts[val], proc_counts[val])
+            for val in raw_counts.keys() & proc_counts.keys()
+        )
+        for col in predictor_columns
+        for raw_counts, proc_counts in [(
+            Counter(row.get(col) for row in raw_rows),
+            Counter(row.get(col) for row in proc_rows),
+        )]
+    }
+
     exact_13_predictor_matches = 0
     exact_14_with_raw_num_matches = 0
     exact_14_with_binary_num_matches = 0
@@ -802,6 +845,11 @@ def compare_uci_45_raw_and_processed(
         "positional_13_predictor_matches": exact_13_predictor_matches,
         "positional_14_col_exact_num_matches": exact_14_with_raw_num_matches,
         "positional_14_col_binary_num_matches": exact_14_with_binary_num_matches,
+        "unordered_13_predictor_multiset_matches": unordered_13,
+        "unordered_14_col_exact_num_multiset_matches": unordered_14_exact,
+        "unordered_14_col_binary_num_multiset_matches": unordered_14_binary,
+        "per_feature_positional_equal_counts": per_feature_positional,
+        "per_feature_unordered_value_multiset_matches": per_feature_unordered,
         "num_recoded_to_binary_in_processed": (
             exact_14_with_binary_num_matches > exact_14_with_raw_num_matches
         ),

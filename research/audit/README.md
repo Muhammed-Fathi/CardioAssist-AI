@@ -54,6 +54,26 @@ closed; do not weaken further parsers without separate evidence and review.
 
 ---
 
+## DA-A2 raw/processed alignment: aggregate-only diagnostics
+
+Following the 2026-10-22 partial audit, positional 13-feature matches were
+Hungary **1/294**, Switzerland **1/123**, and VA Long Beach **192/200**.
+Those numbers alone **cannot determine** whether rows are permuted,
+recoded, mismatched or from different populations. The approved read-only
+audit reports both positional and order-independent multiset overlaps for
+13 predictors, exact 14-column target, and binary-target alternative, plus
+per-feature positional and order-independent value-overlap counts.
+Multiset intersections use minimum multiplicities to avoid double-counting
+duplicates; they are metadata-only and **do not create patient mappings**.
+
+A higher unordered match count is evidence *consistent with* order changes,
+**not proof of common patient identity**, complete provenance or clinical
+validity. Equal column-value distributions are weaker than whole-row matches.
+The original raw Cleveland quarantine remains unchanged. Gate PT CLOSED;
+no patient-level keys/values, reconstructed rows, model fitting or training.
+
+---
+
 ## 1. Purpose and Non-Negotiable Safety Rules
 
 This package provides a Python 3.11/3.12-compatible, $0, Windows-local,
