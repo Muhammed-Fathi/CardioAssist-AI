@@ -1,18 +1,20 @@
 # CardioAssist AI
 
-**Status (2026-10-21):** Phase 1 mock `/v1` contracts, FastAPI backend, M1b.1
-SQLite monitoring persistence (PR #9, `661876c`), and the Gate DA dataset
-suitability package (PR #10, `fb928bb`) are merged into `main`. The current
-milestone slice is **M2a: Maintainer-Led Gate DA Governance Proposal (`D-046`,
-`PENDING HUMAN ACCEPTANCE`) and Read-Only Local Dataset Audit Toolchain**
-([`research/audit/README.md`](research/audit/README.md),
-[`docs/research/gate-da/09_m2a_windows_local_audit_handoff.md`](docs/research/gate-da/09_m2a_windows_local_audit_handoff.md)).
-The M1a.3 React/Flutter integration remains **deferred/resequenced, not
-cancelled or completed** ([D-045](docs/DECISIONS.md)). No model has been
-trained, no real dataset has been downloaded, and no clinical performance or
-supervisor-approval claim is made. Report each milestone as implemented, tested,
-proposed, or unverified; see
-[current implementation status](docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md).
+**Status update (2026-10-22, M2a):** D-046 was human-ratified for **local
+read-only audit only**; see [`docs/DECISIONS.md`](docs/DECISIONS.md). The
+maintainer reported successful local audits of DA-A1 (UCI-412) and DA-B1
+(UCI-411), including 303/303 shared-column positional matches and an
+unresolved 1/303 artery/Cath consistency flag. Their original workbooks,
+manifests and patient-level records remain local and Git-ignored, **not
+reproduced or uploaded on GitHub**. Evidence, methods, conservative decisions,
+and limitations are recorded in
+[`docs/research/gate-da/10_m2a_uci412_uci411_evidence_and_decisions.md`](docs/research/gate-da/10_m2a_uci412_uci411_evidence_and_decisions.md).
+The prior 2026-10-21 snapshot in
+[`docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md`](docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md)
+is historical, not an update of these local audit results. **Gate PT (P-3)
+remains CLOSED, supervisor sign-off is not claimed, no model fitting or clinical
+performance evidence exists.** React/Flutter M1a.3 is still deferred,
+not cancelled ([D-045](docs/DECISIONS.md)).
 
 **Run the synthetic mock backend and SQLite persistence locally:**
 [backend/README.md](backend/README.md). See
