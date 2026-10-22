@@ -197,3 +197,36 @@ The first successful **partial** DA-A2 local real-data audit (PR #19 raw Clevela
 4. **Still blocked**: raw Cleveland historical integrity ([Issue #18](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/18)); unexplained differences and target meaning ([Issue #21](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/21)); DA-B2/UCI-145 overlap pending; any model-fit, training, feature selection, calibration, interpretation or performance claim before Gate PT P-3 signoff.
 
 **Decision state:** Data-acquisition integrity verified; partial and scoped read-only correspondence audit verified as executed; **clinical dataset suitability not approved**. Raw Cleveland remains quarantined, with original sources preserved and Gate PT CLOSED.
+
+
+## 12. DA-A2 target distribution, missingness and duplication: local read-only evidence (2026-10-22)
+
+**Provenance and privacy checks:** Maintainer executed strictly metadata-only summary of the pre-existing `data/reports/uci-45-da-a2-alignment-audit.json` on clean `main`, checked 11 cumulative provenance records under D-046, validated the strict report schema, original ZIP/raw Cleveland hashes and unchanged protected evidence, and confirmed Gate PT **CLOSED**. No new dataset files, trained models or patient-level records were produced.
+
+| Cohort | Processed rows | Processed source `num` counts (0 / 1 / 2 / 3 / 4) | Raw source `num` counts (0 / 1 / 2 / 3 / 4) | Processed missing cells of 14 columns | Processed exact full-row excess duplicates |
+|---|---:|---|---|---:|---:|
+| Cleveland | 303 | 164 / 55 / 36 / 35 / 13 | **Not audited — raw quarantined** | 6 (0.14%) | 0 |
+| Hungary | 294 | 188 / 106 / 0 / 0 / 0 | 188 / 37 / 26 / 28 / 15 | 782 (19.00%) | 1 |
+| Switzerland | 123 | 8 / 48 / 32 / 30 / 5 | 8 / 48 / 32 / 30 / 5 | 273 (15.85%) | 0 |
+| VA Long Beach | 200 | 51 / 56 / 41 / 42 / 10 | 51 / 56 / 41 / 42 / 10 | 698 (24.93%) | 1 |
+
+**Source corroboration and crucial inference limits:** The original official `heart-disease.names` dictionary (https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/heart-disease.names) lists the four **raw** class-count vectors above exactly (see section 10). Its `num` variable description says **0: <50% diameter narrowing**, **1: >50%** (sections 7–8), while its broader conventional goal is 0 versus 1–4. This historical wording does **not** harmonize UCI-45 to the UCI-411/412 **≥50%** convention and does not establish cases at exactly 50%; H-01 stays OPEN. Hungary `processed` has a binary 0/1 target, whose positive 106 equals the sum of raw positives 37+26+28+15; 293/294 predictor-plus-binary unordered profiles matched in the preceding audit. These are strong *aggregate* signals of binary recoding, **not** proof of patient identity, clinical threshold harmonization, or that the remaining mismatched observation is an erroneous diagnosis.
+
+**Processed missingness by named field (only nonzero counts; source report definitions retained):**
+- Cleveland: `ca=4`, `thal=2`; all other conventional predictor slots and `num` have zero recorded missing cells.
+- Hungary: `ca=291`, `thal=266`, `slope=190`, `chol=23`, `fbs=8`, and one each in `exang,restecg,thalach,trestbps`; total 782.
+- Switzerland: `ca=118`, `fbs=75`, `thal=52`, `slope=17`, `oldpeak=6`, `trestbps=2`, and one each in `exang,restecg,thalach`; total 273.
+- VA Long Beach: `ca=198`, `thal=166`, `slope=102`, `oldpeak=56`, `trestbps=56`, `exang=53`, `thalach=53`, `chol=7`, `fbs=7`; total 698.
+
+**Audited raw-vs-processed missingness differences** (aggregate counts, *not attributed to patients*): Hungary raw `ca=290` missing vs processed 291; Switzerland raw `thal=50` vs processed 52; VA raw `thal=159` vs processed 166 and `slope=101` vs processed 102. The original raw 76-attribute missing-cell counts (Hungary 7,953; Switzerland 2,433; VA 4,088) **are not directly comparable** to processed 14-column missing totals because they cover radically different denominators. No invalid categorical-coding counters were reported for the four processed cohorts; this does **not** rule out all suspicious values or clinical data-quality defects. Processed whole-row duplicate *excess records* were Hungary 1 and VA 1; **never delete or merge patients automatically**.
+
+**Scientific feasibility constraints (not feature selection):** `ca` is angiography-dependent and pre-designated a leakage risk (L-01); `thal` and exercise-test variables require availability/timing rulings (L-06/L-07). Hungary, Switzerland and VA do **not** support unqualified 13-predictor complete-case claims: the single marginal `ca` missing count alone bounds all-13-predictor complete records to at most 3/294, 5/123 and 2/200, respectively; actual joint complete-case counts have **not** been measured and may be lower. Removing, imputing or prioritizing any feature would constitute a future protocol choice, **not approved** by Gate DA. Similarly, the 14-column cell-completeness percentage does not show the joint availability of a clinical feature set. Distributional class imbalance and differences across cohorts must be considered when eventually judging transportability; no model prediction or performance can be inferred.
+
+**Decision DA-A2-QA-03 — evidence VERIFIED as metadata, dataset suitability DEFERRED:**
+1. Preserve original raw and processed files and the local-only reports without repair; raw Cleveland remains quarantined under Issue #18.
+2. Register Hungarian `num` change as **source-consistent binary recoding**; do not use it as proof of a common clinical threshold, and keep H-01 unresolved.
+3. Flag missingness/feature availability and raw-vs-processed differences for separate methodology review; do not assume 14 columns are jointly present or that repeated profiles are the same patient.
+4. Next: quantify explicitly audited joint completeness **only within a supervisor-reviewed, pre-specified set of clinical timepoint assumptions** (or submit bounded descriptive completeness with current marginals), inspect `ca`, `thal`, stress testing and suspicious-value flags before freezing any Gate PT protocol. Keep DA-B2 Statlog overlap pending under its separate read-only approval scope.
+5. Do not treat UCI-411 extension as additional patients; do not claim independent external validation from UCI-45, alter or relabel data, fit/select/evaluate models, or open Gate PT without supervisor P-3 signoff.
+
+**Status:** Local read-only metadata audit success; original input bytes unchanged; scientific clinical suitability **NOT APPROVED**; Gate PT **CLOSED**.
