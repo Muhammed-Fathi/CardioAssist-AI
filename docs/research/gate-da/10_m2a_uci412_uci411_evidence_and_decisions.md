@@ -230,3 +230,27 @@ The first successful **partial** DA-A2 local real-data audit (PR #19 raw Clevela
 5. Do not treat UCI-411 extension as additional patients; do not claim independent external validation from UCI-45, alter or relabel data, fit/select/evaluate models, or open Gate PT without supervisor P-3 signoff.
 
 **Status:** Local read-only metadata audit success; original input bytes unchanged; scientific clinical suitability **NOT APPROVED**; Gate PT **CLOSED**.
+
+
+## 13. DA-A2 suspicious-value and angiography-field coding flags: local aggregate review (2026-10-22)
+
+**Evidence and safety:** The maintainer read **strict-allowlisted aggregate metadata** from the already validated DA-A2 local alignment report; Git remained clean, original files and provenance were unchanged, no patient records were read or printed, and Gate PT remained **CLOSED**. The `suspicious_values` detector is a selective heuristic; an empty result is **not a guarantee of data correctness**.
+
+| Processed cohort | Rows | `chol` <= 0 | `oldpeak` < 0 | `trestbps` <= 0 | Exact full-row excess duplicates | Near-duplicate candidate pairs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Cleveland | 303 | 0 | 0 | 0 | 0 | 0 |
+| Hungary | 294 | 0 | 0 | 0 | 1 | 0 |
+| Switzerland | 123 | **123** | **11** | 0 | 0 | 0 |
+| VA Long Beach | 200 | **49** | **1** | **1** | 1 | 1 |
+
+**Source-document interpretation:** The original UCI `heart-disease.names` defines `chol` as **serum cholesterol mg/dl**, `trestbps` as resting blood pressure **mm Hg** and `oldpeak` as exercise-induced ST depression relative to rest; it specifies historical missing-value code `-9.0`, **not an explicit dataset-wide convention that zero cholesterol is missing** (https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/heart-disease.names, attribute list and section 9). Consequently, Switzerland's 123/123 `chol=0` values are **physiologically implausible literal measurements** and strongly suggest undocumented structural missingness, non-measurement or a coding convention; which is true is **UNVERIFIED**. The current parser correctly preserves zero instead of silently imputing, but its reported processed-cell `missingness` percentage *understates potential effective clinical missingness* **if** zeros represent unavailable measurements. VA has 49/200 nonpositive cholesterol values and one nonpositive resting-BP value requiring the same type of independent review. Negative `oldpeak` counts indicate numeric values requiring clinical/measurement semantics review; they do not establish automatically erroneous observations, and they must **not** be clipped to zero.
+
+**Raw angiographic field metadata are measurements of values, not people:** Hungary had 314 classified `discrete_code_0_1_2` non-missing field entries, Switzerland 1,230, and VA 1,996 plus 1 `other_numeric` entry. These counts span the ten named raw per-vessel fields and **must not** be read as patient counts or as proof of target threshold; UCI source notes the `num` status is angiographic and has historical `<50` versus `>50` wording. The isolated VA nonstandard numeric value requires an aggregate-only controlled investigation of source representation, not a patient-level publication, autocorrection, target derivation or diagnostic reclassification.
+
+**Evidence distinction and gate decisions:**
+1. **VERIFIED**: printed aggregate counts, historical dictionary definitions, and preserved-byte audit results.
+2. **UNVERIFIED**: whether Swiss/VA zero-cholesterol and VA zero resting BP encode absent measurement; validity of negative oldpeak in their data-collection conventions; clinical equivalence of raw vessel codes; UCI-45 versus UCI-412 `num` threshold harmonization.
+3. **NOT AUTHORIZED**: converting zero to missing, excluding samples, applying feature transformations, dropping columns, treating multiple raw and processed versions as independent cohorts, model training or evaluation.
+4. **Follow-up control:** arrange source/dictionary evidence review with supervisor for laboratory and exercise-test availability, triage `chol` / `oldpeak` / `trestbps` flags and angiographic leakage, then design a **pre-specified** analysis of conditional feature completeness. Keep H-01, L-01/L-06/L-07 and Issue #21 OPEN. Cleveland raw remains quarantined under Issue #18.
+
+**Decision DA-A2-QA-04:** The observed zero-valued lab/BP fields are unresolved, high-impact clinical data-quality flags; cohort readiness and all-13-predictor completeness **NOT APPROVED**, and Gate PT stays **CLOSED**. No raw data or local report is included here.
