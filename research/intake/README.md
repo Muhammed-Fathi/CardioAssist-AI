@@ -1,38 +1,109 @@
-# M2b — Synthetic Stage-Aware Intake Safety (prototype only)
+# M2b — Synthetic Stage-Aware Intake and Preprocessing (prototype only)
 
-**Status:** Engineering proposal for independent review. **No production endpoint, medical recommendation, model artifact, patient records, or real-data processing.** Gate PT P-3 remains CLOSED. This module does **not** update any existing OpenAPI version, backend mock, React/Flutter screen, persistence or inference route.
+**Status:** Engineering proposal for independent review. This package validates
+and transforms **synthetic software fixtures only**. It is not a production
+endpoint, medical recommendation, model artifact, patient-record workflow, or
+approved clinical contract. Gate PT P-3 remains **CLOSED**. Nothing here
+updates `/v1` OpenAPI schemas, backend behavior, frontend applications,
+persistence, migrations, or inference routes.
 
-## Why this small implementation exists
+## Implemented foundation
 
-The merged real local DA-A2 descriptive audit found that a five-input *resting-assessment* source panel is jointly recorded in 303/303 Cleveland, 292/294 Hungary, 120/123 Switzerland and 143/200 VA cases (under the explicit hypothetical zero-unavailable measurement rule). Source data availability is **not** predictive accuracy, case representativeness or justification to use those variables in a fitted model. The [research protocol v0.1](../../docs/research/gate-da/15_ai_model_development_evaluation_protocol_DRAFT.md) specifies these fields as *prospective candidates for a separate signed clinical protocol*, not yet selected training features.
+`synthetic_stage_validator.py` contains the exact stage allowlists, immutable
+field definitions, fixed UCI-45-style categorical source-code order, positive
+measurement guards, exact unit-token checks, and field-level missing reasons.
+The required history fields are `age`, `sex`, and `cp`. Optional stage fields
+may be explicit nulls with a measurement reason, or omitted with the distinct
+`not_provided` reason. Categorical zero and `oldpeak=0` are values; zero for
+`chol` or `trestbps` is rejected as a measured value. Negative `oldpeak` is
+preserved and not clipped. `oldpeak` has no asserted unit in this prototype.
 
-The object in `synthetic_stage_validator.py` validates **synthetic data and field-level formatting only**; it does not inspect cohort labels, rank inputs, fit preprocessing, or approve an ML schema. It is never invoked by the existing `/v1/predictions/cad-tabular` API.
+`synthetic_preprocessing.py` provides a model-independent, standard-library
+preprocessor:
 
-## Controlled stage bundles
+- Numerical/categorical definitions and source-code order are fixed by the
+  registry, not inferred from a dataset.
+- Categorical encoding is one-hot with a stable code order. Unknown integer
+  codes fail by default; an explicit synthetic-test-only policy maps them to a
+  separate unknown indicator, never to a known category or missing value.
+- Numeric missing values are imputed with medians fit from synthetic training
+  records only. Missingness bits and one-hot reason fields are retained in the
+  transformed vector and its immutable metadata.
+- Fitting accepts only one stage and has no holdout/evaluation input. Every
+  record is validated with `synthetic: true`; labels, identifiers, sites,
+  angiography fields, and wearables fail closed.
+- Results are deterministic, immutable numeric vectors with no patient IDs,
+  target, prediction, or explanation fields. Input objects are read-only.
 
-- `history_only`: age (years), sex (source 0/1), cp (source 1–4)
-- `resting_assessment`: above + trestbps (mmHg) + restecg (source 0–2)
-- `resting_plus_labs`: above + chol (mg/dL) + fbs (source 0/1)
-- `includes_exercise_tests`: above + thalach (bpm) + exang (0/1) + oldpeak (signed numeric) + slope (1–3)
+The `synthetic: true` tag does not prove that data are synthetic. Never pass
+real patient records, raw benchmark rows, or data-derived fixtures to this code.
 
-The synthetic fixture must specify an explicit `synthetic: true` flag and exact `stage`, `features`, `units`, and `missing_reasons` keys. At least the three basic history fields must be non-null. An optional field with `None` requires an explicit reason (`not_measured`, `not_available_at_time`, `unknown`) and no unit. Positive physiological measurements must not silently receive zero as a clinical measurement; however categorical zero and `oldpeak=0` are valid, and negative oldpeak remains allowed rather than auto-clipped. Submitted units must match the explicitly named source conventions. The validator does **not** perform unit conversions, imputation, value repair or prediction.
+## Stage bundles and candidate scope
 
-**Hard rejection:** `ca`, `thal`, `num`, `Cath`, `LAD`, `LCX`, `RCA`, patient identifiers, site labels, monitoring/wearable fields, unexpected feature names, and fields from a later stage all fail closed by an exact per-stage allowlist. Messages do not echo submitted values.
+- `history_only`: `age`, `sex`, `cp`
+- `resting_assessment`: above + `trestbps`, `restecg`
+- `resting_plus_labs`: above + `chol`, `fbs`
+- `includes_exercise_tests`: above + `thalach`, `exang`, `oldpeak`, `slope`
 
-**Safety:** The returned immutable `SyntheticIntakeReview` includes **field names, missing reasons, completeness and fixed `NO_PREDICTION_GATE_PT_CLOSED` status only**. It contains no submitted numerical/categorical measurements, CAD score, feature ranking, explanation, patient ID or record-level data. Passing `synthetic=true` alone does not prove input data are actually synthetic; the caller must **never feed real patient data** into this prototype.
+The initial five-field panel is a prospective research candidate, not an
+approved model feature set. Labs and exercise measurements are separate,
+optional stages. The source-code conventions and units are suitable only for
+these synthetic software tests; they do not establish clinical ranges,
+measurement timing, or cross-dataset compatibility. `ca`, `Cath`, `num`,
+`LAD`, `LCX`, `RCA`, other angiographic measurements, identifiers, site fields,
+`thal`, and wearable/monitoring observations are rejected by the stage
+allowlist.
 
-## Run synthetic unit tests only
+## Research context
 
-```powershell
-& "E:\CardioAssist_PR11_Audit_Venv\Scripts\python.exe" -m pytest tests/audit/test_synthetic_stage_intake_safety.py -q -W error
+The aggregate-only real DA-A2 availability evidence and staged-intake
+architecture are documented in
+[`14_real_joint_availability_and_staged_intake_decision.md`](../../docs/research/gate-da/14_real_joint_availability_and_staged_intake_decision.md).
+Those source availability counts are not predictive performance, a selected
+feature set, or authorization to fit a model. The candidate panel remains
+subject to predictor-timing review, target/source decisions, and Gate PT.
+
+## Contract proposal — not implemented
+
+The versioned future clinician-intake design is
+[`shared/contracts/proposals/clinician_intake_stage.v0.1.md`](../../shared/contracts/proposals/clinician_intake_stage.v0.1.md).
+It remains **DESIGN PROPOSAL ONLY** and is not wired into the current CAD mock
+or wearable endpoint. The current `/v1/predictions/cad-tabular` MOCK/SYNTHETIC
+path and `/v1/monitoring/observations` Track-B separation remain unchanged.
+
+## Run synthetic tests only
+
+```bash
+python -m pytest tests/audit/test_synthetic_stage_intake_safety.py \
+  tests/audit/test_synthetic_preprocessing.py -q -W error
 ```
 
-GitHub audit-toolchain CI runs this under supported Python versions. All examples and tests contain invented, synthetic fixture values. There are no new dependencies, source dataset reads, or model fitting.
+All examples and tests contain invented synthetic software values. There are
+no new Python dependencies and no model is trained, selected, evaluated,
+calibrated, explained, or served.
 
-## Next engineering slice (requires its own authorization and review)
+## How a future approved model could connect
 
-Propose a versioned stage-aware intake JSON Schema and contract fixtures for the clinician website, independent of the current MOCK_SYNTHETIC CAD prediction endpoint and the wearable/monitoring track; approval of this stand-alone Python prototype does **not** automatically approve an API change or a production patient-data flow.
+After the maintainer and supervisor freeze an approved Gate PT protocol, a
+separate model adapter could accept only the matching versioned intake schema,
+apply preprocessing fitted inside each training fold, and pass the resulting
+matrix to a separately approved model. Holdout data must never affect fitted
+imputation or encoding parameters. The current prototype demonstrates
+training/holdout separation with toy fixtures only; it is not a deployable
+pipeline and contains no model interface or prediction method.
 
-## Verification status
+## Scientific and clinical limits
 
-This prototype supports **PP-02** (synthetic-only safety validation) from [protocol draft §Implementation work packages](../../docs/research/gate-da/15_ai_model_development_evaluation_protocol_DRAFT.md). Statistical adequacy, clinical predictor timing, source-target harmonization, evidence-based zero coding, model training, external validation, calibration and medical UI copy remain separate unapproved decisions.
+This milestone does not establish the final diagnostic target, the exactly-50%
+threshold semantics, source-label compatibility, predictor timing, clinically
+acceptable ranges, zero-code interpretation across sources, statistical
+adequacy, calibration, external validation, fairness, or clinical utility.
+Do not pool datasets or harmonize labels automatically. UCI-412 and UCI-411
+represent the same 303-patient cohort; UCI-411 is not an independent sample.
+Future CAD-presence classification is distinct from 30-day cardiovascular
+event prediction.
+
+**Gate PT P-3 remains CLOSED.** No real-data model fitting, feature selection,
+tuning, validation, calibration, SHAP/LIME analysis, or clinical claims are
+authorized. Real patient data and real dataset paths must remain outside this
+repository and all unapproved services.

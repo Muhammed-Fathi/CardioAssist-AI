@@ -71,23 +71,37 @@ def test_null_is_explicit_and_not_equal_zero() -> None:
     assert source["features"]["fbs"] == 0
 
 
-def test_negative_oldpeak_is_not_clipped_or_flagged_as_missing() -> None:
-    source = fixture("includes_exercise_tests")
-    review = review_synthetic_stage_input(source)
+def test_negative_and_zero_oldpeak_are_not_clipped_or_flagged_as_missing() -> None:
+    negative = fixture("includes_exercise_tests")
+    review = review_synthetic_stage_input(negative)
     assert review.stage_complete
-    assert source["features"]["oldpeak"] == -0.4
+    assert negative["features"]["oldpeak"] == -0.4
+
+    zero = fixture("includes_exercise_tests")
+    zero["features"]["oldpeak"] = 0.0
+    zero_review = review_synthetic_stage_input(zero)
+    assert zero_review.stage_complete
+    assert zero["features"]["oldpeak"] == 0.0
+    assert not zero_review.missing_fields_with_reason
 
 
 @pytest.mark.parametrize(
     "forbidden",
-    ["ca", "thal", "num", "Cath", "LAD", "LCX", "RCA",
-     "patient_id", "patient_ref", "name", "site", "wearable_heart_rate"],
+    [
+        "ca", "thal", "num", "target", "outcome", "Cath", "LAD", "LCX", "RCA",
+        "lmt", "ladprox", "laddist", "diag", "cxmain", "ramus", "om1",
+        "om2", "rcaprox", "rcadist", "angiography", "stenosis_percent",
+        "patient_id", "patient_ref", "mrn", "name", "site",
+        "wearable_heart_rate", "heart_rate_bpm", "steps", "wearable_ecg",
+        "monitoring_observation",
+    ],
 )
 def test_leakage_identifier_and_wearable_fields_fail_closed(forbidden: str) -> None:
     source = fixture()
     source["features"][forbidden] = "synthetic-only"
-    with pytest.raises(IntakeValidationError):
+    with pytest.raises(IntakeValidationError) as error:
         review_synthetic_stage_input(source)
+    assert "synthetic-only" not in str(error.value)
 
 
 def test_later_stage_inputs_fail_closed() -> None:
@@ -140,6 +154,18 @@ def test_missing_value_requires_reason_and_absent_unit() -> None:
         review_synthetic_stage_input(source)
     source["units"].pop("chol")
     assert not review_synthetic_stage_input(source).stage_complete
+
+
+def test_omitted_optional_measurement_has_distinct_not_provided_reason() -> None:
+    source = fixture("resting_plus_labs")
+    del source["features"]["chol"]
+    source["units"].pop("chol")
+    with pytest.raises(IntakeValidationError):
+        review_synthetic_stage_input(source)
+    source["missing_reasons"]["chol"] = "not_provided"
+    review = review_synthetic_stage_input(source)
+    assert review.missing_fields_with_reason == (("chol", "not_provided"),)
+    assert not review.stage_complete
 
 
 @pytest.mark.parametrize("reason", ["", "zero_means_missing", "not_requested", None])
