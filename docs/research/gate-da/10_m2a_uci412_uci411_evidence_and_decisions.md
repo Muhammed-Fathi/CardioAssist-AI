@@ -170,3 +170,30 @@ The first successful **partial** DA-A2 local real-data audit (PR #19 raw Clevela
 - Synthetic permutations, differences, duplicate checks and privacy-schema tests
 
 **Decision status:** PENDING local execution/review. The proposed metrics can distinguish findings consistent with reordering from differences of values/distributions; they cannot prove patient identity or harmonization correctness. Keep raw Cleveland quarantined, four processed cohorts candidates only, all A2 evidence `REQUIRES APPROVAL`, and Gate PT **CLOSED**. Never sum raw and processed rows as independent patients. No model training, automatic recoding or clinical claim.
+
+
+## 11. DA-A2 order-independent correspondence: real local aggregate findings (2026-10-22, after PR #22 merge)
+
+**Run and provenance evidence (local maintainer logs; VERIFIED for report generation only):** Main synchronized to merge commit `1acda84e5b44c59f46810f5f4630b6bc6975a3fe`. D-046 local-only authorization and eleven cumulative provenance entries validated. Read-only alignment audit completed successfully on **DA-A2** with raw Cleveland quarantined, after **88 passing synthetic/toolchain tests**. Local outputs: `data/reports/uci-45-da-a2-alignment-audit.json` and `data/reports/uci-45-da-a2-alignment-audit.md`, both Git-ignored and **not committed**. Audit reported `originals_byte_identical=true`, `patient_level_rows_emitted=0`, `model_fitting_performed=false` and Gate PT **CLOSED**. New output metrics are **aggregate-only**, and the complete DA-A2 evidence remains **PARTIAL / REQUIRES APPROVAL**.
+
+| Cohort | Raw vs processed rows | Exact 13 predictors at same position | Unordered 13-predictor multiset match | Unordered exact original-`num` 14-col match | Unordered binary-`num` 14-col match |
+|---|---:|---:|---:|---:|---:|
+| Cleveland | raw QUARANTINED / processed 303 | not evaluated | not evaluated | not evaluated | not evaluated |
+| Hungary | 294 / 294 | 1 | **293** | 224 | **293** |
+| Switzerland | 123 / 123 | 1 | **121** | 121 | **121** |
+| VA Long Beach | 200 / 200 | 192 | **192** | 192 | **192** |
+
+**Further aggregated feature-level evidence (normalized 13 conventional predictors, counts only):**
+- **Hungary:** unordered single-feature distributions match 294/294 for **12 of 13**, but `ca` matches **293/294**. This is consistent with a dominant row-order change plus a limited feature-level discrepancy. The drop from 293 binary-target full-row matches to 224 exact-original-target full-row matches is compatible with recoding of positive `num` severity categories to a binary label, **not an authorization to alter labels**.
+- **Switzerland:** unordered single-feature distributions match 123/123 for **12 of 13**; `thal` matches **121/123**. Whole-profile 121/123 unordered agreement is consistent with substantial ordering difference plus at least limited data-value disagreement; individual patient identity and correctness remain unknown.
+- **VA:** most feature distributions and positional counts match 200/200; `slope` has **199/200** positional and multiset agreement, `thal` **193/200**. Whole-profile agreement is **192/200** regardless of order. This is more consistent with field-level differences in approximately this scope than a broad row permutation, but **not** a basis for determining exactly which patient entries or historical version is correct.
+
+**Critical interpretation boundary:** A multiset overlap of 293/294 does **not** independently identify which person corresponds to whom; duplicates and same-valued clinical profiles can exist. The 224 vs 293 target match difference **does not prove a precise number of individual target relabelings**. Marginal per-feature count overlaps alone cannot show patient-level source correctness, legitimate target recoding or clinical comparability. No new data were inferred/imputed, no rows were repaired, no files were combined and no training/evaluation was performed.
+
+**Decision register — DA-A2-CORR-02 (read-only evidence; suitability remains pending):**
+1. **Accept as verified aggregate finding**: strongly order-independent overlap for Hungary and Switzerland; high already-positionally-aligned VA; non-exact raw-vs-processed profiles and likely target coding differences remain unresolved.
+2. **Do not** treat raw/processed files as distinct cohorts; do not create a 2x sample count, match or publish patient identities, transform original labels or silently repair `ca`/`thal`/`slope`.
+3. **Next controlled evidence step:** read existing local strict-schema alignment JSON **without patient rows** for processed and raw target distributions, per-column missingness (especially study endpoints/available predictors), suspicious/invalid codings, and duplicates; inspect original UCI `heart-disease.names` coding descriptions. Report aggregate-only, preserve output paths and hashes, then resolve target harmonization H-01 with clinical supervisor before any PT freeze.
+4. **Still blocked**: raw Cleveland historical integrity ([Issue #18](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/18)); unexplained differences and target meaning ([Issue #21](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/21)); DA-B2/UCI-145 overlap pending; any model-fit, training, feature selection, calibration, interpretation or performance claim before Gate PT P-3 signoff.
+
+**Decision state:** Data-acquisition integrity verified; partial and scoped read-only correspondence audit verified as executed; **clinical dataset suitability not approved**. Raw Cleveland remains quarantined, with original sources preserved and Gate PT CLOSED.
