@@ -19,6 +19,7 @@ from research.intake.synthetic_stage_validator import (
     UNIT_CONVENTIONS,
     FieldKind,
     IntakeValidationError,
+    review_synthetic_stage_input,
 )
 
 
@@ -225,6 +226,30 @@ def test_nonfinite_numeric_values_are_rejected(field: str, value: float) -> None
     source["features"][field] = value
     with pytest.raises(IntakeValidationError):
         fitted.transform(source)
+
+
+@pytest.mark.parametrize("field", ["age", "chol"])
+@pytest.mark.parametrize("path", ["validator", "fit", "transform"])
+def test_extreme_integer_is_rejected_safely_in_all_preprocessing_paths(
+    field: str,
+    path: str,
+) -> None:
+    # An invented software sentinel large enough to overflow int-to-float
+    # conversion in math.isfinite; never a clinical value or patient record.
+    oversized = 10**1000
+    source = synthetic_record()
+    source["features"][field] = oversized
+
+    with pytest.raises(IntakeValidationError) as error:
+        if path == "validator":
+            review_synthetic_stage_input(source)
+        elif path == "fit":
+            fit_synthetic_preprocessor([source])
+        else:
+            fitted = fit_synthetic_preprocessor([synthetic_record()])
+            fitted.transform(source)
+
+    assert str(oversized) not in str(error.value)
 
 
 def test_declared_units_are_exact_and_no_conversion_is_performed() -> None:

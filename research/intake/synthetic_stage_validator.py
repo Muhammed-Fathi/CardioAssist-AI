@@ -155,11 +155,15 @@ class SyntheticIntakeReview:
 
 
 def _finite_real(value: Any) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and isfinite(value)
-    )
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return isfinite(value)
+    except OverflowError:
+        # ``math.isfinite`` converts Python ints to float; sufficiently large
+        # synthetic inputs can overflow that conversion. Treat them as invalid
+        # numeric values so callers receive the validator's controlled error.
+        return False
 
 
 def review_synthetic_stage_input(

@@ -1,6 +1,6 @@
 # M2b.2 — Synthetic-Only Preprocessing Engineering Handoff
 
-**Date:** 2026-10-22
+**Updated:** 2026-10-23
 **Status:** Implementation and synthetic verification complete; clinician-intake
 contract is a separate design proposal only. Gate PT P-3 remains **CLOSED**.
 No real patient data, real dataset files, model training, or production API
@@ -22,6 +22,9 @@ changes were used or authorized.
     clipped.
   - Explicit `not_measured`, `not_available_at_time`, and `unknown` reasons
     for null measurements; omitted stage fields require `not_provided`.
+  - `_finite_real` treats integers that overflow `math.isfinite` conversion as
+    invalid, so validation, fit, and transform raise controlled
+    `IntakeValidationError` rather than leaking `OverflowError`.
 - Added `research/intake/synthetic_preprocessing.py`, using only the Python
   standard library.
   - One-hot category dimensions/order are fixed by the field registry, not
@@ -50,10 +53,10 @@ corrected and the focused suite was rerun successfully.
 
 | Command | Result |
 |---|---:|
-| `.venv/bin/python -m pytest tests/audit/test_synthetic_stage_intake_safety.py tests/audit/test_synthetic_preprocessing.py -q -W error` | **116 passed** |
-| `.venv/bin/python -m pytest tests/audit -q -W error` | **212 passed** |
+| `.venv/bin/python -m pytest tests/audit/test_synthetic_stage_intake_safety.py tests/audit/test_synthetic_preprocessing.py -q -W error` | **122 passed** |
+| `.venv/bin/python -m pytest tests/audit -q -W error` | **218 passed** |
 | `.venv/bin/python -m pytest tests/contracts tests/backend -q -W error` | **620 passed** |
-| `.venv/bin/python -m pytest -q -W error` | **832 passed** |
+| `.venv/bin/python -m pytest -q -W error` | **838 passed** |
 | `.venv/bin/python -m pip check` | **No broken requirements** |
 | `.venv/bin/python scripts/verify_sources.py` | **PASS**; 4/4 source-material hashes verified; supervisor classification integrity checked (25 papers) |
 | Audit CLI `check-auth`, `verify-ignore`, `dry-run`, `self-test` | **PASS**; no data rows emitted; synthetic self-test originals byte-identical; Gate PT reported closed |
@@ -61,9 +64,11 @@ corrected and the focused suite was rerun successfully.
 | `git diff --check` | **PASS** |
 
 Python 3.12 was **not available in this execution environment**, so direct
-3.12 execution was not performed. The code uses only standard-library features
-available in Python 3.11/3.12; the existing audit CI matrix is configured for
-both versions, but a passing remote CI result is not claimed here.
+3.12 execution was not performed. The maintainer's PR review reports all three
+workflows green for the prior commit `ae4d8d2`, including Python 3.11/3.12 matrix
+jobs. That result predates this overflow fix; this follow-up commit's remote CI
+status must be checked separately. The status-check API was not accessible to
+the agent integration during this session (HTTP 403).
 
 ## PROPOSED — NOT APPROVED OR IMPLEMENTED
 
