@@ -1,5 +1,10 @@
 # Gate DA — CAD Dataset Suitability & Decision Package
 
+> **CURRENT STATUS NOTE — 2026-10-22 (supersedes the historical baseline below):**
+> D-046 was later human-ratified for local read-only DA-A1/DA-B1/DA-A2 audits only. Real aggregate results and limitations now appear in [the cumulative local audit report](10_m2a_uci412_uci411_evidence_and_decisions.md) (§§9–14). Historical status and “no acquisition” claims below refer to the earlier 2026-10-21 **proposal baseline**, not the current operational state. Protected original files and local audit reports remain Git-ignored. Clinical dataset suitability and Gate PT remain **NOT APPROVED**. See the [DA-A2 clinical suitability signoff packet](11_da_a2_clinical_suitability_review_packet.md), with every supervisor decision still UNFILLED. Raw Cleveland quarantined under Issue #18.
+
+
+
 | Field | Value |
 |---|---|
 | Status | **PROPOSED — awaiting Gate DA decision (P-2 / D-031 / proposed D-046). Nothing in this package is approved, executed, or a dataset acquisition.** |
@@ -41,6 +46,8 @@ authorization (D-040, P-2).
 | 7 | Decision register — unresolved scientific, access, licensing, privacy, integration questions | [07_decision_register_unresolved_questions.md](07_decision_register_unresolved_questions.md) |
 | 8 | Phased handoff — the exact next authorized research task after Gate DA | [08_phased_handoff_after_gate_da.md](08_phased_handoff_after_gate_da.md) |
 | 9 | M2a Windows-local read-only dataset audit handoff (`E:\CardioAssist_AI_GitHub_Starter`) | [09_m2a_windows_local_audit_handoff.md](09_m2a_windows_local_audit_handoff.md) |
+| 10 | Cumulative DA-A1/DA-B1/DA-A2 real aggregate audit findings and limitations | [10_m2a_uci412_uci411_evidence_and_decisions.md](10_m2a_uci412_uci411_evidence_and_decisions.md) |
+| 11 | DA-A2 clinical data suitability review packet — human decisions **UNFILLED** | [11_da_a2_clinical_suitability_review_packet.md](11_da_a2_clinical_suitability_review_packet.md) |
 
 ## Headline conclusions (all PROPOSED unless labelled otherwise)
 
