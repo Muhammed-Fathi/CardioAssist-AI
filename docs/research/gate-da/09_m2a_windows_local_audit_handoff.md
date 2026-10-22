@@ -3,8 +3,8 @@
 - **Document Status**: `READY FOR MAINTAINER EXECUTION AFTER D-046 HUMAN ACCEPTANCE`
 - **Milestone**: `M2a — Maintainer-Led Gate DA and Local Dataset Audit Readiness`
 - **Target Workstation Path**: `E:\CardioAssist_AI_GitHub_Starter` (Windows 10/11 PowerShell, Python 3.12)
-- **Target PR Branch**: `arena/a1f1816a-cardioassist-ai` (PR #11)
-- **Related Governance Proposal**: `D-046` (`PROPOSED — PENDING HUMAN ACCEPTANCE`)
+- **Current Governance PR**: `gate-da/authorize-local-audit` (PR #12; Draft, not merged)
+- **Current Governance Decision**: `D-046` maintainer-ratified for local read-only audits only; PR #12 review/merge pending; Gate PT (P-3) closed
 
 ---
 
@@ -32,12 +32,12 @@
 ## 1. Purpose and Hard Safety Rules
 
 This runbook provides exact, copy-pasteable Windows PowerShell commands for the human maintainer (`Muhammed Fathi`) to:
-1. Install and verify the proposed GitHub Actions audit workflow (`.github/workflows/audit-ci.yml`) on the PR #11 branch (`arena/a1f1816a-cardioassist-ai`) before merging.
+1. Confirm the GitHub Actions workflow `audit-toolchain-validation` was installed and verified when PR #11 merged; do not repeat its obsolete setup steps.
 2. Verify repository and `.gitignore` readiness in dry-run mode.
-3. Explicitly record human Gate DA acceptance in `research/audit/gate_da_authorization.json` (`workflow_status` + dataset `authorization_status`) after reviewing `D-046`.
+3. Use the existing human-approved Git-ignored authorization at `data/manifests/gate_da_authorization.local.json`; keep the committed baseline `research/audit/gate_da_authorization.json` PENDING for regression tests.
 4. Acquire the authorized official UCI files into git-ignored `/data/raw/uci-<id>/` directories (preferring direct individual-file acquisition from official UCI landing pages where available, or using the hardened `inspect-archive` + `extract-authorized-archive` toolchain with explicit human archive-inventory review).
 5. Record SHA-256 hashes, byte sizes, and CC BY 4.0 license snapshots into `data/manifests/provenance_manifest.json`.
-6. Execute the read-only local dataset audit (`python -m research.audit run-audit`), generating metadata-only JSON and Markdown reports strictly inside `data/reports/`.
+6. Execute the read-only local dataset audit with the existing Python environment and explicit `--auth-manifest data/manifests/gate_da_authorization.local.json`, generating metadata-only reports strictly inside `data/reports/`.
 7. Verify before sharing that `git status` shows zero tracked or staged files under `/data/` and that the generated report contains zero patient-level rows.
 
 ### Non-Negotiable Custody & Output Protection Rules
