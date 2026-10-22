@@ -59,6 +59,21 @@ At reported n=303, 139 positive and 164 negative, the nominal event-per-slope co
 
 **Not an external evaluation:** Hungary/VA/Swiss are held aside; if eligible later, test a model locked beforehand under a **different site-comparability/independence protocol**. UCI-412 is a separate research study; UCI-411 is the *same participants* as 412; Statlog may overlap with Cleveland. **No pooling or external-validation claims** from this pilot.
 
+### Default numerical plan for the signed revision (PROPOSED, not frozen)
+
+To prevent endless post-hoc tuning, the research team preselects these as its **default candidate settings**; a single Gate PT review can approve them or amend them *before any result is seen*:
+
+- Repeated stratified **5 outer folds × 5 inner folds, 4 independent repetitions**; candidate split seeds `20261023, 20261024, 20261025, 20261026` (fixed in advance). Use deterministic model seeds keyed by fold. A subject must never appear in training and outer evaluation within the same fold. Source patient identity is not verified beyond the available rows, so report residual overlap risk.
+- Candidate **L2 penalized logistic regression**: `C ∈ {0.1, 1, 10}`, `class_weight=None`, `solver=liblinear`, sufficient deterministic convergence tolerance/maximum iterations documented in final config.
+- Candidate **Random Forest**: `n_estimators=200`, `max_depth ∈ {3,5}`, `min_samples_leaf ∈ {5,10}`, `max_features=sqrt` with fixed random state. This limits capacity relative to the small cohort.
+- Prevalence dummy is fitted **only on inner/outer training portions** and reported as a reference, never allowed to learn from evaluation labels. Numerics: median impute + scale for LR, both fitted in-fold. Nominal `cp,restecg,sex`: reference-category one-hot fit in training fold, unseen codes rejected or encoded by a frozen **source vocabulary**; never infer source categories from test data.
+- **Entire model-family/hyperparameter selection occurs within each outer training split**, comparing LR/RF on inner AUROC; favor the simpler LR if inner mean AUROCs differ by no more than 0.01. The outer fold evaluates this selected procedure **once**. Report what fraction of outer folds chose each family; do **not** reselect a model by reusing outer evaluation metrics as if they were unseen independent test data.
+- Prespecify source-label stratification and ROC-AUC as primary internal metric. If clinical operating-point threshold is not signed off, report sensitivity/specificity at fixed `0.5` **as an exploratory reference only**, not an operating recommendation. Other metrics: AUPRC with source prevalence, confusion counts, Brier and calibration diagnostics subject to cell-size/feasibility.
+- Summarize held-out predictions within each 5-fold outer repetition, yielding **four person-level OOF replicates**; report individual repetition and mean/dispersion. Four measurements per participant are **correlated**, not four independent patients. **No formal prediction-performance 95% CI is claimed for this pilot unless an appropriate resampling estimator is pre-registered and approved.** A separately qualified untouched external cohort can later yield a participant-level bootstrap CI under its own approved protocol.
+- Before fitting, reviewers must confirm numeric data-code mapping, sample-size sensitivity assumptions (including anticipated shrinkage/`R^2`), exact library versions, and whether applying reference one-hot coding consistently to penalized LR and RF is clinically/statistically defensible; record any pre-run amendments and reasons.
+
+This is a **complete candidate finite search plan**, not a substitute for the remaining sample-size, predictor-timing and authorization checks.
+
 ## 4. Explicit decisions before anyone presses TRAIN
 
 One supervisor meeting or review of this narrow packet should record the following **together**, rather than stopping the team for every technical detail:
@@ -68,7 +83,7 @@ One supervisor meeting or review of this narrow packet should record the followi
 | Target & purpose | source-specific, retrospective current CAD presence; no future time horizon or clinical deployment | Supervisor confirms exact target phrasing and intended population |
 | Timing / field eligibility | fixed 5-input resting panel before angiography *as working concept* | Supervisor confirms appropriate retrospective intended-use wording and predictor plausibility/timing uncertainty |
 | Sample-size adequacy | 303 source rows / 139 source-positive / 164 source-negative / 8 reference-coded coefficients | Document full justified method/scenarios and NO-GO if unsuitable |
-| Models / CV | dummy, penalized LR, constrained RF, finite budget, nested CV | Sign off the **exact seeds, grids and CI estimator** in the final frozen revision (not supplied by this draft) |
+| Models / CV | dummy, penalized LR, constrained RF, finite budget, nested CV | Sign off the **proposed exact seeds/grids above**, and approve an explicit *descriptive pilot uncertainty plan* or replace it with a valid pre-specified CI estimator |
 | Missingness | preserve originals; planned cohort-specific parsing of `?` markers; train-fold-only imputation | Sign off data coding and abstention/eligibility; do not invent absent missing reasons |
 | Ethics/data custody | approved local benchmark source only, no patient rows uploaded, model outputs not clinical diagnoses | Scope-specific real-data training permission, provenance and no-transfer controls |
 
