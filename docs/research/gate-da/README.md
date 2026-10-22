@@ -48,6 +48,7 @@ authorization (D-040, P-2).
 | 9 | M2a Windows-local read-only dataset audit handoff (`E:\CardioAssist_AI_GitHub_Starter`) | [09_m2a_windows_local_audit_handoff.md](09_m2a_windows_local_audit_handoff.md) |
 | 10 | Cumulative DA-A1/DA-B1/DA-A2 real aggregate audit findings and limitations | [10_m2a_uci412_uci411_evidence_and_decisions.md](10_m2a_uci412_uci411_evidence_and_decisions.md) |
 | 11 | DA-A2 clinical data suitability review packet — human decisions **UNFILLED** | [11_da_a2_clinical_suitability_review_packet.md](11_da_a2_clinical_suitability_review_packet.md) |
+| 12 | Research-team sourced decisions and working strategy; supervisor reviews frozen clinical protocol, not each audit task | [12_research_team_evidence_based_decisions.md](12_research_team_evidence_based_decisions.md) |
 
 ## Headline conclusions (all PROPOSED unless labelled otherwise)
 
