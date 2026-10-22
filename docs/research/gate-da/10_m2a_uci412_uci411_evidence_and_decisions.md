@@ -254,3 +254,40 @@ The first successful **partial** DA-A2 local real-data audit (PR #19 raw Clevela
 4. **Follow-up control:** arrange source/dictionary evidence review with supervisor for laboratory and exercise-test availability, triage `chol` / `oldpeak` / `trestbps` flags and angiographic leakage, then design a **pre-specified** analysis of conditional feature completeness. Keep H-01, L-01/L-06/L-07 and Issue #21 OPEN. Cleveland raw remains quarantined under Issue #18.
 
 **Decision DA-A2-QA-04:** The observed zero-valued lab/BP fields are unresolved, high-impact clinical data-quality flags; cohort readiness and all-13-predictor completeness **NOT APPROVED**, and Gate PT stays **CLOSED**. No raw data or local report is included here.
+
+
+## 14. DA-A2 cross-version zero-value investigation (real local read-only aggregate evidence, 2026-10-22)
+
+**Safeguards verified:** Maintainer used the authorized D-046 local-only audit context, the previously validated DA-A2 alignment report, and SHA-256 integrity checks on the authorized sources, manifest and archive. The original Cleveland raw file was **not parsed**. All protected bytes were unchanged, no patient-level record printed or fitting/evaluation done, and Gate PT **CLOSED**.
+
+| Cohort | Raw versus processed comparable? | Cholesterol: missing / zero / negative | Resting BP: missing / zero / negative | Oldpeak: missing / zero / negative |
+|---|---|---|---|---|
+| Cleveland processed (n=303) | NO — raw quarantined | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 99 / 0 |
+| Hungary (n=294) | YES — aggregate counts equal in both formats | 23 / 0 / 0 | 1 / 0 / 0 | 0 / 189 / 0 |
+| Switzerland (n=123) | YES — aggregate counts equal in both formats | **0 / 123 / 0** | 2 / 0 / 0 | 6 / 42 / 11 |
+| VA Long Beach (n=200) | YES — aggregate counts equal in both formats | **7 / 49 / 0** | **56 / 1 / 0** | 56 / 40 / 1 |
+
+**What this establishes:** All these observed numeric zero, negative, and coded-missing frequencies are already present in the 76-attribute Raw files for Hungary, Switzerland, and VA. Their appearance cannot be attributed only to the later 14-column Processed files. These are **frequency comparisons**, not patient-identity mappings or proof of record-level equality. The original source may contain placeholder conventions; there is no approval to modify or reinterpret any recorded patient value.
+
+**Clinical interpretation to resolve:** The original UCI heart-disease.names dictionary defines cholesterol in mg/dl and the historical raw missing sentinel as -9.0; it does not establish that a numeric zero in cholesterol is a valid measured concentration or a universal missing-value code. Therefore, **Swiss 123/123 zero cholesterol** is physiologically implausible as a literal clinical measurement and is a high-priority structural-missingness / encoding question with status **UNVERIFIED**. VA has 49 zero cholesterol values and one zero resting BP in both formats. The original audit missing-cell rates exclude these numeric zeros; if a future independently justified coding rule treats some as unavailable, *effective clinical completeness* may be lower. **No zero-to-null conversion, clipping, filtering, or imputation was conducted or authorized.** Negative oldpeak values (Swiss 11, VA 1) require source/clinical convention review, not automatic clipping; a zero oldpeak value is not itself automatically invalid.
+
+### 14.1 Provisional dataset-suitability triage (NOT model authorization)
+
+| Processed cohort | Observed evidence | Provisional disposition | Unresolved scientific constraints |
+|---|---|---|---|
+| Cleveland (303) | 6 of 4242 cells formally missing; no current suspicious-value flags; raw source warning | **CONDITIONAL CANDIDATE for methodology review** | Raw Cleveland integrity under Issue #18; referral population, target definition, leakage (ca), availability/timing (thal, stress tests), possible overlap with Statlog UCI-145 |
+| Hungary (294) | Binary processed target; 293/294 unordered raw-versus-processed 13-predictor+binary target match; 782 missing cells | **CONDITIONAL — LIMITED FEATURE AVAILABILITY** | ca missing 291/294, thal 266/294, slope 190/294, raw/processed ca difference, historical target recoding and timing |
+| Switzerland (123) | 121/123 unordered predictor match; 273 formally missing cells; cholesterol zero for **all 123** | **DEFER conventional full-feature protocol** | Unresolved 0-cholesterol convention, ca missing 118/123, fbs missing 75/123, thal missing 52/123, class imbalance (8 zero/115 nonzero), raw/processed thal discrepancy |
+| VA Long Beach (200) | 192/200 positional and unordered matches; 698 formally missing cells; 49 zero cholesterol and one zero resting BP | **DEFER conventional full-feature protocol** | ca missing 198/200, thal 166/200, slope 102/200, 49 zero cholesterol, BP zero, oldpeak/timing, raw/processed thal/slope differences |
+
+**Decision DA-A2-QA-05:** These classifications are **triage labels for supervisor review**, not final dataset inclusion/exclusion, feature selection, imputation instructions, independent-validation claims, or Gate PT approval. Alternative clinically pre-specified input schemas remain unassessed; none is authorized here. The small all-13-feature complete-case upper bounds driven by ca alone (Hungary <=3, Switzerland <=5, VA <=2) must **not** be treated as observed joint complete-case totals. Keep raw/processed versions of each cohort linked as representations, never add their row counts as new patients.
+
+### 14.2 Required next scientific decision
+
+1. Research supervisor to resolve P-1 primary clinical endpoint, measurement timing, and H-01 stenosis-threshold wording (>50% versus >=50%) with source-verified evidence.
+2. Review original UCI acquisition notes and clinical availability for numeric zero in Swiss/VA cholesterol, VA resting BP, and negative oldpeak; distinguish unknown coding from proven error.
+3. Before any reduced schema or complete-case audit, agree on allowed pre-outcome predictors and explicitly address ca angiographic leakage (L-01), thal (L-06), and exercise-related tests (L-07).
+4. Only with a documented analysis definition, run a separate approved descriptive *joint* completeness audit (and assess possible inter-cohort/Statlog overlap) using aggregate output, no row publication.
+5. Preserve source files, original hashes, and local-only reports; Issues #18 and #21 remain OPEN; no model training, selection, explanation generation, calibration, or evaluation while Gate PT P-3 is CLOSED.
+
+**Status:** Read-only observational evidence VERIFIED from local aggregates; clinical coding and dataset suitability **NOT APPROVED**, Gate PT **CLOSED**.
