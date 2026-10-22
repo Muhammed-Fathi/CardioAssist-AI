@@ -1001,7 +1001,7 @@ def _inspect_zip_members(
             full_key = raw_name.rstrip("/").lower()
             if full_key in seen_full_member_paths_lower:
                 raise ArchiveSecurityError(
-                    f"Duplicate or colliding archive member path '{raw_name}' in '{zip_path.name}'."
+                    f"Duplicate or colliding entry basename or archive member path '{raw_name}' in '{zip_path.name}'."
                 )
             seen_full_member_paths_lower.add(full_key)
             basename = posix_parts[-1]
