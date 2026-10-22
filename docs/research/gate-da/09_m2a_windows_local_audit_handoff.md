@@ -3,20 +3,41 @@
 - **Document Status**: `READY FOR MAINTAINER EXECUTION AFTER D-046 HUMAN ACCEPTANCE`
 - **Milestone**: `M2a — Maintainer-Led Gate DA and Local Dataset Audit Readiness`
 - **Target Workstation Path**: `E:\CardioAssist_AI_GitHub_Starter` (Windows 10/11 PowerShell, Python 3.12)
-- **Target PR Branch**: `arena/a1f1816a-cardioassist-ai` (PR #11)
-- **Related Governance Proposal**: `D-046` (`PROPOSED — PENDING HUMAN ACCEPTANCE`)
+- **Current Governance PR**: `gate-da/authorize-local-audit` (PR #12; Draft, not merged)
+- **Current Governance Decision**: `D-046` maintainer-ratified for local read-only audits only; PR #12 review/merge pending; Gate PT (P-3) closed
 
 ---
+
+> **POST-MERGE GATE DA OPERATING RULES — 2026-10-21**
+>
+> PR #11 is merged into main at `d2c968c`. The audit CI passed
+> on Python 3.11 and 3.12; Windows Python 3.12 audit tests passed.
+>
+> D-046 local read-only access was explicitly authorized by the
+> named maintainer for DA-A1, DA-A2, DA-B1, and DA-B2.
+> The authorization decision is recorded in
+> `docs/research/gate-da/10_local_audit_authorization.md`.
+>
+> The committed authorization JSON stays PENDING for regression tests.
+> Real-data commands MUST use the local, git-ignored manifest:
+> `data/manifests/gate_da_authorization.local.json`.
+>
+> Global status: `AUTHORIZED_FOR_LOCAL_READ_ONLY_AUDIT`.
+> Dataset status: `AUTHORIZED_FOR_READ_ONLY_AUDIT`.
+>
+> No dataset download until the D-046 decision PR is reviewed and merged.
+> No model fitting, evaluation, SHAP, clinical claims, or supervisor
+> approval is authorized by this decision.
 
 ## 1. Purpose and Hard Safety Rules
 
 This runbook provides exact, copy-pasteable Windows PowerShell commands for the human maintainer (`Muhammed Fathi`) to:
-1. Install and verify the proposed GitHub Actions audit workflow (`.github/workflows/audit-ci.yml`) on the PR #11 branch (`arena/a1f1816a-cardioassist-ai`) before merging.
+1. Confirm the GitHub Actions workflow `audit-toolchain-validation` was installed and verified when PR #11 merged; do not repeat its obsolete setup steps.
 2. Verify repository and `.gitignore` readiness in dry-run mode.
-3. Explicitly record human Gate DA acceptance in `research/audit/gate_da_authorization.json` (`workflow_status` + dataset `authorization_status`) after reviewing `D-046`.
+3. Use the existing human-approved Git-ignored authorization at `data/manifests/gate_da_authorization.local.json`; keep the committed baseline `research/audit/gate_da_authorization.json` PENDING for regression tests.
 4. Acquire the authorized official UCI files into git-ignored `/data/raw/uci-<id>/` directories (preferring direct individual-file acquisition from official UCI landing pages where available, or using the hardened `inspect-archive` + `extract-authorized-archive` toolchain with explicit human archive-inventory review).
 5. Record SHA-256 hashes, byte sizes, and CC BY 4.0 license snapshots into `data/manifests/provenance_manifest.json`.
-6. Execute the read-only local dataset audit (`python -m research.audit run-audit`), generating metadata-only JSON and Markdown reports strictly inside `data/reports/`.
+6. Execute the read-only local dataset audit with the existing Python environment and explicit `--auth-manifest data/manifests/gate_da_authorization.local.json`, generating metadata-only reports strictly inside `data/reports/`.
 7. Verify before sharing that `git status` shows zero tracked or staged files under `/data/` and that the generated report contains zero patient-level rows.
 
 ### Non-Negotiable Custody & Output Protection Rules
@@ -30,71 +51,40 @@ This runbook provides exact, copy-pasteable Windows PowerShell commands for the 
 
 ---
 
-## 2. Step 0 — Install Audit CI Workflow on PR #11 Branch Before Merge (Optional Before Local Audit, Required Before PR Merge)
+## 2. Step 0 — Audit CI (Already Completed)
 
-> **Why this must run on `arena/a1f1816a-cardioassist-ai`**: `research/audit/ci/audit-ci.yml.example` was introduced on the PR #11 branch (`arena/a1f1816a-cardioassist-ai`) and does not exist on `main` until PR #11 is merged. GitHub Actions has **not** validated `tests/audit` until this workflow is pushed by a maintainer with `workflows` permission and the Actions run completes.
+**Installed GitHub Actions workflow:** `audit-toolchain-validation` (Python 3.11 and 3.12 passed).
+
+PR #11 has been merged. The workflow `.github/workflows/audit-ci.yml`
+is installed and successfully ran the audit tests on Python 3.11
+and Python 3.12.
+
+Do not recreate the workflow, check out the old Arena branch,
+or repeat the PR #11 merge instructions.
+
+---
+## 3. Step 1 — Verified Windows Audit Environment
+
+The independent Windows verification was completed using Python 3.12.9.
+The audit tests passed (41/41), including the synthetic self-test,
+Git-ignore checks, source hashes, and dry-run.
+
+Use the existing isolated environment:
 
 ```powershell
 Set-Location "E:\CardioAssist_AI_GitHub_Starter"
 
-# 1. Fetch and check out the exact PR #11 branch (NOT stale main)
-git fetch origin arena/a1f1816a-cardioassist-ai
-git checkout arena/a1f1816a-cardioassist-ai
-git pull --ff-only origin arena/a1f1816a-cardioassist-ai
+$python = "E:\CardioAssist_PR11_Audit_Venv\Scripts\python.exe"
 
-# 2. Verify local HEAD matches remote PR branch HEAD with no divergence
-$localHead = (git rev-parse HEAD).Trim()
-$remoteHead = (git rev-parse origin/arena/a1f1816a-cardioassist-ai).Trim()
-if ($localHead -ne $remoteHead) {
-    throw "STOP: Local HEAD ($localHead) diverged from origin/arena/a1f1816a-cardioassist-ai ($remoteHead)."
-}
-
-# 3. Ensure we do not overwrite an existing workflow file unintentionally
-if (Test-Path ".github\workflows\audit-ci.yml") {
-    throw "STOP: .github\workflows\audit-ci.yml already exists. Inspect it before overwriting."
-}
-
-# 4. Copy the proposed workflow template and push to PR #11 branch
-Copy-Item "research\audit\ci\audit-ci.yml.example" ".github\workflows\audit-ci.yml" -ErrorAction Stop
-git add .github/workflows/audit-ci.yml
-git commit -m "ci(audit): enable GitHub Actions workflow for M2a read-only audit tests"
-git push origin arena/a1f1816a-cardioassist-ai
+& $python --version
+& $python -m research.audit verify-ignore
+& $python -m research.audit self-test
+& $python -m research.audit check-auth --auth-manifest "data/manifests/gate_da_authorization.local.json"
 ```
 
-Wait for the **`audit-toolchain-validation`** workflow (jobs `Dataset audit toolchain (Python 3.11)` and `Dataset audit toolchain (Python 3.12)`) on PR #11 to finish and confirm it is green before merging PR #11.
+Reassign `$python` in any new PowerShell session.
 
 ---
-
-## 3. Step 1 — Workstation Preflight and Synthetic Self-Test
-
-Open **Windows PowerShell** on your workstation:
-
-```powershell
-# 1. Navigate to your local clone on the E: drive
-Set-Location "E:\CardioAssist_AI_GitHub_Starter"
-
-# 2. Activate your Python 3.12 virtual environment
-.\.venv\Scripts\Activate.ps1
-python --version
-
-# 3. Verify original literature source PDFs and CSV hashes (must pass 4/4)
-python scripts/verify_sources.py
-
-# 4. Verify git check-ignore rules protect /data/raw/ and /data/manifests/
-python -m research.audit verify-ignore
-
-# 5. Run dry-run preflight (reads zero datasets; confirms D-046 is currently PENDING_HUMAN_ACCEPTANCE)
-python -m research.audit --dry-run
-
-# 6. Run the synthetic fixture self-test in an isolated temp folder
-python -m research.audit self-test
-
-# 7. Run the full automated test suite (contract + backend + audit)
-pytest tests/contract tests/backend tests/audit -q
-```
-
----
-
 ## 4. Step 2 — Create Git-Ignored Local Directories Under `E:\CardioAssist_AI_GitHub_Starter\data`
 
 ```powershell
@@ -123,29 +113,31 @@ git check-ignore -v `
 
 ---
 
-## 5. Step 3 — Record Explicit Human Gate DA Acceptance (`D-046`)
+## 5. Step 3 — D-046 Authorization Record
 
-After reviewing `docs/DECISIONS.md` (`D-046`) and `docs/research/gate-da/08_gate_da_decision_package.md`:
-- Open `research/audit/gate_da_authorization.json` in your editor.
-- Set the top-level `"workflow_status"` from `"PENDING_HUMAN_ACCEPTANCE"` to `"AUTHORIZED_FOR_READ_ONLY_AUDIT"`.
-- Both the top-level `"workflow_status"` **and** each authorized dataset's `"authorization_status"` must be `"AUTHORIZED_FOR_READ_ONLY_AUDIT"` (the toolchain fails closed if either remains `"PENDING_HUMAN_ACCEPTANCE"`).
-- For each dataset you are authorizing (`DA-A1`, `DA-A2`, and optionally `DA-B1`, `DA-B2`), update:
-  - `"authorization_status": "AUTHORIZED_FOR_READ_ONLY_AUDIT"`
-  - `"authorized_by": "Muhammed Fathi"`
-  - `"authorized_date": "YYYY-MM-DD"` (actual date of human approval)
-  - `"responsible_acquirer": "Muhammed Fathi"`
-  - `"audit_reviewer": "Muhammed Fathi"`
-  - `"environment": "E:\\CardioAssist_AI_GitHub_Starter (Windows 11 PowerShell, Python 3.12)"`
-- **Do NOT** change `"supervisor_approval_claimed"` (must remain `false`) or `"model_fitting_authorized"` (must remain `false`).
+The named maintainer explicitly approved read-only auditing of all
+four dataset IDs on 2026-10-21.
 
-Verify your authorization update:
+The local authorization is stored at:
+`data/manifests/gate_da_authorization.local.json`
+
+The signed decision scope is recorded in:
+`docs/research/gate-da/10_local_audit_authorization.md`
+
+The Git-committed baseline manifest remains PENDING because the
+existing regression tests check that safe default.
+
+**Do not edit the committed baseline manifest to mark it authorized.**
+
+Verify the operational manifest:
 
 ```powershell
-python -m research.audit check-auth
+& $python -m research.audit check-auth --auth-manifest "data/manifests/gate_da_authorization.local.json"
 ```
 
----
+Complete the governance PR review and merge before acquiring files.
 
+---
 ## 6. Step 4 — Acquire Official UCI Files and Save License Snapshots
 
 Download **only** from the exact official UCI landing pages listed below (never from Kaggle, GitHub mirrors, or Zenodo):
@@ -175,17 +167,17 @@ Never use `Expand-Archive` or ad-hoc inline Python extraction scripts. Use the b
 
 ```powershell
 # 1a. Inspect the archive first in read-only mode (must return PASS_AUTHORIZED_CONTENTS)
-python -m research.audit inspect-archive --dataset-id DA-A1 --zip-path "E:\UCI_Downloads\z+alizadeh+sani.zip"
+& $python -m research.audit inspect-archive --dataset-id DA-A1 --zip-path "E:\UCI_Downloads\z+alizadeh+sani.zip" --auth-manifest "data/manifests/gate_da_authorization.local.json"
 
 # 1b. Only if inspect-archive returns PASS_AUTHORIZED_CONTENTS (exit code 0), extract the authorized file:
-python -m research.audit extract-authorized-archive --dataset-id DA-A1 --zip-path "E:\UCI_Downloads\z+alizadeh+sani.zip"
+& $python -m research.audit extract-authorized-archive --dataset-id DA-A1 --zip-path "E:\UCI_Downloads\z+alizadeh+sani.zip" --auth-manifest "data/manifests/gate_da_authorization.local.json"
 
 # Repeat for DA-B1 and DA-B2 if authorized:
-python -m research.audit inspect-archive --dataset-id DA-B1 --zip-path "E:\UCI_Downloads\extention+of+z+alizadeh+sani.zip"
-python -m research.audit extract-authorized-archive --dataset-id DA-B1 --zip-path "E:\UCI_Downloads\extention+of+z+alizadeh+sani.zip"
+& $python -m research.audit inspect-archive --dataset-id DA-B1 --zip-path "E:\UCI_Downloads\extention+of+z+alizadeh+sani.zip" --auth-manifest "data/manifests/gate_da_authorization.local.json"
+& $python -m research.audit extract-authorized-archive --dataset-id DA-B1 --zip-path "E:\UCI_Downloads\extention+of+z+alizadeh+sani.zip" --auth-manifest "data/manifests/gate_da_authorization.local.json"
 
-python -m research.audit inspect-archive --dataset-id DA-B2 --zip-path "E:\UCI_Downloads\statlog+heart.zip"
-python -m research.audit extract-authorized-archive --dataset-id DA-B2 --zip-path "E:\UCI_Downloads\statlog+heart.zip"
+& $python -m research.audit inspect-archive --dataset-id DA-B2 --zip-path "E:\UCI_Downloads\statlog+heart.zip" --auth-manifest "data/manifests/gate_da_authorization.local.json"
+& $python -m research.audit extract-authorized-archive --dataset-id DA-B2 --zip-path "E:\UCI_Downloads\statlog+heart.zip" --auth-manifest "data/manifests/gate_da_authorization.local.json"
 ```
 
 **2. For `DA-A2` (`heart+disease.zip`) — Handling `STOP_REQUIRES_REVIEW` Safely**:
@@ -194,7 +186,7 @@ The official UCI-45 `heart+disease.zip` bundle historically includes legacy file
 - **Step 2a**: Run `inspect-archive` to obtain the complete archive inventory and SHA-256 digest:
 
 ```powershell
-python -m research.audit inspect-archive --dataset-id DA-A2 --zip-path "E:\UCI_Downloads\heart+disease.zip"
+& $python -m research.audit inspect-archive --dataset-id DA-A2 --zip-path "E:\UCI_Downloads\heart+disease.zip" --auth-manifest "data/manifests/gate_da_authorization.local.json"
 ```
 
 - **Step 2b**: If `inspect-archive` exits with `"outcome": "STOP_REQUIRES_REVIEW"`:
@@ -209,7 +201,7 @@ python -m research.audit inspect-archive --dataset-id DA-A2 --zip-path "E:\UCI_D
   "dataset_id": "DA-A2",
   "review_outcome": "APPROVED_SELECTIVE_EXTRACTION_OF_AUTHORIZED_FILES_ONLY",
   "reviewed_by": "Muhammed Fathi",
-  "reviewed_at_utc": "2026-10-21T11:15:00Z",
+  "reviewed_at_utc": "<REPLACE_WITH_ACTUAL_UTC_REVIEW_TIMESTAMP>",
   "archive_filename": "heart+disease.zip",
   "archive_sha256": "<PASTE_EXACT_64_HEX_ARCHIVE_SHA256_FROM_INSPECT_ARCHIVE>",
   "archive_size_bytes": <PASTE_EXACT_INTEGER_SIZE_BYTES_FROM_INSPECT_ARCHIVE>,
@@ -233,10 +225,11 @@ python -m research.audit inspect-archive --dataset-id DA-A2 --zip-path "E:\UCI_D
 - **Step 2c**: Run `extract-authorized-archive` passing `--review-approval`. The command verifies your review manifest against the live ZIP's SHA-256, byte size, and complete entry inventory before extracting **only** the 9 authorized files into `data\raw\uci-45\`:
 
 ```powershell
-python -m research.audit extract-authorized-archive `
+& $python -m research.audit extract-authorized-archive `
     --dataset-id DA-A2 `
     --zip-path "E:\UCI_Downloads\heart+disease.zip" `
-    --review-approval "data/manifests/archive_reviews/uci-45-archive-review.json"
+    --review-approval "data/manifests/archive_reviews/uci-45-archive-review.json" `
+    --auth-manifest "data/manifests/gate_da_authorization.local.json"
 ```
 
 ### Save Official CC BY 4.0 Landing-Page License Snapshots
@@ -256,12 +249,12 @@ Run `record-provenance` to compute and record SHA-256 digests and exact byte siz
 - The toolchain records `downloaded_at_utc` separately from `manifest_recorded_at_utc`, and marks `official_source_provenance_status` as `HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH` while marking `local_file_integrity_status` as `VERIFIED_LOCAL_SHA256_AND_BYTE_SIZE`.
 
 ```powershell
-python -m research.audit record-provenance `
+& $python -m research.audit record-provenance `
     --datasets DA-A1 DA-A2 DA-B1 DA-B2 `
     --acquirer "Muhammed Fathi" `
     --audit-reviewer "Muhammed Fathi" `
-    --downloaded-at-utc "2026-10-21T11:00:00Z" `
-    --environment "E:\CardioAssist_AI_GitHub_Starter (Windows 11 PowerShell, Python 3.12)"
+    --environment "E:\CardioAssist_AI_GitHub_Starter (Windows 11 PowerShell, Python 3.12)" `
+    --auth-manifest "data/manifests/gate_da_authorization.local.json"
 ```
 
 ---
@@ -271,14 +264,15 @@ python -m research.audit record-provenance `
 Run the read-only local dataset audit. Report outputs are restricted to `data/reports/`:
 
 ```powershell
-python -m research.audit run-audit `
+& $python -m research.audit run-audit `
     --json-out "data/reports/m2a_local_audit_report.json" `
-    --markdown-out "data/reports/m2a_local_audit_report.md"
+    --markdown-out "data/reports/m2a_local_audit_report.md" `
+    --auth-manifest "data/manifests/gate_da_authorization.local.json"
 ```
 
 ### What `run-audit` Verifies Automatically
 1. **Git-Ignore & Path Containment**: Verifies `/data/raw/` and `/data/manifests/` are git-ignored, rejects symlinks/traversal/external paths, and restricts report outputs strictly to `data/reports/`.
-2. **Gate DA Authorization & Provenance**: Verifies both global `workflow_status` and each dataset's `authorization_status` are `AUTHORIZED_FOR_READ_ONLY_AUDIT`, and verifies pre-audit SHA-256 and byte sizes against `data/manifests/provenance_manifest.json`.
+2. **Gate DA Authorization & Provenance**: Verifies global `workflow_status` is `AUTHORIZED_FOR_LOCAL_READ_ONLY_AUDIT` and each dataset's `authorization_status` is `AUTHORIZED_FOR_READ_ONLY_AUDIT`, and verifies pre-audit SHA-256 and byte sizes against `data/manifests/provenance_manifest.json`.
 3. **Dataset Audits (`DA-A1`, `DA-A2`, `DA-B1`, `DA-B2`)**:
    - Reconciles UCI-412 (`56` columns = `54` predictors + `BBB` + `Cath`) and UCI-411 (`59` columns = `55` predictors + `LAD`/`LCX`/`RCA` + `Cath`).
    - Audits all 4 processed 14-column cohorts and all 4 raw 76-attribute cohorts in UCI-45, confirming `#76 name` is dummy `"name"` on every row and quantifying `-9` sentinel missingness across all 76 attributes (`P16`).
@@ -301,7 +295,7 @@ git status --short
 git status --ignored --short data/
 
 # 2. Confirm originals_byte_identical == true and patient_level_rows_emitted == 0
-python -c "import json; r=json.load(open('data/reports/m2a_local_audit_report.json')); print('byte_identical:', r['safety_and_non_fitting_certification']['originals_byte_identical'], 'patient_rows:', r['safety_and_non_fitting_certification']['patient_level_rows_emitted'])"
+& $python -c "import json; r=json.load(open('data/reports/m2a_local_audit_report.json')); print('byte_identical:', r['safety_and_non_fitting_certification']['originals_byte_identical'], 'patient_rows:', r['safety_and_non_fitting_certification']['patient_level_rows_emitted'])"
 
 # 3. Inspect the Markdown report manually to confirm only aggregate metadata is present
 Get-Content "data\reports\m2a_local_audit_report.md" | Select-Object -First 80

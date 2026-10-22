@@ -23,7 +23,7 @@
 | D-004 | Presentation defines requirements/vision, not authoritative datasets or papers | CONFIRMED by project team | Review all scientific claims independently |
 | D-005 | Private GitHub monorepo | PROPOSED | Owner/team to create and approve |
 | D-006 | Precise ML prediction target and horizon | **OPEN** — pending approval P-1 | Research lead + supervisor; depends on labeled data. Track A adopted as a *track* (D-038) does not freeze the final target or the model evaluation protocol |
-| D-007 | Selected datasets / redistribution and human data handling | **OPEN** — pending approvals P-2, P-3 | Research lead + supervisor; needs license review. The multi-dataset strategy (D-040) is adopted, but each dataset still requires its own acquisition authorization (Gate DA) before any download |
+| D-007 | Selected datasets / redistribution and human data handling | **OPEN** — P-2 approved only for the D-046 local read-only audit scope; P-3 remains pending | Research lead + supervisor; needs license review. The multi-dataset strategy (D-040) is adopted, but each dataset still requires its own acquisition authorization (Gate DA) before any download |
 | D-008 | Deployment stack and model serving topology | **CONFIRMED** by maintainer 2026-10-16 | Resolved by the Phase 1 baseline: D-036 (unified versioned FastAPI backend), D-037 (backend responsibilities), D-041 (local-first modular monolith at $0) |
 | D-009 | Clinically meaningful wearable integrations | **OPEN** — partially resolved | Track B monitoring architecture and the wearable→CAD-inference prohibition are approved (D-039); real wearable integrations and access-dependent features remain PENDING (P-6) |
 | D-010 | Research gap / publication contribution | OPEN | Validate against accepted paper full texts and current literature; no novelty claim before the Phase 0 §F-2 / D-025 full-text verification and broader literature search |
@@ -76,7 +76,23 @@ Recorded 2026-10-17 from the maintainer's explicit M1b.1 authorization.
 |---|---|---|---|
 | D-045 | Prioritize final delivery in this order: **(1) real, reproducible CAD AI research and inference; (2) a complete, integration-ready FastAPI backend; (3) a durable, tested database.** React and Flutter are thin local integration/demo clients and are not the maintainer's primary deliverables. | **APPROVED** by the maintainer 2026-10-17. The first authorized M1b implementation slice is M1b.1, a small SQLite/Alembic persistence foundation (merged in PR #9, `661876c`). | This is an execution-priority/resequencing decision only. The originally planned M1a.3 thin React/Flutter integration is **deferred/resequenced, not cancelled and not completed**; client applications remain preserved product requirements and may be used by the team for local integration testing. The priority adjustment does not waive any research/data/clinical approval gate, does not authorize dataset acquisition or model training, does not change the `/v1` contract, and does not authorize unrelated product features. M1b.1 is limited to the persistence scope in PR #9; later endpoints remain contract-first. |
 
-## Proposed maintainer-led Gate DA governance and local read-only dataset audit access — PENDING HUMAN ACCEPTANCE (D-046)
+## D-046 — Original Gate DA proposal (historical; see ratification below)
+
+**Current D-046 decision:** On 2026-10-21, the named human
+maintainer authorized local read-only auditing of DA-A1, DA-A2,
+DA-B1, and DA-B2. See the Human Ratification section below and
+docs/research/gate-da/10_local_audit_authorization.md.
+
+The proposal and pending statuses in the following table are
+historical snapshots, not the current operational authorization.
+The committed research/audit/gate_da_authorization.json remains
+a PENDING regression-test template. Authorized local operations
+must explicitly use the git-ignored manifest at
+data/manifests/gate_da_authorization.local.json.
+
+Gate PT remains closed. This decision does not permit model
+training or claim supervisor approval.
+
 
 Prepared 2026-10-21 for milestone **M2a** after PR #10 (`fb928bb`, Gate DA
 dataset suitability & decision package). **This entry is a proposed governance
@@ -88,7 +104,7 @@ M2a PR.**
 |---|---|---|---|
 | D-046 | **Maintainer-led Gate DA authorization workflow for local, read-only public benchmark dataset audits**, plus explicit proposed dataset access decisions (`DA-A1`, `DA-A2`, `DA-B1`, `DA-B2`) and a separately reviewable proposal for a future **Internal Exploratory Protocol** (`D-046-EP`). | **PROPOSED — PENDING HUMAN ACCEPTANCE** (awaiting human maintainer review and acceptance of the M2a PR; **no dataset is downloaded in M2a and no model fitting is authorized**). | **Maintainer-led workflow rules (1–7):** (1) The maintainer can explicitly authorize local, read-only audits of specified publicly accessible benchmark datasets after provenance and license verification. (2) Authorization must name exact datasets/files, purpose, responsible acquirer, environment (`E:\CardioAssist_AI_GitHub_Starter`, Windows local, Python 3.12), data-custody rules (`/data/` git-ignored, `git check-ignore` verified prior to acquisition, byte-identical originals, SHA-256 + download-day license snapshots, zero patient-level commits/uploads/prints), date, and audit reviewer. (3) This workflow is a **proposed change to existing approval governance** (P-2 / D-031) and becomes effective **only after explicit human maintainer review and acceptance of this PR**. (4) **Supervisor review is deferred to a later research-review stage; its absence is recorded honestly and no supervisor approval is asserted or implied.** (5) Final clinical, publication, novelty, or external-validation claims remain **prohibited** (`NOT MADE — prohibited`, P-5, D-010/D-025) until their actual evidence and review requirements are met. (6) Existing Gate PT (P-3 / D-032) requires supervisor sign-off and is **not** silently bypassed; a separately reviewable proposal (`D-046-EP`, below) documents how a future governance amendment could permit preliminary experiments under a frozen internal exploratory protocol clearly distinguished from supervisor-approved research. (7) **No model fitting, feature selection, hyperparameter tuning, performance evaluation, calibration, SHAP, or LIME is authorized in this PR.** Machine-enforced record: `research/audit/gate_da_authorization.json`. |
 
-### D-046 Proposed Dataset Access Decisions (All **PENDING HUMAN ACCEPTANCE**)
+### D-046 Proposed Dataset Access Decisions (historical pending-status snapshot)
 
 None of the access decisions below take effect until the human maintainer
 explicitly approves the listed scope and populates the named sign-off fields
@@ -124,7 +140,42 @@ because audit access is granted.**
   external-validation, or clinical claim), and **no model fitting is
   authorized in this PR**.
 
-## Pending approvals — explicitly preserved, NOT approved
+## D-046 — Human Ratification of Local Read-Only Audit
+
+- **Decision date:** 2026-10-21
+- **Decision status:** APPROVED FOR LOCAL READ-ONLY AUDIT ONLY
+- **Human authorizer:** Muhammed Fathi
+- **Responsible acquirer and audit reviewer:** Muhammed Fathi
+- **Authorized dataset IDs:** DA-A1, DA-A2, DA-B1, DA-B2
+- **Approved file inventory:** docs/research/gate-da/10_local_audit_authorization.md
+- **Operational authorization manifest:** data/manifests/gate_da_authorization.local.json (git-ignored, local only)
+
+The named maintainer explicitly confirmed authorization using
+AUTHORIZE-READ-ONLY-4 and populated the required dataset-specific
+authorization fields. This decision supersedes the pending state of
+the original D-046 proposal for the listed read-only audit scope.
+
+DA-A1 and DA-A2 are approved for local dataset suitability auditing.
+DA-B1 is restricted to UCI-411/412 correspondence and leakage auditing.
+DA-B2 is restricted to Statlog/Cleveland overlap investigation.
+
+Acquisition is limited to the authorized files from official UCI
+sources, subject to download-day provenance, license verification,
+local-only custody, and byte-identical original preservation.
+
+This ratification does NOT authorize model fitting, feature selection,
+hyperparameter tuning, performance evaluation, calibration, SHAP/LIME,
+clinical claims, or external validation.
+
+Supervisor approval is NOT claimed. Gate PT (P-3) remains closed.
+D-046-EP remains a separate, unapproved exploratory protocol proposal.
+
+The committed research/audit/gate_da_authorization.json remains the
+pending baseline template for regression tests. Real-data operations
+must explicitly use the local authorization manifest via --auth-manifest.
+
+---
+## Governance gates — Gate DA audit scope authorized; remaining approvals pending
 
 The following were **not** approved by the Phase 0 merge and are **not**
 approved by the baseline above. Each requires its own explicit human
@@ -133,7 +184,7 @@ sign-off before the dependent work starts.
 | # | Pending approval | Status | Gate / approver |
 |---|---|---|---|
 | P-1 | **Final scientific target and model evaluation protocol** | PENDING | Research lead + supervisor (D-006); protocol frozen at Gate PT (Phase 0 §R2-5.1, D-024/D-032) |
-| P-2 | **Individual dataset acquisition authorization (Gate DA)** | PENDING | Named human data-access authorization listing the exact datasets (D-031, Phase 0 §R2-5.1); local-only acquisition into out-of-git storage, read-only audit, no fitting/selection/tuning/evaluation; no download before it |
+| P-2 | **Individual dataset acquisition authorization (Gate DA)** | APPROVED FOR D-046 LOCAL READ-ONLY AUDIT SCOPE ONLY | Named human data-access authorization listing the exact datasets (D-031, Phase 0 §R2-5.1); local-only acquisition into out-of-git storage, read-only audit, no fitting/selection/tuning/evaluation; no download before it |
 | P-3 | **Supervisor approval of the frozen pre-training protocol (Gate PT)** | PENDING | Supervisor sign-off after the Gate DA read-only audit, before any model fitting, feature selection, hyperparameter tuning, or performance evaluation (D-032, Phase 0 §F-3) |
 | P-4 | **Clinician approval of medical explanation and safety wording** | PENDING | Named clinician reviewer (D-016/D-026); conservative-copy fallback until then; no alert thresholds or treatment-recommendation language (Phase 0 §2.1, §R2-2.1) |
 | P-5 | **Any claims of external validation or clinical readiness** | NOT MADE — prohibited | Requires external validation completed under the frozen protocol; governed by the `validation_status` lifecycle and serving policy (D-033, Phase 0 §R2-5.9/§R2-6.4) and the claims discipline (§R2-5.9); internal-only models are served and labelled strictly as such |
@@ -145,8 +196,8 @@ sign-off before the dependent work starts.
   this baseline), **PROPOSED**, **OPEN**, **PENDING** (awaiting a named
   human gate), **NOT MADE — prohibited** (no such claim exists anywhere in
   project materials and none may be added).
-- Nothing in this register authorizes dataset downloads, model training,
-  deployment, or clinical, novelty, or external-validation statements.
+- Only the explicit D-046 human ratification authorizes local acquisition and read-only audit of its named official UCI files.
+  Model training, deployment, clinical claims, novelty claims, and external-validation claims remain unauthorized.
 - Merging any PR (including the Phase 0 report) never auto-approves a
   pending item; each P-item closes only through its own recorded human
   approval.
