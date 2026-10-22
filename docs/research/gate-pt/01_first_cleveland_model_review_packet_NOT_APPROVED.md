@@ -1,6 +1,8 @@
 # Gate PT — First Real CAD Experiment: One-Decision Review Packet
 
 **Proposal:** CAI-T1-CLEVELAND-PILOT-v0.1
+
+> **Scope update (2026-10-23):** This document is the **formal Gate PT/supervisor decision packet**, not necessarily the first operational prerequisite for a *separately ratified* internal exploratory benchmark. See [proposed D-047 / D-046-EP protocol](02_d047_internal_exploratory_cleveland_PROTOCOL_PROPOSED.md). If approved by the named human maintainer in a separate governance PR, D-047 permits strictly labelled internal experiments while formal P-3 remains CLOSED. This note **does not itself authorize fitting**.
 **Status:** **PROPOSED — NOT APPROVED — NOT FROZEN — NO REAL MODEL TRAINING AUTHORIZED**
 **Prepared:** 2026-10-23
 **Single decision requested:** Approve (or decline/amend) a *bounded source-specific model-development experiment*, not every future dataset, pooled-training plan, wearable, clinician UI or clinical application.
