@@ -1048,15 +1048,17 @@ def _inspect_zip_members(
             elif basename in optional_files:
                 found_optional.add(basename)
                 classification = "optional_authorized"
+            elif review_only:
+                # Check the full member path BEFORE basename-only metadata:
+                # costs/Index must never be confused with root Index.
+                flagged_excluded.append(raw_name)
+                classification = "review_only_historical_auxiliary_do_not_extract"
             elif basename in harmless_metadata_allowlist:
                 harmless_metadata_found.append(raw_name)
                 classification = "harmless_metadata_allowlisted"
             elif basename in known_excluded_dataset_files:
                 flagged_excluded.append(raw_name)
                 classification = "excluded_unapproved_do_not_extract"
-            elif review_only:
-                flagged_excluded.append(raw_name)
-                classification = "review_only_historical_auxiliary_do_not_extract"
             else:
                 unexpected_entries.append(raw_name)
                 classification = "unexpected_unrecognized"
