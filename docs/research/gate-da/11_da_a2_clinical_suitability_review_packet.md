@@ -1,6 +1,8 @@
 # 11 — DA-A2 UCI-45 Clinical Suitability Review Packet
 
 **Status: PROPOSED FOR HUMAN REVIEW — NO DATASET APPROVAL, NO MODEL TRAINING.**
+
+**Research-team recommendations have now been established independently** in [12 — evidence-based decisions](12_research_team_evidence_based_decisions.md). Rows marked UNFILLED below refer **only to genuinely clinical sign-off or protocol-freeze decisions**, not permission requests for each source-check, read-only audit or technical review. The team proceeds with all already-authorized tasks and brings its defended approach for final clinical review.
 **Evidence date:** 2026-10-22. **Governance:** D-046 permits local read-only metadata auditing; Gate PT P-3 remains CLOSED. No patient-level data included in this packet. All numerical observations below are scoped to the maintained UCI-45 files, not an inference-ready clinical population.
 
 ## Purpose and exact scope
