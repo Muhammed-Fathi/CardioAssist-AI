@@ -291,3 +291,23 @@ The first successful **partial** DA-A2 local real-data audit (PR #19 raw Clevela
 5. Preserve source files, original hashes, and local-only reports; Issues #18 and #21 remain OPEN; no model training, selection, explanation generation, calibration, or evaluation while Gate PT P-3 is CLOSED.
 
 **Status:** Read-only observational evidence VERIFIED from local aggregates; clinical coding and dataset suitability **NOT APPROVED**, Gate PT **CLOSED**.
+
+
+## 15. Executed stage-availability analysis resolves next step from §§14.1–14.2 (2026-10-22)
+
+A subsequently authorized **real local D-046 read-only DA-A2 joint-availability run completed successfully** following merge PRs #23 and #24 (main `5ea7299773018e9207ec8e5cc325758b404219ee`). The module strictly guarded original file bytes, read only the four authorized **processed** site files, kept raw Cleveland unparsed, printed only aggregate descriptive stage counts, performed **no transformations or model fitting**, and reported Gate PT `CLOSED`. The user's console showed a clean Git main after execution.
+
+**Jointly observed counts under hypothetical zero-unavailable rule (chol=0 or trestbps=0 treated as not measured for counting only; NOT changed in the data):**
+
+| Processed cohort (n) | age/sex/cp | + resting BP and ECG | + chol and fasting glucose | + exercise-test measurements |
+|---|---:|---:|---:|---:|
+| Cleveland (303) | 303 | 303 | 303 | 303 |
+| Hungary (294) | 294 | 292 | 261 | 95 |
+| Switzerland (123) | 123 | 120 | **0** | **0** |
+| VA Long Beach (200) | 200 | 143 | 100 | 64 |
+
+**Literal-source-coded sensitivity comparison:** Switzerland has 47/123 lab-stage and 46/123 exercise-stage complete records **only if all numeric cholesterol zeros are counted as observations**, despite an independent dataset source describing Swiss zero cholesterol as unmeasured. VA has 144 resting / 133 lab / 87 exercise literal records vs 143 / 100 / 64 in hypothetical-zero-unavailable scenario. Hungary (292 / 261 / 95) and Cleveland (303 / 303 / 303) are unchanged. Identical stage count at Cleveland does not demonstrate quality or predictive value.
+
+**Decisions made by engineering team today:** We will prioritize a **stage-aware clinician intake architecture** with initial/resting information as the initial cross-site feasibility anchor and optional lab/exercise sections, while preserving missingness reasons and keeping outcome-leaking features out of proposed pre-Cath inputs. Site-specific actual predictive model performance and common-label compatibility remain untested. We explicitly **do not** declare the history-only or resting bundle an approved model feature set: the results concern missingness, not predictive value or patient-level transportability. The complete rationale, citations, implementation plan, and acceptance criteria are in [14_real_joint_availability_and_staged_intake_decision.md](14_real_joint_availability_and_staged_intake_decision.md).
+
+**Research handoff change:** The §14.2 request for a predefined joint-completeness analysis is now **satisfied for four declared descriptive source-availability panels**. The unresolved decisions about clinical target, outcome timepoint, exact 50% stenosis boundary, true missing-zero conventions, fairness, site shifts, and Statlog overlap are not solved by this. Continue synthetic-only engineering of a stage-aware data contract and clinical UI mock under usual software review. Pre-training Gate PT remains CLOSED and human P-3 signoff is required for any fitting, feature selection or evaluation. No datasets or local reports committed.
