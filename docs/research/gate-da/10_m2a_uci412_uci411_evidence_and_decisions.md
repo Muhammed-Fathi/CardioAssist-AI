@@ -117,3 +117,18 @@ The existing local correspondence report is `data/reports/uci-412-411-read-only-
 ## 7. Change log
 
 - **2026-10-22 V1:** consolidated confirmed local DA-A1 and DA-B1 aggregate audit evidence, two parser/label corrections, L-03 unresolved case, public clinical-label references, explicit diagnosis-not-future-risk recommendation, predictor timing/leakage exclusions, Gate PT boundaries, and DA-A2 acquisition checklist. **No raw patient records, model weights, models, or local manifests committed.**
+
+## 8. DA-A2 / UCI-45 official archive inventory and selective-extraction decision (2026-10-22, V2)
+
+**Status: STOP_REQUIRES_REVIEW, no extraction yet.** Maintainer acquired the official UCI-45 ZIP outside Git and inspected ZIP *central-directory metadata only*; patient-level payloads were not read, printed, or committed.
+
+- Local file: `E:\\UCI_Downloads\\heart+disease.zip`; SHA-256 `b17cd273da9ce1caa4710fce80227ea454d4dbf9fcbc8e6a9121672751563adc`; **128,894 bytes**; expanded inventory **673,802 bytes**.
+- **23 entries:** **9/9** strictly authorized root dataset files, **2** unapproved historical datasets (`new.data`, `reprocessed.hungarian.data`), **3** root metadata (`Index`, `WARNING`, `bak`), **2** auxiliaries (`ask-detrano`, `cleve.mod`), and **7** costs paths (`costs/`, `costs/Index`, `costs/heart-disease.README`, `costs/heart-disease.cost`, `costs/heart-disease.delay`, `costs/heart-disease.expense`, `costs/heart-disease.group`).
+- The original auditor rejected `costs/` unconditionally; separate metadata-only inspection listed all 23 members and found **zero flags under that supplementary structural check**, without certifying clinical data safety or granting extraction.
+- Official UCI dataset page documents the `Costs` directory for test-cost metadata, distinct from the four cohort records; see https://archive.ics.uci.edu/dataset/45/heart+disease.
+- **Engineering decision REV-11 (proposed in this PR):** permit classification of only the nine specifically named auxiliary members as **excluded, NEVER extracted** for **DA-A2 only**. Do not permit any unrecognized nested path/directory or wildcard exception, and preserve checks for archive SHA-256, symlinks, traversal, case collisions, limits and unauthorized extra files.
+- The full **11 excluded-member acknowledgement**, 23-member inventory, exact ZIP fingerprint and size, nine authorized filenames, human reviewer name and review timestamp must match an explicit, Git-ignored `data/manifests/archive_reviews/uci-45-archive-review.json` prior to extraction. Merely inspecting the archive or merging this code PR does **not** authorize automatic extraction.
+- All selective extraction uses exact root-level names. `costs/Index` is NOT classified as root `Index`.
+- Synthetic regression tests cover the known layout, unknown path rejection, tampered review document, selective nine-file extraction and overwrite refusal.
+
+**Review outcome:** Code remediation prepared for review, no real UCI-45 files extracted. Scientific suitability, cohort overlap, H-01 target harmonization and Gate PT remain unresolved.
