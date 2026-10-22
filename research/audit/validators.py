@@ -227,6 +227,7 @@ def audit_uci_412_or_411_workbook(
 
     # Inspect rows without ever storing raw patient values in the public report
     class_counts: Counter[str] = Counter()
+    observed_raw_cad_spellings = 0
     missing_by_col: dict[str, dict[str, int]] = {
         c: {"null_or_blank": 0, "question_mark": 0, "minus_nine_sentinel": 0}
         for c in canonical_headers
@@ -270,12 +271,23 @@ def audit_uci_412_or_411_workbook(
             row_dict[canon_col] = val
 
             if canon_col == UCI_412_TARGET_COLUMN:
-                s_val = str(val).strip()
+                raw_target = str(val).strip()
+                # Official UCI-412 uses 'Cad' for the positive class.
+                # Only this observed exact alias is accepted; do not broaden
+                # target validation to arbitrary case-insensitive spellings.
+                if raw_target == "Cad":
+                    observed_raw_cad_spellings += 1
+                    s_val = "CAD"
+                else:
+                    s_val = raw_target
                 if s_val not in UCI_412_ALLOWED_TARGETS:
                     raise TargetOrCodingValidationError(
                         f"Unexpected target category in '{UCI_412_TARGET_COLUMN}' at row {r_idx} of "
-                        f"'{file_path.name}' (allowed: {sorted(UCI_412_ALLOWED_TARGETS)})."
+                        f"'{file_path.name}' (allowed: {sorted(UCI_412_ALLOWED_TARGETS)} plus 'Cad' alias)."
                     )
+                # Harmonize in memory for duplicate and UCI-411 consistency
+                # checks; fingerprint_parts keeps original source spelling.
+                row_dict[canon_col] = s_val
                 class_counts[s_val] += 1
             elif canon_col in UCI_411_ARTERY_LEAKAGE_COLUMNS:
                 s_val = str(val).strip()
@@ -309,6 +321,14 @@ def audit_uci_412_or_411_workbook(
         normalized_rows.append(row_dict)
         if len(fingerprint_parts) >= 5:
             raw_row_fingerprints.append("|".join(fingerprint_parts))
+
+    if observed_raw_cad_spellings:
+        reconciliation["discrepancy_explanation"] += (
+            f" Source target coding: {observed_raw_cad_spellings} record(s) labeled 'Cad' "
+            "were mapped to canonical 'CAD' in memory only. "
+            "class_distribution.raw_counts reflects canonical labels, not raw spellings; "
+            "the source workbook remains unchanged."
+        )
 
     # Check for mixed numeric/string types in predictor columns
     mixed_type_columns: list[str] = []
