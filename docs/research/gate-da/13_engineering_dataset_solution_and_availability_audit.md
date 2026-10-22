@@ -1,6 +1,6 @@
 # M2a — Engineer the solution: pre-training dataset feasibility and implementation handoff
 
-**Decision prepared 2026-10-22 | Status: engineering feasibility **PROPOSED**, not selected model predictors or a frozen clinical protocol.** D-046 allows local *read-only* audits of authorized UCI inputs; Gate PT (P-3) prohibits fitting, feature selection, tuning, evaluation, calibration or explanation on real patient records before supervisor clinical-protocol signoff. Do not confuse a technical test pass with clinical validation.
+**Decision prepared 2026-10-22 | Status: engineering feasibility PROPOSED, not selected model predictors or a frozen clinical protocol.** D-046 allows local *read-only* audits of authorized UCI inputs; Gate PT (P-3) prohibits fitting, feature selection, tuning, evaluation, calibration or explanation on real patient records before supervisor clinical-protocol signoff. Do not confuse a technical test pass with clinical validation.
 
 ## The current engineering conclusion
 
@@ -13,6 +13,8 @@ We **will not** train a naïve shared 13-predictor model across UCI-45 cohorts. 
 3. [Hasan & Dhrubo (2026), Scientific Reports](https://www.nature.com/articles/s41598-026-35451-3): their multi-region study removed largely absent `ca`/`thal` and observed Statlog–Cleveland overlap in **their specific combined dataset**. We **will not automatically copy** those feature choices or assume the same overlap in official UCI-145 until explicitly verified; any evaluation cohort must not contain development samples.
 4. [Mauya et al. (2025), Engineering Reports](https://onlinelibrary.wiley.com/doi/full/10.1002/eng2.13034): accounts for Swiss cholesterol's unavailability by reducing the feature panel. Use it as evidence of a tested alternative, **not** proof that dropping `chol` is clinically best for our target or universal among centers.
 5. [BMJ evaluation methodology](https://www.bmj.com/content/384/bmj-2023-074819) and [TRIPOD+AI (BMJ 2024)](https://www.bmj.com/content/385/bmj-2023-078378): justify transparent per-center missingness and outcome definition, leakage protection, validation separated from development, and proper reporting of discrimination and calibration. [Health-care cross-validation tutorial](https://pmc.ncbi.nlm.nih.gov/articles/PMC11041453/) places imputation, encoding, scaling and tuning within training folds only; no global median or target-based fill before splitting.
+
+6. [UCI-412 original source](https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani) and [UCI-411 original extension](https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset): these classify CAD at >=50% narrowing, whereas UCI-45 wording uses <50% for its zero class and >50% for positive status. This difference has not been harmonized. UCI-411 is not an independent additional patient cohort.
 
 ## Practical decision: run an availability audit, not another unstructured review
 
