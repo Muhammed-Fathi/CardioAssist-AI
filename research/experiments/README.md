@@ -6,6 +6,8 @@
 
 - [Research protocol proposed for maintainer ratification](../../docs/research/gate-pt/02_d047_internal_exploratory_cleveland_PROTOCOL_PROPOSED.md).
 - [Human decision record](../../docs/DECISIONS.md), D-047 (proposed until explicit acceptance).
+- [Pinned proposed machine-readable candidate model settings](cleveland_d047_exploratory_plan.v0.1.json) — fixed model grids, seeds, target and security constraints; proposal only, runner must still be authorized.
+- [Next engineering assignment — Issue #32](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/32): guarded local training runner and synthetic-only CI; do not execute on real datasets in a remote agent.
 - [Local authorization manifest template](internal_exploratory_authorization.template.json) — copy into ignored `data/manifests/internal_exploratory_authorization.local.json` ONLY after human governance approval; supply real source hash and protocol SHA privately, never in PR payloads.
 - [Internal exploratory report template](../../docs/research/gate-pt/03_internal_exploratory_RESULTS_TEMPLATE.md) — placeholder only. No made-up results.
 
