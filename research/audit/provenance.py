@@ -30,6 +30,7 @@ from research.audit.registry import (
     SOURCE_ORIGIN_HUMAN_ATTESTED_STATUS,
     UCI_45_FILE_ROLES,
     UCI_45_UNAPPROVED_FILES,
+    UCI_45_REVIEW_ONLY_HISTORICAL_MEMBERS,
     UCI_ARCHIVE_HARMLESS_METADATA_ALLOWLIST,
     UNKNOWN_DOWNLOAD_TIMESTAMP,
 )
@@ -935,8 +936,8 @@ def _inspect_zip_members(
     unexpected_entries: list[str] = []
     archive_inventory: list[dict[str, Any]] = []
 
-    seen_basenames_exact: set[str] = set()
-    seen_basenames_lower: set[str] = set()
+    seen_root_basenames_lower: set[str] = set()
+    seen_full_member_paths_lower: set[str] = set()
     total_uncompressed_bytes = 0
 
     archive_sha256, archive_size = sha256_file(zip_path)
@@ -973,23 +974,43 @@ def _inspect_zip_members(
                     f"Unsafe symlink entry '{raw_name}' detected in archive '{zip_path.name}'."
                 )
 
+            # The actual UCI-45 archive includes a small historical costs/
+            # directory and named auxiliary files. Recognize ONLY these exact
+            # paths for a human-signed, SKIP-ONLY review, never as inputs.
+            review_only = (
+                dataset_id == "DA-A2"
+                and raw_name in UCI_45_REVIEW_ONLY_HISTORICAL_MEMBERS
+            )
             if info.is_dir():
-                raise ArchiveSecurityError(
-                    f"STOP_REQUIRES_REVIEW: Unexpected directory entry '{raw_name}' in archive '{zip_path.name}'."
-                )
-
-            if len(posix_parts) != 1:
+                if not (review_only and raw_name == "costs/" and info.file_size == 0):
+                    raise ArchiveSecurityError(
+                        f"STOP_REQUIRES_REVIEW: Unexpected directory entry '{raw_name}' in archive '{zip_path.name}'."
+                    )
+            elif len(posix_parts) != 1 and not review_only:
                 raise ArchiveSecurityError(
                     f"Unsafe or unexpected nested path '{raw_name}' detected in archive '{zip_path.name}'."
                 )
 
-            basename = posix_parts[0]
-            if basename in seen_basenames_exact or basename.lower() in seen_basenames_lower:
+            if review_only and raw_name != "costs/" and info.is_dir():
                 raise ArchiveSecurityError(
-                    f"Duplicate or colliding entry basename '{basename}' detected in archive '{zip_path.name}'."
+                    f"Unexpected directory masquerading as reviewed historical file '{raw_name}'."
                 )
-            seen_basenames_exact.add(basename)
-            seen_basenames_lower.add(basename.lower())
+
+            # Full-path collision checks also cover recognized nested entries;
+            # root basename checks remain strict for all non-historical inputs.
+            full_key = raw_name.rstrip("/").lower()
+            if full_key in seen_full_member_paths_lower:
+                raise ArchiveSecurityError(
+                    f"Duplicate or colliding archive member path '{raw_name}' in '{zip_path.name}'."
+                )
+            seen_full_member_paths_lower.add(full_key)
+            basename = posix_parts[-1]
+            if not review_only:
+                if basename.lower() in seen_root_basenames_lower:
+                    raise ArchiveSecurityError(
+                        f"Duplicate or colliding entry basename '{basename}' detected in archive '{zip_path.name}'."
+                    )
+                seen_root_basenames_lower.add(basename.lower())
 
             if info.file_size < 0 or info.file_size > max_member_bytes:
                 raise ArchiveSecurityError(
@@ -1033,6 +1054,9 @@ def _inspect_zip_members(
             elif basename in known_excluded_dataset_files:
                 flagged_excluded.append(raw_name)
                 classification = "excluded_unapproved_do_not_extract"
+            elif review_only:
+                flagged_excluded.append(raw_name)
+                classification = "review_only_historical_auxiliary_do_not_extract"
             else:
                 unexpected_entries.append(raw_name)
                 classification = "unexpected_unrecognized"
@@ -1082,13 +1106,18 @@ def inspect_zip_archive(
     """Inspect a downloaded UCI .zip archive in read-only mode before extraction.
 
     Fails closed with ArchiveSecurityError (STOP_REQUIRES_REVIEW) if the archive:
-    - contains unsafe path traversal, absolute paths, drive letters, subdirectories, or symlinks;
+    - contains unsafe path traversal, absolute paths, drive letters, unauthorized subdirectories, or symlinks;
     - contains duplicate or case-colliding member basenames;
     - exceeds member or total uncompressed byte limits;
     - contains executable or script files;
     - is missing any required authorized file for the dataset;
     - contains any excluded/unapproved dataset file (e.g. new.data, reprocessed.hungarian.data);
     - contains any unexpected extra file not in the explicit harmless archive metadata allowlist.
+
+    DA-A2 only: exactly named legacy auxiliary members (including costs/)
+    are classified as excluded SKIP-ONLY members and still require a human
+    full-inventory review before selective extraction; no arbitrary nested
+    entries, directories or wildcard exceptions are permitted.
     """
     summary = _inspect_zip_members(
         zip_path,
@@ -1235,8 +1264,9 @@ def extract_authorized_archive(
     Enforces:
     1. Global workflow_status ('AUTHORIZED_FOR_LOCAL_READ_ONLY_AUDIT') AND dataset authorization
        ('AUTHORIZED_FOR_READ_ONLY_AUDIT') — rejects unapproved datasets even if the ZIP is on disk.
-    2. Complete archive member inspection (no traversal, no nested paths, no symlinks, no duplicate/colliding
-       basenames, member and total size limits, all required files present, zero unexpected unrecognized files).
+    2. Complete archive member inspection (no traversal, no unrecognized nested paths/directories, no symlinks,
+       no duplicate/colliding paths, member and total size limits, all required files present, zero unknown files).
+       Known DA-A2 nested historical members are skip-only and review-gated.
     3. Never auto-extracts after a STOP_REQUIRES_REVIEW outcome: if the archive contains known excluded
        historical files (e.g. new.data, reprocessed.hungarian.data in DA-A2), extraction fails closed unless
        a human-signed archive review approval file (--review-approval) matching the exact archive SHA-256,
@@ -1337,7 +1367,9 @@ def extract_authorized_archive(
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             for info in zf.infolist():
-                basename = PurePosixPath(info.filename.replace("\\", "/")).name
+                # Exact root-level filename comparison: nested historical
+                # entries can never match an authorized extraction target.
+                basename = info.filename
                 if basename not in allowed_to_extract:
                     continue
 
