@@ -132,3 +132,20 @@ The existing local correspondence report is `data/reports/uci-412-411-read-only-
 - Synthetic regression tests cover the known layout, unknown path rejection, tampered review document, selective nine-file extraction and overwrite refusal.
 
 **Review outcome:** Code remediation prepared for review, no real UCI-45 files extracted. Scientific suitability, cohort overlap, H-01 target harmonization and Gate PT remain unresolved.
+
+## 9. DA-A2 real read-only audit stopped on legacy raw Cleveland encoding (2026-10-22; partial-audit remediation pending PR)
+
+**Observed locally, evidence VERIFIED:** Under ratified D-046 and validated combined provenance (11 records: DA-A1 1, DA-B1 1, DA-A2 9), the maintainer ran `run-audit --datasets DA-A2` against original, SHA-matched UCI-45 files. The audit **FAILED_CLOSED** with `format_validation_error`: `utf-8 codec can't decode byte 0x8e in position 58079: invalid start byte` in the unmodified `cleveland.data`. No reports were produced by this run. The user's byte-integrity recheck concluded that protected originals and prior reports were unchanged; Git main remained clean; Gate PT CLOSED.
+
+**Primary-source documentation verified from local official ZIP:** `WARNING` (407 bytes, SHA-256 `01ae7cb6ab43a387b206f7127ce81869639d9d3076d447c12d7df17ad583f954`) reports historical source-side raw `cleveland.data` transfer/copy damage while describing `processed.cleveland.data` as *apparently usable* for the conventional 14-attribute task. See https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/WARNING and [Issue #18](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/18). An invalid UTF-8 byte demonstrates only **non-UTF8-valid bytes under this parser**; alone, it cannot identify a patient record error, ascertain historical encoding, or justify automated repair.
+
+**Scientific/engineering decision R-DA-A2-RAW-01 (proposed, pending PR review):**
+
+- Preserve original `cleveland.data`, its content hash, license and provenance; do not replace, transcode, lossy-decode, delete, re-encode, infer missing patient values, or assert corruption at an individual row.
+- **Default audit remains FAIL_CLOSED.** Provide a separate, explicit DA-A2-only `--quarantine-raw-cleveland` mode for a *partial read-only audit* that does **not** parse raw Cleveland or compare it to processed Cleveland. The known local asset fingerprint must match; all nine files, including the quarantined one, remain provenance-verified and byte-guarded.
+- In partial mode, audit **all four processed** cohorts, **only the other three raw** cohorts, and **only three** raw-to-processed correspondence pairs. Emit a typed `quarantined_raw_files` record and DA-A2 `REQUIRES APPROVAL` status; never describe the entire UCI-45 audit as complete or verified.
+- Any additional malformed raw/processed data, schema violation, target problem, or privacy-scanner finding **still stops the run**. No generic `errors=replace`, `ignore`, permissive format handling or hidden file exclusion.
+- Keep complete raw Cleveland audit, interpretation of its original data, and clinical suitability **unresolved** under [Issue #18](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/18).
+- Synthetic-only regression tests must demonstrate strict default failure and explicit partial-mode behavior. **Do not use actual patient data in CI**.
+
+**Status at time of writing:** PR-based remediation is being reviewed; no partial audit result yet. No model training/evaluation; Gate PT remains CLOSED. All local data and reports remain under Git-ignored `data/`.

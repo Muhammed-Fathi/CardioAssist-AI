@@ -116,6 +116,7 @@ def run_local_dataset_audit(
     is_synthetic_fixture_run: bool = False,
     allow_external_tmp_root: Path | None = None,
     forbidden_substrings: Sequence[str] = (),
+    quarantine_raw_cleveland: bool = False,
     json_output_path: Path | str | None = None,
     markdown_output_path: Path | str | None = None,
 ) -> tuple[dict[str, Any], str]:
@@ -151,6 +152,13 @@ def run_local_dataset_audit(
 
     for ds_id in target_ds_ids:
         verify_dataset_authorized_for_audit(auth_manifest, ds_id)
+
+    if quarantine_raw_cleveland and (
+        requested_datasets is None or list(requested_datasets) != ["DA-A2"]
+    ):
+        raise GovernanceAuthorizationError(
+            "Raw Cleveland quarantine mode must explicitly scope --datasets DA-A2 only."
+        )
 
     prov_path = provenance_manifest_path or (effective_parent / "data/manifests/provenance_manifest.json")
     verify_data_root_containment(
@@ -223,6 +231,7 @@ def run_local_dataset_audit(
             proc_reports: dict[str, Any] = {}
             raw_reports: dict[str, Any] = {}
             correspondence_reports: dict[str, Any] = {}
+            quarantined_raw_files: list[dict[str, Any]] = []
 
             cohort_pairs = (
                 ("cleveland", "processed.cleveland.data", "cleveland.data"),
@@ -232,18 +241,41 @@ def run_local_dataset_audit(
             )
             for cohort_name, proc_fname, raw_fname in cohort_pairs:
                 p_parsed = audit_uci_45_processed_file(Path(prov_a2[proc_fname]["resolved_path"]))
-                r_parsed = audit_uci_45_raw_file(Path(prov_a2[raw_fname]["resolved_path"]))
-                corr = compare_uci_45_raw_and_processed(cohort_name, r_parsed, p_parsed)
-
                 proc_reports[proc_fname] = p_parsed["report"]
-                raw_reports[raw_fname] = r_parsed["report"]
-                correspondence_reports[cohort_name] = corr
-
                 cohort_14_rows_map[f"DA-A2:{cohort_name}"] = p_parsed["normalized_rows"]
                 if cohort_name == "cleveland":
                     cleveland_proc_rows = p_parsed["normalized_rows"]
-
                 all_fingerprints.extend(p_parsed["raw_row_fingerprints"])
+
+                # Only an explicit, DA-A2-scoped opt-in may skip the known
+                # source-warned raw Cleveland payload. It is still SHA-verified
+                # in the provenance and ByteIdentityGuard, but NEVER parsed or
+                # included in positional raw/processed comparisons.
+                if cohort_name == "cleveland" and quarantine_raw_cleveland:
+                    raw_meta = prov_a2[raw_fname]
+                    expected_sha = (
+                        "9278214845d1cf45cdce6404038b232ce23dedaf801709650712f6d145d1b7b7"
+                    )
+                    if not is_synthetic_fixture_run and raw_meta["verified_sha256"].lower() != expected_sha:
+                        raise GovernanceAuthorizationError(
+                            "STOP: Unexpected raw Cleveland fingerprint. The explicit quarantine policy "
+                            "applies only to the locally reviewed UCI-45 raw source asset."
+                        )
+                    quarantined_raw_files.append({
+                        "filename": raw_fname,
+                        "quarantine_reason": "SOURCE_REPORTED_INTEGRITY_CONCERN_AND_NON_UTF8_INPUT",
+                        "provenance_sha256": raw_meta["verified_sha256"],
+                        "provenance_size_bytes": raw_meta["verified_size_bytes"],
+                        "raw_parsed": False,
+                        "raw_processed_correspondence_evaluated": False,
+                        "evidence_status": "REQUIRES APPROVAL",
+                    })
+                    continue
+
+                r_parsed = audit_uci_45_raw_file(Path(prov_a2[raw_fname]["resolved_path"]))
+                corr = compare_uci_45_raw_and_processed(cohort_name, r_parsed, p_parsed)
+                raw_reports[raw_fname] = r_parsed["report"]
+                correspondence_reports[cohort_name] = corr
                 all_fingerprints.extend(r_parsed["raw_row_fingerprints"])
 
             names_report = audit_uci_45_names_file(
@@ -255,8 +287,9 @@ def run_local_dataset_audit(
                 "processed_files": proc_reports,
                 "raw_files": raw_reports,
                 "raw_vs_processed_correspondence": correspondence_reports,
+                "quarantined_raw_files": quarantined_raw_files,
                 "documentation_file": names_report,
-                "evidence_status": "VERIFIED",
+                "evidence_status": "REQUIRES APPROVAL" if quarantined_raw_files else "VERIFIED",
             }
 
         if "DA-B1" in target_ds_ids:
@@ -414,6 +447,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_run.add_argument("--datasets", nargs="*", default=None)
     p_run.add_argument("--auth-manifest", type=Path, default=DEFAULT_AUTH_MANIFEST_PATH)
     p_run.add_argument("--provenance-manifest", type=Path, default=None)
+    p_run.add_argument(
+        "--quarantine-raw-cleveland", action="store_true",
+        help=(
+            "Explicit DA-A2-only read-only audit: do NOT parse the source-warned cleveland.data; "
+            "continue processed cohorts and other raw audits with a flagged partial result."
+        ),
+    )
     p_run.add_argument("--json-out", default=None, help="Relative output path under data/reports/ (*.json).")
     p_run.add_argument("--markdown-out", default=None, help="Relative output path under data/reports/ (*.md).")
 
@@ -561,6 +601,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 auth_manifest_path=args.auth_manifest,
                 provenance_manifest_path=args.provenance_manifest,
                 requested_datasets=args.datasets if args.datasets else None,
+                quarantine_raw_cleveland=args.quarantine_raw_cleveland,
                 json_output_path=args.json_out,
                 markdown_output_path=args.markdown_out,
             )

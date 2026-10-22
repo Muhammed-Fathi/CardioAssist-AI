@@ -292,6 +292,7 @@ def _validate_uci_45_audit_schema(payload: Any) -> None:
             "processed_files",
             "raw_files",
             "raw_vs_processed_correspondence",
+            "quarantined_raw_files",
             "documentation_file",
             "evidence_status",
         },
@@ -351,6 +352,40 @@ def _validate_uci_45_audit_schema(payload: Any) -> None:
             p_rep["within_dataset_duplicates"],
             context=f"{p_ctx}.within_dataset_duplicates",
         )
+
+    quarantined = payload["quarantined_raw_files"]
+    if not isinstance(quarantined, list) or len(quarantined) > 1:
+        raise PatientLevelLeakageError("DA-A2 quarantine metadata must be a list of at most one item.")
+    if quarantined:
+        q = quarantined[0]
+        _assert_exact_keys(
+            q,
+            {
+                "filename", "quarantine_reason", "provenance_sha256",
+                "provenance_size_bytes", "raw_parsed",
+                "raw_processed_correspondence_evaluated", "evidence_status",
+            },
+            context=f"{ctx}.quarantined_raw_files[0]",
+        )
+        if q["filename"] != "cleveland.data" or q["quarantine_reason"] != (
+            "SOURCE_REPORTED_INTEGRITY_CONCERN_AND_NON_UTF8_INPUT"
+        ):
+            raise PatientLevelLeakageError("Only documented raw Cleveland quarantine is permitted.")
+        if (not isinstance(q["provenance_sha256"], str)
+                or not re.fullmatch(r"[0-9a-f]{64}", q["provenance_sha256"])):
+            raise PatientLevelLeakageError("Quarantine SHA-256 must be a lowercase 64-hex digest.")
+        _assert_int_not_bool(q["provenance_size_bytes"], context="DA-A2 quarantined file size")
+        if q["provenance_size_bytes"] <= 0:
+            raise PatientLevelLeakageError("Quarantined file size must be positive.")
+        if q["raw_parsed"] is not False or q["raw_processed_correspondence_evaluated"] is not False:
+            raise PatientLevelLeakageError("Quarantined raw Cleveland cannot be parsed or compared.")
+        if q["evidence_status"] != "REQUIRES APPROVAL" or payload["evidence_status"] != "REQUIRES APPROVAL":
+            raise PatientLevelLeakageError("Partial DA-A2 audit must not be labelled VERIFIED.")
+        if "cleveland.data" in payload["raw_files"] or "cleveland" in payload["raw_vs_processed_correspondence"]:
+            raise PatientLevelLeakageError("Quarantined raw Cleveland cannot appear in verified raw reports.")
+    else:
+        if payload["evidence_status"] != "VERIFIED":
+            raise PatientLevelLeakageError("Unquarantined DA-A2 audit must remain fully verified.")
 
     if not isinstance(payload["raw_files"], dict):
         raise PatientLevelLeakageError(f"Expected dict at '{ctx}.raw_files'.")
@@ -845,6 +880,13 @@ def render_markdown_report(report: dict[str, Any]) -> str:
                         f"CAD_absent_0=`{c_dist.get('cad_absent_0')}`, CAD_present_1_4=`{c_dist.get('cad_present_1_to_4')}`, "
                         f"missing_cells=`{m_info.get('total_missing_cells')}`, "
                         f"suspicious_counts=`{finfo.get('suspicious_values')}`"
+                    )
+                if ds_payload.get("quarantined_raw_files"):
+                    lines.append(
+                        "- **PARTIAL AUDIT — RAW CLEVELAND QUARANTINED**: "
+                        "The source-warned `cleveland.data` was NOT parsed, and Cleveland "
+                        "raw-to-processed correspondence was NOT evaluated. No reliability, "
+                        "clinical eligibility, or training authorization is implied."
                     )
                 for fname, rinfo in ds_payload.get("raw_files", {}).items():
                     m_info = rinfo.get("missingness", {})
