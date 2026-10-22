@@ -49,6 +49,8 @@ authorization (D-040, P-2).
 | 10 | Cumulative DA-A1/DA-B1/DA-A2 real aggregate audit findings and limitations | [10_m2a_uci412_uci411_evidence_and_decisions.md](10_m2a_uci412_uci411_evidence_and_decisions.md) |
 | 11 | DA-A2 clinical data suitability review packet — human decisions **UNFILLED** | [11_da_a2_clinical_suitability_review_packet.md](11_da_a2_clinical_suitability_review_packet.md) |
 | 12 | Research-team sourced decisions and working strategy; supervisor reviews frozen clinical protocol, not each audit task | [12_research_team_evidence_based_decisions.md](12_research_team_evidence_based_decisions.md) |
+| 13 | Evidence-reviewed engineering solution and read-only availability analysis plan | [13_engineering_dataset_solution_and_availability_audit.md](13_engineering_dataset_solution_and_availability_audit.md) |
+| 14 | Completed real stage joint-availability analysis and stage-aware intake design decision | [14_real_joint_availability_and_staged_intake_decision.md](14_real_joint_availability_and_staged_intake_decision.md) |
 
 ## Headline conclusions (all PROPOSED unless labelled otherwise)
 
