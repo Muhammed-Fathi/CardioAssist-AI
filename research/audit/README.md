@@ -18,6 +18,42 @@ For the complete step-by-step Windows PowerShell execution guide from
 
 ---
 
+## DA-A2 Raw Cleveland integrity stop and explicit audit isolation (2026-10-22)
+
+The user's real official UCI-45 archive `cleveland.data` raised a strict UTF-8
+error at byte offset 58079 during the fully gated `run-audit` (no input mutation,
+no reports created). The **original UCI WARNING** confirms a historical
+source-side raw Cleveland data-integrity concern. The UTF-8 error alone is
+not proof that a particular patient record is invalid; do not guess an encoding
+or use replacement/ignore decoding to make the file appear valid. See
+[Issue #18](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/18).
+
+Default `run-audit` **remains fail-closed** on raw Cleveland. After the human
+maintainer has reviewed the warning, an explicit limited **read-only partial
+DA-A2 audit** may be run with:
+
+```powershell
+& $python -m research.audit run-audit --datasets DA-A2 \`
+  --quarantine-raw-cleveland \`
+  --auth-manifest data/manifests/gate_da_authorization.local.json \`
+  --provenance-manifest data/manifests/provenance_manifest.json \`
+  --json-out data/reports/uci-45-da-a2-quarantined-audit.json \`
+  --markdown-out data/reports/uci-45-da-a2-quarantined-audit.md
+```
+
+This mode verifies the raw file's provenance hash and unchanged bytes but
+**does not open/parse raw Cleveland or calculate its raw/processed matching
+counts**. It audits the four processed cohorts and the three other raw cohorts
+as usual, with an explicit metadata-only `quarantined_raw_files` entry and
+DA-A2 evidence status `REQUIRES APPROVAL`. The switch is rejected unless
+`--datasets DA-A2` is explicitly specified. No patient data or full local
+reports should be committed or pasted into GitHub. It does **not** lift Gate
+PT; it neither repairs nor reinterprets Cleveland or establishes external
+validation. If any other data parsing error occurs, the audit still fails
+closed; do not weaken further parsers without separate evidence and review.
+
+---
+
 ## 1. Purpose and Non-Negotiable Safety Rules
 
 This package provides a Python 3.11/3.12-compatible, $0, Windows-local,
