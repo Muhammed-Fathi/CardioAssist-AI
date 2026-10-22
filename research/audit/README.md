@@ -85,6 +85,7 @@ Windows machine **only after** human maintainer approval of **D-046** (Gate DA).
    manifest (`data/manifests/archive_reviews/uci-<id>-archive-review.json`)
    matching the exact archive SHA-256, byte size, and full inventory before
    extracting only the authorized files.
+   - **DA-A2 historical archive inventory (2026-10-22):** 23 members: 9 authorized inputs, 2 previously excluded, 3 metadata, 2 auxiliary, 7 `costs/` entries. `UCI_45_REVIEW_ONLY_HISTORICAL_MEMBERS` recognizes the nine additional historical paths by **exact name only**; all remain excluded and review-gated. `costs/Index` is not root `Index`. The review manifest must bind full inventory, SHA-256 and exclusions. See [V2 evidence and decision log](../../docs/research/gate-da/10_m2a_uci412_uci411_evidence_and_decisions.md).
 
 ---
 
