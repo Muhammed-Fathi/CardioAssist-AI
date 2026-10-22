@@ -149,3 +149,24 @@ The existing local correspondence report is `data/reports/uci-412-411-read-only-
 - Synthetic-only regression tests must demonstrate strict default failure and explicit partial-mode behavior. **Do not use actual patient data in CI**.
 
 **Status at time of writing:** PR-based remediation is being reviewed; no partial audit result yet. No model training/evaluation; Gate PT remains CLOSED. All local data and reports remain under Git-ignored `data/`.
+
+## 10. DA-A2 correspondence audit — aggregate-only follow-up (2026-10-22, engineering change pending review)
+
+The first successful **partial** DA-A2 local real-data audit (PR #19 raw Cleveland quarantine) reported 4 processed cohorts, 3 non-Cleveland raw cohorts, and 3 positional raw-to-processed comparisons. Aggregate results supplied by the maintainer:
+
+| Cohort | Processed rows | Raw rows | Processed missing cells | 13-predictor positional exact matches |
+| --- | ---: | ---: | ---: | ---: |
+| Cleveland | 303 | QUARANTINED | 6 | NOT EVALUATED |
+| Hungary | 294 | 294 | 782 | 1 |
+| Switzerland | 123 | 123 | 273 | 1 |
+| VA Long Beach | 200 | 200 | 698 | 192 |
+
+**Inference boundary:** Matching row counts do not demonstrate corresponding patients. These unexpectedly low positional agreements do not establish source corruption or that the datasets are unrelated. Prior audit reports had no order-independent/raw-vs-processed multiset diagnostic and the raw file may contain 76-attribute conventions while the processed set has 14. Explanations including ordering, missingness coding, different transforms/versions, or actual record differences remain OPEN until specifically tested.
+
+**Engineering follow-up proposed in PR:** augment the existing read-only correspondence function with:
+- Order-independent whole-row 13-predictor multiset overlaps, then exact original-`num` and 0-vs-1..4 binarized-`num` 14-column overlaps (with duplicate-safe multiplicities)
+- Per-conventional-predictor positional value agreements and unordered value multiset overlaps (aggregated counts only)
+- Strict report-schema allowlists and bound checks so no patient signature, clinical values, IDs, pair mappings, or row snippets can enter committed output
+- Synthetic permutations, differences, duplicate checks and privacy-schema tests
+
+**Decision status:** PENDING local execution/review. The proposed metrics can distinguish findings consistent with reordering from differences of values/distributions; they cannot prove patient identity or harmonization correctness. Keep raw Cleveland quarantined, four processed cohorts candidates only, all A2 evidence `REQUIRES APPROVAL`, and Gate PT **CLOSED**. Never sum raw and processed rows as independent patients. No model training, automatic recoding or clinical claim.
