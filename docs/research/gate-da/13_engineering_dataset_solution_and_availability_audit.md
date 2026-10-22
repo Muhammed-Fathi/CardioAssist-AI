@@ -38,10 +38,10 @@ The literal counts and the hypothetical counts make the cost of zero conventions
 From `E:\CardioAssist_AI_GitHub_Starter`, on synced clean `main`, after confirming local authorizations and original files are present:
 
 ```powershell
-& "E:\CardioAssist_PR11_Audit_Venv\Scripts\python.exe" -m research.audit.availability_scenarios `--auth-manifest data/manifests/gate_da_authorization.local.json `--provenance-manifest data/manifests/provenance_manifest.json
+& "E:\CardioAssist_PR11_Audit_Venv\Scripts\python.exe" -m research.audit.availability_scenarios --auth-manifest "data/manifests/gate_da_authorization.local.json" --provenance-manifest "data/manifests/provenance_manifest.json"
 ```
 
-The PowerShell backticks shown here join a single command; the module has **no output-file flag** and writes nothing. It never uses `--train`, `--fit`, `--evaluate`, external services or new dependencies. **Share only the printed aggregate output, not any dataset or raw manifest.** Abort if governance, hash, byte identity, working-tree, or parser validation fails.
+The CLI takes only input manifests and has **no output-file flag**; it prints count-only summaries and writes nothing. It never uses `--train`, `--fit`, `--evaluate`, external services or new dependencies. **Share only the printed aggregate output, not any dataset or raw manifest.** Abort if governance, hash, byte identity or parser validation fails.
 
 ## What follows, with owners and evidence gates
 
