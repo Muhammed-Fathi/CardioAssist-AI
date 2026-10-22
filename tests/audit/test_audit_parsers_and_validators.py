@@ -212,3 +212,117 @@ def test_unexpected_target_mappings_and_invalid_codings_rejected(tmp_path: Path)
     stat_file.write_text("63.0 1.0 1.0 145.0 233.0 1.0 2.0 150.0 0.0 2.3 3.0 0.0 6.0 0\n", encoding="utf-8")
     with pytest.raises(TargetOrCodingValidationError, match="Statlog target coding"):
         audit_uci_145_statlog_file(stat_file)
+
+@pytest.mark.parametrize("prefer_openpyxl", [True, False])
+def test_uci_412_header_only_auxiliary_sheet_is_not_a_second_cohort(
+    tmp_path: Path,
+    prefer_openpyxl: bool,
+) -> None:
+    """Regress official UCI-412 shape: 303-row data sheet plus header-only 100-col sheet."""
+    headers = get_uci_412_headers(include_bbb=True)
+    rows = build_synthetic_uci_412_rows(headers)
+    # Extra headers are metadata only; they must never become candidate predictors.
+    unused_headers = headers + [f"UnusedHeader{i}" for i in range(100 - len(headers))]
+    wb_path = tmp_path / "Z-Alizadeh sani dataset.xlsx"
+    write_synthetic_xlsx(
+        wb_path,
+        [
+            ("Sheet 1 - Table 1", headers, rows),
+            ("Sheet1", unused_headers, []),
+        ],
+    )
+    original_bytes = wb_path.read_bytes()
+
+    parsed = audit_uci_412_or_411_workbook(
+        wb_path, dataset_id="DA-A1", prefer_openpyxl=prefer_openpyxl
+    )
+    rep = parsed["report"]
+    assert rep["sheet_names"] == ["Sheet 1 - Table 1", "Sheet1"]
+    assert rep["inspected_sheet"] == "Sheet 1 - Table 1"
+    assert rep["row_count"] == len(rows)
+    assert rep["class_distribution"]["raw_counts"] == {"CAD": 4, "Normal": 2}
+    assert rep["feature_count_reconciliation"]["total_columns_in_sheet"] == 56
+    assert "Excluded 1 header-only and 0 fully blank worksheet(s)" in (
+        rep["feature_count_reconciliation"]["discrepancy_explanation"]
+    )
+    assert wb_path.read_bytes() == original_bytes
+
+
+@pytest.mark.parametrize("prefer_openpyxl", [True, False])
+def test_uci_412_rejects_multiple_data_bearing_sheets(
+    tmp_path: Path,
+    prefer_openpyxl: bool,
+) -> None:
+    """Never pick a sheet arbitrarily or double-count records across sheets."""
+    headers = get_uci_412_headers(include_bbb=True)
+    rows = build_synthetic_uci_412_rows(headers)
+    wb_path = tmp_path / "Z-Alizadeh sani dataset.xlsx"
+    write_synthetic_xlsx(
+        wb_path,
+        [("Sheet 1 - Table 1", headers, rows), ("Sheet1", headers, rows[:1])],
+    )
+
+    with pytest.raises(FormatValidationError, match="exactly 1 data sheet with patient rows"):
+        audit_uci_412_or_411_workbook(
+            wb_path, dataset_id="DA-A1", prefer_openpyxl=prefer_openpyxl
+        )
+
+
+@pytest.mark.parametrize("prefer_openpyxl", [True, False])
+def test_uci_412_rejects_only_header_rows_and_no_patient_cohort(
+    tmp_path: Path,
+    prefer_openpyxl: bool,
+) -> None:
+    headers = get_uci_412_headers(include_bbb=True)
+    wb_path = tmp_path / "Z-Alizadeh sani dataset.xlsx"
+    write_synthetic_xlsx(
+        wb_path,
+        [("Sheet 1 - Table 1", headers, []), ("Sheet1", headers, [])],
+    )
+
+    with pytest.raises(FormatValidationError, match="found 0"):
+        audit_uci_412_or_411_workbook(
+            wb_path, dataset_id="DA-A1", prefer_openpyxl=prefer_openpyxl
+        )
+
+
+@pytest.mark.parametrize("prefer_openpyxl", [True, False])
+def test_uci_412_leakage_still_rejected_with_header_only_auxiliary_sheet(
+    tmp_path: Path,
+    prefer_openpyxl: bool,
+) -> None:
+    headers = get_uci_412_headers(include_bbb=True)
+    injected_headers = headers[:-1] + ["LAD", "Cath"]
+    rows = build_synthetic_uci_412_rows(injected_headers)
+    wb_path = tmp_path / "Z-Alizadeh sani dataset.xlsx"
+    write_synthetic_xlsx(
+        wb_path,
+        [("Sheet 1 - Table 1", injected_headers, rows), ("Sheet1", headers, [])],
+    )
+
+    with pytest.raises(LeakageColumnError, match="LAD"):
+        audit_uci_412_or_411_workbook(
+            wb_path, dataset_id="DA-A1", prefer_openpyxl=prefer_openpyxl
+        )
+
+
+@pytest.mark.parametrize("prefer_openpyxl", [True, False])
+def test_uci_411_header_only_auxiliary_sheet_preserves_artery_leakage_flags(
+    tmp_path: Path,
+    prefer_openpyxl: bool,
+) -> None:
+    headers = get_uci_412_headers(include_bbb=True, include_arteries=True)
+    rows = build_synthetic_uci_412_rows(headers, include_arteries=True)
+    wb_path = tmp_path / "extention of Z-Alizadeh sani dataset.xlsx"
+    write_synthetic_xlsx(
+        wb_path,
+        [("Data", headers, rows), ("Headers Only", headers, [])],
+    )
+
+    rep = audit_uci_412_or_411_workbook(
+        wb_path, dataset_id="DA-B1", prefer_openpyxl=prefer_openpyxl
+    )["report"]
+    assert rep["row_count"] == len(rows)
+    assert sorted(rep["leakage_and_availability_flags"]["artery_leakage_columns_present"]) == [
+        "LAD", "LCX", "RCA"
+    ]

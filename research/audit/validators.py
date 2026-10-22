@@ -75,16 +75,25 @@ def audit_uci_412_or_411_workbook(
         )
 
     wb = read_xlsx_workbook(file_path, prefer_openpyxl=prefer_openpyxl)
-    non_empty_sheets = [sh for sh in wb.sheet_names if len(wb.sheets[sh].headers) > 0]
-    if len(non_empty_sheets) != 1:
+    # The official UCI-412 workbook has an additional header-only worksheet.
+    # Only a worksheet with actual rows may constitute a cohort. Never merge
+    # worksheets or silently choose between two data-bearing worksheets.
+    data_sheet_names = [name for name in wb.sheet_names if wb.sheets[name].rows]
+    if len(data_sheet_names) != 1:
         raise FormatValidationError(
-            f"Workbook '{file_path.name}' must contain exactly 1 non-empty data sheet; "
-            f"found {len(non_empty_sheets)} ({non_empty_sheets})."
+            f"Workbook '{file_path.name}' must contain exactly 1 data sheet with patient rows; "
+            f"found {len(data_sheet_names)} ({data_sheet_names})."
         )
 
-    sheet = wb.sheets[non_empty_sheets[0]]
-    if not sheet.rows:
-        raise FormatValidationError(f"Worksheet '{sheet.name}' in '{file_path.name}' has 0 patient rows.")
+    sheet = wb.sheets[data_sheet_names[0]]
+    header_only_sheet_count = sum(
+        bool(wb.sheets[name].headers) and not wb.sheets[name].rows
+        for name in wb.sheet_names
+    )
+    blank_sheet_count = sum(
+        not wb.sheets[name].headers and not wb.sheets[name].rows
+        for name in wb.sheet_names
+    )
 
     seen_norm: set[str] = set()
     column_classifications: list[dict[str, Any]] = []
@@ -207,6 +216,11 @@ def audit_uci_412_or_411_workbook(
                 else ""
             )
             + f" = {len(sheet.headers)} total columns."
+            + (
+                f" Workbook contains {len(wb.sheet_names)} worksheet(s); selected the only data-bearing "
+                f"worksheet. Excluded {header_only_sheet_count} header-only and {blank_sheet_count} "
+                "fully blank worksheet(s) from patient cohort counts."
+            )
         ),
         "evidence_status": EVIDENCE_VERIFIED,
     }
