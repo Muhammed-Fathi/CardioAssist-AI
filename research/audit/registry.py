@@ -42,6 +42,24 @@ UCI_ARCHIVE_HARMLESS_METADATA_ALLOWLIST: dict[str, frozenset[str]] = {
     "DA-B2": frozenset(),
 }
 
+# Exact DA-A2 UCI-45 archive members that are documented in the locally inspected
+# 2026-10-22 official ZIP inventory but are NOT authorized dataset inputs.
+# These names are RECOGNIZED ONLY FOR REVIEW, NEVER extracted. Their presence
+# triggers the same human-reviewed selective-extraction approval as new.data.
+# A nested entry under costs/ not EXACTLY listed here remains prohibited.
+UCI_45_REVIEW_ONLY_HISTORICAL_MEMBERS: frozenset[str] = frozenset({
+    "ask-detrano",
+    "cleve.mod",
+    "costs/",
+    "costs/Index",
+    "costs/heart-disease.README",
+    "costs/heart-disease.cost",
+    "costs/heart-disease.delay",
+    "costs/heart-disease.expense",
+    "costs/heart-disease.group",
+})
+
+
 FORBIDDEN_SOURCE_HOSTS_SUBSTRINGS = (
     "kaggle.com",
     "github.com",
