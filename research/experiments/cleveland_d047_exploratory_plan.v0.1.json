@@ -1,0 +1,159 @@
+{
+  "configuration_status": "PROPOSED_NOT_APPROVED_DO_NOT_RUN",
+  "protocol_id": "CAI-T1-D047-CLEVELAND-EXPLORATORY-V0.1",
+  "report_banner": "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
+  "dataset": {
+    "id": "DA-A2",
+    "source": "UCI-45",
+    "relative_file": "data/raw/uci-45/processed.cleveland.data",
+    "expected_row_count": 303,
+    "original_target_column": "num",
+    "negative_source_label": [
+      0
+    ],
+    "positive_source_labels": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "processed_source_columns": [
+      "age",
+      "sex",
+      "cp",
+      "trestbps",
+      "chol",
+      "fbs",
+      "restecg",
+      "thalach",
+      "exang",
+      "oldpeak",
+      "slope",
+      "ca",
+      "thal",
+      "num"
+    ],
+    "primary_predictors": [
+      "age",
+      "sex",
+      "cp",
+      "trestbps",
+      "restecg"
+    ],
+    "numeric_predictors": [
+      "age",
+      "trestbps"
+    ],
+    "categorical_source_code_order": {
+      "sex": [
+        0,
+        1
+      ],
+      "cp": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "restecg": [
+        0,
+        1,
+        2
+      ]
+    },
+    "prohibited_predictors": [
+      "num",
+      "ca",
+      "thal",
+      "Cath",
+      "LAD",
+      "LCX",
+      "RCA",
+      "site",
+      "patient_id",
+      "wearable_heart_rate"
+    ]
+  },
+  "cv": {
+    "outer_folds": 5,
+    "inner_folds": 5,
+    "outer_repeat_seeds": [
+      20261023,
+      20261024,
+      20261025,
+      20261026
+    ],
+    "stratified": true,
+    "primary_inner_selection_metric": "roc_auc",
+    "primary_outer_assessment_metric": "roc_auc",
+    "simplicity_preference": "l2_logistic_regression",
+    "inner_auc_equivalence_tolerance": 0.01
+  },
+  "models": {
+    "prevalence_dummy": {
+      "strategy": "prior"
+    },
+    "l2_logistic_regression": {
+      "solver": "liblinear",
+      "penalty": "l2",
+      "C": [
+        0.1,
+        1,
+        10
+      ],
+      "max_iter": 2000,
+      "class_weight": null
+    },
+    "constrained_random_forest": {
+      "n_estimators": 200,
+      "max_depth": [
+        3,
+        5
+      ],
+      "min_samples_leaf": [
+        5,
+        10
+      ],
+      "max_features": "sqrt",
+      "class_weight": null
+    }
+  },
+  "preprocessing": {
+    "numeric_imputation": "training_fold_median",
+    "numeric_scaling_for_lr": "training_fold_standard",
+    "categorical": "source_vocab_reference_one_hot",
+    "learn_transforms_inside_inner_cv": true,
+    "missing_reason_columns": "FORBIDDEN_NOT_RECORDED_IN_UCI45",
+    "fake_synthetic_flag_for_real_data": "FORBIDDEN"
+  },
+  "metrics": {
+    "primary": "roc_auc",
+    "secondary": [
+      "average_precision",
+      "accuracy_at_0_5_exploratory",
+      "sensitivity_at_0_5_exploratory",
+      "specificity_at_0_5_exploratory",
+      "brier_score",
+      "calibration_if_estimateable"
+    ],
+    "decision_threshold_exploratory_only": 0.5,
+    "naive_ci_treating_4_repeated_oof_rows_as_independent": "FORBIDDEN"
+  },
+  "negative_control": {
+    "method": "permute_source_labels_on_exploratory_local_run",
+    "shuffle_seeds": [
+      20262001,
+      20262002,
+      20262003
+    ],
+    "outer_repeats_per_shuffle": 1,
+    "interpretation": "SMOKE_TEST_NOT_FORMAL_PERMUTATION_P_VALUE"
+  },
+  "execution": {
+    "environment": "MAINTAINER_LOCAL_WINDOWS_CPU_ONLY",
+    "authorized_only_after_d047_human_comment_merge_and_signed_local_manifest": true,
+    "local_output_root": "data/experiments",
+    "patient_level_git_upload": false,
+    "external_validation_or_clinical_claims": false
+  }
+}
