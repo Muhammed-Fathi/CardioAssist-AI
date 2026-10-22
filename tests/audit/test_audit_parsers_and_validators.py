@@ -326,3 +326,76 @@ def test_uci_411_header_only_auxiliary_sheet_preserves_artery_leakage_flags(
     assert sorted(rep["leakage_and_availability_flags"]["artery_leakage_columns_present"]) == [
         "LAD", "LCX", "RCA"
     ]
+
+
+@pytest.mark.parametrize("prefer_openpyxl", [True, False])
+@pytest.mark.parametrize(
+    "dataset_id,filename,include_arteries",
+    [
+        ("DA-A1", "Z-Alizadeh sani dataset.xlsx", False),
+        ("DA-B1", "extention of Z-Alizadeh sani dataset.xlsx", True),
+    ],
+)
+def test_uci_cad_alias_explicitly_harmonized_without_source_mutation(
+    tmp_path: Path,
+    prefer_openpyxl: bool,
+    dataset_id: str,
+    filename: str,
+    include_arteries: bool,
+) -> None:
+    """Accept only observed 'Cad' alias; count canonical labels and preserve originals."""
+    headers = get_uci_412_headers(include_bbb=True, include_arteries=include_arteries)
+    rows = build_synthetic_uci_412_rows(headers, include_arteries=include_arteries)
+    rows[0][-1] = "Cad"
+    rows[1][-1] = "Cad"
+    wb_path = tmp_path / filename
+    write_synthetic_xlsx(
+        wb_path,
+        [("Sheet 1 - Table 1", headers, rows), ("Sheet1", headers, [])],
+    )
+    original = wb_path.read_bytes()
+
+    parsed = audit_uci_412_or_411_workbook(
+        wb_path, dataset_id=dataset_id, prefer_openpyxl=prefer_openpyxl
+    )
+    rep = parsed["report"]
+    assert rep["row_count"] == len(rows)
+    assert rep["class_distribution"]["raw_counts"] == {"CAD": 4, "Normal": 2}
+    assert all(
+        row["Cath"] in {"CAD", "Normal"}
+        for row in parsed["normalized_rows"]
+    )
+    assert parsed["normalized_rows"][0]["Cath"] == "CAD"
+    assert "2 record(s) labeled 'Cad'" in (
+        rep["feature_count_reconciliation"]["discrepancy_explanation"]
+    )
+    assert wb_path.read_bytes() == original
+    if dataset_id == "DA-B1":
+        assert rep["artery_to_cath_consistency"] == {
+            "consistent_rows": len(rows),
+            "inconsistent_rows": 0,
+        }
+
+
+@pytest.mark.parametrize("prefer_openpyxl", [True, False])
+@pytest.mark.parametrize("bad_target", ["cad", "CaD", "positive", "0", None])
+def test_uci_cad_alias_does_not_weaken_target_fail_closed_rules(
+    tmp_path: Path,
+    prefer_openpyxl: bool,
+    bad_target: str | None,
+) -> None:
+    """Unknown spellings and missing target values remain prohibited."""
+    headers = get_uci_412_headers(include_bbb=True)
+    rows = build_synthetic_uci_412_rows(headers)
+    rows[0][-1] = bad_target
+    wb_path = tmp_path / "Z-Alizadeh sani dataset.xlsx"
+    write_synthetic_xlsx(wb_path, [("Sheet1", headers, rows)])
+
+    expected_error = (
+        "Missing target value" if bad_target is None
+        else "Unexpected target category"
+    )
+    with pytest.raises(TargetOrCodingValidationError, match=expected_error):
+        audit_uci_412_or_411_workbook(
+            wb_path, dataset_id="DA-A1", prefer_openpyxl=prefer_openpyxl
+        )
