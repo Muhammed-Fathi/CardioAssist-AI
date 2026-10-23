@@ -220,9 +220,17 @@ def delta_at_n(n: float, prevalence: float = PREVALENCE) -> float:
 
 
 def mape_at_n(n: float, parameters: int, prevalence: float = PREVALENCE) -> float:
-    """MAPE actually achievable at sample size n (inverse of criterion 4)."""
+    """Approximation-derived MAPE estimate at sample size n (inverse of criterion 4).
+
+    This is the value implied by rearranging the RvS-2 / van Smeden expression;
+    it is *not* an observed MAPE, which can only be computed where the true
+    probabilities are known (Pavlou 2024, Methods). The same minority-class
+    convention as the forward helper (n_mape) is applied to the prevalence, so
+    that phi and 1 - phi give identical results in both directions.
+    """
+    phi = minority_proportion(prevalence)
     return math.exp(
-        -0.508 + 0.259 * math.log(prevalence) + 0.504 * math.log(parameters) - 0.544 * math.log(n)
+        -0.508 + 0.259 * math.log(phi) + 0.504 * math.log(parameters) - 0.544 * math.log(n)
     )
 
 
@@ -328,7 +336,12 @@ def project_scenario() -> None:
 
     print("\n-- C3. Break-even values at n=303 --")
     check("delta giving n3 = 303", round(delta_at_n(TOTAL), 6), 0.056108, tolerance=5e-7)
-    check("MAPE achievable at n=303, p=8", round(mape_at_n(TOTAL, 8), 6), 0.062658, tolerance=5e-7)
+    check(
+        "approximation-derived MAPE estimate at n=303, p=8",
+        round(mape_at_n(TOTAL, 8), 6),
+        0.062658,
+        tolerance=5e-7,
+    )
 
     print("\n-- C4. Predictor budget (largest p satisfying each criterion set at n=303) --")
     for r2 in (0.15, 0.20884, 0.209, 0.25):
@@ -406,7 +419,35 @@ def mape_applicability() -> None:
     check("symmetry: phi and 1-phi give the same requirement", n_mape(8, 0.70), n_mape(8, 0.30))
     check("the requirement is largest at an even split", n_mape(8, 0.50) > n_mape(8, 0.30), True)
 
-    print("\n-- E2. Stated domain and guards --")
+    print("\n-- E2. Forward/inverse consistency of the prevalence convention --")
+    # n_mape() and mape_at_n() must apply the SAME minority-class convention,
+    # otherwise the inverse would silently answer a different question when
+    # events exceed half the sample. Checked at an event fraction below and
+    # above 0.5; the cohort value itself is checked in C3.
+    for phi in (0.30, 0.70):
+        real_n = _mape_real(8, phi)
+        check(
+            f"inverse at phi={phi:.2f}: mape_at_n(real_n) = target",
+            round(mape_at_n(real_n, 8, phi), 12),
+            MAPE_TARGET,
+        )
+        check(
+            f"forward at phi={phi:.2f}: n_mape(303) equals ceiling of real n",
+            n_mape(8, phi),
+            math.ceil(real_n),
+        )
+    check(
+        "mape_at_n is symmetric in phi and 1-phi at n = 303",
+        round(mape_at_n(TOTAL, 8, 0.30), 12),
+        round(mape_at_n(TOTAL, 8, 0.70), 12),
+    )
+    check(
+        "mape_at_n at the achieved n does not exceed the target",
+        mape_at_n(n_mape(8, 0.70), 8, 0.70) <= MAPE_TARGET,
+        True,
+    )
+
+    print("\n-- E3. Stated domain and guards --")
     check("p <= 30 is enforced", _raises(lambda: n_mape(31)), True)
     check("p = 30 is inside the stated domain", isinstance(n_mape(30), int), True)
 
