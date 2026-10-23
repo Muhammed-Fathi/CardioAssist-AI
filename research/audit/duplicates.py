@@ -116,21 +116,38 @@ def _rows_are_near_duplicate_11_features(row_a: dict[str, Any], row_b: dict[str,
     return True
 
 
+PROFILE_OVERLAP_RULE_TEXT = (
+    "Per common canonical profile p with multiplicities count_A(p) and count_B(p): "
+    "multiset intersection = min(count_A(p), count_B(p)); side collision rows = count_A(p) "
+    "(A side) and count_B(p) (B side); candidate record pairs = count_A(p) * count_B(p). "
+    "Side counts are NOT an intersection and may each exceed the intersection."
+)
+
+
 def compute_exact_profile_multiset_overlap(
     rows_a: Sequence[dict[str, Any]],
     rows_b: Sequence[dict[str, Any]],
     columns: Sequence[str],
 ) -> dict[str, Any]:
-    """Aggregate-only exact-profile overlap between two cohorts, duplicate multiplicity preserved.
+    """Aggregate-only exact-profile overlap between two cohorts, multiplicity kept explicit.
 
-    Each record is canonicalized on ``columns`` and counted. Matching profiles are
-    intersected with **minimum multiplicity** (multiset intersection), so repeated
-    profiles are neither dropped nor double-counted, and the number of record pairs
-    consistent with a profile match is the sum of ``count_a * count_b`` products.
+    Each record is canonicalized on ``columns`` and counted, then every profile shared
+    by both cohorts contributes four *distinct* aggregate quantities:
+
+    * ``minimum_multiplicity_intersection_count`` -- ``sum(min(count_A, count_B))``;
+      the multiset-intersection size, which is the only quantity that is an
+      intersection.
+    * ``collision_rows_in_a`` / ``collision_rows_in_b`` -- ``sum(count_A)`` and
+      ``sum(count_B)`` over shared profiles: every record on each side whose profile
+      also occurs on the other side. These are collision-side counts, not
+      intersections, and each can exceed the intersection size.
+    * ``candidate_record_pairs`` -- ``sum(count_A * count_B)``: unordered cross-side
+      record pairs whose profiles collide. This is a pair count, not a patient count.
 
     Only counts are returned: no profile values, keys, hashes, or reconstructed rows
-    leave this function. A profile match is a feature-vector collision in
-    identifier-free tabular data; it is NOT evidence of patient identity.
+    leave this function. Every quantity is a feature-vector collision count in
+    identifier-free tabular data. None is a count of duplicate, identical, or
+    matched *patients*, and none is evidence of patient identity.
     """
     columns = tuple(columns)
     if not columns:
@@ -146,17 +163,26 @@ def compute_exact_profile_multiset_overlap(
     )
     shared_keys = set(counter_a.keys()) & set(counter_b.keys())
 
+    intersection = sum(min(counter_a[k], counter_b[k]) for k in shared_keys)
+    collision_rows_in_a = sum(counter_a[k] for k in shared_keys)
+    collision_rows_in_b = sum(counter_b[k] for k in shared_keys)
+    candidate_pairs = sum(counter_a[k] * counter_b[k] for k in shared_keys)
+
+    if not (0 <= intersection <= min(collision_rows_in_a, collision_rows_in_b)):
+        raise RuntimeError("STOP: Multiset-intersection invariant violated.")
+
     return {
         "columns_compared_count": len(columns),
         "distinct_matching_profiles": len(shared_keys),
-        "matched_rows_in_a": sum(counter_a[k] for k in shared_keys),
-        "matched_rows_in_b": sum(counter_b[k] for k in shared_keys),
-        "record_pairs_consistent_with_profile_match": sum(
-            counter_a[k] * counter_b[k] for k in shared_keys
-        ),
+        "minimum_multiplicity_intersection_count": intersection,
+        "collision_rows_in_a": collision_rows_in_a,
+        "collision_rows_in_b": collision_rows_in_b,
+        "candidate_record_pairs": candidate_pairs,
         "max_profile_multiplicity_in_a": max((counter_a[k] for k in shared_keys), default=0),
         "max_profile_multiplicity_in_b": max((counter_b[k] for k in shared_keys), default=0),
-        "multiplicity_rule": "MINIMUM_MULTIPLICITY_MULTISET_INTERSECTION_PER_CANONICAL_PROFILE",
+        "multiplicity_rule": "MINIMUM_MULTIPLICITY_MULTISET_INTERSECTION_PLUS_SEPARATE_SIDE_AND_PAIR_COUNTS",
+        "multiplicity_rule_documentation": PROFILE_OVERLAP_RULE_TEXT,
+        "counts_are_not_patient_duplicate_counts": True,
     }
 
 
@@ -254,11 +280,13 @@ def compute_cross_cohort_duplicates(
                     "rows_a": len(rows_a),
                     "rows_b": len(rows_b),
                     "observed_exact_13_predictor_distinct_profiles": overlap_13["distinct_matching_profiles"],
-                    "observed_exact_13_predictor_rows_in_a": overlap_13["matched_rows_in_a"],
-                    "observed_exact_13_predictor_rows_in_b": overlap_13["matched_rows_in_b"],
+                    # Legacy collision-side counts: unchanged name and meaning (records on
+                    # one side whose profile also occurs on the other side).
+                    "observed_exact_13_predictor_rows_in_a": overlap_13["collision_rows_in_a"],
+                    "observed_exact_13_predictor_rows_in_b": overlap_13["collision_rows_in_b"],
                     "observed_exact_11_predictor_no_ca_thal_distinct_profiles": overlap_11["distinct_matching_profiles"],
-                    "observed_exact_11_predictor_rows_in_a": overlap_11["matched_rows_in_a"],
-                    "observed_exact_11_predictor_rows_in_b": overlap_11["matched_rows_in_b"],
+                    "observed_exact_11_predictor_rows_in_a": overlap_11["collision_rows_in_a"],
+                    "observed_exact_11_predictor_rows_in_b": overlap_11["collision_rows_in_b"],
                     "observed_near_duplicate_candidate_cross_pairs": near_cross_pairs,
                     "evidence_status": EVIDENCE_VERIFIED,
                 }

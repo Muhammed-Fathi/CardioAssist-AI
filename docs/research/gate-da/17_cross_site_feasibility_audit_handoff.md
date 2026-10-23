@@ -56,8 +56,13 @@ comparison is **not** authorized:
 - Gate PT P-3 is CLOSED; no supervisor-approved protocol exists.
 - D-047 names a Cleveland-only internal exploratory experiment, excludes other
   UCI-45 sites, and prohibits pooling or external-validation claims.
-- H-01 (`>50%` versus `>=50%`, exact-50% boundary) remains unresolved, so a
-  cross-site target definition cannot be frozen.
+- **H-01 is a cross-family question** (`>50%` in UCI-45 versus `>=50%` in
+  UCI-412/411). Cleveland, Hungary, and VA are all UCI-45 sibling sites, so H-01
+  is **not** a prerequisite for this audit and is not evaluated here. H-01 stays
+  **OPEN for cross-family work**; no target equivalence is approved anywhere.
+- What *is* outstanding within UCI-45 is a **source-specific outcome-coding and
+  reference-standard review** — notably Hungary's raw `0-4` versus processed
+  `0/1` recoding — which is blocker `B-01`.
 
 Additional authorization that would be required, exactly: a **separate,
 explicitly scoped governance decision naming the cohorts and permitting the
@@ -116,6 +121,19 @@ and writes the two reports. It never prints row values.
 output-path validation fails. Do not retry with weakened checks; report the exact
 error instead.
 
+## 4.1 Status semantics after a run
+
+| Field | Synthetic fixture run | Real authorized local run |
+|---|---|---|
+| `execution_status` | `SYNTHETIC_FIXTURE_EXECUTION_COMPLETED_TEST_ONLY` | `LOCAL_READ_ONLY_EXECUTION_COMPLETED` |
+| `new_evidence_generated` | `SYNTHETIC_TEST_FIXTURES_ONLY` | `LOCAL_AGGREGATE_EVIDENCE_GENERATED` |
+| `evidence_review_status` | `SYNTHETIC_TEST_ONLY_NOT_EVIDENCE` | `PENDING_HUMAN_PRIVACY_AND_SCIENTIFIC_REVIEW` |
+
+A successful real run is reported as **execution completed locally**, with the
+resulting aggregate evidence explicitly **pending human privacy and scientific
+review**. Do not describe a completed local execution as still pending, and do
+not describe synthetic fixtures as evidence.
+
 ## 5. Sharing rules
 
 - Keep both report files local and Git-ignored. Do **not** commit them.
@@ -135,24 +153,53 @@ error instead.
 |---|---|---|
 | `original_target_label_counts` | What codes the delivered file actually contains | Evidence that the labels mean the same thing clinically across sites |
 | `compatibility_status` (`..._REQUIRES_REVIEW`) | A documented codebook difference needing human review | A recoded or harmonized target |
+| `semantic_equivalence_status` | `UNVERIFIED_PENDING_UCI45_SOURCE_OUTCOME_CODING_REVIEW` | Any cross-site target equivalence |
 | Class-conditional availability counts | Records with the field observed in each original-label stratum | Effective sample size, model eligibility, or usable cohort size |
 | Value bands / `unit_verdict` | A heuristic plausibility check | Proof that units or assays are identical |
-| `distinct_matching_profiles` / `record_pairs...` | Coarse exact-profile collisions with duplicate multiplicity | Patient identity, duplication rate, or proven independence |
+| `minimum_multiplicity_intersection_count` / `collision_rows_*` / `candidate_record_pairs` | Three distinct coarse collision quantities with multiplicity preserved | Patient identity, a duplication rate, or proven independence |
 | Zero exact matches | Consistent with independent cohorts | Proof of independence |
 | `overall_status` | The audit completed and downstream comparison remains blocked | A feasibility approval or a go/no-go decision |
 
-## 7. Blockers recorded by the report
+## 6.1 Exact-profile overlap formula (read this before quoting any overlap number)
+
+For every canonical profile `p` present in both cohorts, with multiplicity
+`count_A(p)` in the reference (Cleveland) and `count_B(p)` in the comparator:
+
+| Quantity | Formula | Meaning |
+|---|---|---|
+| Multiset intersection | `sum over p of min(count_A(p), count_B(p))` | Records that can be paired one-to-one per profile |
+| Collision rows, A side | `sum over p of count_A(p)` | Every reference record whose profile also occurs in the comparator |
+| Collision rows, B side | `sum over p of count_B(p)` | Every comparator record whose profile also occurs in the reference |
+| Candidate record pairs | `sum over p of count_A(p) * count_B(p)` | Cross-side record pairs whose profiles collide |
+
+Worked asymmetric example (also a unit test): multiplicity `A=2`, `B=3` gives
+**intersection 2, side counts 2 and 3, candidate pairs 6**. Side counts are not
+intersections and may each exceed the intersection. **None of these four numbers
+counts duplicate, identical, or matched patients**, and none is evidence of
+patient identity.
+
+## 7. Blockers versus acknowledged limitations
+
+Only four items genuinely gate a downstream comparison and are counted as
+blockers (`blocks_downstream_comparison: true`):
 
 | Blocker | Why the comparison remains blocked |
 |---|---|
-| `B-01-TARGET-BOUNDARY` | H-01 threshold/boundary reconciliation still open |
+| `B-01-UCI45-OUTCOME-CODING-REVIEW` | Source-specific UCI-45 outcome-coding and reference-standard review outstanding (incl. Hungary raw `0-4` vs processed `0/1`). Not the cross-family H-01 question. |
 | `B-02-GATE-PT-CLOSED` | No supervisor-approved protocol (P-3) |
-| `B-03-D047-SCOPE` | D-047 is Cleveland-only; no other-site or pooling permission |
-| `B-04-RAW-CLEVELAND-QUARANTINE` | Raw Cleveland unparsed; reference raw/processed relation not re-verified |
-| `B-05-REPRESENTATION-ALIGNMENT` | Raw/processed alignment discordance unresolved (Issues #20/#21) |
-| `B-06-INDEPENDENCE-NOT-PROVABLE` | Identifier-free data cannot prove independence; L-05 risk open |
-| `B-07-UNIT-IDENTITY` | Unit identity not verifiable from file content |
-| `B-08-D046-READ-ONLY-SCOPE` | D-046 permits this audit only, not any comparison |
+| `B-03-D047-SCOPE-AUTHORIZATION` | D-047 is Cleveland-only; no comparison-specific authorization |
+| `B-04-SOURCE-PAIR-OVERLAP-INDEPENDENCE` | Development-vs-assessment source-pair overlap evidence incomplete (Issues #20/#21) and patient independence cannot be established from identifier-free data |
+
+The following are recorded as **contextual limitations, explicitly not
+unresolved blockers** (`blocks_downstream_comparison: false`, each with a
+`why_not_a_prerequisite` field in the report):
+
+| ID | Why it is not a prerequisite for this audit |
+|---|---|
+| `C-01-RAW-CLEVELAND-QUARANTINE` | This audit is deliberately processed-14-column only; parsing raw Cleveland is neither required nor authorized for these counts. |
+| `C-02-STATLOG-OVERLAP-CONDITIONAL` | UCI-145 Statlog is outside this scope; the Cleveland/Statlog overlap check becomes mandatory only if Statlog is considered as a source. |
+| `C-03-D046-SCOPE-SUFFICIENCY` | D-046 scope is sufficient for this descriptive audit and insufficient for model fitting or evaluation; that boundary is an authorization fact, not an outstanding defect. |
+| `C-04-UNIT-IDENTITY-HEURISTIC` | Unit diagnostics are descriptive and non-probative; the substantive measurement/reference-standard review is already required by `B-01`. |
 
 ## 8. What the maintainer reviews after the run
 

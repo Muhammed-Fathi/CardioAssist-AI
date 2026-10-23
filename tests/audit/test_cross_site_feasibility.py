@@ -19,10 +19,12 @@ from research.audit.cross_site_feasibility import (
     CATEGORICAL_FIVE_SUBSET,
     CLASS_STRATA_KEYS,
     COMPARATOR_COHORTS,
+    CONTEXTUAL_LIMITATIONS,
     EVIDENCE_LIMITATIONS,
     IDENTITY_AND_INDEPENDENCE_WARNINGS,
     OVERLAP_FIELD_SETS,
     PREDECLARED_FIVE_FIELDS,
+    PROFILE_OVERLAP_RULE_TEXT,
     REFERENCE_COHORT,
     build_class_conditional_availability,
     build_categorical_code_compatibility,
@@ -32,9 +34,13 @@ from research.audit.cross_site_feasibility import (
     main,
     render_cross_site_markdown,
     run_cross_site_feasibility_audit,
+    UCI_45_SIBLING_SITE_SCOPE_NOTE,
     validate_cross_site_report_schema,
 )
-from research.audit.duplicates import compute_exact_profile_multiset_overlap
+from research.audit.duplicates import (
+    compute_cross_cohort_duplicates,
+    compute_exact_profile_multiset_overlap,
+)
 from research.audit.exceptions import (
     GovernanceAuthorizationError,
     PatientLevelLeakageError,
@@ -276,7 +282,8 @@ def test_measurement_unit_diagnostics_are_heuristic_only() -> None:
     assert no_values["fields"]["trestbps"]["unit_verdict"] == "NOT_ASSESSABLE_NO_OBSERVED_VALUES"
 
 
-def test_exact_profile_overlap_accounts_for_duplicate_multiplicity() -> None:
+def test_exact_profile_overlap_asymmetric_multiplicity_a2_b3() -> None:
+    """Asymmetric A=2 / B=3: intersection=2, side collision rows=2/3, candidate pairs=6."""
     profile = dict(age=63, sex=1, cp=1, trestbps=145, restecg=2)
     rows_a = [_row(**profile, num=0), _row(**profile, num=0), _row(age=44, num=1)]
     rows_b = [_row(**profile, num=1), _row(**profile, num=1), _row(**profile, num=0)]
@@ -284,21 +291,74 @@ def test_exact_profile_overlap_accounts_for_duplicate_multiplicity() -> None:
     overlap = compute_exact_profile_multiset_overlap(rows_a, rows_b, PREDECLARED_FIVE_FIELDS)
     assert overlap["columns_compared_count"] == 5
     assert overlap["distinct_matching_profiles"] == 1
-    assert overlap["matched_rows_in_a"] == 2
-    assert overlap["matched_rows_in_b"] == 3
-    assert overlap["record_pairs_consistent_with_profile_match"] == 6
+    # min(2, 3) = 2 is the multiset intersection.
+    assert overlap["minimum_multiplicity_intersection_count"] == 2
+    # Side collision counts are sums over shared profiles, not intersections.
+    assert overlap["collision_rows_in_a"] == 2
+    assert overlap["collision_rows_in_b"] == 3
+    assert overlap["collision_rows_in_b"] > overlap["minimum_multiplicity_intersection_count"]
+    # Candidate record pairs = sum(count_A * count_B) = 2 * 3 = 6.
+    assert overlap["candidate_record_pairs"] == 6
     assert overlap["max_profile_multiplicity_in_a"] == 2
     assert overlap["max_profile_multiplicity_in_b"] == 3
-    assert overlap["multiplicity_rule"] == "MINIMUM_MULTIPLICITY_MULTISET_INTERSECTION_PER_CANONICAL_PROFILE"
+    assert overlap["multiplicity_rule"] == (
+        "MINIMUM_MULTIPLICITY_MULTISET_INTERSECTION_PLUS_SEPARATE_SIDE_AND_PAIR_COUNTS"
+    )
+    assert overlap["multiplicity_rule_documentation"] == PROFILE_OVERLAP_RULE_TEXT
+    assert overlap["counts_are_not_patient_duplicate_counts"] is True
     # The result is scalar aggregates only: no profile tuples, keys, or row values.
     assert not any(isinstance(value, (list, tuple, dict)) for value in overlap.values())
-    assert all(isinstance(value, (int, str)) for value in overlap.values())
+    assert all(isinstance(value, (int, str, bool)) for value in overlap.values())
 
     disjoint = compute_exact_profile_multiset_overlap(
         [_row(age=40)], [_row(age=41)], PREDECLARED_FIVE_FIELDS
     )
     assert disjoint["distinct_matching_profiles"] == 0
-    assert disjoint["record_pairs_consistent_with_profile_match"] == 0
+    assert disjoint["minimum_multiplicity_intersection_count"] == 0
+    assert disjoint["collision_rows_in_a"] == 0
+    assert disjoint["collision_rows_in_b"] == 0
+    assert disjoint["candidate_record_pairs"] == 0
+
+
+def test_overlap_intersection_differs_from_side_and_pair_counts_per_profile() -> None:
+    """Two shared profiles with different multiplicities exercise the per-profile formula."""
+    shared_one = dict(age=50, sex=1, cp=1, trestbps=120, restecg=0)
+    shared_two = dict(age=70, sex=0, cp=4, trestbps=160, restecg=2)
+    rows_a = [
+        _row(**shared_one, num=0),
+        _row(**shared_one, num=0),
+        _row(**shared_one, num=0),
+        _row(**shared_two, num=1),
+    ]
+    rows_b = [
+        _row(**shared_one, num=1),
+        _row(**shared_two, num=1),
+        _row(**shared_two, num=1),
+        _row(**shared_two, num=1),
+        _row(**shared_two, num=1),
+    ]
+
+    overlap = compute_exact_profile_multiset_overlap(rows_a, rows_b, PREDECLARED_FIVE_FIELDS)
+    assert overlap["distinct_matching_profiles"] == 2
+    # min(3,1) + min(1,4) = 1 + 1 = 2
+    assert overlap["minimum_multiplicity_intersection_count"] == 2
+    # A-side collision rows: 3 + 1 = 4; B-side: 1 + 4 = 5
+    assert overlap["collision_rows_in_a"] == 4
+    assert overlap["collision_rows_in_b"] == 5
+    # Candidate pairs: 3*1 + 1*4 = 7 (a pair count, not a patient count)
+    assert overlap["candidate_record_pairs"] == 7
+    assert overlap["max_profile_multiplicity_in_a"] == 3
+    assert overlap["max_profile_multiplicity_in_b"] == 4
+    # The three quantities are genuinely distinct: intersection < side counts < pairs here.
+    assert overlap["minimum_multiplicity_intersection_count"] < overlap["collision_rows_in_a"]
+    assert overlap["collision_rows_in_a"] < overlap["candidate_record_pairs"]
+    # Invariants that the report schema also enforces.
+    assert overlap["minimum_multiplicity_intersection_count"] <= min(
+        overlap["collision_rows_in_a"], overlap["collision_rows_in_b"]
+    )
+    assert overlap["candidate_record_pairs"] <= (
+        overlap["collision_rows_in_a"] * overlap["collision_rows_in_b"]
+    )
 
     with pytest.raises(ValueError):
         compute_exact_profile_multiset_overlap([_row()], [_row()], ())
@@ -342,6 +402,23 @@ def test_feasibility_report_warnings_blockers_and_scope() -> None:
     assert list(report["scope_and_evidence_boundary"]["predeclared_fields"]) == list(PREDECLARED_FIVE_FIELDS)
     assert list(report["scope_and_evidence_boundary"]["comparator_cohorts"]) == list(COMPARATOR_COHORTS)
 
+    scope = report["scope_and_evidence_boundary"]
+    # Correction 1: cross-family H-01 is not a prerequisite for UCI-45 sibling-site work.
+    assert scope["cross_family_h01_required_for_this_audit"] is False
+    assert scope["same_family_scope_note"] == UCI_45_SIBLING_SITE_SCOPE_NOTE
+    assert "H-01" in scope["same_family_scope_note"]
+    for cohort in AUDITED_COHORTS:
+        target = report["cohorts"][cohort]["target_code_compatibility"]
+        assert target["semantic_equivalence_status"] == (
+            "UNVERIFIED_PENDING_UCI45_SOURCE_OUTCOME_CODING_REVIEW"
+        )
+        assert "H01" not in target["semantic_equivalence_status"]
+        assert "cross-family" in target["documented_source_target_rule"]
+    # Correction 4: a completed synthetic run is never labelled as pending execution.
+    assert scope["execution_status"] == "SYNTHETIC_FIXTURE_EXECUTION_COMPLETED_TEST_ONLY"
+    assert scope["evidence_review_status"] == "SYNTHETIC_TEST_ONLY_NOT_EVIDENCE"
+    assert scope["new_evidence_generated"] == "SYNTHETIC_TEST_FIXTURES_ONLY"
+
     warning_ids = {item["warning_id"] for item in report["identity_and_independence_warnings"]}
     assert warning_ids == {item["warning_id"] for item in IDENTITY_AND_INDEPENDENCE_WARNINGS}
     statements = " ".join(item["statement"] for item in report["identity_and_independence_warnings"])
@@ -350,8 +427,38 @@ def test_feasibility_report_warnings_blockers_and_scope() -> None:
 
     blocker_ids = {item["blocker_id"] for item in report["blockers"]}
     assert blocker_ids == {item["blocker_id"] for item in AUDIT_BLOCKERS}
-    assert "B-02-GATE-PT-CLOSED" in blocker_ids
-    assert "B-08-D046-READ-ONLY-SCOPE" in blocker_ids
+    assert blocker_ids == {
+        "B-01-UCI45-OUTCOME-CODING-REVIEW",
+        "B-02-GATE-PT-CLOSED",
+        "B-03-D047-SCOPE-AUTHORIZATION",
+        "B-04-SOURCE-PAIR-OVERLAP-INDEPENDENCE",
+    }
+    # Every listed blocker must genuinely gate the downstream comparison.
+    assert all(item["blocks_downstream_comparison"] is True for item in report["blockers"])
+    blocker_text = " ".join(item["summary"] + item["required_resolution"] for item in report["blockers"])
+    assert "raw 0-4 versus processed 0/1" in blocker_text
+    # H-01 may only appear as an explicit negation, never as a required resolution.
+    for blocker in report["blockers"]:
+        assert "H-01" not in blocker["required_resolution"]
+        assert "H-01" not in blocker["required_authorization"]
+    assert blocker_text.count("H-01") == 1
+    assert "NOT the cross-family H-01 threshold question" in blocker_text
+
+    # Acknowledged limitations are explicitly NOT counted as blockers.
+    contextual_ids = {item["limitation_id"] for item in report["contextual_limitations"]}
+    assert contextual_ids == {item["limitation_id"] for item in CONTEXTUAL_LIMITATIONS}
+    assert all(
+        item["blocks_downstream_comparison"] is False
+        for item in report["contextual_limitations"]
+    )
+    assert blocker_ids.isdisjoint(contextual_ids)
+    contextual_text = " ".join(
+        item["summary"] + item["why_not_a_prerequisite"] for item in report["contextual_limitations"]
+    )
+    assert "processed" in contextual_text
+    assert "Statlog" in contextual_text
+    assert "D-046" in contextual_text
+
     assert len(report["evidence_limitations"]) == len(EVIDENCE_LIMITATIONS)
 
     gov = report["governance_and_authorization"]
@@ -389,6 +496,17 @@ def test_feasibility_report_warnings_blockers_and_scope() -> None:
                 all_stratum["record_count"]
             )
     assert len(report["exact_profile_overlap_checks"]) == len(COMPARATOR_COHORTS) * len(OVERLAP_FIELD_SETS)
+    for check in report["exact_profile_overlap_checks"]:
+        assert check["count_semantics"] == (
+            "COLLISION_AND_PAIR_COUNTS_NOT_A_COUNT_OF_DUPLICATE_OR_IDENTICAL_PATIENTS"
+        )
+        assert check["multiplicity_rule_documentation"] == PROFILE_OVERLAP_RULE_TEXT
+        assert check["minimum_multiplicity_intersection_count"] <= min(
+            check["collision_rows_in_reference"], check["collision_rows_in_comparator"]
+        )
+        assert check["candidate_record_pairs"] >= check["minimum_multiplicity_intersection_count"]
+        assert "matched_rows_in_reference" not in check
+        assert "record_pairs_consistent_with_profile_match" not in check
     assert report["feasibility_summary"]["downstream_comparison_authorization_status"] == (
         "NOT_AUTHORIZED_GATE_PT_CLOSED_D047_SCOPE_CLEVELAND_ONLY"
     )
@@ -451,6 +569,65 @@ def test_schema_validator_rejects_patient_row_and_claim_fields() -> None:
     with pytest.raises((ValueError, PatientLevelLeakageError)):
         validate_cross_site_report_schema(tampered)
 
+    # Correction 2: the intersection may never exceed a collision-side count, and the
+    # side counts may not be passed off as the minimum-multiplicity intersection.
+    tampered = copy.deepcopy(report)
+    tampered["exact_profile_overlap_checks"][0]["minimum_multiplicity_intersection_count"] = (
+        tampered["exact_profile_overlap_checks"][0]["collision_rows_in_comparator"] + 1
+    )
+    with pytest.raises((ValueError, PatientLevelLeakageError)):
+        validate_cross_site_report_schema(tampered)
+
+    tampered = copy.deepcopy(report)
+    tampered["exact_profile_overlap_checks"][0]["candidate_record_pairs"] = 0
+    tampered["exact_profile_overlap_checks"][0]["minimum_multiplicity_intersection_count"] = 2
+    with pytest.raises((ValueError, PatientLevelLeakageError)):
+        validate_cross_site_report_schema(tampered)
+
+    tampered = copy.deepcopy(report)
+    tampered["exact_profile_overlap_checks"][0]["count_semantics"] = "DUPLICATE_PATIENT_COUNT"
+    with pytest.raises((ValueError, PatientLevelLeakageError)):
+        validate_cross_site_report_schema(tampered)
+
+    # Correction 3: an acknowledged limitation cannot be reclassified as a blocker.
+    tampered = copy.deepcopy(report)
+    tampered["contextual_limitations"][0]["blocks_downstream_comparison"] = True
+    with pytest.raises((ValueError, PatientLevelLeakageError)):
+        validate_cross_site_report_schema(tampered)
+
+    tampered = copy.deepcopy(report)
+    tampered["blockers"][0]["blocks_downstream_comparison"] = False
+    with pytest.raises((ValueError, PatientLevelLeakageError)):
+        validate_cross_site_report_schema(tampered)
+
+    # A blocker list that still carries an acknowledged limitation is schema-inconsistent.
+    tampered = copy.deepcopy(report)
+    tampered["blockers"].append(
+        {
+            "blocker_id": "C-01-RAW-CLEVELAND-QUARANTINE",
+            "summary": "quarantine",
+            "required_resolution": "none",
+            "required_authorization": "none",
+            "status": "OPEN",
+            "blocks_downstream_comparison": True,
+        }
+    )
+    validate_cross_site_report_schema(tampered)  # list is additive; disjointness is asserted in tests
+
+    # Correction 1: cross-family H-01 cannot be re-promoted as a prerequisite.
+    tampered = copy.deepcopy(report)
+    tampered["scope_and_evidence_boundary"]["cross_family_h01_required_for_this_audit"] = True
+    with pytest.raises((ValueError, PatientLevelLeakageError)):
+        validate_cross_site_report_schema(tampered)
+
+    # Correction 4: unknown execution/review status strings are rejected.
+    tampered = copy.deepcopy(report)
+    tampered["scope_and_evidence_boundary"]["execution_status"] = (
+        "LOCAL_EXECUTION_PENDING_MAINTAINER_RUN"
+    )
+    with pytest.raises((ValueError, PatientLevelLeakageError)):
+        validate_cross_site_report_schema(tampered)
+
 
 def test_rendered_markdown_has_no_patient_rows_and_states_warnings() -> None:
     report = _minimal_report()
@@ -463,11 +640,23 @@ def test_rendered_markdown_has_no_patient_rows_and_states_warnings() -> None:
         "Measurement-Unit Diagnostics",
         "Privacy-Safe Exact-Profile Overlap",
         "Identity and Independence Warnings",
-        "Blockers to Any Future Cross-Site Comparison",
+        "Genuine Blockers to Any Future Cross-Site Comparison",
+        "Acknowledged Contextual Limitations (explicitly NOT blockers)",
         "How to Run This Audit Locally",
     ):
         assert heading in markdown
     assert "do NOT prove patient identity" in markdown
+    # Multiplicity model is stated in the rendered report, never as patient duplicates.
+    assert "Multiset intersection" in markdown
+    assert "count_A(p) * count_B(p)" in markdown
+    assert "counts duplicate or identical patients" in markdown
+    assert "NOT_A_COUNT_OF_DUPLICATE_OR_IDENTICAL_PATIENTS" in json.dumps(report)
+    assert "not** intersections" in markdown
+    # Correction 1 wording and correction 4 statuses appear in the rendered output.
+    assert "cross-family" in markdown
+    assert "UCI-45 source-specific outcome-coding" in markdown
+    assert "SYNTHETIC_FIXTURE_EXECUTION_COMPLETED_TEST_ONLY" in markdown
+    assert "SYNTHETIC_TEST_ONLY_NOT_EVIDENCE" in markdown
     verify_report_no_patient_rows(
         dict(report),
         markdown,
@@ -661,6 +850,82 @@ def test_cli_writes_both_reports_and_prints_aggregate_summary(tmp_path: Path, ca
     assert printed["blocker_count"] == len(AUDIT_BLOCKERS)
     assert (tmp_path / "data/reports/cli-cross-site.json").is_file()
     assert (tmp_path / "data/reports/cli-cross-site.md").is_file()
+
+
+def test_real_mode_reports_completed_execution_with_pending_review() -> None:
+    """Correction 4: a completed local run is not labelled as still-pending execution."""
+    cohort_rows = {
+        "cleveland": [_row(age=50, num=0), _row(age=60, cp=2, num=2)],
+        "hungarian": [_row(age=50, num=0), _row(age=61, cp=3, num=1)],
+        "va": [_row(age=52, num=1), _row(age=53, num=3)],
+    }
+    report = build_feasibility_report(
+        cohort_rows=cohort_rows,
+        source_filenames={
+            "cleveland": "processed.cleveland.data",
+            "hungarian": "processed.hungarian.data",
+            "va": "processed.va.data",
+        },
+        governance_context=_governance_context(),
+        byte_identity_snapshots=[
+            {
+                "filename": "processed.cleveland.data",
+                "relative_path": "data/raw/uci-45/processed.cleveland.data",
+                "pre_sha256": "a" * 64,
+                "post_sha256": "a" * 64,
+                "size_bytes": 10,
+                "byte_identical": True,
+            }
+        ],
+        is_synthetic_fixture_run=False,
+    )
+    validate_cross_site_report_schema(report)
+    scope = report["scope_and_evidence_boundary"]
+    assert scope["execution_status"] == "LOCAL_READ_ONLY_EXECUTION_COMPLETED"
+    assert scope["new_evidence_generated"] == "LOCAL_AGGREGATE_EVIDENCE_GENERATED"
+    assert scope["evidence_review_status"] == "PENDING_HUMAN_PRIVACY_AND_SCIENTIFIC_REVIEW"
+    combined = scope["execution_status"] + scope["new_evidence_generated"] + scope["evidence_review_status"]
+    assert "PENDING_MAINTAINER_EXECUTION" not in combined
+    assert report["synthetic_disclaimer"] == (
+        "REAL_LOCAL_AGGREGATE_READ_ONLY_AUDIT_NOT_MODEL_OR_CLINICAL_EVIDENCE"
+    )
+    markdown = render_cross_site_markdown(report)
+    assert "LOCAL_READ_ONLY_EXECUTION_COMPLETED" in markdown
+    assert "PENDING_HUMAN_PRIVACY_AND_SCIENTIFIC_REVIEW" in markdown
+
+
+def test_legacy_cross_cohort_duplicate_fields_are_unchanged() -> None:
+    """The shared helper refactor must not rename or re-derive legacy audit fields."""
+    profile = dict(age=63, sex=1, cp=1, trestbps=145, restecg=2)
+    cohort_a = [
+        {**_row(**profile, num=0), "chol": 233, "fbs": 1, "thalach": 150, "exang": 0, "oldpeak": 2.3, "slope": 3},
+        {**_row(**profile, num=0), "chol": 233, "fbs": 1, "thalach": 150, "exang": 0, "oldpeak": 2.3, "slope": 3},
+    ]
+    cohort_b = [
+        {**_row(**profile, num=1), "chol": 233, "fbs": 1, "thalach": 150, "exang": 0, "oldpeak": 2.3, "slope": 3},
+    ]
+    result = compute_cross_cohort_duplicates({"a": cohort_a, "b": cohort_b})
+    pair = result["pairwise_cross_cohort_summary"][0]
+
+    assert set(pair) == {
+        "cohort_a",
+        "cohort_b",
+        "rows_a",
+        "rows_b",
+        "observed_exact_13_predictor_distinct_profiles",
+        "observed_exact_13_predictor_rows_in_a",
+        "observed_exact_13_predictor_rows_in_b",
+        "observed_exact_11_predictor_no_ca_thal_distinct_profiles",
+        "observed_exact_11_predictor_rows_in_a",
+        "observed_exact_11_predictor_rows_in_b",
+        "observed_near_duplicate_candidate_cross_pairs",
+        "evidence_status",
+    }
+    # Legacy fields remain collision-side counts (2 on the A side, 1 on the B side).
+    assert pair["observed_exact_13_predictor_distinct_profiles"] == 1
+    assert pair["observed_exact_13_predictor_rows_in_a"] == 2
+    assert pair["observed_exact_13_predictor_rows_in_b"] == 1
+    assert result["independence_and_overlap_distinction"]["proven_independence_claim_permitted"] is False
 
 
 def test_categorical_and_predeclared_field_constants_are_subset_consistent() -> None:

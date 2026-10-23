@@ -34,6 +34,7 @@ from research.audit.availability_scenarios import (
 )
 from research.audit.cli import REPO_ROOT
 from research.audit.duplicates import (
+    PROFILE_OVERLAP_RULE_TEXT,
     SHARED_11_PREDICTOR_NO_CA_THAL,
     SHARED_13_PREDICTOR_COLUMNS,
     compute_cross_cohort_duplicates,
@@ -91,9 +92,18 @@ TRESTBPS_BAND_LABELS: tuple[str, ...] = (
 
 UCI_45_TARGET_RULE_TEXT = (
     "Official UCI-45 documentation (heart-disease.names, July 1988): num 0 = <50% diameter "
-    "narrowing; num 1-4 = >50% diameter narrowing in any major vessel. The wording difference "
-    "against other sources and the exact-50% boundary (H-01) remain UNRESOLVED, and no per-file "
-    "patient-level codebook equality is assumed here."
+    "narrowing; num 1-4 = >50% diameter narrowing in any major vessel. Cleveland, Hungary, and VA "
+    "belong to the same UCI-45 source family, so the UCI-45-versus-UCI-412/411 threshold wording "
+    "issue (H-01) is cross-family and is NOT a prerequisite for this sibling-site audit; H-01 "
+    "remains OPEN for cross-family work. Within UCI-45, per-file outcome coding still requires a "
+    "source-specific review (for example Hungary raw 0-4 versus processed 0/1), and no patient-level "
+    "codebook equality is assumed here."
+)
+
+UCI_45_SIBLING_SITE_SCOPE_NOTE = (
+    "Same-family scope: Cleveland, Hungary, and VA are all UCI-45 sibling sites. Cross-family "
+    "harmonization H-01 (>50% versus >=50%, exact-50% boundary) concerns UCI-45 versus UCI-412/411 "
+    "and is neither evaluated nor required by this audit."
 )
 
 UNIT_DOCUMENTED_SOURCE = (
@@ -154,16 +164,23 @@ IDENTITY_AND_INDEPENDENCE_WARNINGS: tuple[dict[str, str], ...] = (
     },
 )
 
-AUDIT_BLOCKERS: tuple[dict[str, str], ...] = (
+AUDIT_BLOCKERS: tuple[dict[str, Any], ...] = (
     {
-        "blocker_id": "B-01-TARGET-BOUNDARY",
+        "blocker_id": "B-01-UCI45-OUTCOME-CODING-REVIEW",
         "summary": (
-            "Target-threshold harmonization H-01 (>50% versus >=50%; exact-50% boundary) remains "
-            "open, so a cross-site outcome definition cannot be frozen."
+            "Within the UCI-45 source family, a source-specific outcome-coding and reference-standard "
+            "review is outstanding: in particular Hungary's raw 0-4 versus processed 0/1 recoding, "
+            "the reference standard and ascertainment for each sibling site, and any other "
+            "source-specific label difference. This is NOT the cross-family H-01 threshold question."
         ),
-        "required_resolution": "Documented source/clinical adjudication of the 50% boundary and a recorded harmonization ruling.",
-        "required_authorization": "Clinical/research-lead review; Gate PT P-1 endpoint decision.",
+        "required_resolution": (
+            "A documented UCI-45 source-specific outcome-coding and reference-standard review "
+            "(raw 0-4 versus processed 0/1 recoding per cohort, label provenance, and per-site "
+            "ascertainment), recorded before any downstream comparison is designed."
+        ),
+        "required_authorization": "Research-lead/source review plus the Gate PT P-1 endpoint decision; no equivalence is pre-approved here.",
         "status": "OPEN",
+        "blocks_downstream_comparison": True,
     },
     {
         "blocker_id": "B-02-GATE-PT-CLOSED",
@@ -174,66 +191,101 @@ AUDIT_BLOCKERS: tuple[dict[str, str], ...] = (
         "required_resolution": "Frozen protocol and supervisor sign-off recorded in the decision register.",
         "required_authorization": "Supervisor Gate PT P-3 sign-off (separate governance process).",
         "status": "OPEN",
+        "blocks_downstream_comparison": True,
     },
     {
-        "blocker_id": "B-03-D047-SCOPE",
+        "blocker_id": "B-03-D047-SCOPE-AUTHORIZATION",
         "summary": (
             "D-047 covers one INTERNAL exploratory Cleveland-only experiment. It does not authorize "
-            "Hungary or VA use, pooling, or any external comparison."
+            "Hungary or VA use, pooling, or any cross-site comparison, so no comparison-specific "
+            "authorization exists."
         ),
         "required_resolution": "A separate, explicitly scoped governance decision naming the cohorts and the permitted comparison.",
         "required_authorization": "New maintainer governance decision/amendment; not implied by this audit.",
         "status": "OPEN",
+        "blocks_downstream_comparison": True,
     },
     {
-        "blocker_id": "B-04-RAW-CLEVELAND-QUARANTINE",
+        "blocker_id": "B-04-SOURCE-PAIR-OVERLAP-INDEPENDENCE",
+        "summary": (
+            "Development-versus-assessment source-pair overlap evidence is incomplete and patient "
+            "independence between sibling sites cannot be established from identifier-free tabular "
+            "data: the positional raw-versus-processed discordance for Hungary is unresolved "
+            "(Issues #20/#21), and zero or non-zero exact-profile matches cannot prove either "
+            "overlap or independence."
+        ),
+        "required_resolution": (
+            "Aggregate-only source-pair overlap/alignment review for the specific development and "
+            "assessment cohorts, recorded with an explicit overlap-resolution rule that is applied "
+            "before any comparison is designed."
+        ),
+        "required_authorization": "Gate PT decision on overlap handling and on any independence assumption; DA-B2 remains audit-only.",
+        "status": "OPEN",
+        "blocks_downstream_comparison": True,
+    },
+)
+
+# Acknowledged limitations that are deliberately NOT counted as unresolved blockers.
+# Each records why it is not a prerequisite for this narrowly scoped descriptive audit.
+CONTEXTUAL_LIMITATIONS: tuple[dict[str, Any], ...] = (
+    {
+        "limitation_id": "C-01-RAW-CLEVELAND-QUARANTINE",
         "summary": (
             "The source-warned raw cleveland.data remains quarantined and unparsed, so reference-site "
             "raw-versus-processed correspondence cannot be re-verified here."
         ),
-        "required_resolution": "Human review of the upstream integrity warning and an approved, documented parse strategy.",
-        "required_authorization": "Separate maintainer review of Issue #18 evidence; no repair or transcoding by an agent.",
-        "status": "OPEN",
-    },
-    {
-        "blocker_id": "B-05-REPRESENTATION-ALIGNMENT",
-        "summary": (
-            "Positional raw-versus-processed discordance for Hungary/Switzerland is unresolved, so the "
-            "relationship between source representations is not established."
+        "blocks_downstream_comparison": False,
+        "why_not_a_prerequisite": (
+            "This audit is deliberately processed-14-column only. Parsing raw Cleveland is neither "
+            "required nor authorized for these descriptive counts, so the quarantine is a scoped "
+            "evidence limit rather than an unresolved blocker for this tool."
         ),
-        "required_resolution": "Aggregate-only alignment/duplication review recorded against Issues #20 and #21.",
-        "required_authorization": "Maintainer scientific review of the carried-forward audit evidence.",
-        "status": "OPEN",
+        "still_required_before": "Any raw-versus-processed correspondence claim or raw-data audit.",
+        "required_authorization": "Separate maintainer review of Issue #18 evidence; no agent repair, transcoding, or substitution.",
     },
     {
-        "blocker_id": "B-06-INDEPENDENCE-NOT-PROVABLE",
+        "limitation_id": "C-02-STATLOG-OVERLAP-CONDITIONAL",
         "summary": (
-            "Patient independence between sites cannot be proven from identifier-free tabular data, "
-            "and Statlog-Cleveland recirculation (L-05) remains an open provenance risk."
+            "Statlog-Cleveland recirculation (L-05) has not been investigated in this report."
         ),
-        "required_resolution": "Source-provenance evidence and an explicit overlap-resolution rule for any downstream comparison.",
-        "required_authorization": "Gate PT decision on overlap handling; DA-B2 remains audit-only.",
-        "status": "OPEN",
+        "blocks_downstream_comparison": False,
+        "why_not_a_prerequisite": (
+            "UCI-145 Statlog (DA-B2) is not part of this Cleveland/Hungary/VA scope. A Statlog-Cleveland "
+            "overlap investigation becomes mandatory only if Statlog is considered as a source, not "
+            "as a universal prerequisite for sibling-site UCI-45 work."
+        ),
+        "still_required_before": "Any use or consideration of UCI-145 Statlog, which remains audit-only.",
+        "required_authorization": "DA-B2 remains audit-only; no training or external-validation role by audit grant.",
     },
     {
-        "blocker_id": "B-07-UNIT-IDENTITY",
+        "limitation_id": "C-03-D046-SCOPE-SUFFICIENCY",
+        "summary": (
+            "D-046 authorizes read-only dataset auditing only; it does not authorize fitting, "
+            "evaluation, comparison, or clinical claims."
+        ),
+        "blocks_downstream_comparison": False,
+        "why_not_a_prerequisite": (
+            "D-046 scope is SUFFICIENT for this descriptive audit and INSUFFICIENT for model fitting "
+            "or evaluation. That boundary is an authorization fact about downstream work, not an "
+            "outstanding defect blocking these diagnostics."
+        ),
+        "still_required_before": "Any model fitting, feature selection, evaluation, calibration, or cross-site comparison.",
+        "required_authorization": "The separate comparison-specific decision and Gate PT P-3 sign-off already recorded in B-02/B-03.",
+    },
+    {
+        "limitation_id": "C-04-UNIT-IDENTITY-HEURISTIC",
         "summary": (
             "Measurement-unit identity across sites is not verifiable from file content; only "
             "heuristic plausibility diagnostics are reported."
         ),
-        "required_resolution": "Primary-source unit documentation review for each retained field and site.",
-        "required_authorization": "Research-lead/source verification record; not inferable from value ranges.",
-        "status": "OPEN",
-    },
-    {
-        "blocker_id": "B-08-D046-READ-ONLY-SCOPE",
-        "summary": (
-            "D-046 authorizes read-only dataset auditing only. This report is descriptive and does not "
-            "authorize any model, metric, comparison, or clinical claim."
+        "blocks_downstream_comparison": False,
+        "why_not_a_prerequisite": (
+            "The unit diagnostics are descriptive and explicitly non-probative; the substantive "
+            "reference-standard and measurement review is required by B-01, so this entry does not "
+            "add a second independent blocker."
         ),
-        "required_resolution": "None for the audit itself; downstream work needs the authorizations listed above.",
-        "required_authorization": "Existing D-046 scope is sufficient for THIS audit and insufficient for any comparison.",
-        "status": "ACKNOWLEDGED",
+        "still_required_before": "Any claim that units, assays, or measurement scales are comparable across sites.",
+        "required_authorization": "Primary-source unit/assay documentation review recorded by a named reviewer.",
     },
 )
 
@@ -484,7 +536,7 @@ def build_target_code_compatibility(
         "target_labels_only_in_comparator": only_in_comparator,
         "target_labels_only_in_reference": only_in_reference,
         "compatibility_status": status,
-        "semantic_equivalence_status": "UNVERIFIED_PENDING_H01_AND_GATE_PT",
+        "semantic_equivalence_status": "UNVERIFIED_PENDING_UCI45_SOURCE_OUTCOME_CODING_REVIEW",
         "patient_level_target_semantics_verified": False,
         "downstream_comparison_authorized": False,
         "evidence_status": EVIDENCE_VERIFIED,
@@ -877,11 +929,12 @@ def build_exact_profile_overlap_checks(
                     "reference_row_count": len(reference_rows),
                     "comparator_row_count": len(comparator_rows),
                     "distinct_matching_profiles": int(overlap["distinct_matching_profiles"]),
-                    "matched_rows_in_reference": int(overlap["matched_rows_in_a"]),
-                    "matched_rows_in_comparator": int(overlap["matched_rows_in_b"]),
-                    "record_pairs_consistent_with_profile_match": int(
-                        overlap["record_pairs_consistent_with_profile_match"]
+                    "minimum_multiplicity_intersection_count": int(
+                        overlap["minimum_multiplicity_intersection_count"]
                     ),
+                    "collision_rows_in_reference": int(overlap["collision_rows_in_a"]),
+                    "collision_rows_in_comparator": int(overlap["collision_rows_in_b"]),
+                    "candidate_record_pairs": int(overlap["candidate_record_pairs"]),
                     "max_profile_multiplicity_in_reference": int(
                         overlap["max_profile_multiplicity_in_a"]
                     ),
@@ -889,6 +942,12 @@ def build_exact_profile_overlap_checks(
                         overlap["max_profile_multiplicity_in_b"]
                     ),
                     "multiplicity_rule": str(overlap["multiplicity_rule"]),
+                    "multiplicity_rule_documentation": str(
+                        overlap["multiplicity_rule_documentation"]
+                    ),
+                    "count_semantics": (
+                        "COLLISION_AND_PAIR_COUNTS_NOT_A_COUNT_OF_DUPLICATE_OR_IDENTICAL_PATIENTS"
+                    ),
                     "profile_values_emitted": False,
                     "identity_inference_permitted": False,
                     "evidence_status": EVIDENCE_VERIFIED,
@@ -1047,6 +1106,8 @@ def build_feasibility_report(
             "audited_cohorts": list(AUDITED_COHORTS),
             "cohorts_not_assessed": dict(COHORTS_NOT_ASSESSED),
             "predeclared_fields": list(PREDECLARED_FIVE_FIELDS),
+            "same_family_scope_note": UCI_45_SIBLING_SITE_SCOPE_NOTE,
+            "cross_family_h01_required_for_this_audit": False,
             "categorical_fields_assessed": list(CATEGORICAL_FIVE_SUBSET),
             "numeric_fields_assessed": list(NUMERIC_FIVE_SUBSET),
             "overlap_field_sets": [label for label, _ in OVERLAP_FIELD_SETS],
@@ -1056,10 +1117,20 @@ def build_feasibility_report(
                 "The source-warned raw cleveland.data is never opened by this audit; only its "
                 "provenance hash and byte size are verified."
             ),
+            "execution_status": (
+                "SYNTHETIC_FIXTURE_EXECUTION_COMPLETED_TEST_ONLY"
+                if is_synthetic_fixture_run
+                else "LOCAL_READ_ONLY_EXECUTION_COMPLETED"
+            ),
             "new_evidence_generated": (
                 "SYNTHETIC_TEST_FIXTURES_ONLY"
                 if is_synthetic_fixture_run
-                else "LOCAL_AGGREGATE_ONLY_PENDING_MAINTAINER_EXECUTION_AND_PRIVACY_REVIEW"
+                else "LOCAL_AGGREGATE_EVIDENCE_GENERATED"
+            ),
+            "evidence_review_status": (
+                "SYNTHETIC_TEST_ONLY_NOT_EVIDENCE"
+                if is_synthetic_fixture_run
+                else "PENDING_HUMAN_PRIVACY_AND_SCIENTIFIC_REVIEW"
             ),
             "scientific_claim_made": False,
             "evidence_status": EVIDENCE_VERIFIED,
@@ -1069,6 +1140,7 @@ def build_feasibility_report(
         "exact_profile_overlap_checks": overlap_checks,
         "identity_and_independence_warnings": [dict(item) for item in IDENTITY_AND_INDEPENDENCE_WARNINGS],
         "blockers": [dict(item) for item in AUDIT_BLOCKERS],
+        "contextual_limitations": [dict(item) for item in CONTEXTUAL_LIMITATIONS],
         "evidence_limitations": [dict(item) for item in EVIDENCE_LIMITATIONS],
         "input_integrity_and_privacy": {
             "git_ignore_verified": True,
@@ -1097,6 +1169,8 @@ def build_feasibility_report(
                 "NOT_AUTHORIZED_GATE_PT_CLOSED_D047_SCOPE_CLEVELAND_ONLY"
             ),
             "blocker_count": len(AUDIT_BLOCKERS),
+            "blockers_are_downstream_comparison_gates": True,
+            "contextual_limitation_count": len(CONTEXTUAL_LIMITATIONS),
             "evidence_limitation_count": len(EVIDENCE_LIMITATIONS),
             "human_scientific_review_required_before_any_downstream_comparison": True,
             "evidence_status": EVIDENCE_VERIFIED,
@@ -1350,6 +1424,7 @@ def validate_cross_site_report_schema(report: Mapping[str, Any]) -> None:
             "exact_profile_overlap_checks",
             "identity_and_independence_warnings",
             "blockers",
+            "contextual_limitations",
             "evidence_limitations",
             "input_integrity_and_privacy",
             "feasibility_summary",
@@ -1437,13 +1512,17 @@ def validate_cross_site_report_schema(report: Mapping[str, Any]) -> None:
             "audited_cohorts",
             "cohorts_not_assessed",
             "predeclared_fields",
+            "same_family_scope_note",
+            "cross_family_h01_required_for_this_audit",
             "categorical_fields_assessed",
             "numeric_fields_assessed",
             "overlap_field_sets",
             "parsed_source_files",
             "proven_independence_claim_permitted",
             "raw_cleveland_quarantine",
+            "execution_status",
             "new_evidence_generated",
+            "evidence_review_status",
             "scientific_claim_made",
             "evidence_status",
         },
@@ -1457,6 +1536,21 @@ def validate_cross_site_report_schema(report: Mapping[str, Any]) -> None:
         raise ValueError("Strict cross-site report schema violation: scientific claims are not permitted.")
     if scope["proven_independence_claim_permitted"] is not False:
         raise ValueError("Strict cross-site report schema violation: independence cannot be claimed.")
+    if scope["cross_family_h01_required_for_this_audit"] is not False:
+        raise ValueError(
+            "Strict cross-site report schema violation: cross-family H-01 cannot be required "
+            "for this UCI-45 sibling-site audit."
+        )
+    if scope["execution_status"] not in (
+        "SYNTHETIC_FIXTURE_EXECUTION_COMPLETED_TEST_ONLY",
+        "LOCAL_READ_ONLY_EXECUTION_COMPLETED",
+    ):
+        raise ValueError("Strict cross-site report schema violation: unexpected execution status.")
+    if scope["evidence_review_status"] not in (
+        "SYNTHETIC_TEST_ONLY_NOT_EVIDENCE",
+        "PENDING_HUMAN_PRIVACY_AND_SCIENTIFIC_REVIEW",
+    ):
+        raise ValueError("Strict cross-site report schema violation: unexpected review status.")
 
     cohorts = report["cohorts"]
     assert_exact_keys(cohorts, set(AUDITED_COHORTS), context="cohorts")
@@ -1614,12 +1708,15 @@ def validate_cross_site_report_schema(report: Mapping[str, Any]) -> None:
                 "reference_row_count",
                 "comparator_row_count",
                 "distinct_matching_profiles",
-                "matched_rows_in_reference",
-                "matched_rows_in_comparator",
-                "record_pairs_consistent_with_profile_match",
+                "minimum_multiplicity_intersection_count",
+                "collision_rows_in_reference",
+                "collision_rows_in_comparator",
+                "candidate_record_pairs",
                 "max_profile_multiplicity_in_reference",
                 "max_profile_multiplicity_in_comparator",
                 "multiplicity_rule",
+                "multiplicity_rule_documentation",
+                "count_semantics",
                 "profile_values_emitted",
                 "identity_inference_permitted",
                 "evidence_status",
@@ -1636,13 +1733,39 @@ def validate_cross_site_report_schema(report: Mapping[str, Any]) -> None:
             "reference_row_count",
             "comparator_row_count",
             "distinct_matching_profiles",
-            "matched_rows_in_reference",
-            "matched_rows_in_comparator",
-            "record_pairs_consistent_with_profile_match",
+            "minimum_multiplicity_intersection_count",
+            "collision_rows_in_reference",
+            "collision_rows_in_comparator",
+            "candidate_record_pairs",
             "max_profile_multiplicity_in_reference",
             "max_profile_multiplicity_in_comparator",
         ):
             assert_int_not_bool(entry[key], context=f"{entry_ctx}.{key}")
+        if entry["count_semantics"] != (
+            "COLLISION_AND_PAIR_COUNTS_NOT_A_COUNT_OF_DUPLICATE_OR_IDENTICAL_PATIENTS"
+        ):
+            raise ValueError(
+                f"Strict cross-site report schema violation at '{entry_ctx}': count semantics label changed."
+            )
+        intersection = entry["minimum_multiplicity_intersection_count"]
+        collision_ref = entry["collision_rows_in_reference"]
+        collision_cmp = entry["collision_rows_in_comparator"]
+        pairs = entry["candidate_record_pairs"]
+        if not 0 <= intersection <= min(collision_ref, collision_cmp):
+            raise ValueError(
+                f"Strict cross-site report schema violation at '{entry_ctx}': "
+                "multiset intersection must not exceed either collision-side count."
+            )
+        if pairs < intersection:
+            raise ValueError(
+                f"Strict cross-site report schema violation at '{entry_ctx}': "
+                "candidate record pairs cannot be fewer than the multiset intersection."
+            )
+        if pairs > collision_ref * collision_cmp:
+            raise ValueError(
+                f"Strict cross-site report schema violation at '{entry_ctx}': "
+                "candidate record pairs exceed the collision-side product bound."
+            )
         if entry["profile_values_emitted"] is not False:
             raise ValueError(f"Strict cross-site report schema violation at '{entry_ctx}': profile values emitted.")
         if entry["identity_inference_permitted"] is not False:
@@ -1663,13 +1786,58 @@ def validate_cross_site_report_schema(report: Mapping[str, Any]) -> None:
             elif list_key == "blockers":
                 assert_exact_keys(
                     item,
-                    {id_key, "summary", "required_resolution", "required_authorization", "status"},
+                    {
+                        id_key,
+                        "summary",
+                        "required_resolution",
+                        "required_authorization",
+                        "status",
+                        "blocks_downstream_comparison",
+                    },
                     context=item_ctx,
                 )
+                if item["blocks_downstream_comparison"] is not True:
+                    raise ValueError(
+                        f"Strict cross-site report schema violation at '{item_ctx}': "
+                        "every listed blocker must block the downstream comparison."
+                    )
             else:
                 assert_exact_keys(item, {id_key, "statement"}, context=item_ctx)
             if not isinstance(item[id_key], str) or not item[id_key].strip():
                 raise ValueError(f"Strict cross-site report schema violation at '{item_ctx}': missing identifier.")
+
+    contextual = report["contextual_limitations"]
+    if not isinstance(contextual, list) or not contextual:
+        raise ValueError("Strict cross-site report schema violation: 'contextual_limitations' must be a non-empty list.")
+    for idx, item in enumerate(contextual):
+        item_ctx = f"contextual_limitations[{idx}]"
+        assert_exact_keys(
+            item,
+            {
+                "limitation_id",
+                "summary",
+                "blocks_downstream_comparison",
+                "why_not_a_prerequisite",
+                "still_required_before",
+                "required_authorization",
+            },
+            context=item_ctx,
+        )
+        if item["blocks_downstream_comparison"] is not False:
+            raise ValueError(
+                f"Strict cross-site report schema violation at '{item_ctx}': "
+                "acknowledged limitations must not be counted as unresolved blockers."
+            )
+        for text_key in (
+            "summary",
+            "why_not_a_prerequisite",
+            "still_required_before",
+            "required_authorization",
+        ):
+            if not isinstance(item[text_key], str) or not item[text_key].strip():
+                raise ValueError(
+                    f"Strict cross-site report schema violation at '{item_ctx}': missing '{text_key}'."
+                )
 
     integrity = report["input_integrity_and_privacy"]
     assert_exact_keys(
@@ -1714,6 +1882,8 @@ def validate_cross_site_report_schema(report: Mapping[str, Any]) -> None:
             "overall_status",
             "downstream_comparison_authorization_status",
             "blocker_count",
+            "blockers_are_downstream_comparison_gates",
+            "contextual_limitation_count",
             "evidence_limitation_count",
             "human_scientific_review_required_before_any_downstream_comparison",
             "evidence_status",
@@ -1727,6 +1897,14 @@ def validate_cross_site_report_schema(report: Mapping[str, Any]) -> None:
         context="feasibility_summary.target_code_compatibility_status_by_comparator",
     )
     assert_int_not_bool(summary_block["blocker_count"], context="feasibility_summary.blocker_count")
+    assert_int_not_bool(
+        summary_block["contextual_limitation_count"],
+        context="feasibility_summary.contextual_limitation_count",
+    )
+    if summary_block["blockers_are_downstream_comparison_gates"] is not True:
+        raise ValueError(
+            "Strict cross-site report schema violation: blockers must denote downstream comparison gates."
+        )
     assert_int_not_bool(
         summary_block["evidence_limitation_count"], context="feasibility_summary.evidence_limitation_count"
     )
@@ -1762,6 +1940,8 @@ def render_cross_site_markdown(report: Mapping[str, Any]) -> str:
         f"| Report Type | `{report['report_type']}` |",
         f"| Status Label | `{report['status_label']}` |",
         f"| Execution Mode | `{report['execution_mode']}` |",
+        f"| Execution Status | `{scope['execution_status']}` |",
+        f"| Evidence Review Status | `{scope['evidence_review_status']}` |",
         f"| Evidence Scope | `{report['synthetic_disclaimer']}` |",
         f"| Governance Decision | `{gov['governance_decision_id']}` (`{gov['workflow_status']}`) |",
         f"| Gate PT Status | `{gov['gate_pt_status']}` |",
@@ -1785,6 +1965,8 @@ def render_cross_site_markdown(report: Mapping[str, Any]) -> str:
         f"- **Comparator cohorts**: {_md_codes(scope['comparator_cohorts'])}",
         f"- **Predeclared fields** (fixed before execution): {_md_codes(scope['predeclared_fields'])}",
         f"- **Cohorts not assessed**: {_md_codes(list(scope['cohorts_not_assessed'].keys()))}",
+        f"- **Same-family scope note**: {scope['same_family_scope_note']}",
+        f"- **Cross-family H-01 required for this audit**: `{scope['cross_family_h01_required_for_this_audit']}`",
         f"- **Overlap field sets**: {_md_codes(scope['overlap_field_sets'])}",
         f"- **Parsed source files**: {_md_codes(scope['parsed_source_files'])}",
         f"- **Proven independence claim permitted**: `{scope['proven_independence_claim_permitted']}`",
@@ -1811,6 +1993,17 @@ def render_cross_site_markdown(report: Mapping[str, Any]) -> str:
             "",
             "The documented rule is reported, not applied to source files: "
             f"{UCI_45_TARGET_RULE_TEXT}",
+            "",
+            "Semantic-equivalence status per cohort: "
+            + "; ".join(
+                f"`{cohort}`=`{report['cohorts'][cohort]['target_code_compatibility']['semantic_equivalence_status']}`"
+                for cohort in AUDITED_COHORTS
+            ),
+            "",
+            "The outstanding requirement is a **UCI-45 source-specific outcome-coding and "
+            "reference-standard review** (including Hungary's raw 0-4 versus processed 0/1 "
+            "recoding). The cross-family H-01 threshold question is out of scope here and remains "
+            "OPEN for cross-family work.",
             "",
             "## 4. Class-Conditional Availability of the Five Predeclared Fields",
             "",
@@ -1931,17 +2124,23 @@ def render_cross_site_markdown(report: Mapping[str, Any]) -> str:
 
     lines.extend(
         [
-            "## 8. Privacy-Safe Exact-Profile Overlap (duplicate multiplicity preserved)",
+            "## 8. Privacy-Safe Exact-Profile Overlap (multiplicity explicit, no patient inference)",
             "",
-            "| Comparison | Field set | Fields | Matching profiles | Rows (ref) | Rows (cmp) | Record pairs | Max multiplicity (ref/cmp) |",
-            "|---|---|---:|---:|---:|---:|---:|---|",
+            "For each common canonical profile `p`: intersection = `min(count_A(p), count_B(p))`; "
+            "side collision rows = `sum(count_A(p))` and `sum(count_B(p))`; candidate record pairs = "
+            "`sum(count_A(p) * count_B(p))`. Side counts are collision counts, **not** intersections, "
+            "and none of these numbers counts duplicate or identical patients.",
+            "",
+            "| Comparison | Field set | Fields | Matching profiles | Multiset intersection | Collision rows (ref) | Collision rows (cmp) | Candidate pairs | Max multiplicity (ref/cmp) |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---|",
         ]
     )
     for entry in report["exact_profile_overlap_checks"]:
         lines.append(
             f"| `{entry['comparison_id']}` | `{entry['field_set_label']}` | {entry['fields_compared_count']} | "
-            f"{entry['distinct_matching_profiles']} | {entry['matched_rows_in_reference']} | "
-            f"{entry['matched_rows_in_comparator']} | {entry['record_pairs_consistent_with_profile_match']} | "
+            f"{entry['distinct_matching_profiles']} | {entry['minimum_multiplicity_intersection_count']} | "
+            f"{entry['collision_rows_in_reference']} | {entry['collision_rows_in_comparator']} | "
+            f"{entry['candidate_record_pairs']} | "
             f"{entry['max_profile_multiplicity_in_reference']} / {entry['max_profile_multiplicity_in_comparator']} |"
         )
 
@@ -1949,17 +2148,74 @@ def render_cross_site_markdown(report: Mapping[str, Any]) -> str:
     for warning in report["identity_and_independence_warnings"]:
         lines.append(f"- **`{warning['warning_id']}`** — {warning['statement']}")
 
-    lines.extend(["", "## 10. Blockers to Any Future Cross-Site Comparison", ""])
+    lines.extend(
+        [
+            "",
+            "## 10. Genuine Blockers to Any Future Cross-Site Comparison",
+            "",
+            "Only items that actually gate a downstream comparison are listed here.",
+            "",
+        ]
+    )
     for blocker in report["blockers"]:
         lines.append(
-            f"- **`{blocker['blocker_id']}`** (`{blocker['status']}`) — {blocker['summary']} "
+            f"- **`{blocker['blocker_id']}`** (`{blocker['status']}`, blocks downstream comparison: "
+            f"`{blocker['blocks_downstream_comparison']}`) — {blocker['summary']} "
             f"*Required resolution:* {blocker['required_resolution']} "
             f"*Required authorization:* {blocker['required_authorization']}"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## 10.1 Acknowledged Contextual Limitations (explicitly NOT blockers)",
+            "",
+            "| ID | Limitation | Why it is not a prerequisite for this audit | Required before |",
+            "|---|---|---|---|",
+        ]
+    )
+    for item in report["contextual_limitations"]:
+        lines.append(
+            f"| `{item['limitation_id']}` | {item['summary']} | {item['why_not_a_prerequisite']} | "
+            f"{item['still_required_before']} |"
         )
 
     lines.extend(["", "## 11. Evidence Limitations", ""])
     for limitation in report["evidence_limitations"]:
         lines.append(f"- **`{limitation['limitation_id']}`** — {limitation['statement']}")
+
+    contextual = report["contextual_limitations"]
+    if not isinstance(contextual, list) or not contextual:
+        raise ValueError("Strict cross-site report schema violation: 'contextual_limitations' must be a non-empty list.")
+    for idx, item in enumerate(contextual):
+        item_ctx = f"contextual_limitations[{idx}]"
+        assert_exact_keys(
+            item,
+            {
+                "limitation_id",
+                "summary",
+                "blocks_downstream_comparison",
+                "why_not_a_prerequisite",
+                "still_required_before",
+                "required_authorization",
+            },
+            context=item_ctx,
+        )
+        if item["blocks_downstream_comparison"] is not False:
+            raise ValueError(
+                f"Strict cross-site report schema violation at '{item_ctx}': "
+                "acknowledged limitations must not be counted as unresolved blockers."
+            )
+        for text_key in (
+            "summary",
+            "why_not_a_prerequisite",
+            "still_required_before",
+            "required_authorization",
+        ):
+            if not isinstance(item[text_key], str) or not item[text_key].strip():
+                raise ValueError(
+                    f"Strict cross-site report schema violation at '{item_ctx}': missing '{text_key}'."
+                )
 
     integrity = report["input_integrity_and_privacy"]
     lines.extend(
