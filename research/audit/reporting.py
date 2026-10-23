@@ -127,6 +127,13 @@ def _assert_num_not_bool(val: Any, *, context: str) -> None:
         )
 
 
+# Public aliases so focused, separate report families (for example
+# research/audit/cross_site_feasibility.py) enforce the same strict-key and
+# integer-aggregate rules instead of duplicating divergent validators.
+assert_exact_keys = _assert_exact_keys
+assert_int_not_bool = _assert_int_not_bool
+
+
 def _validate_within_duplicates_schema(dup_obj: Any, *, context: str) -> None:
     _assert_exact_keys(
         dup_obj,

@@ -193,3 +193,95 @@ python -m research.audit record-provenance --datasets DA-A1 DA-A2 DA-B1 DA-B2 --
 # 8. Execute the read-only local dataset audit after human authorization
 python -m research.audit run-audit --json-out data/reports/m2_audit_report.json --markdown-out data/reports/m2_audit_report.md
 ```
+
+---
+
+## 4. Focused Read-Only Cross-Site Feasibility Audit (`cross_site_feasibility.py`)
+
+**Status:** IMPLEMENTED + SYNTHETIC-TESTED. No real-source result exists in Git,
+and this tool does not produce a model, metric, comparison result, or clinical claim.
+
+This is the *smallest missing capability* beyond the existing audit modules: the
+existing functions already compute per-file validation, class distributions,
+missingness, stage availability, and 11/13-predictor duplicate screening. None of
+them answered the specific pre-comparison question "could a future
+Cleveland-to-Hungary or Cleveland-to-VA comparison be methodologically
+feasible?" without reusing the same parsed cohorts. The new module adds only that
+focused diagnostic layer and **reuses** the existing provenance/authorization,
+byte-identity guard, parsers, availability panel counts, canonicalization,
+multiset overlap helper, report-path protection, and privacy scanners.
+
+### 4.1 What it reports (aggregate counts and fixed labels only)
+
+| # | Diagnostic | Notes |
+|---|---|---|
+| 1 | Source-specific target-code compatibility | Original `num` label counts per cohort, pre-binarized 0/1 detection, undocumented codes, code-set relation to the Cleveland reference. Source labels are never translated or rewritten. |
+| 2 | Class-conditional availability for `age, sex, cp, trestbps, restecg` | Stratified by the ORIGINAL target label (`0`-`4`, plus an unclassified stratum and an all-records stratum). Literal and zero-BP-unavailable joint counts; legitimate zeros stay data. |
+| 3 | Categorical code and measurement-unit compatibility | Observed code sets vs documented domains and vs the reference cohort; fixed value bands for `age`/`trestbps` with heuristic unit verdicts. Unit identity is explicitly **NOT** provable from file content. |
+| 4 | Privacy-safe exact-profile overlap with explicit multiplicity | For each common profile `p`: multiset intersection `min(count_A, count_B)`, collision-side rows `sum(count_A)` / `sum(count_B)`, and candidate record pairs `sum(count_A * count_B)`. Reported for the five predeclared fields, the 11-predictor set, and the 13-predictor set. Side counts are **not** intersections and no quantity is a duplicate-patient count. No profile values, hashes, or row reconstructions are emitted. |
+| 5 | Identity/independence warnings | Fixed warnings `W-01`-`W-06`: matches do not prove identity; absent matches do not prove independence; coarse profiles; multiplicity semantics; availability is not model eligibility; no label translation. |
+| 6 | Structured aggregate-only report + blockers/limitations | JSON and Markdown under `data/reports/` only, validated by a strict allowlisted schema plus the existing pattern/fingerprint scanner. Four genuine downstream-comparison blockers (`B-01`-`B-04`), four acknowledged contextual limitations explicitly marked `blocks_downstream_comparison: false` (`C-01`-`C-04`), and eight evidence limitations (`L-01`-`L-08`). |
+
+**Same-family scope.** Cleveland, Hungary, and VA are all UCI-45 sibling sites.
+The cross-family harmonization question **H-01** (`>50%` UCI-45 versus `>=50%`
+UCI-412/411) is reported as *out of scope and not required* here, and remains
+OPEN for cross-family work. Within UCI-45 the outstanding requirement is a
+**source-specific outcome-coding and reference-standard review** (notably
+Hungary's raw `0-4` versus processed `0/1` recoding), which is blocker `B-01`.
+
+**Fixed comparison scope (not a CLI option):** reference `cleveland`,
+comparators `hungarian` and `va`, five predeclared fields, three overlap field
+sets. `switzerland` is recorded as `OUT_OF_SCOPE_FOCUSED_CLEVELAND_VS_HUNGARY_AND_VA`.
+Changing that scope requires a reviewed code change, so predeclaration cannot be
+tuned after seeing results.
+
+### 4.2 Authorization scope determination (D-046)
+
+- This audit stays **inside** D-046's read-only DA-A2 scope: it parses the
+  authorized processed 14-column cohorts, keeps every artifact under Git-ignored
+  `data/`, byte-guards all nine DA-A2 files, and performs no fitting, feature
+  selection, tuning, performance evaluation, calibration, explanation, pooling,
+  or statistical testing.
+- Raw Cleveland remains **quarantined**: it is never opened, only SHA/byte
+  verified.
+- A Cleveland-vs-Hungary/VA **model or outcome comparison is NOT authorized**
+  by D-046 or D-047. The report states this (`additional_authorization_required`,
+  blockers `B-02`, `B-03`) instead of implying feasibility equals approval.
+- Genuine blockers are only those that actually gate a downstream comparison:
+  outcome-coding/reference-standard review (`B-01`), Gate PT P-3 (`B-02`),
+  comparison-specific authorization (`B-03`), and source-pair
+  overlap/independence evidence (`B-04`). Raw-Cleveland quarantine, the
+  conditional Statlog check, D-046 scope sufficiency, and heuristic unit
+  evidence are recorded as **contextual limitations, not blockers**.
+
+### 4.3 Execution (maintainer Windows machine, after D-046 local setup)
+
+```powershell
+python -m research.audit.cross_site_feasibility `
+  --auth-manifest data/manifests/gate_da_authorization.local.json `
+  --provenance-manifest data/manifests/provenance_manifest.json `
+  --json-out data/reports/uci-45-cross-site-feasibility.json `
+  --markdown-out data/reports/uci-45-cross-site-feasibility.md
+```
+
+Both output paths must resolve to `data/reports/<filename>`; anything else is
+rejected before a dataset file is opened. On success the report records
+`execution_status = LOCAL_READ_ONLY_EXECUTION_COMPLETED` with
+`evidence_review_status = PENDING_HUMAN_PRIVACY_AND_SCIENTIFIC_REVIEW`: the local
+execution is complete, while the aggregate evidence awaits human review.
+Synthetic-fixture runs instead record
+`SYNTHETIC_FIXTURE_EXECUTION_COMPLETED_TEST_ONLY` / `SYNTHETIC_TEST_ONLY_NOT_EVIDENCE`. The command fails closed on
+authorization, provenance hash, byte size, parsing, schema, or privacy-scanner
+failure. See [the Windows handoff](../../docs/research/gate-da/17_cross_site_feasibility_audit_handoff.md).
+
+### 4.4 What must NOT be inferred
+
+- A high or low overlap count is not a duplication rate and never proves patient
+  identity or independence. The multiset intersection, side collision counts, and
+  candidate record pairs are three different quantities and none of them counts
+  duplicate or identical patients.
+- Availability/compatibility counts are not effective sample size, model
+  eligibility, transportability, calibration, performance, or clinical utility.
+- Real aggregate output is a local, human-reviewed research record. It must not
+  be committed, pasted, or uploaded until the maintainer has privacy-reviewed it,
+  and no report may be presented as an external-validation result.
