@@ -16,16 +16,20 @@
     "score_type": "uncalibrated_margin",
     "calibration": {
       "status": "not_assessed",
-      "calibration_sha256": null
+      "representation": "none",
+      "calibration_ref": null,
+      "calibration_sha256": null,
+      "calibration_size_bytes": null
     },
     "explainability": {
       "method": "tree_shap",
-      "capability": "available_in_research_harness"
+      "capability": "mock_shap_shaped_fixture_only"
     }
   },
   "feature_contract": {
     "feature_schema_id": "mock_clinical_v1",
     "feature_schema_sha256": "REPLACE_WITH_64_HEX_SHA256_OF_THE_SHARED_SCHEMA_FILE",
+    "order_policy_id": "synthetic_fixture_input_order/v1",
     "features": [
       {
         "name": "REPLACE_WITH_FEATURE_NAME_FROM_THE_SHARED_SCHEMA",

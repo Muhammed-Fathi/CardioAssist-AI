@@ -26,11 +26,20 @@ provider.
 
 `backend/app/artifact_admission/` is an **offline** descriptor validator for
 future research model packages. It hashes artifact bytes (never deserializing
-them), cross-checks the declared feature names/order/types/units against the
-pinned `shared/contracts/schemas` files, pins the target definition, model
-family, calibration and explainability semantics, and always returns
+them), cross-checks the declared feature names/types/units against the pinned
+`shared/contracts/schemas` files, enforces an explicit ordered feature binding
+(`feature_order.py`, `synthetic_fixture_input_order/v1`) by position, verifies
+calibration bytes and SHA-256 whenever a separate calibration artifact is
+declared (an embedded calibration is recorded only as *not independently
+verified*), pins the target definition and model family, refuses any claim of
+verified TreeSHAP/LIME (none exists in this repository), and always returns
 `RESEARCH_ONLY` with `approved_for_serving is False`. It is not imported by the
 running application, exposes no route and cannot activate a model.
+
+The admission order policy is **synthetic mock-fixture scope only**. It is not a
+clinical feature dictionary and not the five-feature D-047 Cleveland predictor
+order; a research pipeline requires its own reviewed feature-binding and
+artifact packaging protocol.
 
 See [../docs/MODEL_PROVIDER_AND_ARTIFACT_ADMISSION.md](../docs/MODEL_PROVIDER_AND_ARTIFACT_ADMISSION.md)
 and the blank template

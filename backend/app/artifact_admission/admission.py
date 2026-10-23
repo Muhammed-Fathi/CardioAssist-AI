@@ -5,9 +5,11 @@ Scope of this module:
 * structural validation of a versioned descriptor against
   ``artifact_descriptor.v1.schema.json``;
 * semantic cross-checks against the approved shared feature schemas, the
-  registered research model families, an externally supplied target registry
-  and the declared calibration/explainability semantics;
-* byte-level SHA-256 and size verification through a byte-only
+  registered research model families, an externally supplied target registry,
+  a reviewed **ordered feature binding** (:mod:`feature_order`), calibration
+  integrity and the declared explainability capability;
+* byte-level SHA-256 and size verification -- artifact, preprocessing,
+  calibration (when separate) and protocol -- through a byte-only
   :class:`~backend.app.artifact_admission.sources.ArtifactSource`.
 
 Hard limits:
@@ -15,10 +17,15 @@ Hard limits:
 * nothing is deserialized, executed or imported from an artifact;
 * a passing checksum is treated as *integrity only* and never as scientific,
   clinical or serving approval;
+* a declared calibration hash is only accepted when the corresponding bytes
+  were actually read and hashed; an embedded calibration may not claim an
+  independently verified artifact;
 * the returned :class:`AdmissionDecision` can only express
   ``serving_eligibility == "RESEARCH_ONLY"`` and ``approved_for_serving is
   False`` (both are properties, not caller-settable fields);
-* the D-047 internal exploratory run is never treated as a deployable model.
+* the D-047 internal exploratory run is never treated as a deployable model;
+* genuine TreeSHAP/LIME is not implemented in this repository, so no
+  descriptor may claim verified research explainability.
 
 This module is not imported by the FastAPI application, exposes no endpoint and
 reads no request, database row or dataset.
@@ -38,6 +45,11 @@ from ..canonical import canonical_json
 from ..validation import feature_rules
 from .catalog import FeatureSchemaCatalog
 from .errors import ArtifactAdmissionError
+from .feature_order import (
+    CLINICAL_APPROVED_ORDER_STATUS,
+    FeatureOrderPolicy,
+    registered_feature_order_policy,
+)
 from .sources import ArtifactReferenceError, ArtifactSource
 
 DESCRIPTOR_SCHEMA_PATH = Path(__file__).with_name("artifact_descriptor.v1.schema.json")
@@ -73,10 +85,35 @@ SCORE_TYPE_BY_CALIBRATION: Mapping[str, str] = {
     "not_assessed": "non_interpretable",
 }
 
-#: Explanation capability mirrors the merged runtime behaviour: TreeSHAP-shaped
-#: synthetic output exists; LIME remains a future capability.
+#: How calibration evidence is represented. ``separate_artifact`` bytes are
+#: read and hashed here. ``embedded_in_verified_artifact`` is admitted only as
+#: a non-independent claim: nothing inside the model container is opened.
+CALIBRATION_REPRESENTATIONS: tuple[str, ...] = (
+    "none",
+    "separate_artifact",
+    "embedded_in_verified_artifact",
+)
+CALIBRATION_INTEGRITY_VERIFIED = "VERIFIED_SEPARATE_ARTIFACT"
+CALIBRATION_INTEGRITY_EMBEDDED = "EMBEDDED_NOT_INDEPENDENTLY_VERIFIED"
+CALIBRATION_INTEGRITY_NONE = "NOT_APPLICABLE"
+
+#: Truthful explanation capability per method.
+#:
+#: Genuine TreeSHAP/LIME is **not** implemented or verified anywhere in this
+#: repository: the API returns deterministic, SHAP-*shaped* synthetic offsets
+#: from ``backend/app/mock_prediction.py`` (a hash of the feature value), and
+#: ``research/`` contains no ``shap``/``lime`` dependency or computation. The
+#: capability vocabulary therefore distinguishes "mock fixture shape only"
+#: from a future "implemented and verified" claim -- and that future claim is
+#: rejected today because it would be untrue.
+EXPLAINABILITY_CAPABILITIES: tuple[str, ...] = (
+    "not_implemented",
+    "mock_shap_shaped_fixture_only",
+    "implemented_and_verified_in_research_harness",
+)
+EXPLAINABILITY_VERIFIED_CLAIM = "implemented_and_verified_in_research_harness"
 EXPLAINABILITY_CAPABILITY: Mapping[str, str] = {
-    "tree_shap": "available_in_research_harness",
+    "tree_shap": "mock_shap_shaped_fixture_only",
     "lime": "not_implemented",
     "none": "not_implemented",
 }
@@ -95,6 +132,11 @@ NON_APPROVAL_REASONS: tuple[str, ...] = (
 )
 
 D047_NON_APPROVAL_REASON = "d047_internal_exploratory_run_is_not_a_deployable_model"
+EMBEDDED_CALIBRATION_REASON = "calibration_embedded_in_model_not_independently_verified"
+UNVERIFIED_EXPLAINABILITY_REASON = "genuine_treeshap_or_lime_not_implemented_in_repository"
+SYNTHETIC_ONLY_ORDER_REASON = (
+    "feature_order_policy_is_synthetic_mock_fixture_scope_only"
+)
 
 
 def _fail(code: str, field: str) -> NoReturn:
@@ -114,12 +156,16 @@ class AdmissionPolicy:
     """Human-supplied admission inputs.
 
     ``registered_targets`` maps a target id to the exact registered definition
-    text. Changing target semantics without registering a new id therefore
-    fails closed. The catalog pins the approved shared feature schemas.
+    text, so changing target semantics without registering a new id fails
+    closed. ``catalog`` pins the approved shared feature schemas.
+    ``input_order_policy`` supplies the reviewed ordered feature binding; when
+    it is ``None`` (the default) admission fails closed rather than inferring
+    an order from schema serialization.
     """
 
     registered_targets: Mapping[str, str]
     catalog: FeatureSchemaCatalog
+    input_order_policy: FeatureOrderPolicy | None = None
 
     def __post_init__(self) -> None:
         if not self.registered_targets:
@@ -132,11 +178,15 @@ class AdmissionPolicy:
 
     @classmethod
     def from_shared_contracts(
-        cls, *, registered_targets: Mapping[str, str]
+        cls,
+        *,
+        registered_targets: Mapping[str, str],
+        input_order_policy: FeatureOrderPolicy | None = None,
     ) -> "AdmissionPolicy":
         return cls(
             registered_targets=dict(registered_targets),
             catalog=FeatureSchemaCatalog.from_shared_contracts(),
+            input_order_policy=input_order_policy,
         )
 
 
@@ -156,11 +206,17 @@ class AdmissionDecision:
     model_family: str
     preprocessing_version: str
     feature_schema_id: str
+    feature_order_policy_id: str
+    feature_order_policy_status: str
     feature_names: tuple[str, ...]
     target_id: str
     source_cohort_id: str
     dataset_id: str
     prediction_timepoint: str
+    calibration_status: str
+    calibration_integrity: str
+    explainability_method: str
+    explainability_capability: str
     research_label: str
     verified_refs: tuple[str, ...]
     non_approval_reasons: tuple[str, ...]
@@ -183,38 +239,60 @@ def admit_research_artifact(
     """Validate a research artifact descriptor or raise ArtifactAdmissionError."""
     document = _validate_structure(descriptor)
     _check_eligibility(document)
-    _check_model(document)
-    _check_feature_contract(document, policy.catalog)
+    calibration_integrity = _check_model(document)
+    _check_feature_contract(document, policy)
     _check_target(document, policy)
     verified_refs = _verify_bytes(document, source)
 
     target = document["target"]
     cohort = target["source_cohort"]
     eligibility = document["eligibility"]
+    model = document["model"]
+    calibration_block = model["calibration"]
+
     reasons = list(NON_APPROVAL_REASONS)
     if eligibility["research_label"] == INTERNAL_EXPLORATORY_LABEL:
         reasons.append(D047_NON_APPROVAL_REASON)
+    # A verified-capability claim is rejected above, so every admitted decision
+    # records that no genuine TreeSHAP/LIME implementation backs it.
+    reasons.append(UNVERIFIED_EXPLAINABILITY_REASON)
+    if calibration_integrity == CALIBRATION_INTEGRITY_EMBEDDED:
+        reasons.append(EMBEDDED_CALIBRATION_REASON)
+    active_order = policy.input_order_policy
+    if active_order is not None and active_order.status != CLINICAL_APPROVED_ORDER_STATUS:
+        reasons.append(SYNTHETIC_ONLY_ORDER_REASON)
+
     return AdmissionDecision(
         descriptor_schema_version=document["descriptor_schema_version"],
         descriptor_sha256=_sha256(canonical_json(document).encode("utf-8")),
         artifact_id=document["artifact"]["artifact_id"],
         artifact_version=document["artifact"]["artifact_version"],
-        model_family=document["model"]["model_family"],
-        preprocessing_version=document["model"]["preprocessing_version"],
+        model_family=model["model_family"],
+        preprocessing_version=model["preprocessing_version"],
         feature_schema_id=document["feature_contract"]["feature_schema_id"],
-        feature_names=tuple(
-            feature["name"]
-            for feature in sorted(
-                document["feature_contract"]["features"], key=lambda item: item["order"]
-            )
-        ),
+        feature_order_policy_id=active_order.policy_id if active_order else "NONE",
+        feature_order_policy_status=active_order.status if active_order else "NONE",
+        feature_names=_declared_order(document),
         target_id=target["target_id"],
         source_cohort_id=cohort["cohort_id"],
         dataset_id=cohort["dataset_id"],
         prediction_timepoint=target["prediction_timepoint"],
+        calibration_status=calibration_block["status"],
+        calibration_integrity=calibration_integrity,
+        explainability_method=model["explainability"]["method"],
+        explainability_capability=model["explainability"]["capability"],
         research_label=eligibility["research_label"],
         verified_refs=tuple(verified_refs),
         non_approval_reasons=tuple(reasons),
+    )
+
+
+def _declared_order(document: Mapping[str, Any]) -> tuple[str, ...]:
+    return tuple(
+        feature["name"]
+        for feature in sorted(
+            document["feature_contract"]["features"], key=lambda item: item["order"]
+        )
     )
 
 
@@ -246,7 +324,11 @@ def _check_eligibility(document: Mapping[str, Any]) -> None:
         _fail("unsupported_research_label", "eligibility.research_label")
 
 
-def _check_model(document: Mapping[str, Any]) -> None:
+def _check_model(document: Mapping[str, Any]) -> str:
+    """Validate model/calibration/explainability semantics.
+
+    Returns the calibration-integrity classification for the decision record.
+    """
     model = document["model"]
     if model["model_family"] not in SUPPORTED_MODEL_FAMILIES:
         _fail("unexpected_model_family", "model.model_family")
@@ -257,28 +339,59 @@ def _check_model(document: Mapping[str, Any]) -> None:
     if model["score_type"] != expected_score_type:
         _fail("score_interpretation_mismatch", "model.score_type")
 
-    pinned = calibration["calibration_sha256"]
-    if status == "calibrated":
-        if pinned is None:
-            _fail("calibration_reference_missing", "model.calibration.calibration_sha256")
-    elif pinned is not None:
-        _fail("calibration_reference_unexpected", "model.calibration.calibration_sha256")
+    representation = calibration["representation"]
+    if representation not in CALIBRATION_REPRESENTATIONS:
+        # Defensive: the schema enum should make this unreachable.
+        _fail("descriptor_schema_invalid", "model.calibration.representation")
+    reference_fields = ("calibration_ref", "calibration_sha256", "calibration_size_bytes")
+    present = [key for key in reference_fields if calibration[key] is not None]
+
+    if status in {"uncalibrated", "not_assessed"}:
+        # An uncalibrated or unassessed model must not ship calibration evidence
+        # that could later be mistaken for a verified calibration.
+        if representation != "none" or present:
+            _fail(
+                "calibration_reference_unexpected", "model.calibration.representation"
+            )
+        integrity = CALIBRATION_INTEGRITY_NONE
+    elif representation == "separate_artifact":
+        # Every field is required: the validator reads these bytes below, so a
+        # partially declared separate calibration cannot be verified.
+        for key in reference_fields:
+            if calibration[key] is None:
+                _fail("calibration_reference_missing", f"model.calibration.{key}")
+        integrity = CALIBRATION_INTEGRITY_VERIFIED
+    elif representation == "embedded_in_verified_artifact":
+        # The model container is hashed but never opened, so an embedded
+        # calibration cannot be independently verified here.
+        if present:
+            _fail("calibration_reference_unexpected", f"model.calibration.{present[0]}")
+        integrity = CALIBRATION_INTEGRITY_EMBEDDED
+    else:  # calibrated + representation "none"
+        _fail("calibration_integrity_missing", "model.calibration.representation")
 
     explainability = model["explainability"]
+    capability = explainability["capability"]
+    if capability == EXPLAINABILITY_VERIFIED_CLAIM:
+        # No genuine TreeSHAP/LIME implementation exists in this repository;
+        # a descriptor may not assert that one does.
+        _fail("explainability_claim_unsupported", "model.explainability.capability")
     expected_capability = EXPLAINABILITY_CAPABILITY[explainability["method"]]
-    if explainability["capability"] != expected_capability:
+    if capability != expected_capability:
         _fail("explainability_capability_mismatch", "model.explainability.capability")
+
+    return integrity
 
 
 def _check_feature_contract(
-    document: Mapping[str, Any], catalog: FeatureSchemaCatalog
+    document: Mapping[str, Any], policy: AdmissionPolicy
 ) -> None:
     contract = document["feature_contract"]
     schema_id = contract["feature_schema_id"]
-    schema = catalog.schemas.get(schema_id)
+    schema = policy.catalog.schemas.get(schema_id)
     if schema is None:
         _fail("unknown_feature_schema", "feature_contract.feature_schema_id")
-    if catalog.digests.get(schema_id) != contract["feature_schema_sha256"]:
+    if policy.catalog.digests.get(schema_id) != contract["feature_schema_sha256"]:
         _fail("feature_schema_digest_mismatch", "feature_contract.feature_schema_sha256")
 
     declared = contract["features"]
@@ -292,9 +405,34 @@ def _check_feature_contract(
     if set(names) != set(properties):
         _fail("feature_set_mismatch", "feature_contract.features")
 
+    # ---- ordered binding (Correction 1) ---------------------------------- #
+    # Position comes from the reviewed policy, never from schema serialization.
+    active = policy.input_order_policy
+    if active is None:
+        _fail("feature_order_policy_missing", "feature_contract.order_policy_id")
+    declared_policy_id = contract["order_policy_id"]
+    if registered_feature_order_policy(declared_policy_id) is None:
+        _fail("feature_order_policy_unknown", "feature_contract.order_policy_id")
+    if declared_policy_id != active.policy_id:
+        _fail("feature_order_policy_mismatch", "feature_contract.order_policy_id")
+    approved_order = active.order_for(schema_id)
+    if approved_order is None:
+        # A schema with no registered order cannot be admitted: guessing an
+        # order would silently change the model's input semantics.
+        _fail("feature_order_unregistered", "feature_contract.feature_schema_id")
+
     orders = sorted(feature["order"] for feature in declared)
     if orders != list(range(len(declared))):
+        # Duplicate, missing, negative or out-of-range indices.
         _fail("feature_order_mismatch", "feature_contract.features")
+
+    if len(declared) != len(approved_order):
+        _fail("feature_position_binding_mismatch", "feature_contract.features")
+    for position, feature in enumerate(sorted(declared, key=lambda item: item["order"])):
+        if feature["name"] != approved_order[position]:
+            # Exchanging the order numbers of two otherwise valid features is
+            # a semantic change to the model input vector: reject it.
+            _fail("feature_position_binding_mismatch", "feature_contract.features")
 
     required = set(schema.get("required", []))
 
@@ -368,8 +506,38 @@ def _verify_bytes(document: Mapping[str, Any], source: ArtifactSource) -> tuple[
     if _sha256(protocol_bytes) != document["provenance"]["protocol_sha256"]:
         _fail("protocol_sha256_mismatch", "provenance.protocol_sha256")
 
-    return (
+    verified = [
         ref,
         artifact["preprocessing_ref"],
         document["provenance"]["protocol_ref"],
-    )
+    ]
+
+    # ---- calibration bytes (Correction 2) --------------------------------- #
+    calibration = document["model"]["calibration"]
+    if calibration["representation"] == "separate_artifact":
+        calibration_ref = calibration["calibration_ref"]
+        other_refs = {
+            artifact["artifact_ref"],
+            artifact["preprocessing_ref"],
+            document["provenance"]["protocol_ref"],
+        }
+        if calibration_ref in other_refs:
+            # Reusing another verified reference would let one file stand in
+            # for two independently declared artifacts.
+            _fail("calibration_reference_conflict", "model.calibration.calibration_ref")
+        calibration_bytes = _read(
+            source, calibration_ref, "model.calibration.calibration_ref"
+        )
+        if len(calibration_bytes) != calibration["calibration_size_bytes"]:
+            _fail(
+                "calibration_size_mismatch", "model.calibration.calibration_size_bytes"
+            )
+        if _sha256(calibration_bytes) != calibration["calibration_sha256"]:
+            # A syntactically valid but arbitrary digest cannot qualify: only
+            # bytes actually read from the source can match.
+            _fail(
+                "calibration_sha256_mismatch", "model.calibration.calibration_sha256"
+            )
+        verified.append(calibration_ref)
+
+    return tuple(verified)

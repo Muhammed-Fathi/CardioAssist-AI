@@ -152,6 +152,7 @@ def test_state_module_no_longer_reaches_the_mock_arithmetic_directly():
     [
         "F-01-cad-tabular-valid-mock-clinical-v1.json",
         "F-03-missing-optional-features.json",
+        "F-08-shap-sum-check.json",
         "F-11b-calibrated-score-rendering.json",
         "F-12-model-swap-same-schema.json",
     ],
@@ -164,6 +165,29 @@ def test_approved_fixture_responses_are_reproduced_through_the_provider(client, 
         response = client.post(path, json=request["body"], headers=request.get("headers"))
         assert response.status_code == step["expected"]["status"]
         assert response.json() == step["expected"]["body"]
+
+
+def test_mock_explanation_output_is_unchanged_and_never_claimed_as_real_xai(client):
+    """Correction 3: the synthetic SHAP-shaped fixture is preserved verbatim and
+    is never presented as genuine TreeSHAP. No SHAP/LIME value is computed."""
+
+    fixture = _fixture("F-08-shap-sum-check.json")
+    request = fixture["steps"][0]["request"]
+    response = client.post(
+        "/v1/predictions/cad-tabular", json=request["body"], headers=request["headers"]
+    )
+    assert response.status_code == 200
+    assert response.json() == fixture["steps"][0]["expected"]["body"]
+
+    explanation = response.json()["explanation"]
+    assert explanation["synthetic"] is True          # mock arithmetic, not real XAI
+    assert explanation["method"] == "tree_shap"
+    assert explanation["sum_check"]["passed"] is True
+
+    # The runtime computes no SHAP/LIME library output anywhere.
+    import sys
+
+    assert "shap" not in sys.modules and "lime" not in sys.modules
 
 
 def test_runtime_delegates_cad_scoring_once_through_the_provider(

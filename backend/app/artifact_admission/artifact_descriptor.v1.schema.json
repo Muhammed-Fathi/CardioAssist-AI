@@ -112,11 +112,15 @@
           ]
         },
         "calibration": {
+          "description": "Calibration declaration. 'separate_artifact' requires calibration_ref, calibration_sha256 and calibration_size_bytes; those bytes are read through the artifact source and hashed by the validator, so an arbitrary digest cannot qualify. 'embedded_in_verified_artifact' is admitted only as a non-independent claim: nothing inside the model container is opened and no separate calibration hash may be asserted. 'none' is required for the 'uncalibrated' and 'not_assessed' statuses.",
           "type": "object",
           "additionalProperties": false,
           "required": [
             "status",
-            "calibration_sha256"
+            "representation",
+            "calibration_ref",
+            "calibration_sha256",
+            "calibration_size_bytes"
           ],
           "properties": {
             "status": {
@@ -127,16 +131,43 @@
                 "not_assessed"
               ]
             },
+            "representation": {
+              "type": "string",
+              "enum": [
+                "none",
+                "separate_artifact",
+                "embedded_in_verified_artifact"
+              ]
+            },
+            "calibration_ref": {
+              "description": "Relative path of a separate calibration artifact; null when calibration is not a separate verified file.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$"
+            },
             "calibration_sha256": {
+              "description": "SHA-256 of the calibration bytes read from calibration_ref; null when there is no separately verified calibration artifact.",
               "type": [
                 "string",
                 "null"
               ],
               "pattern": "^[0-9a-f]{64}$"
+            },
+            "calibration_size_bytes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1,
+              "maximum": 536870912
             }
           }
         },
         "explainability": {
+          "description": "Declared explanation method and the truthful capability that backs it. Genuine TreeSHAP/LIME is not implemented or verified in this repository: the API returns deterministic SHAP-shaped synthetic fixture offsets only. A descriptor asserting 'implemented_and_verified_in_research_harness' is rejected because no such implementation exists.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -155,8 +186,9 @@
             "capability": {
               "type": "string",
               "enum": [
-                "available_in_research_harness",
-                "not_implemented"
+                "not_implemented",
+                "mock_shap_shaped_fixture_only",
+                "implemented_and_verified_in_research_harness"
               ]
             }
           }
@@ -164,12 +196,13 @@
       }
     },
     "feature_contract": {
-      "description": "The artifact's input contract. Names, order, value types and units are cross-checked against the pinned shared feature schema; the descriptor cannot introduce a private feature dictionary.",
+      "description": "The artifact's input contract, including its approved input order. Names, value types and units are cross-checked against the pinned shared feature schema, and each feature's position is checked against the reviewed order policy named by order_policy_id. The descriptor cannot introduce a private feature dictionary or infer an order from schema serialization.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "feature_schema_id",
         "feature_schema_sha256",
+        "order_policy_id",
         "features"
       ],
       "properties": {
@@ -181,6 +214,11 @@
           "description": "SHA-256 of the exact shared/contracts/schemas file bytes.",
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        },
+        "order_policy_id": {
+          "description": "Identifier of the reviewed ordered feature binding this artifact was built against. Feature names must appear at exactly the positions that policy declares; schema serialization order is never used as an input order. An unregistered id is rejected.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_/.-]{2,127}$"
         },
         "features": {
           "type": "array",
