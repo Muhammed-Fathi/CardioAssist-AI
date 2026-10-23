@@ -13,6 +13,29 @@ questions. The database work uses SQLAlchemy + Alembic, pinned open-source
 packages and local SQLite; it requires no Docker, account, paid service or
 cloud connection. Database files and SQLite sidecars are git-ignored.
 
+## Internal inference provider and offline artifact admission (M1c)
+
+CAD prediction now goes through one narrowly typed internal provider,
+`backend/app/inference/`. The only constructible implementation is
+`MOCK_SYNTHETIC`; there is no provider argument on `create_app`/`MockState`, no
+environment variable or settings file that selects a provider, and no import of
+a model runtime, deserializer or HTTP client in that package. A future reviewed
+real provider exists only as `FailClosedRealModelProvider`, whose constructor and
+`predict` always refuse. Track B monitoring is unchanged and never invokes a
+provider.
+
+`backend/app/artifact_admission/` is an **offline** descriptor validator for
+future research model packages. It hashes artifact bytes (never deserializing
+them), cross-checks the declared feature names/order/types/units against the
+pinned `shared/contracts/schemas` files, pins the target definition, model
+family, calibration and explainability semantics, and always returns
+`RESEARCH_ONLY` with `approved_for_serving is False`. It is not imported by the
+running application, exposes no route and cannot activate a model.
+
+See [../docs/MODEL_PROVIDER_AND_ARTIFACT_ADMISSION.md](../docs/MODEL_PROVIDER_AND_ARTIFACT_ADMISSION.md)
+and the blank template
+[../docs/model-admission/artifact_descriptor.template.json](../docs/model-admission/artifact_descriptor.template.json).
+
 ## Local setup and migration ($0)
 
 From the repository root with Python **3.11 or 3.12**:

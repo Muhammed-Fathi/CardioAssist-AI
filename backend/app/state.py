@@ -6,6 +6,10 @@ are durable in SQLite. One lock covers conflict/replay lookup, validation,
 mock inference, response validation, observation storage and audit publication.
 No await occurs inside that critical section. Multiple Uvicorn workers or
 replicas are NOT supported; do not infer durable exactly-once replay behavior.
+
+CAD prediction is delegated to the single internal provider returned by
+``build_active_provider`` (``MOCK_SYNTHETIC``). This module cannot select,
+configure or inject another provider. Track B never touches the provider.
 """
 
 from __future__ import annotations
@@ -18,8 +22,14 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from .canonical import payload_hash
 from .contracts import CAD_PATH, ContractFiles, ContractViolation
-from .mock_prediction import build_prediction, payload_hash
+from .inference import (
+    CadFeature,
+    CadInferenceRequest,
+    CadModelBinding,
+    build_active_provider,
+)
 from .storage.monitoring import MonitoringRepository
 from .validation import validate_cad, validate_monitoring
 
@@ -65,6 +75,10 @@ class MockState:
     ) -> None:
         self.contracts = contracts
         self.monitoring_repository = monitoring_repository
+        # The ONLY CAD inference provider this process can construct. There is
+        # no argument, environment variable or configuration path that changes
+        # it; see backend/app/inference/registry.py.
+        self.provider = build_active_provider(contracts)
         self._clock = clock
         self._lock = threading.RLock()
         # Global key namespace matches the merged reference implementation.
@@ -155,7 +169,18 @@ class MockState:
             namespace = AUDIT_NAMESPACE if path == CAD_PATH else OBSERVATION_NAMESPACE
             result_id = str(uuid.uuid5(namespace, seed))
             if path == CAD_PATH:
-                response = build_prediction(self.contracts, model, provided, missing, request_id, result_id)
+                response = self.provider.predict(
+                    CadInferenceRequest(
+                        request_id=request_id,
+                        audit_id=result_id,
+                        model=CadModelBinding.from_registry_entry(model),
+                        features=tuple(
+                            CadFeature(name, item["value"], item["unit"])
+                            for name, item in provided.items()
+                        ),
+                        missing_optional=tuple(missing),
+                    )
+                )
                 event = AuditEvent(
                     result_id, "prediction_created", path, request_id, digest, model["model_id"]
                 )

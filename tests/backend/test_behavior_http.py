@@ -11,7 +11,7 @@ import uuid
 import httpx
 import pytest
 
-import backend.app.state as state_module
+import backend.app.inference.mock_synthetic as mock_synthetic_module
 from backend.app.main import create_app
 
 CAD = "/v1/predictions/cad-tabular"
@@ -333,14 +333,16 @@ def test_concurrent_http_requests_publish_one_result_and_one_audit(
     http_app, http_validators, cad_body, monitoring_body, monkeypatch, path, status, mixed_payloads
 ):
     calls = []
-    real_builder = state_module.build_prediction
+    real_builder = mock_synthetic_module.build_prediction
 
     def slow_builder(*args, **kwargs):
         calls.append(1)
         time.sleep(0.02)  # Widen the old check-then-create race window.
         return real_builder(*args, **kwargs)
 
-    monkeypatch.setattr(state_module, "build_prediction", slow_builder)
+    # M1c: the merged fixture arithmetic now sits behind the MOCK_SYNTHETIC
+    # provider; the patch target moved, every assertion is unchanged.
+    monkeypatch.setattr(mock_synthetic_module, "build_prediction", slow_builder)
     body = cad_body if path == CAD else monitoring_body
 
     async def run():
@@ -379,7 +381,7 @@ def test_internal_error_is_audited_safe_and_does_not_consume_key(client, http_ap
         raise RuntimeError("PRIVATE-INTERNAL-DETAIL-MUST-NOT-LEAK")
 
     with monkeypatch.context() as patch:
-        patch.setattr(state_module, "build_prediction", broken)
+        patch.setattr(mock_synthetic_module, "build_prediction", broken)
         response = client.post(CAD, json=cad_body, headers=KEY)
     assert response.status_code == 500
     error = response.json()["error"]

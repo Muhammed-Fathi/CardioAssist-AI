@@ -2,8 +2,10 @@
 
 python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
 
-CAD output remains MOCK_SYNTHETIC. Only the existing monitoring write path
-has durable storage; authentication and production guarantees are absent.
+CAD output remains MOCK_SYNTHETIC, produced by the single internal inference
+provider (``backend/app/inference``). Only the existing monitoring write path
+has durable storage; authentication and production guarantees are absent. The
+offline research-artifact validator is not imported by this application.
 """
 
 from __future__ import annotations
