@@ -260,7 +260,7 @@ Each row is arithmetic. **None of these is a recommendation**; each would be a d
 | Parameters p | 8 | ≤ 7 (C1) / ≤ 5 (C1+C2+C4) at R²cs = 0.209 | C3 is unaffected by p and still fails |
 | Sample size n | 303 | **459** (four criteria) / **382** (three criteria) | +156 or +79 records — not available within this fixed public benchmark |
 
-Required n at n = 303 for C1 by parameter count, S = 0.90: p = 3 → 0.0848; 4 → 0.1113; 5 → 0.1369; 6 → 0.1617; 7 → 0.1857; **8 → 0.2088**; 9 → 0.2313; 10 → 0.2530. **[AA]**
+Required R²cs for C1 to be satisfied at n = 303, by parameter count (S = 0.90): p = 3 → 0.0848; 4 → 0.1113; 5 → 0.1369; 6 → 0.1617; 7 → 0.1857; **8 → 0.2088**; 9 → 0.2313; 10 → 0.2530. **[AA]**
 
 The corresponding expected shrinkage at n = 303, p = 8 — the quantity C1 is really about — is: R²cs 0.05 → **S ≈ 0.49**; 0.10 → 0.75; 0.15 → 0.84; 0.209 → 0.89; 0.25 → 0.91; 0.30 → 0.93. **[AA]** A model with true R²cs around 0.10 fitted to this dataset would be expected to shrink to about three-quarters of its apparent performance in new data of the same type.
 
