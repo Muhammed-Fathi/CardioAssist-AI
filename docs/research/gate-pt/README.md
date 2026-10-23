@@ -2,7 +2,7 @@
 
 **Only clinical/research sign-off can open Gate PT P-3.** Merging design documents never grants model-training permission.
 
-- [01 — One-decision Cleveland CAD model-development packet (NOT APPROVED)](01_first_cleveland_model_review_packet_NOT_APPROVED.md): named source, small candidate predictor panel, statistical adequacy, fixed candidate model/CV budget, non-pooling rule, training stop conditions and blank supervisor decision fields.
+- [01 — One-decision Cleveland CAD model-development packet (NOT APPROVED)](01_first_cleveland_model_review_packet_NOT_APPROVED.md): named source, small candidate predictor panel, statistical adequacy, fixed candidate model/CV budget, non-pooling rule, training stop conditions and blank supervisor decision fields. **v0.2 (2026-10-23) appends a dated post-M2e.1/M2e.2 supervisor decision addendum (§6)** — status carried in, evidence-category separation, a scientific decision table with blank human sign-off, Go/Revise/No-Go pathways and a focused meeting agenda. §§1–5 remain the historical proposal.
 - [Existing full M2a v0.1 research proposal](../gate-da/15_ai_model_development_evaluation_protocol_DRAFT.md): broader study rationale and conditional future multi-cohort evaluation.
 - [Existing formal Gate PT methodology checklist](../gate-da/05_gate_pt_methodology_outline_NOT_APPROVED.md): umbrella governance.
 - [Tracked approval action — Issue #29](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/29).
