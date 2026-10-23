@@ -152,6 +152,24 @@ def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
         raise StorageProtectionError("Git safety checks could not be executed.") from exc
 
 
+def _git_bytes(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+    """Read Git blob content as raw bytes, never via locale-dependent text decoding.
+
+    On Windows, subprocess text=True can decode UTF-8 Git blobs using the
+    system code page; re-encoding that text changes the SHA-256. Git content
+    hashes must always be compared with the exact original byte sequence.
+    """
+    try:
+        return subprocess.run(
+            ["git", *args],
+            cwd=str(repo_root),
+            capture_output=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise StorageProtectionError("Git binary content checks could not be executed.") from exc
+
+
 def _truthy_environment(value: str | None) -> bool:
     return isinstance(value, str) and value.strip().lower() in {"1", "true", "yes", "on"}
 
@@ -420,14 +438,14 @@ def validate_d047_authorization(
         if ancestor.returncode != 0:
             raise AuthorizationError(f"The pinned {label} commit is not an ancestor of the current code commit.")
     try:
-        pinned_protocol = _git(
+        pinned_protocol = _git_bytes(
             repo_root,
             "show",
             f"{pinned_sha}:{PROTOCOL_RELATIVE_PATH.as_posix()}",
         )
     except Exception as exc:
         raise AuthorizationError("The frozen protocol commit could not be read from Git.") from exc
-    if pinned_protocol.returncode != 0 or sha256_bytes(pinned_protocol.stdout.encode("utf-8")) != protocol_sha.lower():
+    if pinned_protocol.returncode != 0 or sha256_bytes(pinned_protocol.stdout) != protocol_sha.lower():
         raise AuthorizationError("The protocol file at the pinned governance commit does not match its signed hash.")
 
     return {

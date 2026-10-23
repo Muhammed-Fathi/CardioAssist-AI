@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -21,6 +22,7 @@ from research.experiments.safety import (
     enforce_local_windows_runtime,
     run_preflight,
     validate_d047_authorization,
+    _git_bytes,
 )
 
 
@@ -47,6 +49,29 @@ def test_checked_in_authorization_template_is_not_a_real_run_authorization() -> 
             repo_root=REPOSITORY_ROOT,
             current_git_commit="0" * 40,
         )
+
+
+def test_pinned_git_protocol_blob_is_hashed_as_exact_utf8_bytes(tmp_path: Path) -> None:
+    """Regression: Windows default text code pages must never alter Git blob SHA."""
+    repo = _init_ignored_test_repo(tmp_path / "repo")
+    subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=repo, check=True)
+    path = repo / "synthetic-protocol.md"
+    content = "Synthetic only — n≤303; training→testing; R²\n".encode("utf-8")
+    path.write_bytes(content)
+    subprocess.run(["git", "add", "synthetic-protocol.md"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "add UTF-8-only synthetic protocol"], cwd=repo, check=True)
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+    blob = _git_bytes(repo, "show", f"{revision}:synthetic-protocol.md")
+    assert blob.returncode == 0
+    assert blob.stdout == content
+    assert hashlib.sha256(blob.stdout).hexdigest() == hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_real_runtime_rejects_linux_ci_arena_and_noninteractive_contexts(tmp_path: Path) -> None:
@@ -100,11 +125,15 @@ def test_preflight_rejects_before_any_source_parser_or_row_access(monkeypatch: p
 def test_interactive_run_command_fails_closed_without_console_confirmation(capsys: pytest.CaptureFixture[str]) -> None:
     from research.experiments.cli import main
 
+    # On the maintainer's Windows workstation, the legitimate protected data/
+    # directory already exists. Never require its absence or modify its content.
+    data_root = REPOSITORY_ROOT / "data"
+    existed_before = data_root.exists()
     result = main(["run"])
     captured = capsys.readouterr()
     assert result == 2
     assert "FAIL CLOSED" in captured.err
-    assert not (REPOSITORY_ROOT / "data").exists()
+    assert data_root.exists() == existed_before
 
 
 def test_real_runner_rejects_custom_configuration_before_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
