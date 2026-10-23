@@ -79,10 +79,12 @@ The digests referenced above establish **byte integrity of local artifacts only*
 | Check | Result |
 |---|---|
 | Frozen protocol content since D-047 ratification (PR #31 merge `434e49a`) | **Unchanged** — protocol blob `b882c74` is identical at the ratification merge and at the run commit |
-| Registered plan file since ratification | **Changed before the first fit** during the M2c implementation work (plan blob `2ae2af8` at ratification → `58e07c2` at the run commit; the PR #33 and PR #34 branches carry the tightened blob). The diff is **additive/tightening only**: added expected class counts, an expanded prohibited-predictor list, explicit seed-derivation text, categorical missing-value handling, a forbidden naive-CI clause, and the calibration-diagnostic list. Model grids, fold counts, repeat seeds, negative-control seeds, tolerance, threshold, and primary metric are unchanged |
+| Registered plan file since ratification | **Changed before the first fit** during M2c implementation (plan blob `2ae2af8` at ratification → `58e07c2` at the run commit). Direct comparison identifies exactly **five** changed paths: `dataset.prohibited_predictors` (expanded), `dataset.expected_binary_target_counts` (added), `cv.seed_derivation` (added), `preprocessing.categorical_missing_imputation` (added), and `metrics.calibration_diagnostics` (added). Model grids, fold counts, repeat seeds, negative-control seeds, the 0.01 selection tolerance, the 0.50 threshold, and the primary metric are unchanged. **No naive-confidence-interval restriction was added to the plan JSON by this diff.** |
 | Protocol/plan bound at run time | The runner requires the local manifest's frozen protocol and plan SHA-256 values to match the files at run time and re-checks them after fitting **[AR]** |
 
-> **Human action required:** confirm that the pre-run plan-file tightening was recorded as a documented pre-fit amendment to the registered plan (D-047 requires post-fit revisions to be logged as amendments; this change preceded the fit, but the record should still be explicit). **[GAP]**
+**Naive-CI restriction attribution:** the prohibition on treating the four repeated out-of-fold rows as independent observations is **pre-existing** in the registered plan (present at ratification and untouched by the five paths above). It is stated in the frozen protocol and enforced by the runner's registered-configuration validation in `research/experiments/config.py` **[AR]**. It is **not** part of the pre-fit plan change and must not be attributed to it.
+
+> **Human action required:** confirm that the **five pre-fit plan-file changes** were recorded as a documented pre-fit amendment to the registered plan (D-047 requires post-fit revisions to be logged as amendments; this change preceded the fit, but the traceability record should still be explicit). **[GAP]**
 
 ---
 
@@ -223,7 +225,7 @@ Interpretation constraints:
 | Computed across **four correlated evaluations of the same 303 records** | Evidence about variability across patients, sites, or populations |
 | Reported to keep the descriptive result honest | A basis for statistical significance, ranking, or hypothesis testing |
 
-**No pooled 4 × 303 = 1,212 inference is valid.** The registered plan explicitly forbids treating repeated-CV rows as independent, and no appropriate person-level resampling estimator was prespecified for this pilot. Any interval reported later requires a **separately prespecified and justified** estimator (for example, resampling at the person level), documented before it is computed.
+**No pooled 4 × 303 = 1,212 inference is valid.** The registered plan explicitly forbids treating repeated-CV rows as independent (a pre-existing clause; see §1.3), and no appropriate person-level resampling estimator was prespecified for this pilot. Any interval reported later requires a **separately prespecified and justified** estimator (for example, resampling at the person level), documented before it is computed.
 
 ### 4.7 Descriptive differences that must not be over-read
 
@@ -282,9 +284,9 @@ No claim of statistical significance, proven superiority, or "best model" is mad
 
 ### 5.5 Reliability curves
 
-All **12** reported reliability-curve status entries are `DESCRIPTIVE_OOF_AGGREGATES` **[MR]**. Their individual bin values (`n`, mean predicted probability, observed positive fraction) **have not been reviewed or supplied** and are **[GAP]**.
+All **12** reported reliability-curve status entries are `DESCRIPTIVE_OOF_AGGREGATES` **[MR]**. They correspond exactly to the three procedures requested from the maintainer's local extraction script — **L2 logistic regression, constrained random forest, and the inner-selected procedure** — across four repeats (**3 × 4 = 12**). The prevalence-dummy procedure **was not requested in that extraction**, so no dummy reliability curve is reported here.
 
-> **Reconciliation item for human review:** four model families × four repeats would produce **16** status entries. The supplied extract states **12** and does not itemise which were counted (for example, whether the near-constant prevalence-dummy curve was excluded or reported separately). This is recorded as an **evidence gap about the extract**, not as a discrepancy in the experiment. **[GAP]**
+**The count of 12 is therefore expected and complete for the extraction. It is not an experiment discrepancy, a reporting omission, or evidence of missing calibration output.** Individual reliability-bin values (`n`, mean predicted probability, observed positive fraction) for those 12 curves remain **unreviewed and unsupplied** and are **[GAP]**.
 
 ---
 
@@ -298,7 +300,7 @@ All checks below use **only** the rounded values supplied by the maintainer. No 
 | 2 | Positive fraction | 139/303 = 0.45875 | 0.4587 (used as AUPRC reference) | ✅ consistent |
 | 3 | Dummy accuracy vs class balance | 164/303 = 0.54125 | 0.5413 | ✅ consistent |
 | 4 | Dummy sensitivity/specificity | all-negative assignment ⇒ sensitivity 0, specificity 1 | 0.0000 / 1.0000 | ✅ consistent |
-| 5 | Dummy Brier score with p = 139/303 | p(1−p)² + (1−p)p² = 0.24830 | 0.2483 | ✅ consistent |
+| 5 | Dummy Brier score — **approximate reference** using global prevalence p = 139/303 | p(1−p)² + (1−p)p² = 0.24830 | 0.2483 | ✅ consistent as a four-decimal reasonableness check |
 | 6 | Dummy AUPRC vs prevalence | ≈ 0.4587 for a near-random score | 0.4559 | ✅ consistent in magnitude (slight offset expected because the per-fold dummy probability varies) |
 | 7 | Mean of per-repeat AUROCs (LR) | 0.829225 | 0.8292 | ✅ consistent |
 | 8 | Mean of per-repeat AUROCs (RF) | 0.821100 | 0.8211 | ✅ consistent |
@@ -307,6 +309,8 @@ All checks below use **only** the rounded values supplied by the maintainer. No 
 | 11 | Inner-selected equals LR in seeds 20261023, 20261024, 20261026 (AUROC and calibration), differs only in 20261025 | Expected if LR won every fold in those repeats and RF won in one fold of 20261025 | Matches exactly | ✅ consistent with **19/20** LR selection and with the runner reusing the selected family's predictions |
 | 12 | Mean slopes across estimable repeats | 0.91053 / 1.37103 / 0.89800 | 0.9105 / 1.3710 / 0.8980 | ✅ consistent |
 | 13 | Mean CITL across four repeats | −0.01918 / −0.00333 / −0.02118 | −0.0192 / −0.0033 / −0.0212 | ✅ consistent |
+
+**Check 5 is an approximation, not an exact recomputation.** The recorded dummy was fitted on each **outer-training fold's** prevalence, which can differ slightly from the full-cohort 139/303. The global-prevalence formula is therefore a four-decimal **reasonableness check**; exact agreement is neither expected nor required, and a near-match does not imply the fold prevalences were constant.
 
 **What these checks establish:** the supplied numbers are **internally coherent** with the frozen selection rule, the fold-fitted prevalence dummy, and the aggregation definitions in the committed code.
 **What they do not establish:** that the run occurred as reported, that the protected files match these values, or that the numbers are free of data-level or design-level bias. Items 10 and 11 reveal no contradiction — the small SD differences are fully explained by recomputing from four-decimal inputs.
@@ -439,7 +443,7 @@ Tick boxes require a **named human reviewer**. The agent has deliberately left e
 | C4 | Decide whether a documented convergence/optimiser investigation is warranted (new analysis ⇒ new amendment) | ☐ |
 | C5 | Review and, if appropriate, approve disclosure of the 5-bin reliability curves (values not yet supplied) | ☐ |
 | C6 | Confirm no recalibration, threshold tuning, or risk-percentage claim was derived from these diagnostics | ☐ |
-| C7 | Reconcile the 12 reported reliability statuses against 4 models × 4 repeats = 16 | ☐ **[GAP]** |
+| C7 | Confirm the 12 reliability entries cover the three extracted non-dummy procedures × four repeats (3 × 4 = 12), with the prevalence dummy deliberately not extracted | ☐ |
 | C8 | Confirm calibration remains **unresolved** in all external communication | ☐ |
 
 ### 10.4 Sample-size sensitivity
@@ -489,7 +493,7 @@ The following were not supplied in the sanitized extract, or were inaccessible b
 | G2 | Per-repeat values for AUPRC, accuracy, sensitivity, specificity, Brier, and confusion matrices | Only means/SDs and per-repeat AUROCs were supplied; per-fold stability is unexamined |
 | G3 | Per-shuffle negative-control AUROCs and their dispersion | Only the mean (0.4882) is known; the null's spread is unknown |
 | G4 | Reliability-curve bin values (`n`, mean predicted probability, observed positive fraction) | Calibration shape is unreviewed |
-| G5 | Reconciliation of 12 reported reliability statuses vs 16 model×repeat combinations | Possible reporting omission or intentional exclusion of the dummy |
+| G5 | ~~Twelve reported statuses vs 16 model×repeat combinations~~ — **RESOLVED:** the extraction requested calibration output only for the three non-dummy procedures (3 × 4 = 12); the prevalence-dummy curve was not extracted | No longer an experiment gap; reliability **bin values** remain a separate gap under G4 |
 | G6 | Free intercepts from the joint slope/intercept calibration fits | Only offset-only CITL was supplied |
 | G7 | Per-fold class counts, per-fold selected family, and inner-CV best parameters/scores | Fold-level behaviour and selection margin are unexamined |
 | G8 | Software/library versions, Python version, run timestamp, run identifier | Reproducibility record not verified by the agent |
