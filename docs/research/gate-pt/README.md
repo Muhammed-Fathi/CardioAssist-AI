@@ -15,5 +15,6 @@ The first Cleveland-only model experiment **does not depend** on first resolving
 
 - [02 — D-047 internal exploratory Cleveland protocol (PROPOSED)](02_d047_internal_exploratory_cleveland_PROTOCOL_PROPOSED.md): a narrowly scoped, maintainer-owned **internal**, not supervisor-approved, modeling exception contemplated by D-046-EP. Requires separate explicit human PR comment, PR merge and protected local authorization.
 - [03 — Internal experiment report template (NO RESULTS)](03_internal_exploratory_RESULTS_TEMPLATE.md): honest report structure for initial private research before presenting to supervisor.
+- [04 — First internal exploratory results (REVIEW DRAFT)](04_d047_first_internal_results_REVIEW_DRAFT.md): maintainer-reported, sanitized aggregates from the completed D-047 Cleveland run, with calibration limits, sample-size `NOT ASSESSED` status and reviewer checklists. **Internal evidence only — P-3 stays CLOSED; not supervisor-approved, not externally validated.**
 
 The formal P-3 approval packet above remains required for supervisor-approved clinical/scientific claims; it must not be presented as a prerequisite to every future internally authorized D-047 exploratory pilot **if D-047 is explicitly ratified**. No approval/experiment is implied by adding these links.
