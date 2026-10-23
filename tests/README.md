@@ -1,21 +1,24 @@
 # Tests
 
 All committed fixtures and persistence test data are **MOCK / SYNTHETIC**. No
-real dataset rows are used in the test suite. The M2c experiment tests fit
-scikit-learn estimators only on generated, in-memory synthetic fixtures; the
-real-data `preflight`/`run` path is never invoked. Backend tests use isolated
-temporary SQLite files; tests apply the committed Alembic migration where
-appropriate, and schema-verification regressions deliberately use unmigrated or
-malformed disposable databases. Pytest removes its throwaway databases after
-the tests.
+real dataset rows are used in the test suite. M2c unit and dry-run tests use
+generated fixtures; its positive integration test creates invented source bytes,
+explicitly fake D-046/D-047 manifests and a placeholder license only inside an
+isolated temporary Git repository, then exercises the local-run orchestration
+and protected output writer there. It does not open or claim to represent the
+real UCI source, and writes no fixture under the actual checkout's `/data/`.
+Backend tests use isolated temporary SQLite files; tests apply the committed
+Alembic migration where appropriate, and schema-verification regressions
+deliberately use unmigrated or malformed disposable databases. Pytest removes
+its throwaway files after tests.
 
 | Folder | Milestone | What it does |
 |---|---|---|
 | `contracts/` | M1a.1 (D-043), merged PR #3 | **249 tests** for OpenAPI, schemas, fixture/oracle behavior, and safety/compatibility rules. ADR-001 Option A (D-044) added the optional-null matrix and minimally adapted oracle; no original test was removed. See `contracts/README.md`. |
 | `backend/` | M1a.2 + M1b.1 | **371 tests**: 347 existing API/HTTP behavior regressions plus 24 SQLite persistence/migration tests. Covers fixture HTTP behavior, validation order/errors, Track separation, synthetic inference, replay/conflict and 24-hour runtime expiry, concurrency, restart durability, rollback, revision/schema drift and integrity rejection, lifespan failure without auto-migration/repair, malformed inputs, configuration-based DB path and test-DB isolation. |
 | `audit/` | M2a + M2b.2 | **218 collected test cases**: synthetic-only unit and negative tests for the read-only local audit toolchain plus stage validation and model-independent preprocessing. Coverage includes source-code ordering, missingness/reasons, zero safeguards, exact units, finite numerics, leakage/identifier/wearable rejection, deterministic transforms, and synthetic training-only preprocessing. See `audit/README.md`. |
-| `experiments/` | M2c | **25 tests** using only generated synthetic fixtures: exact processed-source schema and target mapping, `?` handling, source-hash mismatch and byte preservation, authorization/runtime rejection, no-row preflight, frozen-config enforcement, fold-local preprocessing, nested split separation, model selection, metrics/calibration, deterministic predictions, and ignored output/symlink/tracked-file protection. |
-| **Total** | current checkout | **863 tests** (`249` contract + `371` backend + `218` audit + `25` experiment-runner). These are local results, not GitHub CI results. |
+| `experiments/` | M2c | **31 tests** using generated fixtures only: exact schema/target parsing, source-byte preservation, runtime/authorization rejection, positive authorized-path integration in an isolated temporary Git repo, mutated source/protocol/plan/authorization hash rejection, dirty-worktree rejection, nested-CV/model selection, metrics/calibration, and protected aggregate-report vs row-prediction outputs. |
+| **Total** | current checkout | **869 tests** (`249` contract + `371` backend + `218` audit + `31` experiment-runner). These are local results, not GitHub CI results. |
 
 ## Local setup and checks (repository root)
 

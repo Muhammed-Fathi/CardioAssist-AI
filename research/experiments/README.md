@@ -2,7 +2,7 @@
 
 **Implementation state:** M2c runner code and synthetic tests are prepared for human review. The verified authorization comment on PR #31 authorizes this bounded engineering implementation; it is **not** authorization to run actual data in Arena, CI, a remote environment, or before a completed local D-047 manifest. Gate PT P-3 remains **CLOSED**.
 
-**No Cleveland data were downloaded, opened, parsed, fitted, evaluated, or uploaded by this implementation.** The dry-run and test suite generate invented software fixtures in memory. No performance numbers in a synthetic test are medical or Cleveland benchmark results.
+**No real Cleveland data were downloaded, opened, parsed, fitted, evaluated, or uploaded by this implementation.** The dry-run uses generated rows in memory. The positive integration test creates source-shaped synthetic bytes, explicitly fake D-046/D-047 manifests, placeholder license text, and reports only inside an isolated temporary Git repository. Its outputs are labeled synthetic test fixtures, not UCI data or research results. No performance numbers in synthetic tests are medical or Cleveland benchmark results.
 
 ## Scope and safety boundary
 
@@ -20,7 +20,7 @@
 - The committed [registered plan](cleveland_d047_exploratory_plan.v0.1.json) is validated against a narrow in-code allowlist; CLI options cannot change or expand the model grids.
 - The [local authorization template](internal_exploratory_authorization.template.json) is deliberately non-authorizing. The separate [report template](../../docs/research/gate-pt/03_internal_exploratory_RESULTS_TEMPLATE.md) is not a result.
 
-
+### Registered method
 
 - **Baseline:** `DummyClassifier(strategy="prior")`, fit to each outer-training fold only.
 - **L2 logistic regression:** `liblinear`, `C={0.1, 1, 10}`, `max_iter=2000`, no class weighting.
@@ -50,6 +50,17 @@ python -m research.experiments dry-run
 
 `dry-run` creates a deterministic, 303-row **synthetic software fixture in memory**, executes the registered nested-CV/model-selection/metric/label-shuffle wiring, prints only a PASS marker and test-scope facts, does not access a dataset path, and writes no report, prediction, or model file. Its output is labelled `SYNTHETIC_SOFTWARE_FIXTURE_ONLY_NOT_A_RESEARCH_RESULT`.
 
+## Windows-local synthetic positive-path smoke test
+
+Before any authorized real-data experiment, run this on the maintainer's **interactive PowerShell console**, from a repository on a local fixed Windows drive, outside Arena/CI/remote or synced folders. The first command exercises the actual Windows console, environment, path, reparse-point, and fixed-drive runtime guard without opening `data/`. The test then creates a temporary Git repository containing only generated source-shaped bytes and clearly fake D-046/D-047/provenance/license fixtures, and runs the full guarded orchestration, nested CV, report/prediction writer, and hash/preservation assertions there. It does not use or create the real checkout's `data/` files.
+
+```powershell
+python -c "import sys; from pathlib import Path; from research.experiments.safety import enforce_local_windows_runtime; assert sys.stdin.isatty(), 'Use an interactive local PowerShell console'; enforce_local_windows_runtime(repo_root=Path.cwd()); print('PASS: local Windows runtime guard')"
+python -m pytest tests/experiments/test_authorized_local_integration.py -q -W error
+```
+
+The integration test uses a test-only Win32-drive stub on POSIX. On Windows it calls the production runtime guard with the actual environment and drive checks; it bypasses only pytest's captured-stdin check because the standalone console probe above checks that requirement. A successful Linux/Arena test is **not** evidence that Windows drive, console, reparse-point, or NTFS ACL behavior passed. If the Windows console probe or synthetic integration test fails, stop; do not proceed to real-data preflight or fitting.
+
 ## Local preflight (does not parse source rows or fit)
 
 This must be run only on the maintainer's local Windows computer after the separate local authorization files and protected source provenance exist:
@@ -60,6 +71,33 @@ python -m research.experiments preflight
 ```
 
 Preflight checks runtime, clean code commit, D-046 read-only DA-A2 authorization, D-047 human authorization, frozen protocol/plan hashes, license snapshot, exact source path, Git-ignore protections, source SHA-256 and byte size. It hashes the source but does **not** parse its CSV rows or fit any model. Missing/mismatched values stop execution.
+
+## Windows data-root ACL prerequisite (human-verified; not automated)
+
+The runner's `chmod` calls are best-effort on Windows and do **not** verify effective NTFS ACLs. Before placing source data or running a real fit, the maintainer must secure the local `data` root and verify that only the authorized Windows user and required system administrators can read its contents. Keep the repository off UNC/network drives and out of OneDrive, SharePoint, Dropbox, or other sync/backup locations. If data already exists, have the data custodian review and secure every existing child ACL; do not blindly overwrite ACLs or alter original source bytes.
+
+For a new, empty local `data` directory, a maintainer may use this reviewed PowerShell pattern (it changes ACLs; verify the resolved path first and stop if it is not the intended local repository):
+
+```powershell
+$dataRoot = (New-Item -ItemType Directory -Force .\data).FullName
+if (Get-ChildItem -LiteralPath $dataRoot -Force | Select-Object -First 1) {
+  throw "data is not empty; do not apply the empty-root example to existing data"
+}
+$currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$currentAce = "*$($currentSid):(OI)(CI)F"
+
+icacls $dataRoot /inheritance:r
+if ($LASTEXITCODE -ne 0) { throw "Could not disable inherited data-root ACLs" }
+icacls $dataRoot /grant:r $currentAce '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F'
+if ($LASTEXITCODE -ne 0) { throw "Could not apply the restrictive data-root ACL" }
+icacls $dataRoot /verify
+icacls $dataRoot
+(Get-Acl -LiteralPath $dataRoot).Access |
+  Select-Object IdentityReference, FileSystemRights, AccessControlType, IsInherited |
+  Format-Table -AutoSize
+```
+
+Review the output locally; expect only the current user, `SYSTEM`, `Administrators`, and any separately approved institutional account. No broad `Users`, `Everyone`, or `Authenticated Users` access should remain. The command is a setup aid, **not proof** of effective access on descendants or managed endpoints. Verify the output/run directories inherit the intended ACL before writing any sensitive prediction file. The test suite, Linux checks, and this agent cannot verify Windows ACLs; record the human check and stop if uncertain.
 
 ## Human-operated local authorization (never generated or signed by the agent)
 
@@ -81,6 +119,15 @@ The maintainer must complete the manifest **locally and never commit/share it**.
 
 The exact authorization values do not waive formal Gate PT P-3. No supervisor signoff is asserted.
 
+### Windows-only checks required before a real-data experiment
+
+1. From interactive local PowerShell, pass the standalone `enforce_local_windows_runtime` console probe above. This checks actual Windows, TTY, CI/Arena/remote environment flags, local fixed-drive type, and repository path/reparse restrictions without opening source rows.
+2. Pass `test_authorized_local_integration.py` using only its generated temporary fixtures; this exercises the complete guarded path and outputs without claiming Windows ACL verification.
+3. Verify the repository and `/data/` are on a local fixed drive and not in a network, remote, or sync-managed location. Secure the effective NTFS ACLs for the data root **and descendants** and keep evidence local; the runner does not validate those ACLs.
+4. Complete the real D-046 read-only authorization/provenance/license chain and a separately human-signed, hash-bound D-047 manifest for the exact source, protocol, and plan. The synthetic test manifests are never reused.
+5. Run `python -m research.experiments preflight` successfully from the local console. It must verify all gates and source byte hash/size before parsing rows; any mismatch means stop.
+6. Only then, with the data custodian present, run `python -m research.experiments run` and type the exact confirmation phrase. Gate PT P-3 remains closed; this does not authorize clinical use or supervisor approval.
+
 ## Eventual local run
 
 Only after a successful local preflight, with the data custodian operating an interactive local Windows PowerShell console:
@@ -95,6 +142,6 @@ The `run` command requires typing `RUN D047 CLEVELAND LOCALLY`. It creates a uni
 ## Testing and status
 
 - **IMPLEMENTED:** strict source adapter; distinct D-046/D-047 authorization checks; Windows/CI/remote-drive/interactive guards; Git-ignore and output protections; deterministic nested model selection/evaluation; label-shuffle smoke test; aggregate-only report builder; protected local predictions output; Windows setup/preflight/run handoff; a synthetic-only workflow **template** at `research/experiments/ci/experiment-runner-ci.yml.example`.
-- **TESTED:** synthetic source-schema and label mapping; `?` parsing; leakage/identifier/wearable predictor rejection; unauthorized and hash-mismatch rejection; no-row preflight rejection; custom real-run configuration rejection; training-fold preprocessing isolation; outer/inner split separation; family-selection tolerance; metrics/calibration; deterministic model/prediction results; output-ignore/symlink/tracked-file checks; source-byte preservation.
+- **TESTED:** synthetic source-schema/target parsing; `?` handling; leakage rejection; no-row preflight; local runtime/auth/provenance/hash validation using explicitly fake test profiles; a positive synthetic `run_authorized_local_experiment` path in an isolated temporary Git repository; source-byte preservation; actual nested CV and label shuffles; aggregate synthetic report vs row-level prediction separation; mutated source/protocol/plan/authorization bindings and dirty-worktree fail-closed regressions; output-ignore/mode/hash checks.
 - **PROPOSED / NOT AUTHORIZED:** any actual real-data execution, final model fit for reuse, deployment, clinical decision, supervisor-approved formal study, external validation, clinical performance claim, or publication claim.
-- **UNVERIFIED / NOT ACTIVE:** the workflow template is not located under `.github/workflows/`, so dedicated GitHub CI for this ML runner is **not active** and has produced no GitHub check result. Existing contract, backend, or audit CI does not prove the runner passed dedicated CI. Also unverified: actual human local manifest values, Windows ACL state, local source/provenance files, actual source structure/hash, any real-data model result, Riley-style sample-size assumptions, and supervisor/clinician review.
+- **UNVERIFIED / NOT ACTIVE:** dedicated GitHub CI for this ML runner is **not active**; the workflow is only a template outside `.github/workflows/`. Existing contract, backend, or audit CI does not prove the runner passed dedicated CI. Windows-specific GetDriveTypeW/console/reparse-point behavior and effective NTFS ACLs require the documented local Windows checks; Linux test shims do not verify those. Also unverified: actual human local manifest values, local source/provenance files, actual source structure/hash, any real-data model result, Riley-style sample-size assumptions, and supervisor/clinician review.

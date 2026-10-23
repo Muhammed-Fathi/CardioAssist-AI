@@ -55,6 +55,7 @@ OUTPUT_ROOT_RELATIVE_PATH = PurePosixPath("data/experiments")
 CANONICAL_UCI_45_URL = "https://archive.ics.uci.edu/dataset/45/heart+disease"
 CANONICAL_UCI_45_DOI = "10.24432/C52P4X"
 EXPECTED_LICENSE_SPDX = "CC-BY-4.0"
+D047_SIGNATURE_SEMANTICS = "HUMAN_ATTESTATION_FIELDS_NOT_A_CRYPTOGRAPHIC_SIGNATURE"
 EXPECTED_LOCAL_PROVENANCE_STATUS = "VERIFIED"
 EXPECTED_OFFICIAL_SOURCE_STATUS = "HUMAN_ATTESTED_NOT_INDEPENDENTLY_PROVEN_BY_LOCAL_HASH"
 D046_AUTHORIZED_WORKFLOW_STATUS = "AUTHORIZED_FOR_LOCAL_READ_ONLY_AUDIT"
@@ -369,7 +370,7 @@ def validate_d047_authorization(
         raise AuthorizationError("Local D-047 signature must post-date the verified governance PR merge.")
     if manifest.get("local_signature_attestation") != D047_LOCAL_SIGNATURE_ATTESTATION:
         raise AuthorizationError("The required local human signature attestation is missing or altered.")
-    if manifest.get("signature_semantics") != "HUMAN_ATTESTATION_FIELDS_NOT_A_CRYPTOGRAPHIC_SIGNATURE":
+    if manifest.get("signature_semantics") != D047_SIGNATURE_SEMANTICS:
         raise AuthorizationError("Unexpected local signature semantics; no cryptographic signature is claimed.")
 
     if manifest.get("dataset_id") != "DA-A2":
@@ -432,6 +433,7 @@ def validate_d047_authorization(
     return {
         "local_signer": signer.strip(),
         "local_signed_at_iso8601": manifest["local_signed_at_iso8601"],
+        "authorization_comment_exact": manifest["maintainer_approval_comment_exact"],
         "authorization_pr_number": D047_AUTHORIZING_PR_NUMBER,
         "authorization_merged_commit_sha": D047_AUTHORIZING_MERGE_SHA,
         "pinned_protocol_git_commit_sha": D047_AUTHORIZING_MERGE_SHA,
@@ -439,7 +441,7 @@ def validate_d047_authorization(
         "frozen_protocol_sha256": protocol_sha.lower(),
         "frozen_experiment_plan_sha256": plan_sha.lower(),
         "local_manifest_sha256": None,
-        "signature_semantics": "HUMAN_ATTESTATION_NOT_CRYPTOGRAPHIC",
+        "signature_semantics": manifest["signature_semantics"],
     }
 
 

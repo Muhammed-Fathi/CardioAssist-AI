@@ -200,7 +200,7 @@ def build_real_experiment_report(
         },
         "authorization": {
             "decision_id": "D-047",
-            "maintainer_authorization_comment_exact": "AUTHORIZE-D047-INTERNAL-CLEVELAND",
+            "maintainer_authorization_comment_exact": preflight.authorization["authorization_comment_exact"],
             "authorization_pr_number": preflight.authorization["authorization_pr_number"],
             "authorization_merged_commit_sha": preflight.authorization["authorization_merged_commit_sha"],
             "local_signer": preflight.authorization["local_signer"],
