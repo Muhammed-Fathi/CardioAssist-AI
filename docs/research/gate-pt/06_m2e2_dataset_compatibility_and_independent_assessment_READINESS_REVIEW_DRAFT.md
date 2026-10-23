@@ -95,7 +95,7 @@ records. The following is the governing interpretation for this review.
 | P-1 / D-006 | **PENDING** | Final endpoint, target population, prediction moment, and evaluation protocol are not frozen. |
 | P-3 | **CLOSED** for supervisor approval; no supervisor-approved protocol is recorded | Gate PT remains closed for formal research and model-based claims. |
 | P-5 | **NOT MADE — prohibited** | No external-validation or clinical-readiness claim exists or is authorized. |
-| D-047 | Existing internal exploratory route/result remains bounded as `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED` | This report does not reopen, ratify, amend, or upgrade D-047. See [Gate PT 04](04_d047_first_internal_results_REVIEW_DRAFT.md) and [`docs/DECISIONS.md`](../../DECISIONS.md). |
+| D-047 | Existing internal exploratory route/result remains bounded as `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`; the decision-register entry remains `PENDING_EXPLICIT_HUMAN_RATIFICATION` | Gate PT 04 records the completed internal run, while the decision register retains its pending ratification status. This report does not reconcile, reopen, ratify, amend, or upgrade D-047. See [Gate PT 04](04_d047_first_internal_results_REVIEW_DRAFT.md) and [`docs/DECISIONS.md`](../../DECISIONS.md). |
 | M2e.1 | **`NOT ASSESSED — PENDING HUMAN REVIEW`** for development sample-size adequacy | [Gate PT 05](05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md) distinguishes development sizing from future validation sizing. This report does not resolve M2e.1. |
 | M2e.2 | **Proposed working label only** | No issue, milestone, approval, or decision is invented here. Issue #37 is not closed automatically. |
 
