@@ -7,6 +7,10 @@
     "source": "UCI-45",
     "relative_file": "data/raw/uci-45/processed.cleveland.data",
     "expected_row_count": 303,
+    "expected_binary_target_counts": {
+      "0": 164,
+      "1": 139
+    },
     "original_target_column": "num",
     "negative_source_label": [
       0
@@ -69,9 +73,31 @@
       "LAD",
       "LCX",
       "RCA",
+      "lmt",
+      "ladprox",
+      "laddist",
+      "diag",
+      "cxmain",
+      "ramus",
+      "om1",
+      "om2",
+      "rcaprox",
+      "rcadist",
+      "cmo",
+      "cday",
+      "cyr",
+      "id",
+      "ccf",
+      "name",
       "site",
       "patient_id",
-      "wearable_heart_rate"
+      "patient_ref",
+      "mrn",
+      "wearable_heart_rate",
+      "heart_rate_bpm",
+      "steps",
+      "wearable_ecg",
+      "monitoring_observation"
     ]
   },
   "cv": {
@@ -87,7 +113,16 @@
     "primary_inner_selection_metric": "roc_auc",
     "primary_outer_assessment_metric": "roc_auc",
     "simplicity_preference": "l2_logistic_regression",
-    "inner_auc_equivalence_tolerance": 0.01
+    "inner_auc_equivalence_tolerance": 0.01,
+    "seed_derivation": {
+      "inner_cv_seed": "outer_repeat_seed + 97 + 1009 * outer_fold_number_1_based",
+      "model_seed": "outer_repeat_seed + 100003 + 101 * outer_fold_number_1_based + model_family_offset",
+      "model_family_offsets": {
+        "l2_logistic_regression": 11,
+        "constrained_random_forest": 23
+      },
+      "label_shuffle_outer_seed": "the corresponding label_shuffle_seed"
+    }
   },
   "models": {
     "prevalence_dummy": {
@@ -122,6 +157,7 @@
     "numeric_imputation": "training_fold_median",
     "numeric_scaling_for_lr": "training_fold_standard",
     "categorical": "source_vocab_reference_one_hot",
+    "categorical_missing_imputation": "training_fold_most_frequent",
     "learn_transforms_inside_inner_cv": true,
     "missing_reason_columns": "FORBIDDEN_NOT_RECORDED_IN_UCI45",
     "fake_synthetic_flag_for_real_data": "FORBIDDEN"
@@ -137,7 +173,12 @@
       "calibration_if_estimateable"
     ],
     "decision_threshold_exploratory_only": 0.5,
-    "naive_ci_treating_4_repeated_oof_rows_as_independent": "FORBIDDEN"
+    "naive_ci_treating_4_repeated_oof_rows_as_independent": "FORBIDDEN",
+    "calibration_diagnostics": [
+      "calibration_in_the_large_intercept",
+      "calibration_slope_and_intercept",
+      "five_bin_quantile_reliability_curve_when_estimable"
+    ]
   },
   "negative_control": {
     "method": "permute_source_labels_on_exploratory_local_run",
