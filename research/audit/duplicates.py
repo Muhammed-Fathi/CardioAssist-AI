@@ -116,6 +116,50 @@ def _rows_are_near_duplicate_11_features(row_a: dict[str, Any], row_b: dict[str,
     return True
 
 
+def compute_exact_profile_multiset_overlap(
+    rows_a: Sequence[dict[str, Any]],
+    rows_b: Sequence[dict[str, Any]],
+    columns: Sequence[str],
+) -> dict[str, Any]:
+    """Aggregate-only exact-profile overlap between two cohorts, duplicate multiplicity preserved.
+
+    Each record is canonicalized on ``columns`` and counted. Matching profiles are
+    intersected with **minimum multiplicity** (multiset intersection), so repeated
+    profiles are neither dropped nor double-counted, and the number of record pairs
+    consistent with a profile match is the sum of ``count_a * count_b`` products.
+
+    Only counts are returned: no profile values, keys, hashes, or reconstructed rows
+    leave this function. A profile match is a feature-vector collision in
+    identifier-free tabular data; it is NOT evidence of patient identity.
+    """
+    columns = tuple(columns)
+    if not columns:
+        raise ValueError("At least one shared column is required for profile overlap.")
+    if len(set(columns)) != len(columns):
+        raise ValueError("Duplicate columns are not permitted in a profile overlap check.")
+
+    counter_a: Counter[tuple[str, ...]] = Counter(
+        tuple(_canonicalize_scalar(r.get(col)) for col in columns) for r in rows_a
+    )
+    counter_b: Counter[tuple[str, ...]] = Counter(
+        tuple(_canonicalize_scalar(r.get(col)) for col in columns) for r in rows_b
+    )
+    shared_keys = set(counter_a.keys()) & set(counter_b.keys())
+
+    return {
+        "columns_compared_count": len(columns),
+        "distinct_matching_profiles": len(shared_keys),
+        "matched_rows_in_a": sum(counter_a[k] for k in shared_keys),
+        "matched_rows_in_b": sum(counter_b[k] for k in shared_keys),
+        "record_pairs_consistent_with_profile_match": sum(
+            counter_a[k] * counter_b[k] for k in shared_keys
+        ),
+        "max_profile_multiplicity_in_a": max((counter_a[k] for k in shared_keys), default=0),
+        "max_profile_multiplicity_in_b": max((counter_b[k] for k in shared_keys), default=0),
+        "multiplicity_rule": "MINIMUM_MULTIPLICITY_MULTISET_INTERSECTION_PER_CANONICAL_PROFILE",
+    }
+
+
 def compute_within_dataset_duplicates(
     dataset_label: str,
     rows: Sequence[dict[str, Any]],
@@ -189,25 +233,12 @@ def compute_cross_cohort_duplicates(
             rows_a = cohort_rows_map[c_a]
             rows_b = cohort_rows_map[c_b]
 
-            sigs_13_a = Counter(
-                tuple(_canonicalize_scalar(r.get(c)) for c in SHARED_13_PREDICTOR_COLUMNS) for r in rows_a
+            overlap_13 = compute_exact_profile_multiset_overlap(
+                rows_a, rows_b, SHARED_13_PREDICTOR_COLUMNS
             )
-            sigs_13_b = Counter(
-                tuple(_canonicalize_scalar(r.get(c)) for c in SHARED_13_PREDICTOR_COLUMNS) for r in rows_b
+            overlap_11 = compute_exact_profile_multiset_overlap(
+                rows_a, rows_b, SHARED_11_PREDICTOR_NO_CA_THAL
             )
-            shared_13_keys = set(sigs_13_a.keys()) & set(sigs_13_b.keys())
-            exact_13_matched_rows_in_a = sum(sigs_13_a[k] for k in shared_13_keys)
-            exact_13_matched_rows_in_b = sum(sigs_13_b[k] for k in shared_13_keys)
-
-            sigs_11_a = Counter(
-                tuple(_canonicalize_scalar(r.get(c)) for c in SHARED_11_PREDICTOR_NO_CA_THAL) for r in rows_a
-            )
-            sigs_11_b = Counter(
-                tuple(_canonicalize_scalar(r.get(c)) for c in SHARED_11_PREDICTOR_NO_CA_THAL) for r in rows_b
-            )
-            shared_11_keys = set(sigs_11_a.keys()) & set(sigs_11_b.keys())
-            exact_11_matched_rows_in_a = sum(sigs_11_a[k] for k in shared_11_keys)
-            exact_11_matched_rows_in_b = sum(sigs_11_b[k] for k in shared_11_keys)
 
             near_cross_pairs = 0
             if len(rows_a) * len(rows_b) <= 500_000:
@@ -222,12 +253,12 @@ def compute_cross_cohort_duplicates(
                     "cohort_b": c_b,
                     "rows_a": len(rows_a),
                     "rows_b": len(rows_b),
-                    "observed_exact_13_predictor_distinct_profiles": len(shared_13_keys),
-                    "observed_exact_13_predictor_rows_in_a": exact_13_matched_rows_in_a,
-                    "observed_exact_13_predictor_rows_in_b": exact_13_matched_rows_in_b,
-                    "observed_exact_11_predictor_no_ca_thal_distinct_profiles": len(shared_11_keys),
-                    "observed_exact_11_predictor_rows_in_a": exact_11_matched_rows_in_a,
-                    "observed_exact_11_predictor_rows_in_b": exact_11_matched_rows_in_b,
+                    "observed_exact_13_predictor_distinct_profiles": overlap_13["distinct_matching_profiles"],
+                    "observed_exact_13_predictor_rows_in_a": overlap_13["matched_rows_in_a"],
+                    "observed_exact_13_predictor_rows_in_b": overlap_13["matched_rows_in_b"],
+                    "observed_exact_11_predictor_no_ca_thal_distinct_profiles": overlap_11["distinct_matching_profiles"],
+                    "observed_exact_11_predictor_rows_in_a": overlap_11["matched_rows_in_a"],
+                    "observed_exact_11_predictor_rows_in_b": overlap_11["matched_rows_in_b"],
                     "observed_near_duplicate_candidate_cross_pairs": near_cross_pairs,
                     "evidence_status": EVIDENCE_VERIFIED,
                 }
