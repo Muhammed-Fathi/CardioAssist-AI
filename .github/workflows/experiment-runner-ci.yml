@@ -1,0 +1,78 @@
+name: synthetic-experiment-runner-validation
+
+# M2c tests are synthetic-only. This workflow never invokes preflight/run,
+# never accesses data/, and never consumes a real Cleveland source file.
+# The dry-run fits only generated in-memory fixtures on the hosted CI CPU.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic-experiment-runner-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-runner-tests:
+    name: Synthetic experiment runner (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pinned local-runner dependencies
+        run: |
+          python -m pip install -r research/experiments/requirements.txt
+          python -m pip check
+
+      - name: Run synthetic experiment-runner tests
+        run: |
+          python -m pytest tests/experiments -q -W error
+
+      - name: Execute the registered synthetic-only dry-run
+        run: |
+          python -m research.experiments dry-run
+
+      - name: Verify source-material integrity
+        run: |
+          python scripts/verify_sources.py
+
+      - name: Reject real datasets or generated artifacts in the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -d data ] && find data -mindepth 1 -print -quit | grep -q .; then
+            echo "ERROR: This synthetic-only job must not contain any /data/ files." >&2
+            exit 1
+          fi
+
+          if find research/experiments tests/experiments -type f \
+            \( -name '*.data' -o -name '*.dat' -o -name '*.csv' -o -name '*.parquet' \
+            -o -name '*.feather' -o -name '*.pkl' -o -name '*.joblib' \
+            -o -name '*.pt' -o -name '*.pth' -o -name '*.onnx' -o -name '*.h5' \
+            -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.db' \) \
+            -print -quit | grep -q .; then
+            echo "ERROR: Prohibited dataset or experiment artifact found in source/tests." >&2
+            exit 1
+          fi
+
+          echo "PASS: No real datasets or generated patient-level artifacts were present."
