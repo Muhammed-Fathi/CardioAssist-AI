@@ -6,7 +6,7 @@
 > - **Work item:** Issue #37, milestone **M2e.1** (sample-size evidence for the M2 Cleveland experiment)
 > - **Scope:** documentation and arithmetic only. No data access, no model fitting of any kind (real or synthetic), no new experiment, no change to D-047.
 > - **Gate PT P-3:** **CLOSED** · **P-1:** **PENDING** · **D-047:** unchanged, already executed, not re-analysed
-> - **Prepared:** 2026-10-23 · **Version 2.0** (post-QA corrections, see [Appendix D](#appendix-d--revision-history)) · **Document type:** statistical evidence review (internal research record)
+> - **Prepared:** 2026-10-23 · **Version 2.1** (post-QA corrections plus the Issue #37 risk, framework, checklist and acceptance material, see [Appendix D](#appendix-d--revision-history)) · **Document type:** statistical evidence review (internal research record)
 
 **This document does not approve a sample size, does not approve the experiment, does not make a clinical claim, and does not close any gate.** It states what can be verified arithmetically, what the examined literature does and does not supply, and what a named human must decide. Where the evidence does not support a number, the status is **NOT ASSESSED** and stays that way.
 
@@ -22,10 +22,11 @@ The sample-size quantities in this document are **conditional planning threshold
 |---|---|
 | **[AR]** | **Agent-verified — repository.** Checked against a committed file at the base commit (paths given). |
 | **[AA]** | **Agent-verified — arithmetic.** Recomputed deterministically from published formulae; reproducible via `scripts/verify_m2e1_sample_size.py` or by hand from [Appendix E](#appendix-e--documentation-only-verification-record). |
-| **[LIT]** | **Literature claim**, primary source cited by DOI in [§14](#14-references). The *depth* to which each source was actually read is stated in [§0.6](#06-evidence-provenance-what-was-actually-read). |
+| **[LIT]** | **Literature claim**, primary source cited by DOI in [§18](#18-references). The *depth* to which each source was actually read is stated in [§0.6](#06-evidence-provenance-what-was-actually-read). |
 | **[XTR]** | **Extraction-level finding.** Based on the supervisor's literature spreadsheet and the CSV extraction derived from it — i.e. recorded metadata and summaries, **not** verified against the papers' full texts. |
 | **[MR]** | **Maintainer-reported** aggregate, carried forward from `04_…REVIEW_DRAFT.md`. Not independently reproduced from protected local output. |
 | **[SC]** | **Hypothetical sensitivity scenario.** An arithmetic "what if", *not* an adopted assumption and *not* an input to any decision. |
+| **[BRIEF]** | **Maintainer-written instruction** in the PR #38 review threads or the correction briefs. Used only where the Issue #37 body itself was unreadable (**[GAP]**, §11.4). |
 | **[GAP]** | **Not available / not established.** Must not be filled by inference. |
 | **[BLANK]** | Intentionally empty. A human completes it; the agent must not prefill it. |
 
@@ -40,7 +41,10 @@ A reviewable evidence package answering one question: **can the sample size of t
 5. defines what an admissible external anticipated Cox–Snell R² would have to be, and reports what the examined sources contain and do not contain ([§7](#7-the-externally-anticipated-coxsnell-r²-what-would-be-admissible-and-what-was-found));
 6. presents clearly-labelled hypothetical scenarios so a reviewer can see the decision landscape **without** any of them being adopted ([§8](#8-hypothetical-sensitivity-scenarios-sc-not-assumptions-not-decisions));
 7. records the status determination, a non-binding proposal for recording a future decision, implications for a future independent-dataset assessment, and governance findings ([§9](#9-status-determination)–[§11](#11-governance-findings));
-8. lists the questions requiring human scientific review, with blank approval fields ([§13](#13-questions-requiring-human-scientific-review)).
+8. lists the questions requiring human scientific review, with blank approval fields ([§13](#13-questions-requiring-human-scientific-review));
+9. assesses the risks that bear on any **future independent-dataset** assessment — target harmonisation, measurement timepoints, referral bias, cohort overlap, UCI-411/412 identity, missingness and distribution shift — as an evidence matrix with four explicit dispositions ([§14](#14-independent-dataset-research-risk-assessment));
+10. records a framework-based **TRIPOD+AI / PROBAST+AI** assessment, explicitly distinguished from a completed PROBAST+AI judgement ([§15](#15-methodological-framework-assessment-tripodai-and-probastai));
+11. provides a **next-gate reviewer checklist** with blank sign-off fields, and an **Issue #37 acceptance matrix** recording exactly what is and is not complete ([§16](#16-next-gate-reviewer-checklist)–[§17](#17-issue-37-acceptance-matrix-and-filename-reconciliation)).
 
 ### 0.3 What this document deliberately does **not** do
 
@@ -51,13 +55,15 @@ A reviewable evidence package answering one question: **can the sample size of t
 - It does **not** record approval. Every approval field is `[BLANK]`.
 - It does **not** claim that the wider CAD literature contains no suitable source, nor that the 25 papers' full texts have been searched and found empty. Both claims would exceed what was actually done.
 - It does **not** treat its own arithmetic as a substitute for a statistician's review of the criteria chosen, the tolerance values used, or the population assumptions.
+- It does **not** assign any PROBAST+AI risk-of-bias or applicability rating, and does not present framework-based concerns as a completed assessment ([§15](#15-methodological-framework-assessment-tripodai-and-probastai)).
+- It does **not** treat any second dataset as suitable for independent validation, and does not assume that datasets can be pooled ([§14](#14-independent-dataset-research-risk-assessment)).
 
 ### 0.4 Files changed by this deliverable
 
 | File | Change | Status |
 |---|---|---|
 | `docs/research/gate-pt/05_m2e1_cad_riley_sample_size_adequacy_REVIEW_DRAFT.md` | **new** | This review. |
-| `docs/research/gate-pt/README.md` | edited (+1 line) | Registers document 05 in the Gate PT index. |
+| `docs/research/gate-pt/README.md` | edited | Registers document 05 in the Gate PT index, and corrects one pre-D-047 sentence that the merged record no longer supports (§11.6). |
 | `scripts/verify_m2e1_sample_size.py` | **new** | **PROPOSED SCOPE EXCEPTION — see [§0.5](#05-scope-discrepancy-documentation-only-issue-vs-this-diff).** Strictly deterministic arithmetic; fits nothing, simulates nothing. |
 
 **Deliberately unchanged:** `research/experiments/reporting.py` (its `sample_size_sensitivity.status` string remains `NOT_ASSESSED_NO_HUMAN_REVIEWED_ANTICIPATED_COX_SNELL_R2_ASSUMPTIONS`), `research/experiments/cleveland_d047_exploratory_plan.v0.1.json`, `docs/research/gate-pt/02_…PROTOCOL_PROPOSED.md`, `docs/research/gate-pt/04_…REVIEW_DRAFT.md`, `docs/DECISIONS.md`, `research/source_materials/**`, and all backend/frontend/contract code. **No decision-register entry was added because no decision was taken.** **[AR]**
@@ -249,6 +255,23 @@ Two independent reasons mean this method is **not executed here**:
 
 ---
 
+### 4.6 Applicability domain of the additional MAPE criterion
+
+C4 is the least robust quantity in this document, so its domain is stated explicitly rather than implied:
+
+| Boundary | Statement | Consequence here |
+|---|---|---|
+| Parameter count | The approximation is stated for **p ≤ 30**. | p = 8 is well inside; the guard is enforced in the companion script. |
+| Model form | Derived for a **single binary outcome** logistic model with no interaction or penalisation term. | The registered candidate is L2-penalised, and the procedure compares families; C4 therefore describes an unpenalised single-fit approximation to a more complex procedure. |
+| What it targets | **Mean absolute prediction error**, i.e. accuracy of individual predicted risks — not discrimination, not calibration slope. | C4 is not interchangeable with C1–C3; it binds here only because 459 > 382. |
+| Estimation | Derived from simulation, so it is an **approximation with its own error**, reported to overestimate the requirement when the model is strong. **[LIT]** (Pavlou 2024) | Treated as one criterion among four, never as the sole basis for a conclusion. |
+| Prevalence parameterisation | The formula is written in terms of the **outcome proportion φ**. When events exceed half the sample, the minority-class proportion is used, i.e. **φ\* = min(φ, 1 − φ)**, so that a cohort with 70% events is evaluated as its 30% complement rather than as a structurally different planning problem. | **This cohort has φ = 0.458746 < 0.5, so φ\* = φ and no transformation is applied.** C4 = 459 is therefore unaffected. Verified: φ\* = φ to machine precision, and C4(φ = 0.70) = C4(φ = 0.30) = 375 for illustration. **[AA]** |
+| Provenance of the transformation | The symmetry convention is applied by published usage; the primary van Smeden 2019 text was **not read in full** ([§0.6](#06-evidence-provenance-what-was-actually-read)). | Recorded as **[LIT]-secondary**. It changes nothing for this cohort; it matters if the function is reused elsewhere. |
+
+The practical points: (i) C4 = 459 is a property of an *unpenalised single fit*, so the true information requirement of the executed nested procedure is not smaller than this; (ii) no C4 number in this document was computed under a prevalence transformation, because none is needed at φ < 0.5; (iii) a reviewer who rejects the MAPE criterion entirely still faces C3 = 382 (§6.2).
+
+---
+
 ## 5. Numerical verification
 
 ### 5.1 Published anchors reproduced exactly
@@ -285,6 +308,34 @@ That the criteria are the right ones for this project; that the default toleranc
 ### 5.4 Withdrawn in this revision
 
 Revision 1 reported a simulation-based reproduction of `pmsampsize`'s C→R² conversion (0.212115 against the published 0.2100957), a seed-sensitivity figure, and a table of C-statistic-derived R² values. **All of these depended on fitting logistic models to synthetic samples** and are withdrawn: they are not reproduced anywhere in version 2.0, and no derived claim now rests on them. The method itself remains documented in [§4.5](#45-the-c-statistic--r²-conversion-documented-deliberately-not-executed). **[AR]**
+
+---
+
+### 5.5 Analytical equality versus floating-point representation
+
+The criterion-1 break-even solves 8/((0.90−1)·ln(1−R²/0.90)) = 303 and is **0.20884206294424718** to 17 significant digits. Analytically the real-valued requirement there is exactly 303. Evaluated in ordinary double precision, however, the arithmetic returns
+
+> **303.00000000000006**
+
+for which `math.ceil()` returns **304**. Nothing is wrong with either the formula or the arithmetic: the true value is an integer and the computed value differs from it by about **6×10⁻¹⁴**, i.e. a few units in the last place. A plain ceiling has no way to distinguish "303 exactly" from "303 plus representation noise", and so reports one participant more than the mathematics requires.
+
+Both behaviours are recorded here rather than hidden:
+
+| Evaluation | At the exact break-even | At R²cs = 0.20884 | At R²cs = 0.209 |
+|---|---:|---:|---:|
+| Real-valued requirement | 303.00000000000006 | 303.0034 | 302.7380 |
+| Strict ceiling (`math.ceil`, `pmsampsize` behaviour) | **304** | 304 | 303 |
+| Representation-aware ceiling | **303** | 304 | 303 |
+
+**Why a guard is legitimate here, and why it is narrow.** The companion script adds `analytically_ceiled()`, which treats a value as analytically equal to the nearest integer only when the gap is within **8 units in the last place** — about 3.6×10⁻¹² at 303, or roughly 10⁻¹⁴ of a participant. That is a *representation* threshold, not a substantive rounding tolerance. It is twelve orders of magnitude smaller than the smallest shortfall discussed anywhere in this document (one record), so it cannot convert an insufficient sample size into a sufficient one. The regression checks demonstrate exactly that: at R²cs = 0.20884 (real 303.0034) both ceilings return **304**; at R²cs = 0.205 both return **310**; at R²cs = 0.170054 both return **382**; only at analytical equality do they diverge. **[AA]**
+
+**Does any conclusion depend on this?** No. The disclosure matters for reproducibility, not for the science:
+
+- criterion 1 is a knife-edge at exactly 303 either way, and it is the *only* criterion satisfied there;
+- criteria 3 and 4 fail at 303 by 79 and 156 participants respectively, so the final requirement is 459 under every reading of the break-even;
+- the review therefore states criterion-1 status at the break-even as "met, at exactly the available size" and does not rely on that fact for any adequacy claim.
+
+Revision 1 reported 304 at the break-even without noting that the value was a representation artefact rather than a substantive shortfall. That was not wrong arithmetic, but it was an under-explained number; it is now explained and tested both ways.
 
 ---
 
@@ -538,7 +589,7 @@ The two statements are consistent, not contradictory: *we cannot assess adequacy
 
 **Status:** **UNAPPROVED PROPOSAL.** Not binding, not ratified, not a gate criterion. It becomes usable only if a named human ratifies it (Q6), and it would be binding on *future* studies only if ratified before their data analysis.
 
-**Withdrawn element.** Revision 1 proposed a three-band classification using a multiplier of 1.25 (≤ n, ≤ 1.25n, > 1.25n). **That multiplier had no methodological derivation** — it was an editorial convenience, and no source in [§14](#14-references) supplies it. Rather than retain an arbitrary threshold with a caveat, it is **removed**. What remains is descriptive recording with no automatic classification.
+**Withdrawn element.** Revision 1 proposed a three-band classification using a multiplier of 1.25 (≤ n, ≤ 1.25n, > 1.25n). **That multiplier had no methodological derivation** — it was an editorial convenience, and no source in [§18](#18-references) supplies it. Rather than retain an arbitrary threshold with a caveat, it is **removed**. What remains is descriptive recording with no automatic classification.
 
 Proposed recording procedure (descriptive only):
 
@@ -609,7 +660,13 @@ The documentation-only authorisation in Issue #37 is not strictly satisfied by a
 
 `gh issue view 37` and the issue API returned **HTTP 403**; the web view returned **404**. **[GAP]** The issue body and any discussion in it are therefore **not** cited as evidence anywhere in this document. The task requirements used here come from the maintainer's written instructions in the PR review threads and the correction brief, not from the issue text. If the issue contains an additional requirement (for example a reviewer-specified tolerance), this review has not seen it. → **Q12**
 
-### 11.5 Nothing was approved, closed, or changed
+### 11.5 One pre-D-047 sentence corrected in the Gate PT index
+
+`docs/research/gate-pt/README.md` previously stated that "No signed clinical study plan, real model fit or clinical performance exists at this point." That sentence is no longer accurate: an internal exploratory model run has been executed and is recorded in `gate-pt/04`, merged with PR #36. The sentence is corrected to distinguish (i) the absence of any signed clinical study plan and of any supervisor-approved, externally validated or clinical performance, from (ii) the existence of one completed **internal exploratory** run under the `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED` banner.
+
+The correction is limited to that historical claim. It does **not** alter: the decision-register entry for D-047, which remains `PENDING_EXPLICIT_HUMAN_RATIFICATION`; the frozen protocol; the reported results; or any gate status. It records what the merged record already shows and nothing more. **[AR]**
+
+### 11.6 Nothing was approved, closed, or changed
 
 No gate was closed. No approval was recorded. No code, plan, protocol, result or source file was modified. This change set touches only the three files listed in [§0.4](#04-files-changed-by-this-deliverable). **[AR]**
 
@@ -630,6 +687,9 @@ No gate was closed. No approval was recorded. No code, plan, protocol, result or
 11. **Penalisation is not a substitute.** L2 regularisation constrains the fitted coefficients; it does not create information. The formal confirmation that no penalisation setting is being treated as a sample-size remedy is a human action (Q8).
 12. **No claim about the historical cohort's representativeness.** Nothing here speaks to whether a 1980s single-centre Cleveland cohort is clinically transportable; that is a separate and larger question already flagged in `04_…REVIEW_DRAFT.md` §8.
 13. **This review is not a statistical analysis plan.** It is an evidence input to one; it does not replace review by a statistician.
+14. **The risk matrix in §14 is a documentation-level synthesis.** It draws on audit evidence recorded elsewhere in the repository and on official source descriptions; it is not a new data-level audit, and it cannot establish record-level facts such as whether any patient sits at exactly 50% stenosis.
+15. **§15 is not a PROBAST+AI assessment.** No signalling question was formally scored, no domain was rated, and no overall risk-of-bias judgement exists. The section names concerns so that a real assessment can start from evidence.
+16. **The Issue #37 acceptance matrix in §17 rests on maintainer briefs, not on the issue text**, which remained unreadable (403/404). A requirement present only in the issue would be invisible here.
 
 ---
 
@@ -651,6 +711,10 @@ Each question has a blank decision field. The agent must not prefill any of them
 | **Q10** | How should the `gate-da/15` vs `gate-pt/02` sequencing inconsistency be resolved — amendment, or a note on the record? | Maintainer + supervisor | |
 | **Q11** | **Scope discrepancy:** does the maintainer accept `scripts/verify_m2e1_sample_size.py` as an authorised exception to the documentation-only Issue, or should it be deleted in favour of [Appendix E](#appendix-e--documentation-only-verification-record)? | Maintainer | |
 | **Q12** | Issue #37 could not be read by the agent (403/404). Do the maintainer's instructions captured in the review threads and correction brief fully represent the issue's requirements? | Maintainer | |
+| **Q13** | Which dataset, if any, is to be pursued for a future independent-dataset assessment, and under which target-compatibility ruling (H-01)? Or is the question closed for now? | Supervisor + research lead | |
+| **Q14** | Given §14.2, is any currently available dataset capable of serving as independent validation, or must the project treat external validation as blocked until a new, audited source is acquired? | Supervisor + data owner | |
+| **Q15** | Who performs the formal PROBAST+AI assessment and the TRIPOD+AI checklist, and when? §15 records concerns only and assigns no rating. | Independent assessors | |
+| **Q16** | What is the exact filename Issue #37 requests for this document? Confirm either that name (one `git mv` plus one link update, §17.4) or the current canonical path. | Maintainer | |
 
 **Decision record (to be completed by a named human, not the agent):**
 
@@ -665,7 +729,175 @@ Each question has a blank decision field. The agent must not prefill any of them
 
 ---
 
-## 14. References
+## 14. Independent-dataset research risk assessment
+
+This section answers a question the sample-size arithmetic cannot: **if this line of work ever moves to a second dataset, what would undermine the claim?** It is a documentation-level synthesis of evidence already recorded in the repository. It is **not** a data-level audit, **not** an external validation, and **not** a decision that any dataset is suitable.
+
+### 14.1 Disposition vocabulary
+
+Every row receives one **primary** disposition. Where a verified finding contains an open sub-item, the sub-item is named explicitly in the same cell rather than being allowed to disappear behind the primary label (for example: the same-cohort finding for UCI-411/412 is verified, while its single `Cath` discordance stays unresolved). The vocabulary is deliberately blunt so that no item can be quietly treated as settled.
+
+| Disposition | Meaning |
+|---|---|
+| **VERIFIED** | Established from an official source, an audit record, or repository evidence, and adequate for planning. |
+| **UNRESOLVED** | A specific question is open, an audit has produced a discordance, or the available evidence does not settle it. Not a guess; not a no. |
+| **NOT ASSESSED** | The question has not been examined at the required level (for example, no data-level audit, or the enabling field does not exist in the released schema). |
+| **HUMAN DECISION REQUIRED** | The evidence is sufficient to describe the options, but choosing among them is a scientific/governance act that no agent may perform. |
+
+### 14.2 Risk matrix
+
+| # | Risk | Evidence recorded in this repository | Disposition | Consequence for a future independent-dataset assessment |
+|---|---|---|---|---|
+| **R1** | **Target harmonisation: `>50%` (UCI-45) versus `≥50%` (UCI-412/411)** | The historical `num` description gives 0 = <50%, 1 = >50%; the UCI-412/411 pages define CAD as ≥50% narrowing. The register records the **wording difference as VERIFIED** and states explicitly that it does **not** establish whether any record sits at exactly 50% or how such a record was coded (H-01, `gate-da/03`). Approved dispositions are limited to *identical / reconciled / related-but-not-identical / unresolved*, and until a ruling exists, pooling is prohibited. **[AR]** | **UNRESOLVED** | Cross-dataset results must be described as evaluation across **related labels whose boundary compatibility is unresolved**. They cannot be called external validation of a common target, and cannot be pooled. |
+| **R2** | **Measurement dates and prediction-timepoint compatibility** | The historical cohorts are 1980s data (`heart-disease.names`, 1988); DS-2 is a single-centre cohort of its own era. The conventional 14-attribute processed schema recorded in `gate-da/01` and `gate-da/03` contains **no measurement-date or visit-date field**; whether any date information exists in the 76-attribute raw files has **not** been audited. The prediction moment itself is not frozen — the per-feature "knowable before the angiography decision" rulings are open (DQ-SCI-3) and the front-end prediction moment is open (DQ-INT-2). **[AR]** | **NOT ASSESSED** | A validation study must pre-specify the prediction moment and show that each predictor is knowable at it. With no per-record dates, **temporal ordering within a cohort cannot be demonstrated** from the released fields; any claim of a clinically realistic timepoint rests on the source's data-collection description, not on the data. |
+| **R3** | **Referral and selection bias** | Every candidate cohort is an **angiography-referred, case-enriched** sample. DS-2 records 216/303 ≈ 71% CAD (source-reported); Cleveland records 139/303 = 45.9% events **[MR]**. Phase 0 §F-6 restricts any score to a benchmark-cohort statement and forbids absolute-probability or population-screening claims (`gate-da/01` §5, `gate-da/03` H-05). **[AR]** | **VERIFIED as a structural limitation**; magnitude **NOT ASSESSED** | A second angiography cohort reproduces the same selection mechanism rather than removing it. Independence of *dataset* does not imply independence of *selection*; a future claim must name the referral pathway, not just the data source. |
+| **R4** | **Source/cohort overlap** | `gate-da/01` §5 states that **no pair of acquirable datasets is yet proven independent**: DS-2/DS-2b are the same cohort by source-supported provenance; Statlog (DS-3) is a **suspect duplicate** of Cleveland with unknown overlap; cross-cohort duplicates inside UCI-45 cannot be ruled out from listings. Identifier-free data limit what can ever be proven (DQ-SCI-5). **[AR]** | **UNRESOLVED** | "External validation" is a **conditional, audit-gated** claim. Any future protocol must show a passed overlap audit and must state that independence is *evidenced*, not assumed from filenames or publishers. |
+| **R5** | **UCI-411 versus UCI-412 cohort identity and possible duplication** | Both files contain **303 records**; the local read-only audit compared **56 shared columns** and found **303/303 matched rows in identical positions** and **303/303 unordered matches**, with `LAD`, `LCX`, `RCA` present only in the extension. Both official pages name the same creators and the same CAD definition, and the 411 page describes itself as an *extension* of the 412 dataset. One `Cath`-versus-artery discordance remains unresolved (302 consistent, 1 not); it is explicitly **not** to be corrected, relabelled, or interpreted as a clinical misdiagnosis. **[AR]** (`gate-da/10` §3) | **VERIFIED same cohort**; the single discordance **UNRESOLVED** | UCI-411 must **never** be counted as additional patients and can never serve as independent validation of a UCI-412 model. The 303 rows must not be summed with any other 303 to claim 606 subjects. |
+| **R6** | **Missingness and site-specific distribution shift** | The local availability audit records, under the conservative zero-as-unavailable rule: Cleveland 303/303 on every pre-specified panel; Hungary 294 records with 292 resting-complete and 261 lab-complete; Switzerland 123 records with 120 resting-complete but **0** lab-complete (its 123 cholesterol zeros are third-party-documented as not measured); VA Long Beach 200 records with 143 resting-complete (`gate-da/14`). Feature definitions, units and era differ across sites (H-06, H-07), and `oldpeak` units remain unverified (DQ-SCI-4). **[AR]** | Availability **VERIFIED** for the named panels; transportability **NOT ASSESSED** | Missingness is **site-structured**, not random: a cohort can be large and still contribute almost no analysable records at a given measurement stage. A future protocol must pre-specify the analysis stage and report stage-specific denominators, not total n. |
+| **R7** | **Implications for a future independent-dataset assessment** | Combining R1–R6: no candidate pair is proven independent, no target compatibility ruling exists, no per-record timepoint evidence exists, and every cohort shares the angiography-referral selection mechanism. Validation sizing also requires its own method and inputs ([§10](#10-implications-for-independent-dataset-assessment-no-experiments-conducted)). Several cohorts are too small for a conventional claim — Switzerland has 8 source-target-negative records, a point `gate-da/15` already anticipates. **[AR]** | **HUMAN DECISION REQUIRED** | The choice of whether to pursue independent-dataset assessment at all, which cohort(s) if so, and under which target-compatibility ruling, is a scientific decision for the supervisor and research lead (Q13, Q14). No agent may preselect it. |
+
+### 14.3 What this matrix establishes — and what it does not
+
+**Establishes:** (i) the D-047 cohort's own results cannot be externally validated against any currently available dataset without a prior overlap and target-compatibility ruling; (ii) independent dataset ≠ independent selection, so a second angiography cohort addresses transportability only partially; (iii) the strongest single technical finding in the matrix is that **UCI-411 is verified to be the same 303 patients as UCI-412**, which forecloses one obvious-looking validation path.
+
+**Does not establish:** whether a suitable independent dataset exists anywhere (no systematic search was performed; **[GAP]**); whether the threshold difference at H-01 changes any record's label in practice (unverifiable without record-level stenosis percentages); or whether the historical cohorts transport to any contemporary population.
+
+### 14.4 Standing prohibitions restated
+
+No dataset was downloaded, opened, or inspected for this section. Nothing here authorises pooling, harmonisation, external validation, or a second experiment. P-5 remains **NOT MADE — prohibited**. The `validation_status` lifecycle is untouched.
+
+---
+
+## 15. Methodological-framework assessment: TRIPOD+AI and PROBAST+AI
+
+### 15.1 What this section is, and what it is not
+
+An earlier revision listed both frameworks as references only, which did not meet the requirement that they inform the review. This section records **framework-based concerns** item by item.
+
+> **This is not a completed PROBAST+AI assessment.** PROBAST+AI requires trained assessors to answer **34 signalling questions (16 for model development, 18 for model evaluation)** across four domains — *participants and data sources; predictors; outcome; analysis* — plus **six applicability items**, and then to assign domain-level and overall judgements of *low / high / unclear*. **[LIT]** (R11, R12) **No domain judgement and no overall risk-of-bias rating is assigned here**, because assigning one would require a formal, documented, assessor-led procedure that has not taken place, and because a rating produced by the agent would be exactly the kind of fabricated endorsement this project forbids.
+
+The purpose here is narrower: record which domains already raise documented concerns, so that a future formal assessment starts from evidence rather than from a blank page.
+
+### 15.2 What each framework contributes
+
+| Framework | Structure | How it is used here |
+|---|---|---|
+| **PROBAST+AI** | Four domains — participants and data sources; predictors; outcome; analysis — with 16 development and 18 evaluation signalling questions, six applicability items, and low/high/unclear judgements. **[LIT]** | Used as the organising structure for §15.3. **No ratings assigned.** |
+| **TRIPOD+AI** | 27 main items: title (1), abstract (2), introduction (3–4), methods (5–17, including outcome 8, predictors 9, sample size 10, missing data 11, analysis 12a–12g), open science (18), patient and public involvement (19), results (20–24), discussion (25–27). **[LIT]** | Used to identify **reporting gaps that would block a submission**, not to certify compliance. Full item-by-item completion is a human task (Q15). |
+
+### 15.3 Framework-based concerns
+
+Statuses below are **framework-based concerns**, not PROBAST+AI judgements.
+
+| Theme | Framework anchor | What the record shows | Concern raised? | What would resolve it |
+|---|---|---|---|---|
+| **Population and participant selection** | PROBAST+AI domain 1 / TRIPOD+AI items 5–6 | Angiography-referred, case-enriched, historical cohorts; no population sampling; selection mechanism shared by every candidate dataset (§14.2 R3). | **Yes** — applicability concern, structural | A stated target population with an explicit referral pathway, and a cohort whose selection matches it |
+| **Predictor availability and measurement timing** | PROBAST+AI domain 2 / TRIPOD+AI item 9 | The five-field resting panel is pre-specified on availability grounds; per-feature "knowable before the decision" rulings are open (DQ-SCI-3); no per-record dates (§14.2 R2); `oldpeak` units unverified for other sites. | **Yes** — timing and availability | A frozen prediction moment plus a per-feature availability table ruled by a clinician |
+| **Outcome definition and reference standard** | PROBAST+AI domain 3 / TRIPOD+AI item 8 | The endpoint is historical angiography-referenced CAD presence, binarised 0 vs 1–4; the `>50%` vs `≥50%` wording difference is verified and unresolved (H-01, §14.2 R1); the outcome is not a future event, and no time horizon exists. | **Yes** — reference-standard compatibility across sources | An H-01 ruling (*identical / reconciled / related-but-not-identical / unresolved*) recorded per dataset |
+| **Sample size and overfitting risk** | PROBAST+AI domain 4 / TRIPOD+AI item 10 | §6: criteria 3 and 4 fail at n = 303 for any anticipated R²; criterion 1 requires R²cs ≥ 0.2088; expected shrinkage at n = 303 is ≈0.80 if R²cs ≈ 0.10 (§6.4). No anticipated R² was available (§7). | **Yes** — documented deficit, not a matter of opinion | A ratified anticipated R² plus an explicit tolerance decision (Q2–Q4) |
+| **Validation and calibration evidence** | PROBAST+AI domain 4 (evaluation) / TRIPOD+AI items 20–24 | Internal nested-CV aggregates only; three of four LR calibration slopes estimable; no external cohort; calibration diagnoses described as descriptive, with no recalibration performed (`gate-pt/04`). | **Yes** — no external validation exists at all | A separate, audit-gated validation protocol (§14, §10) |
+| **Reporting transparency and missing information** | TRIPOD+AI items 2–19 | The internal report carries sanitised aggregates and explicit claim boundaries; but a TRIPOD+AI-formatted report does not exist, no abstract checklist is completed, and items 18 (open science) and 19 (patient and public involvement) have no recorded content. | **Yes** — reporting gaps | A TRIPOD+AI-mapped report, completed by a human against the full checklist |
+| **Remaining requirements before a scientific or clinical claim** | all four domains | See the list in §15.4. | **Yes** | All of §15.4, none of which exists |
+
+### 15.4 What remains before any scientific or clinical claim
+
+1. A ratified scientific target and intended use (P-1), with the prediction moment frozen.
+2. A target-harmonisation ruling for any cross-dataset statement (H-01).
+3. A source-independence and overlap audit for any evaluation dataset (§14.2 R4).
+4. An anticipated R² from an eligible source, or an explicit decision to proceed without one (§7; Q4).
+5. An explicit tolerance decision for the sample-size criteria (Q2–Q3).
+6. A TRIPOD+AI-mapped report of whatever is eventually claimed.
+7. A **formal** PROBAST+AI assessment performed by trained assessors, with the signalling questions answered and domain judgements recorded.
+8. Ethics/governance clearance appropriate to the data used.
+9. Clinician approval of any wording shown to a user (P-4).
+
+### 15.5 Explicit non-claims
+
+No overall risk-of-bias rating has been produced. No domain has been rated low, high or unclear. No applicability judgement has been made. **PROBAST+AI and TRIPOD+AI are assessment tools, not approvals**, and nothing in this section constitutes certification, endorsement, or readiness for publication or clinical use.
+
+---
+
+## 16. Next-gate reviewer checklist
+
+For use by a human at the next gate. **No row is signed, approved, or completed by the agent**, and the decision column is blank throughout. Status values reuse §14.1.
+
+| # | Requirement | Evidence currently available | Outstanding evidence | Responsible human reviewer | Status | Decision / sign-off **[BLANK]** |
+|---|---|---|---|---|---|---|
+| **C1** | **Anticipated R² evidence decision** | Extraction-level screen of 25 papers; three external CAD studies examined; none eligible (§7) | An eligible value with DOI + table/figure, population, endpoint, predictor set and A1–A6 justification — **or** a recorded decision to proceed without one | Supervisor + research lead | **NOT ASSESSED** | |
+| **C2** | **Predictor complexity (p) basis** | Registered 8 reference-coded logistic slopes explained and scoped (§3) | Decision on whether the nested LR/RF selection procedure requires an additional complexity allowance, and by which method | Research lead + statistician | **VERIFIED for p = 8**; procedure-level complexity **NOT ASSESSED** | |
+| **C3** | **Accepted statistical tolerances** | Published defaults computed (S = 0.90, optimism 0.05, δ = 0.05, MAPE = 0.05) and their consequences (§6.5) | Ratification or replacement of each tolerance, with rationale | Research lead + statistician | **NOT ASSESSED** | |
+| **C4** | **Sample-size interpretation** | R²-free result: C3 = 382, C4 = 459 at p = 8; criterion 1 needs R²cs ≥ 0.2088 (§6) | A written decision on whether 303 is acceptable *only* as a feasibility pilot, or which criterion is relaxed and why | Supervisor | **NOT ASSESSED** | |
+| **C5** | **Target harmonisation (H-01)** | Wording difference verified; boundary existence/coding unverified; pooling prohibited (§14.2 R1) | A per-dataset ruling: identical / reconciled / related-but-not-identical / unresolved | Supervisor + clinician | **UNRESOLVED** | |
+| **C6** | **Source independence and overlap** | DS-2/DS-2b same cohort verified; Statlog suspect duplicate; UCI-45 cross-site duplicates unruled (§14.2 R4–R5) | A passed overlap audit and an explicit statement of what independence is claimed | Research lead + data owner | **UNRESOLVED** | |
+| **C7** | **Future validation protocol requirements** | Method and required inputs described (§10); no dataset approved | A separate validation protocol with pre-specified performance measures, target standard errors and one-shot evaluation | Statistician + supervisor | **NOT ASSESSED** | |
+| **C8** | **TRIPOD+AI reporting completeness** | Internal report exists with claim boundaries; no TRIPOD+AI mapping | A completed TRIPOD+AI checklist for whatever is claimed (§15.3) | Research lead | **NOT ASSESSED** | |
+| **C9** | **Formal PROBAST+AI assessment** | Framework-based concerns recorded (§15.3) | A formal assessor-led PROBAST+AI assessment with signalling questions answered and domain judgements | Independent assessors | **NOT ASSESSED** | |
+| **C10** | **D-047 description and ratification status** | D-047 executed and recorded as internal exploratory (`gate-pt/04`); decision-register entry remains `PENDING_EXPLICIT_HUMAN_RATIFICATION` | Confirmation of how the completed internal run is to be described and whether it is ratified | Maintainer | **PENDING** | |
+| **C11** | **Scope of this work item** | Documentation-only Issue; a verification script is included as a proposed exception (§0.5) | Accept or reject the exception (Q11) | Maintainer | **PROPOSED** | |
+| **C12** | **Document naming** | Canonical path `05_m2e1_cad_riley_sample_size_adequacy_REVIEW_DRAFT.md`; exact Issue-requested filename unreadable (§17.3) | The exact requested filename, or confirmation that the canonical path is acceptable | Maintainer | **UNRESOLVED** | |
+
+**Gate status attached to this checklist:** P-1 **PENDING**, P-3 **CLOSED**, D-046-EP **NOT APPROVED**, P-5 **NOT MADE — prohibited**. Completing any row does not by itself close a gate.
+
+---
+
+## 17. Issue #37 acceptance matrix and filename reconciliation
+
+### 17.1 Basis of this matrix
+
+The Issue #37 body could **not** be retrieved by the agent: `gh issue view 37` and the REST API return **HTTP 403**, and the web view returns **404** (§11.4). The maintainer has confirmed in review that the issue requires the deliverables mapped below. This matrix is therefore built from **two written maintainer briefs [BRIEF]** plus the merged repository evidence, and is **not** a direct reading of the issue text. Where a brief and the issue might differ, the discrepancy is flagged rather than smoothed over.
+
+### 17.2 Deliverable matrix
+
+| # | Issue #37 deliverable (as conveyed) | Where it is delivered | Status |
+|---|---|---|---|
+| **1** | Research the original Riley-style sample-size methodology for binary clinical prediction models from authoritative publications | §4 (criteria, formulas, sources), §5 (numerical verification against published worked examples), §7 (anticipation method), Appendix B (source traceability to `pmsampsize` v1.1.3) | **COMPLETE** |
+| **2** | Examine the supervisor-selected literature using the **original spreadsheet and CSV extraction** as the status source, not the presentation | §7.4 (term sweep, scope limits), Appendix C (all 25 papers with recorded datasets), §0.6 (read-depth disclosure) | **COMPLETE at extraction level.** Full-text verification of the 25 papers is **NOT DONE** and is not claimed (Q4). |
+| **3** | Use the established Cleveland context: 303 records, 139 positives, 164 negatives, five predictors → eight reference-coded slopes | §2 (inputs table), §3 (why p = 8, and what it does not represent), §2.1 (what φ is not) | **COMPLETE** |
+| **4** | Investigate defensible externally anticipated Cox–Snell R² assumptions; cite sources; evaluate population, endpoint and predictor compatibility. **Never derive R² from observed AUROC** | §7.1–§7.2 (what would be admissible; A1–A6), §7.4 (corpus screen), §7.5 (external CAD models), §7.6 (outcome), §4.5 (why the C→R² route is not executed), §7.3 (prohibition) | **COMPLETE as an investigation.** Result is a documented negative: no eligible value identified. **The assumption itself remains `[BLANK]`** by design, not by omission. |
+| **5** | Document shrinkage, precision, outcome-proportion and predictor-budget requirements; separate verified evidence from hypothetical scenarios and assumptions needing approval | §6.3–§6.4 (requirement tables, achieved shrinkage), §6.5 (levers), §8 (hypothetical scenarios with usage rules), §0.1 (evidence labels), §9.2 (three-part verdict) | **COMPLETE** |
+| **6** | If evidence cannot justify a numerical decision, report **NOT ASSESSED / PENDING HUMAN REVIEW**; never fabricate an assumption to force GO | §1.2 rows 5–6, §9.1 (recorded status), §9.2, §13 (blank decision record) | **COMPLETE** |
+
+**Additional requirements from the maintainer's second brief, now also delivered:**
+
+| # | Requirement | Where it is delivered | Status |
+|---|---|---|---|
+| **A** | Independent-dataset research risk assessment: target harmonisation (`>50%` vs `≥50%`), measurement dates and timepoint compatibility, referral/selection bias, source overlap, UCI-411 vs UCI-412 identity, missingness and distribution shift, implications | §14 (risk matrix R1–R7 with four-way disposition) | **COMPLETE as documentation.** It rests on already-recorded audit evidence; no new data-level audit was performed. |
+| **B** | Source-grounded TRIPOD+AI / PROBAST+AI assessment covering population, predictors and timing, outcome/reference standard, sample size, validation and calibration gaps, reporting transparency, remaining requirements | §15 (six themes plus a nine-item requirement list) | **PARTIAL BY DESIGN.** Framework-based concerns are recorded; a **formal** PROBAST+AI assessment with signalling questions and domain judgements is **NOT DONE** and must be performed by trained assessors (§15.1, Q15). |
+| **C** | Next-gate reviewer checklist with requirement, available evidence, outstanding evidence, responsible reviewer, status, blank sign-off | §16 (C1–C12, all sign-off fields blank) | **COMPLETE.** No research approval marked completed. |
+| **D** | Numerical edge case at the C1 break-even | §5.5 (analytical equality vs floating point) and §5.2/Appendix A (regression coverage with a representation-scale guard that cannot rescue genuinely insufficient sizes) | **COMPLETE** |
+| **E** | MAPE approximation applicability domain, including the prevalence transformation above 0.5 | §4.6 | **COMPLETE** (with the symmetry convention attributed to secondary sources) |
+| **F** | Documentation-only scope discrepancy kept visibly pending | §0.5, §11.2, Appendix E, Q11, checklist C11 | **PENDING HUMAN DECISION** — not resolved, not presented as authorised |
+
+### 17.3 Incomplete or unresolved requirements — stated plainly
+
+To avoid any impression of full completion, the following are **not** delivered:
+
+| Item | Why | Consequence |
+|---|---|---|
+| Reading the Issue #37 text | 403/404 from the API and web view | Requirements are taken from maintainer briefs; if the issue contains a requirement absent from those briefs, it is unmet and unknown (Q12) |
+| Full-text verification of the 25 supervisor papers | Not performed | The literature finding is extraction-level only (§7.4) |
+| A formal PROBAST+AI assessment | Requires trained assessors and the full signalling-question set | §15 records concerns only; **no rating exists** |
+| A completed TRIPOD+AI checklist | Requires the full 27-item instrument applied to a real report | Reporting gaps are named, not certified |
+| Any eligible anticipated R² | None identified in the examined sources | Status remains `NOT ASSESSED — PENDING HUMAN REVIEW` |
+| Any decision on tolerances, target harmonisation, or dataset independence | Human decisions | Checklist C3, C5, C6 remain open |
+| Resolution of the filename discrepancy | See below | Needs the maintainer's exact requested name |
+
+### 17.4 Filename discrepancy
+
+The brief records that **Issue #37 requests a specific document filename**, while this package uses `05_m2e1_cad_riley_sample_size_adequacy_REVIEW_DRAFT.md`. The exact requested name could not be read by the agent (**[GAP]**, §11.4), so it is not guessed here.
+
+| Aspect | Record |
+|---|---|
+| Canonical path used | `docs/research/gate-pt/05_m2e1_cad_riley_sample_size_adequacy_REVIEW_DRAFT.md` |
+| Why this name | It follows the existing convention of the folder: numbered prefix, topic slug, and a status suffix matching siblings `01_..._NOT_APPROVED.md`, `02_..._PROPOSED.md`, `03_..._TEMPLATE.md`, `04_..._REVIEW_DRAFT.md`. **[AR]** |
+| Inbound links | Two: the Gate PT index (`docs/research/gate-pt/README.md`) and the PR description. Both are single-line updates if the file is renamed. |
+| Why not renamed now | The requested name is unknown; guessing would produce a file the maintainer did not ask for, and duplicating the document under two names would create exactly the second scientific report the brief forbids. |
+| Ready-to-apply resolution | `git mv docs/research/gate-pt/05_m2e1_cad_riley_sample_size_adequacy_REVIEW_DRAFT.md <requested-name>` then update the one README link. One file, one link, no content change, no duplicate. |
+| Who decides | Maintainer (Q16 / checklist C12) |
+
+---
+
+## 18. References
 
 | ID | Reference | Read as |
 |---|---|---|
@@ -679,8 +911,8 @@ Each question has a blank decision field. The agent must not prefill any of them
 | **R8** | *pmsampsize*: calculates the minimum sample size required for developing a multivariable prediction model. R package version 1.1.3 (2023). CRAN; source `github.com/JoieEnsor/pmsampsize`, commit `ebbe7c9`. | Full source (relevant files) |
 | **R9** | Pate A, Riley RD, Collins GS, van Smeden M, Van Calster B, Ensor J, Martin GP. Minimum sample size for developing a multivariable prediction model using multinomial logistic regression. *Stat Methods Med Res* 2023;32(3):555–571. doi:10.1177/09622802231151220 | Abstract |
 | **R10** | Pavlou M, Ambler G, Qu C, Seaman SR, White IR, Omar RZ. An evaluation of sample size requirements for developing risk prediction models with binary outcomes. *BMC Med Res Methodol* 2024;24:146. doi:10.1186/s12874-024-02268-5 | Abstract |
-| **R11** | Collins GS, Moons KGM, Dhiman P, et al. TRIPOD+AI statement. *BMJ* 2024;385:e078378. doi:10.1136/bmj-2023-078378 | Bibliographic |
-| **R12** | Moons KGM, Damen JAA, Kaul T, et al. PROBAST+AI. *BMJ* 2025;388:e082505. doi:10.1136/bmj-2024-082505 | Bibliographic |
+| **R11** | Collins GS, Moons KGM, Dhiman P, et al. TRIPOD+AI statement: updated guidance for reporting clinical prediction models that use regression or machine learning methods. *BMJ* 2024;385:e078378. doi:10.1136/bmj-2023-078378 | Abstract, plus the 27-item structure and the text of items 8–12 from the open-access record. The full checklist was **not** applied item by item. |
+| **R12** | Moons KGM, Damen JAA, Kaul T, et al. PROBAST+AI: an updated quality, risk of bias, and applicability assessment tool for prediction models using regression or artificial intelligence methods. *BMJ* 2025;388:e082505. doi:10.1136/bmj-2024-082505 | Abstract and tool structure (four domains; 34 signalling questions, 16 development / 18 evaluation; six applicability items; low/high/unclear judgements). Full instrument **not** applied. |
 | **R13** | Genders TSS, Steyerberg EW, Alkadhi H, et al. A clinical prediction rule for the diagnosis of coronary artery disease: validation, updating, and extension. *Eur Heart J* 2011;32(11):1316–1330. doi:10.1093/eurheartj/ehr014 | Abstract |
 | **R14** | Genders TSS, Steyerberg EW, Hunink MGM, et al. Prediction model to estimate presence of coronary artery disease: retrospective pooled analysis of existing cohorts. *BMJ* 2012;344:e3485. doi:10.1136/bmj.e3485 | Abstract |
 | **R15** | Genders TSS, Coles A, Hoffmann U, Patel MR, Mark DB, Lee KL, Steyerberg EW, Hunink MGM, Douglas PS; CAD Consortium and PROMISE Investigators. The external validity of prediction models for the diagnosis of obstructive coronary artery disease in patients with stable chest pain: insights from the PROMISE trial. *JACC Cardiovasc Imaging* 2018;11(3):437–446. doi:10.1016/j.jcmg.2017.02.020 | Abstract |
@@ -698,7 +930,7 @@ python3 scripts/verify_m2e1_sample_size.py
 
 Expected: `All deterministic checks passed. No model was fitted and no simulation was run.` with exit code 0; any mismatch prints `[FAIL]` and exits 1. There is no `--simulate` option: the fitting pathway present in revision 1 has been removed.
 
-The script reads no project data, contains no patient records, fits nothing to any dataset, and generates nothing random. Section letters in its output: A = published anchors, B = structural properties, C = the D-047 scenario including break-even and rounding, D = the implicit shrinkage inversion.
+The script reads no project data, contains no patient records, fits nothing to any dataset, and generates nothing random. Section letters in its output: A = published anchors; B = structural properties; C = the D-047 scenario including break-even and rounding; D = analytical equality versus floating-point representation; E = applicability domain of the additional MAPE criterion; F = the implicit shrinkage inversion. 60 checks in total.
 
 **If the script is not authorised** ([§0.5](#05-scope-discrepancy-documentation-only-issue-vs-this-diff)), every number can be checked by hand from [Appendix E](#appendix-e--documentation-only-verification-record).
 
@@ -757,10 +989,11 @@ Status counts: 9 GREEN, 6 ORANGE, 1 PINK, 9 RED. **[AR]**
 |---|---|
 | Version | 1.0 — initial review draft (commit `cbae437`) |
 | Version | 1.0a — C1 threshold wording clarification (commit `ff934da`) |
-| **Version** | **2.0 — post-QA scientific corrections (this revision)** |
+| Version | 2.0 — post-QA scientific corrections (commit `e2f2edd`) |
+| **Version** | **2.1 — Issue #37 risk, framework, checklist and acceptance material (this revision)** |
 | Date | 2026-10-23 |
 | Basis commit | `a0d4007` (merge of PR #36) |
-| Supersedes | revision 1.0a of this document |
+| Supersedes | revision 2.0 of this document |
 | Change control | any future numeric change requires a dated amendment naming who changed it and why |
 
 ### Corrections applied in 2.0
@@ -774,6 +1007,19 @@ Status counts: 9 GREEN, 6 ORANGE, 1 PINK, 9 RED. **[AR]**
 | **5** | "Lower bound" language applied to all criteria although C4 can overestimate; C4 not distinguished from the published three; p = 8 and φ presented without qualification. | C1–C3 separated from the additional approximate C4 ([§4.1](#41-the-published-criteria-and-the-additional-one)); direction-of-error paragraph added ([§4.2](#42-direction-of-error-not-uniformly-conservative)); p = 8 scope stated ([§3.2](#32-what-p--8-represents--and-what-it-does-not)); φ scope stated ([§2.1](#21-what-φ-is-and-is-not)). |
 | **6** | A decision rule written after D-047 was executed was described as "pre-registered", and contained an underived 1.25 multiplier. | §9.3 rewritten as an **UNAPPROVED post-experiment proposal** with provenance stated; the 1.25 multiplier and its three-band classification **removed** as methodologically underived. |
 | **7** | (QA follow-up) Documentation-only scope vs an added script. | Recorded explicitly in [§0.5](#05-scope-discrepancy-documentation-only-issue-vs-this-diff), the script header, and Q11; a documentation-only fallback is provided in [Appendix E](#appendix-e--documentation-only-verification-record). |
+
+### Additions in 2.1
+
+Not corrections of previously published numbers — every quantity in §6 is unchanged — but fulfilment of the Issue #37 deliverables that revision 2.0 did not carry.
+
+| # | Requirement | Where it is now delivered |
+|---|---|---|
+| **8** | Independent-dataset research risk assessment (target harmonisation, timepoints, referral bias, overlap, UCI-411/412 identity, missingness/shift, implications) with a VERIFIED / UNRESOLVED / NOT ASSESSED / HUMAN DECISION REQUIRED matrix | §14 |
+| **9** | Source-grounded TRIPOD+AI and PROBAST+AI assessment, explicitly not a formal PROBAST+AI judgement | §15 |
+| **10** | Next-gate reviewer checklist with requirement, evidence, outstanding evidence, responsible reviewer, status and blank sign-off | §16 |
+| **11** | Issue #37 acceptance matrix and filename reconciliation, including an explicit list of incomplete requirements | §17 |
+| **12** | Break-even floating-point edge case, with regression coverage that distinguishes analytical equality from representation noise and cannot rescue genuinely insufficient sizes | §5.5, §5.2 |
+| **13** | Applicability domain of the additional MAPE criterion, including the prevalence (minority-class) transformation above 0.5 | §4.6 |
 
 ## Appendix E — documentation-only verification record
 
@@ -809,3 +1055,7 @@ If the verification script is not authorised, this appendix is the substitute. E
 | **PROPOSED** | Put forward for decision; carries no authority until ratified. |
 | **WITHDRAWN** | Present in revision 1, removed in revision 2.0, and not relied upon anywhere. |
 | **[BLANK]** | Intentionally empty; must be completed by a named human. |
+| **VERIFIED** (risk-matrix disposition) | Established from an official source, audit record or repository evidence, and adequate for planning (§14.1). |
+| **UNRESOLVED** | A specific question is open, a discordance exists, or the available evidence does not settle it. |
+| **NOT ASSESSED** (risk-matrix disposition) | Not examined at the required level — for example no data-level audit, or the enabling field does not exist in the released schema. |
+| **HUMAN DECISION REQUIRED** | Options can be described; choosing among them is a scientific/governance act reserved to a named human. |

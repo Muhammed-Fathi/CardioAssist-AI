@@ -86,6 +86,30 @@ def n_shrinkage_ceiling(parameters: int, r2_cs: float, shrinkage: float = SHRINK
     return math.ceil(n_shrinkage(parameters, r2_cs, shrinkage))
 
 
+REPRESENTATION_ULPS = 8
+
+
+def analytically_ceiled(real_value: float, ulps: int = REPRESENTATION_ULPS) -> int:
+    """Ceiling with a guard at the scale of floating-point representation only.
+
+    At an analytical break-even the real-valued requirement is exactly an
+    integer, but ordinary evaluation can land a few ulps above it
+    (303.00000000000006 for 303), and a plain ceiling then returns 304.
+
+    The guard treats a value as analytically equal to the nearest integer when
+    the gap is within `ulps` units in the last place (default 8, i.e. about
+    3.6e-12 at 303 - roughly 1e-14 of a participant). That is a *representation*
+    threshold, not a substantive rounding tolerance: it is twelve orders of
+    magnitude below the smallest one-record shortfall discussed in the review,
+    so it cannot convert an insufficient sample size into a sufficient one.
+    Compare `n_shrinkage_ceiling`, which keeps the strict pmsampsize behaviour.
+    """
+    nearest = round(real_value)
+    if abs(real_value - nearest) <= ulps * math.ulp(real_value):
+        return int(nearest)
+    return math.ceil(real_value)
+
+
 def n_optimism(parameters: int, r2_cs: float, prevalence: float = PREVALENCE) -> int:
     """Criterion 2 (pmsampsize): optimism in Nagelkerke R2 no larger than 0.05.
 
@@ -107,22 +131,34 @@ def n_precision(prevalence: float = PREVALENCE, half_width: float = PRECISION) -
     return math.ceil(((1.96 / half_width) ** 2) * prevalence * (1.0 - prevalence))
 
 
+def minority_proportion(phi: float) -> float:
+    """Symmetry transformation for the MAPE criterion: phi* = min(phi, 1 - phi).
+
+    The criterion is evaluated on the minority-class proportion so that a cohort
+    with, say, 70% events is treated as its complementary 30% rather than as a
+    qualitatively different planning problem. For this cohort phi = 0.4587 < 0.5,
+    so phi* = phi and no transformation is applied (asserted in section C5).
+    """
+    return min(phi, 1.0 - phi)
+
+
+def _mape_real(parameters: int, prevalence: float = PREVALENCE, mape: float = MAPE_TARGET) -> float:
+    phi = minority_proportion(prevalence)
+    return math.exp(
+        (-0.508 + 0.259 * math.log(phi) + 0.504 * math.log(parameters) - math.log(mape)) / 0.544
+    )
+
+
 def n_mape(parameters: int, prevalence: float = PREVALENCE, mape: float = MAPE_TARGET) -> int:
     """ADDITIONAL criterion 4 (not returned by pmsampsize): minimum average MAPE.
 
-    n = exp((-0.508 + 0.259*ln(phi) + 0.504*ln(p) - ln(m)) / 0.544).
-    An approximation: van Smeden et al. 2019, stated for p <= 30.
+    n = exp((-0.508 + 0.259*ln(phi*) + 0.504*ln(p) - ln(m)) / 0.544),
+    with phi* the minority-class proportion. An approximation:
+    van Smeden et al. 2019, stated for p <= 30.
     """
     if parameters > 30:
         raise ValueError("approximation is stated for p <= 30")
     return math.ceil(_mape_real(parameters, prevalence, mape))
-
-
-def _mape_real(parameters: int, prevalence: float = PREVALENCE, mape: float = MAPE_TARGET) -> float:
-    return math.exp(
-        (-0.508 + 0.259 * math.log(prevalence) + 0.504 * math.log(parameters) - math.log(mape))
-        / 0.544
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -302,8 +338,70 @@ def project_scenario() -> None:
     check("C1 budget at R2_cs=0.209 is p<=8", max([q for q in range(1, 21) if n_shrinkage_ceiling(q, 0.209) <= TOTAL]), 8)
 
 
+def floating_point_edge_case() -> None:
+    print("\n== D. Analytical equality versus floating-point representation ==")
+    break_even = r2_at_n(TOTAL, PARAMETERS)
+    real_value = n_shrinkage(PARAMETERS, break_even)
+    print(f"break-even R2_cs            = {break_even!r}")
+    print(f"real-valued requirement     = {real_value!r}")
+    print(f"math.ceil(real_value)       = {math.ceil(real_value)}   (strict pmsampsize behaviour)")
+    print(f"analytically_ceiled(value)  = {analytically_ceiled(real_value)}   (representation-aware)")
+    check("strict ceiling exhibits the representational artefact", math.ceil(real_value), 304)
+    check("analytical ceiling returns 303 at the break-even", analytically_ceiled(real_value), 303)
+    check(
+        "gap to the integer is at representation scale, not substantive scale",
+        abs(real_value - 303.0) < 1e-9,
+        True,
+    )
+    check(
+        "guard width in participants is negligible",
+        REPRESENTATION_ULPS * math.ulp(303.0) < 1e-9,
+        True,
+    )
+
+    print("\n-- D1. The guard must not rescue genuinely insufficient sizes --")
+    for r2 in (0.20884, 0.205, 0.20, 0.170054, 0.209):
+        real = n_shrinkage(PARAMETERS, r2)
+        print(
+            f"   R2_cs={r2:<9} real={real:10.4f} strict={math.ceil(real):4d} "
+            f"analytic={analytically_ceiled(real):4d}"
+        )
+    check("at 0.20884 both ceilings give 304", (math.ceil(n_shrinkage(8, 0.20884)), analytically_ceiled(n_shrinkage(8, 0.20884))), (304, 304))
+    check("at 0.205 both ceilings give 310", (math.ceil(n_shrinkage(8, 0.205)), analytically_ceiled(n_shrinkage(8, 0.205))), (310, 310))
+    check("at 0.209 both ceilings give 303", (math.ceil(n_shrinkage(8, 0.209)), analytically_ceiled(n_shrinkage(8, 0.209))), (303, 303))
+    check("at 0.170054 both ceilings give 382", (math.ceil(n_shrinkage(8, 0.170054)), analytically_ceiled(n_shrinkage(8, 0.170054))), (382, 382))
+
+    print("\n-- D2. Where the guard does and does not fire --")
+    check("a value 0.5 below an integer still ceils upward", analytically_ceiled(302.5), 303)
+    check("a value 1 ulp below an integer is treated as that integer", analytically_ceiled(303.0 - math.ulp(303.0)), 303)
+    check("a value clearly above an integer still ceils upward", analytically_ceiled(303.01), 304)
+
+
+def mape_applicability() -> None:
+    print("\n== E. Applicability domain of the additional MAPE criterion ==")
+    print(f"event proportion phi        = {PREVALENCE:.8f}")
+    print(f"minority proportion phi*    = {minority_proportion(PREVALENCE):.8f}")
+    check("phi <= 0.5, so no symmetry transformation is required here", PREVALENCE <= 0.5, True)
+    check("phi* equals phi for this cohort", minority_proportion(PREVALENCE), PREVALENCE)
+    check("C4 unchanged by the transformation", n_mape(PARAMETERS), 459)
+
+    print("\n-- E1. Symmetry behaviour (illustrative; not this cohort) --")
+    for phi in (0.30, 0.458746, 0.50, 0.70):
+        print(
+            f"   phi={phi:.6f} phi*={minority_proportion(phi):.6f} "
+            f"C4(p=8)={n_mape(8, phi)}"
+        )
+    check("a 70% event proportion is evaluated on 30%", round(minority_proportion(0.70), 12), 0.30)
+    check("symmetry: phi and 1-phi give the same requirement", n_mape(8, 0.70), n_mape(8, 0.30))
+    check("the requirement is largest at an even split", n_mape(8, 0.50) > n_mape(8, 0.30), True)
+
+    print("\n-- E2. Stated domain and guards --")
+    check("p <= 30 is enforced", _raises(lambda: n_mape(31)), True)
+    check("p = 30 is inside the stated domain", isinstance(n_mape(30), int), True)
+
+
 def shrinkage_inversion() -> None:
-    print("\n== D. Implicit inversion of criterion 1: shrinkage achieved at n=303, p=8 ==")
+    print("\n== F. Implicit inversion of criterion 1: shrinkage achieved at n=303, p=8 ==")
     print("   n(S) = p / ((S-1) * ln(1 - R2_cs/S)) solved for S; same R2_cs as in C1.")
     print(f"{'R2_cs':>10} {'S achieved':>12} {'check n(S)':>12}")
     expected_roots = {
@@ -342,6 +440,8 @@ def main() -> int:
     published_anchors()
     structural_checks()
     project_scenario()
+    floating_point_edge_case()
+    mape_applicability()
     shrinkage_inversion()
     print("\n== Summary ==")
     print(f"checks run: {COUNT}")
