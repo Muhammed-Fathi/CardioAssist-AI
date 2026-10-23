@@ -98,11 +98,22 @@ def analytically_ceiled(real_value: float, ulps: int = REPRESENTATION_ULPS) -> i
 
     The guard treats a value as analytically equal to the nearest integer when
     the gap is within `ulps` units in the last place (default 8, i.e. about
-    3.6e-12 at 303 - roughly 1e-14 of a participant). That is a *representation*
-    threshold, not a substantive rounding tolerance: it is twelve orders of
-    magnitude below the smallest one-record shortfall discussed in the review,
-    so it cannot convert an insufficient sample size into a sufficient one.
-    Compare `n_shrinkage_ceiling`, which keeps the strict pmsampsize behaviour.
+    3.6e-12 at 303 - roughly 1e-14 of a participant).
+
+    LIMITATIONS - this is a documentation aid, not a rule:
+      * a tolerance test cannot distinguish an exact integer from a genuine
+        positive difference smaller than the tolerance, so equality is never
+        *proved* by this function; it is known here only because the closed-form
+        break-even was solved independently and the residual traced to IEEE-754
+        rounding of that same expression;
+      * it is therefore not a general rounding convention, not a tolerance that
+        may be applied to an arbitrary input, and not an acceptance rule;
+      * the strict ceiling in `n_shrinkage_ceiling` - which is what pmsampsize
+        returns - is the only value the review uses for any adequacy statement.
+    It remains useful only because it names the artefact at the one analytical
+    point where the exact answer is known, and because every genuine shortfall
+    tested (0.20884, 0.205, 0.170054, 0.209) yields the same integer under both
+    routines, so it cannot convert an insufficient size into a sufficient one.
     """
     nearest = round(real_value)
     if abs(real_value - nearest) <= ulps * math.ulp(real_value):
