@@ -66,8 +66,8 @@ doc 08, the plan, the dictionary, `research/uci412/**`, `research/experiments/**
 or `.github/**`. Therefore the three hashes above are **identical at your governance merge commit**, and
 they are the exact values to bind in the local manifest (§6.6).
 
-Verify at your own checkout before signing anything (**all four `diff` commands must print nothing; all
-four hashes must match the table**):
+Verify at your own checkout before signing anything (**the `git diff` must print nothing and all four
+hashes must match the table**):
 
 ```powershell
 git switch main
