@@ -15,6 +15,13 @@
 > - **Gate PT P-3:** **CLOSED** · **P-1:** PENDING · **P-5:** prohibited · **D-046:** read-only audit only ·
 >   **D-047 (Cleveland):** unchanged · **D-048:** unchanged (**not** edited; its own closing clause requires
 >   a named human decision).
+> - **Evidence addendum E-1 (2026-10-24, `M3A-AMENDMENT-A1-E1`):** adds one peer-reviewed secondary
+>   source — Tao H. *et al.*, *Reviews in Cardiovascular Medicine* 2025;26(3):26204,
+>   <https://doi.org/10.31083/RCM26204>, Table 1 — which states `True = 1; false = 0` for all six affected
+>   attributes. It is **evidence documentation only**: the six-column mapping, model codes, panel,
+>   parameters, CV scheme, threshold, dataset and every guard are unchanged, and the schema/panel versions
+>   stay 1.1.0. S-9 stays **provisional** (no official dataset-owner codebook) and still requires explicit
+>   human acceptance.
 > - **No real data:** no workbook was downloaded, opened, modified, or uploaded by this amendment; no model
 >   was fitted; no patient-level value, row, fingerprint, prediction file, or performance number exists in
 >   this document.
@@ -81,7 +88,7 @@ re-typed in the model matrix, or "made consistent".
 | Feature dictionary `research/uci412/schemas/uci412_feature_dictionary.v1.json` | schema `uci412_research_feature_dictionary` **1.1.0** | six features: `vocabulary` → `null`, new `source_value_encoding` block (encoding id, values, model codes, verification status, evidence, uncertainty, rejected legacy tokens, aggregate audit counts); `revision_history` records 1.0.0 → 1.1.0; two new citations (secondary numeric-binary literature; the human audit record) |
 | Panel `uci412_basic_clinical_v1` | **1.1.0** | version bump only for the source-encoding contract of six members; the same 16 columns in the same order; all four registered panels moved to 1.1.0 |
 | Research plan `research/uci412/uci412_cad_research_plan.v0.1.json` | protocol revision `M3A-AMENDMENT-A1` | new `protocol_revision` block and `source_encoding` block (register id, six columns, accepted values `[0, 1]`, rejected value classes, `global_automatic_coercion: FORBIDDEN`, `encoded_parameter_count_unchanged: true`); dictionary/panel version bindings → 1.1.0 |
-| `research/uci412/source_spec.py` | — | `NUMERIC_BINARY_SOURCE_COLUMNS` (the audited six, in source order), encoding id/kind/semantics constants, `TEXT_CATEGORICAL_SOURCE_COLUMNS`, and the audit evidence for both |
+| `research/uci412/source_spec.py` | — | `NUMERIC_BINARY_SOURCE_COLUMNS` (the audited six, in source order), encoding id/kind/semantics constants, `TEXT_CATEGORICAL_SOURCE_COLUMNS`, the audit evidence for both, and the E-1 semantics-evidence status + citation ids |
 | `research/uci412/feature_schema.py` | — | `SourceValueEncoding` type; strict validation (single id, `0→0`/`1→1` only, human-audit verification status mandatory, non-empty evidence/uncertainty, aggregate counts consistent); mutual exclusion with a text vocabulary; code-level allowlist that must equal the six columns; `codes` still returns `(0, 1)` |
 | `research/uci412/adapter.py` | — | one new strict reader `_numeric_binary_code`; the per-cell dispatch accepts integers `0`/`1` (and exactly equal floats) **only** for those six columns; aggregate `numeric_binary_source_value_counts` added to the audit object |
 | `research/uci412/config.py` | — | `M3A_PROTOCOL_AMENDMENT_ID`, `SOURCE_ENCODING_REGISTER_ID`; plan validation of the new blocks; `source_value_encoding` section in the report payload |
@@ -132,17 +139,27 @@ blanks; the behaviour was not changed by this amendment.
 | Human-executed, read-only, **SHA-256-verified local audit** of all 303 records and all 12 admitted categorical predictors (2026-10-24); workbook verified byte-identical before and after | **Primary for representation** (aggregate counts only; no row-level value retained anywhere) | These six columns contain exclusively numeric `0`/`1` with no blanks; the other six contain 303/303 registered values |
 | <https://doi.org/10.3390/electronics11030315> — Table 1 | Secondary literature (supporting) | The six attributes are binary `0/1` |
 | <https://pmc.ncbi.nlm.nih.gov/articles/PMC7037941/> — published feature descriptions | Secondary literature (supporting) | A `0/1` representation is described in the literature |
+| **Tao H., Wang C., Qi H., Li H., Li Y., Xie R., *et al.* (2025)** — *A Real-Time Computer-Aided Diagnosis System for Coronary Heart Disease Prediction Using Clinical Information*, **Reviews in Cardiovascular Medicine 26(3):26204**, <https://doi.org/10.31083/RCM26204> (open access, CC BY 4.0; published 2025-03-17). Table 1 “Features of Z-Alizadeh Sani dataset” types these attributes as `Integer` and states **`True = 1; false = 0`** for `DM`, `HTN`, `Current Smoker`, `EX-Smoker`, `FH` and `Typical Chest Pain` | **Peer-reviewed secondary source, table read in full** (evidence addendum E-1) | The **direction** of the six codes (1 = present, 0 = absent), the integer representation, and — consistently — `Male = 1; female = 0` for `Sex` and `Yes = 1; no = 0` for `DLP`, `Atypical`, `Nonanginal`, `Exertional CP`, `Dyspnea` |
 | <https://doi.org/10.24432/C5Q31T> — official UCI-412 dataset identity | Official dataset identity | Which file/records this is about (not per-column coding) |
 
 **Not used, and explicitly absent:** an official per-column codebook. The UCI landing page publishes group
 membership, record count, the ≥50 % target rule, "no missing values", and the licence — **not** per-field
 coding. Secondary literature is supporting evidence, not an independently verified official codebook.
 
+**Direction evidence (addendum E-1).** Tao *et al.* 2025 Table 1 is not an inference from attribute naming:
+it states the coding explicitly and in the same direction the dictionary registers (`True = 1; false = 0`,
+i.e. `1` = present/true). That raises the *direction* claim from "inferred" to **"directly stated by
+peer-reviewed secondary literature"**. It does **not** make the claim official: the source is a third-party
+publication, it says nothing about the delivered workbook's exact cell types or spellings, and no
+dataset-owner codebook has been issued or independently checked. The six codes therefore stay
+`PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK`, and explicit
+human acceptance of **S-9** is still required before any real-data run.
+
 ### 3.2 Residual uncertainty (S-9 — requires explicit human acceptance)
 
 | # | Unresolved item | Current behaviour | If it cannot be accepted |
 |---|---|---|---|
-| **S-9** | The audit establishes the **representation** (numeric `0`/`1`). It cannot establish from an official source that `1` means *present*: that direction is inferred from the attribute names (risk factors and symptom descriptors that are either present or absent) plus secondary literature. | `0` → absent/false, `1` → present/true, recorded as `PROVISIONAL_INFERRED_NOT_OFFICIALLY_DOCUMENTED`; `semantic_uncertainty` is a mandatory field of each of the six encodings | Do not sign. A direction change is a new dictionary schema version and a new review; it is never a local edit |
+| **S-9** (evidence addendum E-1) | The human audit establishes the **representation** (numeric `0`/`1`). The **direction** (`1` = present) is now **directly stated by peer-reviewed secondary literature** — Tao *et al.* 2025, Table 1: `True = 1; false = 0` — but it is still **not independently verified against an official dataset-owner codebook**, because none is published. Secondary evidence reduces, but does not remove, the residual risk. | `0` → absent/false, `1` → present/true, recorded as `PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK`; `semantic_uncertainty` and the citation ids are mandatory fields of each of the six encodings; explicit human acceptance stays required | Do not sign. A direction change is a new dictionary schema version and a new review; it is never a local edit |
 | S-1 (partially resolved) | Exact header spellings and category tokens for the **43 non-admitted** columns (e.g. `Fmale`, VHD levels in blocked panels) remain unverified | Unchanged: only the registered 56-header set is accepted; blocked panels stay blocked | Do not sign; a vocabulary change is a new dictionary version |
 | S-2 … S-8 | Unchanged residual items from doc 09 §4 (`BP` single-value, `PR` unit, chest-pain exclusivity, ECG/echo timing, target threshold ≥50 % vs >50 %, 54 vs 55 features) | Unchanged, byte-for-byte | Carried forward unchanged |
 
@@ -212,7 +229,8 @@ are local to the maintainer's Windows machine and are the only way a single real
 1. **Review this PR** (documentation + `research/uci412/**` + `tests/uci412/**` only; no workflow file, no
    data file, no backend/contract change). Accept or reject:
    - the corrected encoding table in §1;
-   - residual item **S-9** (the inferred `0` = absent/false, `1` = present/true direction);
+   - residual item **S-9** (the `0` = absent/false, `1` = present/true direction — now directly stated by
+     Tao *et al.* 2025 Table 1, but still not confirmed by an official dataset-owner codebook);
    - the version bumps (`dictionary 1.1.0`, `panel 1.1.0`) and the fact that all earlier hashes are void.
 
 2. **Record the decision explicitly** on the amendment PR: the verbatim review comment
@@ -278,7 +296,7 @@ are local to the maintainer's Windows machine and are the only way a single real
 | Decision | Field |
 |---|---|
 | Accept §1 encoding and §2–§4 unchanged freeze | `[BLANK — HUMAN ONLY]` |
-| Accept S-9 direction as provisional | `[BLANK — HUMAN ONLY]` |
+| Accept S-9 direction (peer-reviewed secondary evidence, no official codebook) as provisional | `[BLANK — HUMAN ONLY]` |
 | Name / date | `[BLANK]` / `[BLANK]` |
 
 ---
@@ -358,7 +376,10 @@ all synthetic in-memory fixtures):
 6. the full synthetic end-to-end run (`run_synthetic_dry_run`, the same path the CLI dry-run uses)
    completes with `status PASS`, writes no files, and opens no real data;
 7. a PR-#45-shaped manifest fails closed on the panel version, on the missing dictionary schema binding,
-   and on the missing amendment id, and the checked-in template remains non-authorizing.
+   and on the missing amendment id, and the checked-in template remains non-authorizing;
+8. evidence addendum E-1: each of the six encodings cites `TAO_2025_RCM_TABLE1` with the full DOI and the
+   `True = 1; false = 0` statement, the provisional-not-official status string is unchanged in code and in
+   the plan, and the dictionary/plan cannot be edited to claim official-codebook confirmation.
 
 **Claimed:** a narrow, documented, versioned source-encoding correction exists; the strict adapter now
 handles the audited numeric representation without weakening any guard; every affected gate fails closed;

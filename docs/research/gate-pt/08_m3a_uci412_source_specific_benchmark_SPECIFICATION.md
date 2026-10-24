@@ -165,7 +165,7 @@ Blocked panels are registered so a reviewer can see the exact candidate set, but
 
 ### 5.4 Vocabulary (fail-closed, recorded, never silently renamed)
 
-- binary, **numerically encoded in the delivered workbook** (Amendment A-1, verified by the 2026-10-24 human read-only audit): `DM`, `HTN`, `Current Smoker`, `EX-Smoker`, `FH`, `Typical Chest Pain` — numeric `0` → 0 (absent/false), numeric `1` → 1 (present/true). Text is **not** coerced: `"0"`, `"1"`, `"Y"`, `"N"`, `"Yes"`, `"No"`, booleans, and any non-binary number fail closed. The direction is a provisional inference, not a published codebook (residual item S-9 in doc 10);
+- binary, **numerically encoded in the delivered workbook** (Amendment A-1, verified by the 2026-10-24 human read-only audit): `DM`, `HTN`, `Current Smoker`, `EX-Smoker`, `FH`, `Typical Chest Pain` — numeric `0` → 0 (absent/false), numeric `1` → 1 (present/true). Text is **not** coerced: `"0"`, `"1"`, `"Y"`, `"N"`, `"Yes"`, `"No"`, booleans, and any non-binary number fail closed. The direction is stated by peer-reviewed secondary literature (Tao et al. 2025, Table 1: `True = 1; false = 0`) but is **not** confirmed by an official dataset-owner codebook, so it stays provisional (residual item S-9 in doc 10);
 - binary, text: `Y`/`Yes` → 1, `N`/`No` → 0 for `DLP`, `Atypical`, `Nonanginal`, `Exertional CP`, `Dyspnea` and for the non-admitted text columns (the observed raw spelling is counted per column in the run audit);
 - `Sex`: `Male` → 1, `Fmale`/`Female` → 0 (reference coding is arbitrary and documented);
 - ordinal (blocked panels only): `Function Class` 1–4, `VHD` `N`/`Mild`/`Moderate`/`Severe`;

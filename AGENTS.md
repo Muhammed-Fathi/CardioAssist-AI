@@ -280,8 +280,12 @@ closed **before model fitting** with `Column 'DM' contains a category outside th
 - **Unchanged:** the 16-column panel and its order, 16 encoded parameters, `Cath` `Cad`→1 / `Normal`→0,
   the three model families and their grids, nested-CV folds/seeds, the 0.5 exploratory threshold,
   leakage checks, and every output-privacy control.
-- **Unresolved:** **S-9** — the audit establishes the representation (numeric 0/1), not an officially
-  published direction; `1` = present is a provisional inference that a human must accept explicitly. Header
+- **Unresolved:** **S-9** — the audit establishes the representation (numeric 0/1); the direction
+  (`1` = present) is now **directly stated by peer-reviewed secondary literature** (Tao et al. 2025,
+  *Reviews in Cardiovascular Medicine* 26(3):26204, doi:10.31083/RCM26204, Table 1: `True = 1; false = 0`),
+  but it is still **not independently verified against an official dataset-owner codebook**, so it stays
+  provisional and a human must accept it explicitly (evidence addendum `M3A-AMENDMENT-A1-E1` changed
+  documentation and evidence only — no mapping, contract version, parameter or guard). Header
   spellings/codings for the 43 non-admitted columns remain unverified (S-1, partially resolved).
 - **Authorization:** the PR #45-era signed manifest **cannot be reused** — the plan/dictionary/proposal
   hashes and the panel version changed, and the local manifest must now also bind

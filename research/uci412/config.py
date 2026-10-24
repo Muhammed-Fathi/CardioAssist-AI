@@ -33,6 +33,8 @@ from research.uci412.source_spec import (
     NUMERIC_BINARY_SOURCE_COLUMNS,
     NUMERIC_BINARY_SOURCE_ENCODING_ID,
     NUMERIC_BINARY_SOURCE_SEMANTICS,
+    NUMERIC_BINARY_SEMANTICS_EVIDENCE_CITATION_IDS,
+    NUMERIC_BINARY_SEMANTICS_EVIDENCE_STATUS,
     SOURCE_COLUMNS,
     SOURCE_FILENAME,
     SOURCE_ID,
@@ -235,9 +237,11 @@ class Uci412Config:
                 "numeric_binary_semantics": {
                     str(code): meaning for code, meaning in NUMERIC_BINARY_SOURCE_SEMANTICS
                 },
-                "numeric_binary_semantics_status": (
-                    "PROVISIONAL_INFERRED_FROM_ATTRIBUTE_NAMES_AND_SECONDARY_LITERATURE"
+                "numeric_binary_semantics_status": NUMERIC_BINARY_SEMANTICS_EVIDENCE_STATUS,
+                "numeric_binary_semantics_evidence_citation_ids": list(
+                    NUMERIC_BINARY_SEMANTICS_EVIDENCE_CITATION_IDS
                 ),
+                "numeric_binary_semantics_human_acceptance_required": True,
                 "text_categorical_source_columns": list(TEXT_CATEGORICAL_SOURCE_COLUMNS),
                 "global_automatic_coercion": "FORBIDDEN",
                 "numeric_binary_model_codes_unchanged": [0, 1],
@@ -370,8 +374,28 @@ def load_registered_config(plan_path: Path = PLAN_PATH) -> Uci412Config:
     )
     _require(
         source_encoding.get("numeric_binary_semantics_status")
-        == "PROVISIONAL_INFERRED_NOT_OFFICIALLY_DOCUMENTED",
+        == NUMERIC_BINARY_SEMANTICS_EVIDENCE_STATUS,
         "the provisional status of the 0/1 direction must be stated",
+    )
+    semantics_evidence = source_encoding.get("numeric_binary_semantics_evidence")
+    _require(isinstance(semantics_evidence, dict), "the semantics evidence block must be present")
+    _require(
+        semantics_evidence.get("direction") == "TAO_2025_RCM_TABLE1"
+        and semantics_evidence.get("representation") == "HUMAN_LOCAL_READ_ONLY_AUDIT_2026_10_24",
+        "the semantics evidence must name the peer-reviewed direction source and the human audit",
+    )
+    _require(
+        "10.31083/RCM26204" in str(semantics_evidence.get("direction_reference", "")),
+        "the semantics evidence must cite the peer-reviewed direction source",
+    )
+    _require(
+        semantics_evidence.get("official_dataset_owner_codebook")
+        == "NOT_AVAILABLE_NOT_INDEPENDENTLY_VERIFIED",
+        "the absence of an official dataset-owner codebook must be stated",
+    )
+    _require(
+        semantics_evidence.get("explicit_human_acceptance_required") is True,
+        "explicit human acceptance of the provisional direction must remain required",
     )
     _require(
         tuple(source_encoding.get("accepted_numeric_values", ())) == (0, 1),

@@ -9,7 +9,9 @@
     "change_class": "SOURCE_VALUE_ENCODING_CORRECTION_ONLY",
     "summary": "Six admitted predictors (DM, HTN, Current Smoker, EX-Smoker, FH, Typical Chest Pain) are numeric 0/1 in the delivered workbook and are now registered with an explicit numeric-binary source encoding. Panel membership, column order, target mapping, model families, parameter grids, nested-CV folds/seeds, leakage checks, threshold and output privacy controls are unchanged.",
     "previous_authorization_status": "NOT_SUFFICIENT_FOR_THESE_BYTES_A_NEW_HUMAN_DECISION_AND_MANIFEST_ARE_REQUIRED",
-    "gate_pt_p3_status": "CLOSED"
+    "gate_pt_p3_status": "CLOSED",
+    "evidence_addendum_id": "M3A-AMENDMENT-A1-E1",
+    "evidence_addendum_note": "Evidence-only refinement: Tao et al. 2025 (doi:10.31083/RCM26204) Table 1 states 'True = 1; false = 0' for the six numeric-binary columns. Mapping, parameters, CV scheme, threshold and guards are unchanged; S-9 remains provisional pending an official codebook and still requires explicit human acceptance."
   },
   "report_banner": "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
   "scientific_question": "Source-specific classification of current, angiography-referenced CAD presence (Cath 'Cad' vs 'Normal') in the UCI-412 cohort using information plausibly available at the pre-angiography assessment. This is NOT future-event or 30-day risk prediction.",
@@ -113,7 +115,7 @@
       "0": "ABSENT_OR_FALSE",
       "1": "PRESENT_OR_TRUE"
     },
-    "numeric_binary_semantics_status": "PROVISIONAL_INFERRED_NOT_OFFICIALLY_DOCUMENTED",
+    "numeric_binary_semantics_status": "PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK",
     "text_categorical_source_columns": [
       "Sex",
       "DLP",
@@ -136,7 +138,14 @@
     "global_automatic_coercion": "FORBIDDEN",
     "affected_predictor_count": 6,
     "unaffected_predictor_count": 10,
-    "encoded_parameter_count_unchanged": true
+    "encoded_parameter_count_unchanged": true,
+    "numeric_binary_semantics_evidence": {
+      "representation": "HUMAN_LOCAL_READ_ONLY_AUDIT_2026_10_24",
+      "direction": "TAO_2025_RCM_TABLE1",
+      "direction_reference": "Tao et al. 2025, Reviews in Cardiovascular Medicine 26(3):26204, doi:10.31083/RCM26204, Table 1: 'True = 1; false = 0' for DM, HTN, Current Smoker, EX-Smoker, FH and Typical Chest Pain.",
+      "official_dataset_owner_codebook": "NOT_AVAILABLE_NOT_INDEPENDENTLY_VERIFIED",
+      "explicit_human_acceptance_required": true
+    }
   },
   "feature_dictionary": {
     "schema_id": "uci412_research_feature_dictionary",

@@ -136,13 +136,19 @@ TARGET_NEGATIVE_TOKENS: Final[tuple[str, ...]] = ("Normal",)
 #: * Secondary literature describes these six attributes as binary 0/1
 #:   (``https://doi.org/10.3390/electronics11030315`` Table 1;
 #:   ``https://pmc.ncbi.nlm.nih.gov/articles/PMC7037941/``).
+#: * **Direction evidence (evidence addendum E-1, 2026-10-24):** Tao et al. 2025,
+#:   *Reviews in Cardiovascular Medicine* 26(3):26204,
+#:   ``https://doi.org/10.31083/RCM26204`` — Table 1 ("Features of Z-Alizadeh Sani
+#:   dataset") states ``True = 1; false = 0`` for all six of these attributes.
 #: * Dataset identity: ``https://doi.org/10.24432/C5Q31T``.
 #:
 #: This is supporting evidence, not an official per-column codebook: the UCI
-#: landing page documents no per-field coding (see doc 08 §5.5). The audit
+#: landing page documents no per-field coding (see doc 08 §5.5). The human audit
 #: establishes the *representation* (numeric 0/1); the *direction*
-#: (0 = absent/false, 1 = present/true) is a provisional, explicitly reviewed
-#: inference recorded in the feature dictionary and the amendment document.
+#: (0 = absent/false, 1 = present/true) is now directly stated by a peer-reviewed
+#: secondary source, but it is still **not** independently confirmed by an
+#: official dataset-owner codebook. It therefore stays provisional (residual
+#: item S-9) and requires explicit human acceptance before a real-data run.
 #:
 #: Duplicated here in code — like ``PRIMARY_PANEL_COLUMNS`` — so a JSON-only
 #: dictionary edit can never widen or narrow the numeric-conversion allowlist.
@@ -163,6 +169,18 @@ NUMERIC_BINARY_SOURCE_ENCODING_KIND: Final[str] = "NUMERIC_BINARY_0_1"
 NUMERIC_BINARY_SOURCE_SEMANTICS: Final[tuple[tuple[int, str], ...]] = (
     (0, "ABSENT_OR_FALSE"),
     (1, "PRESENT_OR_TRUE"),
+)
+
+#: Honest status of the *direction* claim: peer-reviewed secondary literature
+#: states it explicitly (Tao et al. 2025, Table 1), but no official
+#: dataset-owner codebook confirms it and no independent verification against
+#: one exists. It stays PROVISIONAL and requires explicit human acceptance.
+NUMERIC_BINARY_SEMANTICS_EVIDENCE_STATUS: Final[str] = (
+    "PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK"
+)
+NUMERIC_BINARY_SEMANTICS_EVIDENCE_CITATION_IDS: Final[tuple[str, ...]] = (
+    "TAO_2025_RCM_TABLE1",
+    "HUMAN_LOCAL_READ_ONLY_AUDIT_2026_10_24",
 )
 
 #: Columns whose registered text vocabularies are preserved unchanged. Recorded

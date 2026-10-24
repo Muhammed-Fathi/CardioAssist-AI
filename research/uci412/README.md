@@ -57,7 +57,10 @@ delivered as **numeric `0`/`1`**, while `Sex`, `DLP`, `Atypical`, `Nonanginal`, 
 (`0` → absent/false, `1` → present/true; model codes unchanged). Only an actual integer/numeric `0` or `1`
 is accepted there: text tokens, booleans, non-binary or non-integral numbers, non-finite cells and mixed
 representations **fail closed**, and no other column has a numeric conversion or any global coercion. The
-direction is a provisional inference, not a published codebook (residual item S-9). Every hash from the
+direction is stated by peer-reviewed secondary literature (Tao et al. 2025, *Reviews in Cardiovascular
+Medicine* 26(3):26204, doi:10.31083/RCM26204, Table 1: `True = 1; false = 0`) but is **not** confirmed by an
+official dataset-owner codebook, so it stays provisional and needs explicit human acceptance (residual item
+S-9). Every hash from the
 pre-amendment freeze is superseded: the previous signed local manifest is **not** reusable and a new human
 decision plus a new local manifest are required. See
 `docs/research/gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md`.

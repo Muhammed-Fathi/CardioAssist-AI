@@ -15,6 +15,9 @@ What these tests protect:
   coercion anywhere;
 * the executable panel, its exact order, its 16 encoded parameters, the target
   mapping, the leakage checks and the aggregate-only audit object are unchanged;
+* evidence addendum E-1: the direction claim cites the peer-reviewed secondary
+  source (Tao et al. 2025, Table 1) while still refusing to represent itself as
+  officially codebook-confirmed;
 * an authorization manifest written for the earlier dictionary/panel version
   fails closed, so the previous hash-bound signature cannot be reused.
 """
@@ -585,3 +588,139 @@ def test_checked_in_template_names_the_amendment_but_authorizes_nothing() -> Non
     assert template["gate_pt_status"] == "CLOSED_REQUIRES_SUPERVISOR_SIGNOFF_P3"
     assert "REPLACE" in template["governance_merge_commit_sha"]
     assert safety.authorization_template_is_non_authorizing()
+
+
+# --------------------------------------------------------------------------- #
+# 8. Evidence addendum E-1 — peer-reviewed direction evidence, still provisional
+# --------------------------------------------------------------------------- #
+
+TAO_CITATION_ID = "TAO_2025_RCM_TABLE1"
+TAO_DOI_FRAGMENT = "10.31083/RCM26204"
+PROVISIONAL_STATUS = (
+    "PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK"
+)
+
+
+def test_the_peer_reviewed_direction_source_is_registered_in_full() -> None:
+    payload = json.loads(DICTIONARY_PATH.read_text(encoding="utf-8"))
+    citation = payload["citations"][TAO_CITATION_ID]
+    assert "Tao" in citation["reference"]
+    assert "Reviews in Cardiovascular Medicine" in citation["reference"]
+    assert TAO_DOI_FRAGMENT in citation["reference"]
+    assert citation["status"] == "PEER_REVIEWED_SECONDARY_SOURCE_TABLE_READ"
+    assert "True = 1; false = 0" in citation["supports"]
+    # The honest boundary is recorded with the citation itself.
+    assert "official dataset-owner" in citation["does_not_support"]
+    assert "codebook" in citation["does_not_support"]
+
+
+@pytest.mark.parametrize("column", NUMERIC_BINARY_SOURCE_COLUMNS)
+def test_each_of_the_six_encodings_cites_the_direction_evidence(column: str) -> None:
+    payload = json.loads(DICTIONARY_PATH.read_text(encoding="utf-8"))
+    encoding = payload["features"][column]["source_value_encoding"]
+    evidence = " ".join(encoding["semantic_evidence"])
+    assert TAO_CITATION_ID in evidence
+    assert TAO_DOI_FRAGMENT in evidence
+    assert "True = 1; false = 0" in evidence
+    # The direction is supported, and still not represented as official.
+    assert "not confirmed by an official dataset-owner codebook" in encoding["semantic_interpretation"]
+    assert "not been independently verified against an official codebook" in encoding[
+        "semantic_uncertainty"
+    ]
+    assert "explicit human acceptance" in encoding["semantic_uncertainty"]
+
+
+def test_the_mapping_itself_was_not_touched_by_the_evidence_addendum() -> None:
+    payload = json.loads(DICTIONARY_PATH.read_text(encoding="utf-8"))
+    for column in NUMERIC_BINARY_SOURCE_COLUMNS:
+        encoding = payload["features"][column]["source_value_encoding"]
+        assert encoding["absent_source_value"] == 0
+        assert encoding["present_source_value"] == 1
+        assert encoding["absent_model_code"] == 0
+        assert encoding["present_model_code"] == 1
+        assert encoding["encoding_id"] == "numeric_binary_0_1_v1"
+        assert encoding["verification_status"] == (
+            "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24"
+        )
+    # Evidence-only addendum: the contract version does not move again.
+    assert payload["schema_version"] == "1.1.0"
+    assert DEFAULT_CONFIG.panel_version == "1.1.0"
+    assert load_feature_dictionary().encoded_parameter_count() == 16
+    addendum = payload["revision_history"][-1]
+    assert addendum["evidence_addendum_id"] == "M3A-AMENDMENT-A1-E1"
+    assert addendum["contract_impact"].startswith("NONE")
+
+
+def test_the_plan_records_direction_evidence_and_keeps_acceptance_required() -> None:
+    plan = json.loads((Path("research/uci412") / "uci412_cad_research_plan.v0.1.json").read_text(
+        encoding="utf-8"
+    ))
+    block = plan["source_encoding"]
+    assert block["numeric_binary_semantics_status"] == PROVISIONAL_STATUS
+    evidence = block["numeric_binary_semantics_evidence"]
+    assert evidence["direction"] == TAO_CITATION_ID
+    assert TAO_DOI_FRAGMENT in evidence["direction_reference"]
+    assert evidence["official_dataset_owner_codebook"] == "NOT_AVAILABLE_NOT_INDEPENDENTLY_VERIFIED"
+    assert evidence["explicit_human_acceptance_required"] is True
+    assert plan["protocol_revision"]["evidence_addendum_id"] == "M3A-AMENDMENT-A1-E1"
+
+
+def test_vocabulary_and_semantics_constants_stay_provisional() -> None:
+    from research.uci412.source_spec import (
+        NUMERIC_BINARY_SEMANTICS_EVIDENCE_CITATION_IDS,
+        NUMERIC_BINARY_SEMANTICS_EVIDENCE_STATUS,
+    )
+
+    assert NUMERIC_BINARY_SEMANTICS_EVIDENCE_STATUS == PROVISIONAL_STATUS
+    assert "OFFICIAL" in NUMERIC_BINARY_SEMANTICS_EVIDENCE_STATUS
+    assert NUMERIC_BINARY_SEMANTICS_EVIDENCE_CITATION_IDS == (
+        TAO_CITATION_ID,
+        "HUMAN_LOCAL_READ_ONLY_AUDIT_2026_10_24",
+    )
+    encoding_block = DEFAULT_CONFIG.as_report_dict()["source_value_encoding"]
+    assert encoding_block["numeric_binary_semantics_status"] == PROVISIONAL_STATUS
+    assert encoding_block["numeric_binary_semantics_human_acceptance_required"] is True
+    assert list(encoding_block["numeric_binary_semantics_evidence_citation_ids"]) == [
+        TAO_CITATION_ID,
+        "HUMAN_LOCAL_READ_ONLY_AUDIT_2026_10_24",
+    ]
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        # Claim official codebook confirmation.
+        lambda plan: plan["source_encoding"]["numeric_binary_semantics_evidence"].update(
+            official_dataset_owner_codebook="OFFICIALLY_CONFIRMED"
+        ),
+        # Drop the human-acceptance requirement.
+        lambda plan: plan["source_encoding"]["numeric_binary_semantics_evidence"].update(
+            explicit_human_acceptance_required=False
+        ),
+        # Re-label the direction evidence as something else.
+        lambda plan: plan["source_encoding"]["numeric_binary_semantics_evidence"].update(
+            direction="ATTRIBUTE_NAME_INFERENCE_ONLY"
+        ),
+        # Remove the citation from the direction reference.
+        lambda plan: plan["source_encoding"]["numeric_binary_semantics_evidence"].update(
+            direction_reference="no citation recorded"
+        ),
+        # Promote the status to "officially documented".
+        lambda plan: plan["source_encoding"].update(
+            numeric_binary_semantics_status="OFFICIALLY_DOCUMENTED"
+        ),
+        # Drop the evidence block entirely.
+        lambda plan: plan["source_encoding"].pop("numeric_binary_semantics_evidence"),
+    ],
+)
+def test_plan_cannot_claim_official_confirmation(tmp_path: Path, mutate) -> None:
+    from research.uci412.config import load_registered_config
+
+    plan = json.loads(
+        (Path("research/uci412") / "uci412_cad_research_plan.v0.1.json").read_text(encoding="utf-8")
+    )
+    mutate(plan)
+    target = tmp_path / "plan.json"
+    target.write_text(json.dumps(plan), encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_registered_config(target)

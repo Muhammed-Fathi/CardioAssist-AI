@@ -4,7 +4,7 @@
   "source_id": "UCI-412",
   "dataset_id": "DA-A1",
   "status": "PROPOSED_NOT_SUPERVISOR_APPROVED",
-  "status_statement": "This dictionary is a reviewable research artifact. It is not a clinical feature standard, not a validated input schema, and not supervisor-approved. Only the panel explicitly marked executable may be used by the guarded internal run after a separate human authorization. Schema 1.1.0 is Amendment A-1 (2026-10-24): a source-value encoding correction for six admitted predictors whose delivered cells are numeric 0/1. No column, panel membership, ordering, model, seed, fold, metric, threshold or privacy rule changes, and no new authorization is implied: the previous hash-bound authorization does not cover these bytes.",
+  "status_statement": "This dictionary is a reviewable research artifact. It is not a clinical feature standard, not a validated input schema, and not supervisor-approved. Only the panel explicitly marked executable may be used by the guarded internal run after a separate human authorization. Schema 1.1.0 is Amendment A-1 (2026-10-24): a source-value encoding correction for six admitted predictors whose delivered cells are numeric 0/1. No column, panel membership, ordering, model, seed, fold, metric, threshold or privacy rule changes, and no new authorization is implied: the previous hash-bound authorization does not cover these bytes. Evidence addendum E-1 (M3A-AMENDMENT-A1-E1, 2026-10-24) adds the peer-reviewed reference Tao et al. 2025 (doi:10.31083/RCM26204, Table 1: 'True = 1; false = 0') as direction evidence; it changes no mapping and no contract version.",
   "revision_history": [
     {
       "schema_version": "1.0.0",
@@ -21,6 +21,14 @@
       "evidence": "Human-executed, read-only, SHA-256-verified local audit of all 303 DA-A1 records (2026-10-24): the six columns contain exclusively numeric 0/1 cells with no blanks; the workbook bytes were verified identical before and after the audit. Supporting (not authoritative) secondary literature: doi:10.3390/electronics11030315 Table 1 and PMC7037941. Dataset identity: doi:10.24432/C5Q31T.",
       "residual_uncertainty": "The audit establishes the representation (numeric 0/1). The direction (0 = absent/false, 1 = present/true) is a provisional inference supported by the attribute names and secondary literature, not by an official per-column codebook. Flagged as S-9 for explicit human acceptance.",
       "authorization_impact": "Changing this file changes its SHA-256 and the panel/dictionary version the local authorization manifest binds. Any manifest signed against schema 1.0.0 / panel 1.0.0 fails closed and a new human decision plus a new local manifest are required."
+    },
+    {
+      "schema_version": "1.1.0",
+      "evidence_addendum_id": "M3A-AMENDMENT-A1-E1",
+      "date": "2026-10-24",
+      "change": "Evidence documentation only: added the peer-reviewed secondary source Tao et al. 2025 (doi:10.31083/RCM26204) whose Table 1 states 'True = 1; false = 0' for the six numeric-binary columns, and restated the residual uncertainty (S-9) accordingly.",
+      "contract_impact": "NONE: the six-column mapping, model codes, panel membership/order, model families, grids, nested-CV folds/seeds, threshold, leakage checks and privacy controls are unchanged, so the dictionary schema version stays 1.1.0 and the panel stays 1.1.0.",
+      "authorization_impact": "This file's SHA-256 changes. No authorization has been signed against any 1.1.0 bytes (the amendment PR is unmerged), so the human must compute the hash at the merge commit; an already-signed pre-amendment manifest still fails closed on the version bindings."
     }
   ],
   "admission_status_definitions": {
@@ -98,6 +106,14 @@
       "status": "HUMAN_EXECUTED_AGGREGATE_EVIDENCE_SOURCE_BYTES_UNCHANGED",
       "supports": "The observed representation and value domains of the twelve admitted categorical predictors, and the absence of blanks in the six numeric 0/1 columns.",
       "does_not_support": "Clinical meaning of either code, any per-column codebook, or any row-level value. Only aggregate counts were retained; no patient row, cell value or fingerprint is stored here."
+    },
+    "TAO_2025_RCM_TABLE1": {
+      "citation_id": "TAO_2025_RCM_TABLE1",
+      "reference": "Tao H, Wang C, Qi H, Li H, Li Y, Xie R, et al. A Real-Time Computer-Aided Diagnosis System for Coronary Heart Disease Prediction Using Clinical Information. Reviews in Cardiovascular Medicine. 2025;26(3):26204. https://doi.org/10.31083/RCM26204 (open access, CC BY 4.0; published 2025-03-17).",
+      "retrieved": "2026-10-24 (publisher PDF; Table 1 re-read on 2026-10-24)",
+      "status": "PEER_REVIEWED_SECONDARY_SOURCE_TABLE_READ",
+      "supports": "Table 1 ('Features of Z-Alizadeh Sani dataset') types these attributes as Integer and states the coding direction explicitly: 'True = 1; false = 0' for DM, HTN, Current smoker, Ex-smoker, FH and Typical chest pain. It likewise states 'Male = 1; female = 0' for Sex and 'Yes = 1; no = 0' for DLP, Atypical, Nonanginal, Exertional CP and Dyspnea, which is consistent with the registered text vocabularies.",
+      "does_not_support": "An official dataset-owner (UCI / original author) per-column codebook, any statement about the delivered workbook's exact cell types or spellings, or the observed DA-A1 value counts. Its per-column type column also does not verify the 43 non-admitted columns."
     }
   },
   "panels": [
@@ -498,14 +514,15 @@
         "absent_model_code": 0,
         "present_model_code": 1,
         "verification_status": "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24",
-        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
+        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. The direction is stated in peer-reviewed secondary literature (Tao et al. 2025, Table 1: 'True = 1; false = 0') but is not confirmed by an official dataset-owner codebook. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
         "semantic_evidence": [
           "Human-executed read-only SHA-256-verified local audit (2026-10-24): the column contains only numeric 0/1 cells across 303/303 records.",
           "doi:10.3390/electronics11030315 Table 1 describes the attribute as binary.",
           "PMC7037941 published feature descriptions support a 0/1 representation.",
-          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading."
+          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading.",
+          "TAO_2025_RCM_TABLE1: Tao et al. 2025 (Reviews in Cardiovascular Medicine 26(3):26204, doi:10.31083/RCM26204), Table 1 states 'True = 1; false = 0' for this attribute - a peer-reviewed secondary source for the direction."
         ],
-        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction of the coding is inferred rather than documented. If a future authoritative statement reversed 0/1 for this column, the fit would be affected; this is registered as residual item S-9 and requires explicit human acceptance before any real-data run.",
+        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction is not confirmed by an official dataset-owner source. It is directly supported by peer-reviewed secondary literature (Tao et al. 2025, doi:10.31083/RCM26204, Table 1: 'True = 1; false = 0') and is consistent with the attribute naming, but that remains secondary evidence and has not been independently verified against an official codebook. Registered as residual item S-9 and still requiring explicit human acceptance before any real-data run.",
         "legacy_tokens_rejected": [
           "Y",
           "N",
@@ -567,14 +584,15 @@
         "absent_model_code": 0,
         "present_model_code": 1,
         "verification_status": "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24",
-        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
+        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. The direction is stated in peer-reviewed secondary literature (Tao et al. 2025, Table 1: 'True = 1; false = 0') but is not confirmed by an official dataset-owner codebook. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
         "semantic_evidence": [
           "Human-executed read-only SHA-256-verified local audit (2026-10-24): the column contains only numeric 0/1 cells across 303/303 records.",
           "doi:10.3390/electronics11030315 Table 1 describes the attribute as binary.",
           "PMC7037941 published feature descriptions support a 0/1 representation.",
-          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading."
+          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading.",
+          "TAO_2025_RCM_TABLE1: Tao et al. 2025 (Reviews in Cardiovascular Medicine 26(3):26204, doi:10.31083/RCM26204), Table 1 states 'True = 1; false = 0' for this attribute - a peer-reviewed secondary source for the direction."
         ],
-        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction of the coding is inferred rather than documented. If a future authoritative statement reversed 0/1 for this column, the fit would be affected; this is registered as residual item S-9 and requires explicit human acceptance before any real-data run.",
+        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction is not confirmed by an official dataset-owner source. It is directly supported by peer-reviewed secondary literature (Tao et al. 2025, doi:10.31083/RCM26204, Table 1: 'True = 1; false = 0') and is consistent with the attribute naming, but that remains secondary evidence and has not been independently verified against an official codebook. Registered as residual item S-9 and still requiring explicit human acceptance before any real-data run.",
         "legacy_tokens_rejected": [
           "Y",
           "N",
@@ -636,14 +654,15 @@
         "absent_model_code": 0,
         "present_model_code": 1,
         "verification_status": "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24",
-        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
+        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. The direction is stated in peer-reviewed secondary literature (Tao et al. 2025, Table 1: 'True = 1; false = 0') but is not confirmed by an official dataset-owner codebook. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
         "semantic_evidence": [
           "Human-executed read-only SHA-256-verified local audit (2026-10-24): the column contains only numeric 0/1 cells across 303/303 records.",
           "doi:10.3390/electronics11030315 Table 1 describes the attribute as binary.",
           "PMC7037941 published feature descriptions support a 0/1 representation.",
-          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading."
+          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading.",
+          "TAO_2025_RCM_TABLE1: Tao et al. 2025 (Reviews in Cardiovascular Medicine 26(3):26204, doi:10.31083/RCM26204), Table 1 states 'True = 1; false = 0' for this attribute - a peer-reviewed secondary source for the direction."
         ],
-        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction of the coding is inferred rather than documented. If a future authoritative statement reversed 0/1 for this column, the fit would be affected; this is registered as residual item S-9 and requires explicit human acceptance before any real-data run.",
+        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction is not confirmed by an official dataset-owner source. It is directly supported by peer-reviewed secondary literature (Tao et al. 2025, doi:10.31083/RCM26204, Table 1: 'True = 1; false = 0') and is consistent with the attribute naming, but that remains secondary evidence and has not been independently verified against an official codebook. Registered as residual item S-9 and still requiring explicit human acceptance before any real-data run.",
         "legacy_tokens_rejected": [
           "Y",
           "N",
@@ -705,14 +724,15 @@
         "absent_model_code": 0,
         "present_model_code": 1,
         "verification_status": "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24",
-        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
+        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. The direction is stated in peer-reviewed secondary literature (Tao et al. 2025, Table 1: 'True = 1; false = 0') but is not confirmed by an official dataset-owner codebook. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
         "semantic_evidence": [
           "Human-executed read-only SHA-256-verified local audit (2026-10-24): the column contains only numeric 0/1 cells across 303/303 records.",
           "doi:10.3390/electronics11030315 Table 1 describes the attribute as binary.",
           "PMC7037941 published feature descriptions support a 0/1 representation.",
-          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading."
+          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading.",
+          "TAO_2025_RCM_TABLE1: Tao et al. 2025 (Reviews in Cardiovascular Medicine 26(3):26204, doi:10.31083/RCM26204), Table 1 states 'True = 1; false = 0' for this attribute - a peer-reviewed secondary source for the direction."
         ],
-        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction of the coding is inferred rather than documented. If a future authoritative statement reversed 0/1 for this column, the fit would be affected; this is registered as residual item S-9 and requires explicit human acceptance before any real-data run.",
+        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction is not confirmed by an official dataset-owner source. It is directly supported by peer-reviewed secondary literature (Tao et al. 2025, doi:10.31083/RCM26204, Table 1: 'True = 1; false = 0') and is consistent with the attribute naming, but that remains secondary evidence and has not been independently verified against an official codebook. Registered as residual item S-9 and still requiring explicit human acceptance before any real-data run.",
         "legacy_tokens_rejected": [
           "Y",
           "N",
@@ -774,14 +794,15 @@
         "absent_model_code": 0,
         "present_model_code": 1,
         "verification_status": "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24",
-        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
+        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. The direction is stated in peer-reviewed secondary literature (Tao et al. 2025, Table 1: 'True = 1; false = 0') but is not confirmed by an official dataset-owner codebook. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
         "semantic_evidence": [
           "Human-executed read-only SHA-256-verified local audit (2026-10-24): the column contains only numeric 0/1 cells across 303/303 records.",
           "doi:10.3390/electronics11030315 Table 1 describes the attribute as binary.",
           "PMC7037941 published feature descriptions support a 0/1 representation.",
-          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading."
+          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading.",
+          "TAO_2025_RCM_TABLE1: Tao et al. 2025 (Reviews in Cardiovascular Medicine 26(3):26204, doi:10.31083/RCM26204), Table 1 states 'True = 1; false = 0' for this attribute - a peer-reviewed secondary source for the direction."
         ],
-        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction of the coding is inferred rather than documented. If a future authoritative statement reversed 0/1 for this column, the fit would be affected; this is registered as residual item S-9 and requires explicit human acceptance before any real-data run.",
+        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction is not confirmed by an official dataset-owner source. It is directly supported by peer-reviewed secondary literature (Tao et al. 2025, doi:10.31083/RCM26204, Table 1: 'True = 1; false = 0') and is consistent with the attribute naming, but that remains secondary evidence and has not been independently verified against an official codebook. Registered as residual item S-9 and still requiring explicit human acceptance before any real-data run.",
         "legacy_tokens_rejected": [
           "Y",
           "N",
@@ -1341,14 +1362,15 @@
         "absent_model_code": 0,
         "present_model_code": 1,
         "verification_status": "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24",
-        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
+        "semantic_interpretation": "PROVISIONAL: source value 0 = absent/false, source value 1 = present/true. The direction is stated in peer-reviewed secondary literature (Tao et al. 2025, Table 1: 'True = 1; false = 0') but is not confirmed by an official dataset-owner codebook. Retained model-side codes are 0 and 1, so the encoded predictor is unchanged.",
         "semantic_evidence": [
           "Human-executed read-only SHA-256-verified local audit (2026-10-24): the column contains only numeric 0/1 cells across 303/303 records.",
           "doi:10.3390/electronics11030315 Table 1 describes the attribute as binary.",
           "PMC7037941 published feature descriptions support a 0/1 representation.",
-          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading."
+          "Attribute naming (a risk factor present/absent) makes 1 = present the natural reading.",
+          "TAO_2025_RCM_TABLE1: Tao et al. 2025 (Reviews in Cardiovascular Medicine 26(3):26204, doi:10.31083/RCM26204), Table 1 states 'True = 1; false = 0' for this attribute - a peer-reviewed secondary source for the direction."
         ],
-        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction of the coding is inferred rather than documented. If a future authoritative statement reversed 0/1 for this column, the fit would be affected; this is registered as residual item S-9 and requires explicit human acceptance before any real-data run.",
+        "semantic_uncertainty": "The dataset owner publishes no per-column codebook, so the direction is not confirmed by an official dataset-owner source. It is directly supported by peer-reviewed secondary literature (Tao et al. 2025, doi:10.31083/RCM26204, Table 1: 'True = 1; false = 0') and is consistent with the attribute naming, but that remains secondary evidence and has not been independently verified against an official codebook. Registered as residual item S-9 and still requiring explicit human acceptance before any real-data run.",
         "legacy_tokens_rejected": [
           "Y",
           "N",

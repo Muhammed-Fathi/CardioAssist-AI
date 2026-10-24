@@ -75,6 +75,9 @@ def _describe() -> dict[str, object]:
         "amendment_id": M3A_PROTOCOL_AMENDMENT_ID,
         "document": "docs/research/gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md",
         "change_class": "SOURCE_VALUE_ENCODING_CORRECTION_ONLY",
+        "evidence_addendum_id": "M3A-AMENDMENT-A1-E1",
+        "direction_evidence": "TAO_2025_RCM_TABLE1 (doi:10.31083/RCM26204, Table 1)",
+        "direction_official_codebook_confirmed": False,
         "previous_authorization_reusable": False,
     }
     specification["blockers_before_first_real_run"] = [
@@ -84,7 +87,9 @@ def _describe() -> dict[str, object]:
         "manifest cannot be reused.",
         "Completed D-046 DA-A1 provenance and license chain for the exact workbook bytes.",
         "Human acceptance of residual item S-9: the six numeric 0/1 columns are read as "
-        "0 = absent/false and 1 = present/true, an inference rather than a published codebook.",
+        "0 = absent/false and 1 = present/true. The direction is stated by peer-reviewed secondary "
+        "literature (Tao et al. 2025, doi:10.31083/RCM26204, Table 1), but no official dataset-owner "
+        "codebook confirms it.",
         "Human review of the exact workbook header spellings and category tokens for the 43 non-admitted "
         "columns (the 12 admitted categorical predictors were verified by the 2026-10-24 human audit).",
         "Human acceptance that the R²-dependent sample-size criteria remain NOT ASSESSED.",
