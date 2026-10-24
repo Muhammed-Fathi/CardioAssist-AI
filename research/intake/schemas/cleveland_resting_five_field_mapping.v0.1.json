@@ -1,0 +1,244 @@
+{
+  "schema_id": "cleveland_resting_five_field_input_mapping",
+  "schema_version": "0.1.0",
+  "mapping_id": "cleveland_resting_five_field.v0.1",
+  "artifact_kind": "SYNTHETIC_ONLY_RESEARCH_INPUT_MAPPING_SPECIFICATION",
+  "status": "PROPOSED_NOT_APPROVED",
+  "status_statement": "This document is a versioned, explicitly PROPOSED research input mapping specification for review only. It is not an approved clinical intake contract, not a model input schema, not a harmonized cross-dataset schema, not a dataset-selection decision, not model training or inference authorization, and not supervisor, ethics or institutional approval. The validator that implements it accepts SYNTHETIC SOFTWARE FIXTURES ONLY, never reads any dataset file, is offline, and never computes a CAD probability. Gate PT P-3 remains CLOSED; P-1 remains PENDING; P-5 remains NOT MADE - prohibited.",
+  "dataset_selection_status": "CLEVELAND_NOT_SELECTED_AS_FINAL_PROJECT_DATASET",
+  "dataset_selection_statement": "Cleveland (DA-A2 / UCI-45 processed Cleveland) has NOT been selected as the final project dataset. This mapping exists to test technical mapping discipline for the staged-intake engineering direction (ED-DA-A2-01) on synthetic fixtures, as proposed by Gate PT doc 12 section 6 (R1). Any actual dataset selection remains a separate human scientific decision (P-1/P-3; Gate PT docs 11-12), and nothing in this file may be cited as evidence for or against any candidate dataset.",
+  "governance_context": {
+    "gate_pt_p1_target_population_moment": "PENDING",
+    "gate_pt_p3_formal_research": "CLOSED",
+    "gate_pt_p5_clinical_readiness_claims": "NOT_MADE_PROHIBITED",
+    "d046": "read-only local dataset audit only",
+    "d047": "Cleveland-only internal exploratory benchmark; saved no model artifact",
+    "d048_m3a": "UCI-412-only internal exploratory benchmark; unchanged by this mapping",
+    "relationship_to_frozen_protocols": "This mapping modifies no frozen protocol, registered plan, feature dictionary, runner or result. research/experiments/** and research/uci412/** are untouched by this artifact."
+  },
+  "registered_source": {
+    "source_id": "UCI-45-processed-cleveland",
+    "dataset_id": "DA-A2",
+    "track": "A",
+    "source_kind": "historical processed 14-column tabular file (1988-era heart-disease.names documentation)",
+    "provenance_statement": "UCI Machine Learning Repository Heart Disease dataset (id 45, DOI 10.24432/C52P4X), processed Cleveland file, 303 records, angiography-referred historical cohort. The five mapped fields are columns 1-4 and 7 of the conventional processed 14-column layout. The raw cleveland.data file (76 attributes) carries a historical integrity warning and remains quarantined by this project; it is not a source for this mapping and is never parsed here.",
+    "source_file_reference": "data/raw/uci-45/processed.cleveland.data (maintainer-local, protected, Git-ignored; THIS MAPPING NEVER READS IT - the validator only ever sees caller-supplied synthetic fixtures)",
+    "no_real_data_clause": "No real patient record, dataset file, download, model artifact or protected local report is accessed, requested or reproduced by this specification or its validator. A synthetic flag on a payload is a caller assertion about the fixture, not proof of provenance; real records must never be passed to this code."
+  },
+  "envelope_contract": {
+    "required_payload_keys": ["mapping_version", "synthetic", "source", "stage", "features", "units", "missing_reasons"],
+    "source_block_keys": ["source_id", "dataset_id", "track"],
+    "mapping_version_value": "cleveland_resting_five_field.v0.1",
+    "unknown_properties_rejected": true,
+    "note": "This envelope is deliberately NOT the /v1 cad-tabular request, NOT the approved mock feature schemas, and NOT the clinician_intake.stage.v0.1 design proposal. It is an offline, fixture-only research envelope consumed by research/intake/cleveland_source_mapping.py."
+  },
+  "supported_stages": {
+    "history_only": {
+      "field_bundle": ["age", "sex", "cp"],
+      "required_non_null": ["age", "sex", "cp"],
+      "optional": [],
+      "statement": "Initial-consultation history stage (ED-DA-A2-01 item 1): capture age, sex and chest-pain type where clinically appropriate. An information-collection fallback; no model utility is claimed or tested."
+    },
+    "resting_assessment": {
+      "field_bundle": ["age", "sex", "cp", "trestbps", "restecg"],
+      "required_non_null": ["age", "sex", "cp"],
+      "optional": ["trestbps", "restecg"],
+      "statement": "Baseline resting stage (ED-DA-A2-01 item 1): resting blood pressure and resting ECG are recorded when actually measured before the intended decision point. This is the five-field mapping target stage and a measurement-completeness report, never a prediction trigger."
+    }
+  },
+  "unsupported_stages_note": "The later optional stages of the M2b prototype (resting_plus_labs, includes_exercise_tests) are intentionally NOT supported by this mapping version. Their fields (chol, fbs, thalach, exang, oldpeak, slope) are rejected as outside_mapping_scope, and thal is rejected as excluded_pending_timing_review.",
+  "fields": [
+    {
+      "name": "age",
+      "source_position": 1,
+      "kind": "numerical",
+      "literal_source_coding": "Age in years; positive finite number, conventionally integer-like, exactly as delivered by the processed source column named 'age'. No rounding, coercion or unit conversion is performed.",
+      "unit": "years",
+      "unit_required_when_measured": true,
+      "numeric_rule": "strictly_positive",
+      "required_measurement_stage": "history_only",
+      "optionality": "required_non_null_at_all_supported_stages",
+      "missingness_semantics": "Required at every supported stage: it can never be omitted or null in a mapped fixture. The UCI-45 processed source can code missing cells with the literal token '?'; that token is never passed through by this mapping (a '?' string is rejected as a value), and UCI-45 never recorded missingness reasons, so none may be invented.",
+      "zero_semantics": "Zero is not a valid age. A measured 0 is rejected as an invalid numeric value; it is not reinterpreted as missing.",
+      "prediction_time_evidence": "Plausibly available at the proposed W0 history moment as a workflow hypothesis only; the source does not certify when age was recorded relative to angiography (Gate PT doc 12 section 3).",
+      "provenance": ["UCI45_OFFICIAL_PAGE", "D047_FROZEN_PLAN", "GATE_DA_14_ED_DA_A2_01", "M2B_STAGE_VALIDATOR", "GATE_PT_12_R1"],
+      "uncertainty": "The exact recording convention (age at admission vs at catheterization) is not documented by the source."
+    },
+    {
+      "name": "sex",
+      "source_position": 2,
+      "kind": "categorical",
+      "literal_source_coding": "Nominal integer source codes, exactly as delivered by the processed source column named 'sex': 0 = female, 1 = male. Codes are matched literally; nothing is converted.",
+      "source_codes": [0, 1],
+      "code_semantics": { "0": "female", "1": "male" },
+      "required_measurement_stage": "history_only",
+      "optionality": "required_non_null_at_all_supported_stages",
+      "missingness_semantics": "Required at every supported stage; can never be omitted or null. Source '?' tokens are never passed through.",
+      "zero_semantics": "0 (female) is valid categorical data and is never reinterpreted as missing. This is the canonical valid-zero case of the mapping.",
+      "ambiguous_conversions_rejected": ["\"male\"", "\"Male\"", "\"female\"", "\"Fmale\"", "\"Y\"", "\"N\"", "true", "false", "1.0", "0.0"],
+      "conversion_rejection_rationale": "Text labels, other-dataset tokens (for example the UCI-412 'Sex' text column), booleans and floats all require an invented interpretation step; the mapping accepts literal source codes only and registers no cross-dataset crosswalk of any kind.",
+      "prediction_time_evidence": "Plausibly available at the W0 history moment as a workflow hypothesis only; recording timing is not certified by the source.",
+      "provenance": ["UCI45_OFFICIAL_PAGE", "D047_FROZEN_PLAN", "GATE_DA_14_ED_DA_A2_01", "M2B_STAGE_VALIDATOR", "GATE_PT_12_R1"],
+      "uncertainty": "Recorded sex as a binary source variable; not gender identity. The 0/1 coding is UCI-45-specific and is not presumed for any other dataset."
+    },
+    {
+      "name": "cp",
+      "source_position": 3,
+      "kind": "categorical",
+      "literal_source_coding": "Chest-pain type, nominal integer source codes 1-4, exactly as delivered by the processed source column named 'cp': 1 = typical angina, 2 = atypical angina, 3 = non-anginal pain, 4 = asymptomatic. The codes are nominal labels in a fixed order, not an ordinal scale.",
+      "source_codes": [1, 2, 3, 4],
+      "code_semantics": { "1": "typical angina", "2": "atypical angina", "3": "non-anginal pain", "4": "asymptomatic" },
+      "required_measurement_stage": "history_only",
+      "optionality": "required_non_null_at_all_supported_stages",
+      "missingness_semantics": "Required at every supported stage; can never be omitted or null. Source '?' tokens are never passed through.",
+      "zero_semantics": "0 is outside the source vocabulary (codes start at 1) and is rejected as an unknown categorical code; it is not missing.",
+      "ambiguous_conversions_rejected": ["\"typical\"", "\"atypical\"", "\"non-anginal\"", "\"asymptomatic\"", "2.0", "true", "UCI-412 chest-pain binaries"],
+      "conversion_rejection_rationale": "The UCI-412 basic panel expresses chest pain as four separate binary columns (Typical Chest Pain, Atypical, Nonanginal, Exertional CP) whose mutual exclusivity is unknown (S-4). Converting those flags to one four-class value would invent rules, so any such payload is rejected as an other_dataset_source field, and text labels or non-integer scalars for cp are rejected as ambiguous conversions.",
+      "prediction_time_evidence": "Plausibly available at the W0 history moment as a workflow hypothesis only; recorded as a source category, not free text.",
+      "provenance": ["UCI45_OFFICIAL_PAGE", "D047_FROZEN_PLAN", "GATE_DA_14_ED_DA_A2_01", "M2B_STAGE_VALIDATOR", "GATE_PT_12_R1"],
+      "uncertainty": "User-facing label wording still requires clinician review; the code meanings are the source dictionary's wording."
+    },
+    {
+      "name": "trestbps",
+      "source_position": 4,
+      "kind": "numerical",
+      "literal_source_coding": "Resting blood pressure on admission, in mm Hg, exactly as delivered by the processed source column named 'trestbps'. A single positive finite number; no systolic/diastolic reconstruction and no unit conversion.",
+      "unit": "mmHg",
+      "unit_required_when_measured": true,
+      "numeric_rule": "strictly_positive",
+      "required_measurement_stage": "resting_assessment",
+      "optionality": "optional_at_resting_assessment",
+      "missingness_semantics": "Optional at the resting_assessment stage. Absence is represented either as an explicit null with exactly one measurement reason (not_measured, not_available_at_time or unknown) or as an omitted key with the not_provided reason. A missing value never becomes zero and a zero never becomes missing.",
+      "zero_semantics": "A measured 0 is NOT accepted: under ED-DA-A2-01 item 2 an unexplained resting BP of 0 is treated as unavailable for proposed clinical use, preserving the raw code. In this synthetic mapping the value must be represented as null with a missing reason; the validator rejects 0 as a measured value with a dedicated zero_measurement_unavailable error. This is a conservative prototype safeguard, not a universal clinical coding rule.",
+      "unit_rejection_note": "The exact token 'mmHg' is required when measured. 'kPa', 'mm Hg', case variants and any other token are rejected; values are never converted.",
+      "prediction_time_evidence": "The source records BP on admission, not necessarily office BP, and does not certify measurement timing relative to angiography; W0 availability is a hypothesis (Gate PT doc 12 section 3).",
+      "provenance": ["UCI45_OFFICIAL_PAGE", "D047_FROZEN_PLAN", "GATE_DA_14_ED_DA_A2_01", "M2B_STAGE_VALIDATOR", "GATE_PT_12_R1"],
+      "uncertainty": "Whether the admission context of the historical cohort matches a future clinical intake moment is unresolved and outside this mapping's scope."
+    },
+    {
+      "name": "restecg",
+      "source_position": 7,
+      "kind": "categorical",
+      "literal_source_coding": "Resting electrocardiographic results, nominal integer source codes 0-2, exactly as delivered by the processed source column named 'restecg': 0 = normal, 1 = ST-T wave abnormality (T wave inversions and/or ST elevation or depression > 0.05 mV), 2 = probable or definite left ventricular hypertrophy by Estes' criteria. Nominal, not ordinal.",
+      "source_codes": [0, 1, 2],
+      "code_semantics": { "0": "normal", "1": "ST-T wave abnormality", "2": "left ventricular hypertrophy by Estes' criteria" },
+      "required_measurement_stage": "resting_assessment",
+      "optionality": "optional_at_resting_assessment",
+      "missingness_semantics": "Optional at the resting_assessment stage: explicit null with one measurement reason, or omitted with the not_provided reason. Source '?' tokens are never passed through.",
+      "zero_semantics": "0 (normal) is valid categorical data and is never reinterpreted as missing.",
+      "ambiguous_conversions_rejected": ["\"normal\"", "\"0\"", "1.0", "true", "UCI-412 ECG binary columns"],
+      "conversion_rejection_rationale": "The UCI-412 resting-ECG block (Q Wave, St Elevation, St Depression, Tinversion, LVH, BBB) is a set of separate binaries in a REGISTERED_BLOCKED panel and is not equivalent to a three-class restecg; no conversion is registered (Gate PT doc 12 section 4).",
+      "prediction_time_evidence": "Requires that a resting ECG was actually recorded before the intended decision point; the historical source does not certify per-record timing (W0 hypothesis only).",
+      "provenance": ["UCI45_OFFICIAL_PAGE", "D047_FROZEN_PLAN", "GATE_DA_14_ED_DA_A2_01", "M2B_STAGE_VALIDATOR", "GATE_PT_12_R1"],
+      "uncertainty": "Code descriptions are the UCI-45 dictionary's wording, quoted not clinically redefined."
+    }
+  ],
+  "missingness_semantics": {
+    "missing_reason_vocabulary": ["not_measured", "not_available_at_time", "unknown", "not_provided"],
+    "measurement_reasons": ["not_measured", "not_available_at_time", "unknown"],
+    "structural_reason": "not_provided",
+    "rules": [
+      "Required history fields (age, sex, cp) can never be omitted or null at any supported stage.",
+      "An optional stage field omitted from features requires exactly the not_provided reason.",
+      "An optional explicit null requires exactly one of the measurement reasons.",
+      "Measured fields take no reason; every unavailable field takes exactly one.",
+      "The UCI-45 processed-source missing token '?' is never accepted as a value in any field; a future reviewed adapter would have to translate it to null plus a reason, and no such adapter exists in this version.",
+      "UCI-45 never recorded missingness reasons; fixture reasons describe the synthetic fixture only and support no clinical inference about any real record."
+    ]
+  },
+  "zero_semantics": {
+    "statement": "Valid zero is preserved as data and is strictly distinguished from missing data. Zero is never silently converted to missing, and missing is never silently converted to zero, in either direction, for any field.",
+    "fields_where_zero_is_valid_data": ["sex", "restecg"],
+    "fields_where_zero_is_unavailable_not_measured": ["trestbps"],
+    "fields_where_zero_is_out_of_vocabulary_or_invalid": ["cp (vocabulary starts at 1)", "age"]
+  },
+  "prohibited_fields": {
+    "outcome_label": {
+      "description": "The angiography-referenced target and its aliases. Never a predictor at any stage (ED-DA-A2-01 item 4; D-047 frozen plan prohibited_predictors).",
+      "fields": ["num", "target", "outcome", "label", "cad_label", "Cath"]
+    },
+    "angiography_or_post_catheterization": {
+      "description": "Fluoroscopy-colored vessel counts, raw angiography-derived vessel measures, catheterization dates and the UCI-411/412 artery columns that define the outcome there.",
+      "fields": ["ca", "lmt", "ladprox", "laddist", "diag", "cxmain", "ramus", "om1", "om2", "rcaprox", "rcadist", "cmo", "cday", "cyr", "LAD", "LCX", "RCA", "stenosis_percent", "angiography"]
+    },
+    "excluded_pending_timing_review": {
+      "description": "Registered UCI-45 field excluded from the first staged interface because its time of acquisition relative to the decision point has not been reviewed (ED-DA-A2-01 item 4).",
+      "fields": ["thal"]
+    },
+    "identifier_or_site": {
+      "description": "Identifiers, names and site markers; never predictors.",
+      "fields": ["id", "ccf", "name", "site", "patient_id", "patient_ref", "mrn"]
+    },
+    "wearable_or_track_b": {
+      "description": "Track B patient/wearable monitoring observations. The Track A/Track B separation is one-way and binding (D-039): wearable values never reach a CAD predictor path.",
+      "fields": ["wearable_heart_rate", "heart_rate_bpm", "steps", "spo2", "wearable_ecg", "hrv", "monitoring_observation"]
+    },
+    "other_dataset_source": {
+      "description": "Column names as delivered by other datasets (the UCI-412/UCI-411 basic clinical panel and related headers). Field-name matching is exact and case-sensitive; no cross-dataset harmonization is registered, attempted or implied. age != Age and sex != Sex.",
+      "fields": ["Age", "Sex", "BMI", "DM", "HTN", "Current Smoker", "EX-Smoker", "FH", "DLP", "BP", "PR", "Typical Chest Pain", "Atypical", "Nonanginal", "Exertional CP", "Dyspnea"]
+    },
+    "outside_mapping_scope": {
+      "description": "Registered UCI-45 fields that belong to later optional stages (laboratory, exercise) and are therefore not part of this five-field mapping version. Not prohibited forever; simply not mappable under v0.1, and their stage semantics remain those of the M2b prototype.",
+      "fields": ["chol", "fbs", "thalach", "exang", "oldpeak", "slope"]
+    }
+  },
+  "unregistered_field_fallback": "Any field name not in the mapping and not in the prohibited_fields lists above is rejected as an unregistered field. Rejection is the default; allowlisting is the exception.",
+  "no_result_contract": {
+    "result_state": "NO_RESULT_NO_CAD_PROBABILITY_COMPUTED",
+    "mapping_status": "ACCEPTED_SYNTHETIC_FIXTURE_MAPPING_ONLY",
+    "statement": "Every accepted validation returns a mapping review that records which fields mapped, at which stage, with which missing reasons - and nothing else. The review never contains submitted values, identifiers, a CAD probability, score, risk class, explanation or treatment text, and the implementing module contains no scoring, inference or prediction path of any kind. Even a fully stage-complete mapped fixture returns the explicit no-result state. Gate PT P-3 remains CLOSED; no real scoring path may be introduced downstream of this mapping without separate human authorization and a frozen protocol.",
+    "offline_clause": "The validator is an offline research artifact. It is not imported by the backend application, is not reachable over HTTP, performs no I/O except reading this specification file, and touches no database, frontend or model registry."
+  },
+  "relationship_to_existing_artifacts": {
+    "m2b_synthetic_stage_validator": "research/intake/synthetic_stage_validator.py remains unchanged and authoritative for the four-stage synthetic preprocessing prototype. This mapping reuses its field conventions for the five shared fields (a coherence test enforces agreement) and narrows scope to the five-field resting proposal with source-provenance, versioning, prohibited-field taxonomy and no-result semantics that the M2b validator does not carry.",
+    "clinician_intake_stage_proposal": "shared/contracts/proposals/clinician_intake_stage.v0.1.md remains a separate DESIGN PROPOSAL ONLY. This mapping is not that contract, does not implement it, and assigns no endpoint path.",
+    "v1_contracts": "The approved /v1 OpenAPI schemas, mock feature schemas, fixtures and backend behavior are untouched. This mapping accepts no mock_feature_* identifier and is wired to nothing.",
+    "uci412_dictionary": "research/uci412/schemas/uci412_feature_dictionary.v1.json (1.1.0) is read for documentation only in the R1 appendix; no UCI-412 clinical adapter is implemented or run by this mapping."
+  },
+  "revision_history": [
+    {
+      "schema_version": "0.1.0",
+      "date": "2026-10-24",
+      "change": "Initial PROPOSED version: five-field literal source coding, units, stages, missingness and zero semantics, prohibited-field taxonomy, envelope contract and no-result contract, with a synthetic-only offline validator and tests (Gate PT doc 12 section 6, R1 smallest next implementation task).",
+      "authorization_impact": "None. This version authorizes nothing; acceptance by a human would still not authorize real-data processing, contract changes, model fitting or clinical use."
+    }
+  ],
+  "citations": {
+    "UCI45_OFFICIAL_PAGE": {
+      "citation_id": "UCI45_OFFICIAL_PAGE",
+      "reference": "UCI Machine Learning Repository, Heart Disease (id 45), https://archive.ics.uci.edu/dataset/45/heart+disease, DOI 10.24432/C52P4X (1988-era heart-disease.names documentation)",
+      "retrieved": "2026-10-24",
+      "status": "VERIFIED_OFFICIAL_SOURCE_METADATA_ONLY",
+      "supports": "The conventional 14-field layout; age in years; sex 0/1; cp 1-4 with the quoted category wording; trestbps in mm Hg on admission; restecg 0-2 with the quoted descriptions; the angiographic num target and >50% wording; the ca fluoroscopy definition.",
+      "does_not_support": "Per-record measurement timing relative to angiography; missingness reasons; the coding of exactly-50% records; any statement that zero codes are missing."
+    },
+    "D047_FROZEN_PLAN": {
+      "citation_id": "D047_FROZEN_PLAN",
+      "reference": "research/experiments/cleveland_d047_exploratory_plan.v0.1.json (frozen D-047 internal exploratory plan)",
+      "status": "FROZEN_PROTOCOL_RECORD",
+      "supports": "The five primary predictors and their source-code order; the processed source column list; the prohibited-predictors list (num, ca, thal, vessels, identifiers, site, wearables).",
+      "does_not_support": "Any permission to fit, serve or reuse that experiment's outputs; this mapping is a separate, non-executable design artifact."
+    },
+    "GATE_DA_14_ED_DA_A2_01": {
+      "citation_id": "GATE_DA_14_ED_DA_A2_01",
+      "reference": "docs/research/gate-da/14_real_joint_availability_and_staged_intake_decision.md (ED-DA-A2-01, adopted staged-intake engineering direction)",
+      "status": "ADOPTED_ENGINEERING_DIRECTION_NOT_SCIENTIFIC_APPROVAL",
+      "supports": "The staged data-collection design; measurement-completeness-not-probability reporting; unexplained zero BP/cholesterol treated as unavailable for proposed clinical use; forbidden predicted-outcome proxies including ca, vessels, num and thal's timing exclusion; Track A/B separation.",
+      "does_not_support": "Any claim that the five fields have established CAD predictive accuracy, that a reduced core-panel model is approved, or that a clinical intake contract exists."
+    },
+    "M2B_STAGE_VALIDATOR": {
+      "citation_id": "M2B_STAGE_VALIDATOR",
+      "reference": "research/intake/synthetic_stage_validator.py and shared/contracts/proposals/clinician_intake_stage.v0.1.md",
+      "status": "EXISTING_SYNTHETIC_PROTOTYPE",
+      "supports": "The stage bundle names, field kinds, unit tokens, missing-reason vocabulary and zero safeguards reused unchanged by this mapping for the five shared fields.",
+      "does_not_support": "Source provenance binding, mapping versioning, prohibited-field taxonomy or a no-result state; those are added by this specification only."
+    },
+    "GATE_PT_12_R1": {
+      "citation_id": "GATE_PT_12_R1",
+      "reference": "docs/research/gate-pt/12_dataset_selection_and_clinical_workflow_alignment_REVIEW_DRAFT.md, section 6 (R1 - technical mapping feasibility; smallest next implementation task)",
+      "status": "REVIEW_DRAFT_TASK_DEFINITION",
+      "supports": "The exact scope of this artifact: versioned proposed source-to-intake mapping, synthetic positive/negative fixtures, explicit no-result state, no live endpoint or frozen-plan changes, and the requirement that no real score can be produced.",
+      "does_not_support": "Dataset selection, clinical timepoint approval, or any Gate PT action; R1 exit is technical readiness only."
+    }
+  }
+}

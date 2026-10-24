@@ -7,6 +7,33 @@ approved clinical contract. Gate PT P-3 remains **CLOSED**. Nothing here
 updates `/v1` OpenAPI schemas, backend behavior, frontend applications,
 persistence, migrations, or inference routes.
 
+## R1 — Cleveland five-field research input mapping (PROPOSED, synthetic-only)
+
+`cleveland_source_mapping.py` implements the versioned, explicitly **PROPOSED**
+mapping specification
+[`schemas/cleveland_resting_five_field_mapping.v0.1.json`](schemas/cleveland_resting_five_field_mapping.v0.1.json)
+(`cleveland_resting_five_field.v0.1`, status `PROPOSED_NOT_APPROVED`) for the
+five-field UCI-45 processed-Cleveland resting-assessment proposal
+(`age`, `sex`, `cp`, `trestbps`, `restecg`), per
+[Gate PT doc 12 §6](../../docs/research/gate-pt/12_dataset_selection_and_clinical_workflow_alignment_REVIEW_DRAFT.md)
+and [doc 13](../../docs/research/gate-pt/13_r1_cleveland_five_field_input_mapping_SPECIFICATION_PROPOSED.md).
+
+It is an offline, standard-library-only, deterministic validator for
+**synthetic fixtures only**: it binds every payload to the registered source
+triple (`UCI-45-processed-cleveland` / `DA-A2` / Track A) and the exact mapping
+version; matches literal source codes (no label, token, boolean, float or
+cross-dataset conversion); requires exact unit tokens; enforces the staged
+missing-reason and zero semantics (valid categorical zero is data; a measured
+`trestbps` of 0 is unavailable, per ED-DA-A2-01); rejects outcome-derived,
+angiography/post-catheterization, timing-unreviewed (`thal`), identifier,
+wearable/Track-B, other-dataset and out-of-scope fields with a stable category;
+and returns a metadata-only review whose explicit result state is always
+`NO_RESULT_NO_CAD_PROBABILITY_COMPUTED` — there is **no scoring, inference or
+prediction path of any kind**. The JSON record and the frozen in-code
+allowlists must agree or loading fails closed; a coherence test additionally
+pins the five shared field conventions to the M2b validator below.
+**Cleveland has NOT been selected as the final project dataset.**
+
 ## Implemented foundation
 
 `synthetic_stage_validator.py` contains the exact stage allowlists, immutable
@@ -76,6 +103,9 @@ path and `/v1/monitoring/observations` Track-B separation remain unchanged.
 ```bash
 python -m pytest tests/audit/test_synthetic_stage_intake_safety.py \
   tests/audit/test_synthetic_preprocessing.py -q -W error
+
+# R1 Cleveland five-field source mapping (PROPOSED v0.1):
+python -m pytest tests/audit/test_cleveland_five_field_source_mapping.py -q -W error
 ```
 
 All examples and tests contain invented synthetic software values. There are

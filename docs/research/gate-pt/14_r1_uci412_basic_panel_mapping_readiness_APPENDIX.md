@@ -1,0 +1,50 @@
+# 14 — R1 Appendix: UCI-412 Basic-Panel (16-Column) Mapping-Readiness Record
+
+**Prepared:** 2026-10-24 · **Status: documentation-only appendix to the R1 mapping specification ([doc 13](13_r1_cleveland_five_field_input_mapping_SPECIFICATION_PROPOSED.md)). NOT a UCI-412 clinical adapter, NOT an input schema, NOT a harmonization proposal.**
+
+> **No UCI-412 clinical adapter is implemented or run by R1.** The registered dictionary `research/uci412/schemas/uci412_feature_dictionary.v1.json` (1.1.0, Amendment A-1) is **read for documentation only** and is byte-identical to its merged state — this appendix modifies nothing in `research/uci412/**`, runs no code against the source, and accesses no workbook. Gate PT **P-3 remains CLOSED**; P-1 PENDING; P-5 prohibited; D-048/M3a internal-exploratory status unchanged. **No harmonized cross-dataset schema is invented here**: no mapping of UCI-412 columns onto the Cleveland five-field mapping of doc 13 exists, and none is proposed (H-01/S-7 unresolved; pooling prohibited).
+
+This appendix is the Workstream-B deliverable of the R1 task: a concise, source-specific **mapping-readiness** record for the registered 16-column basic clinical panel (`uci412_basic_clinical_v1`, v1.1.0), answering for every field: what is *confirmed* about its source type and coding, what clinical meaning is *documented vs uncertain*, what its unit and prediction-time evidence is, and what would have to be *resolved* before a future model input schema for UCI-412 could even be drafted. Evidence labels follow doc 11 §0.1: official-source metadata (**S**), local read-only audits (**L**), frozen dictionary records (**[FROZEN]**).
+
+## 1. Per-field readiness record (16 columns, panel order)
+
+| # | Column | Confirmed source type & coding | Clinical meaning: documented vs uncertain | Unit & prediction-time evidence | Required resolution for a future model input schema |
+|---|---|---|---|---|---|
+| 1 | `Age` | Numeric, continuous; number cells (representation consistent with local audit **[L]**) | "Patient age at assessment" — secondary-source level only; exact recording convention (age at angiography vs at first assessment) **undocumented** | Unit `years`, `SECONDARY_SOURCE_UNVERIFIED` **[FROZEN]**; `EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY` is workflow inference — per-field acquisition time is not documented by the source | Confirm unit and recording moment (owner codebook or authorized audit); fix an intake unit token and a range policy |
+| 2 | `Sex` | Binary **text** tokens; registered vocabulary `Male`=1, `Fmale`=0, `Female`=0, `SECONDARY_SOURCE_UNVERIFIED` (S-1: exact delivered tokens, incl. the reported `Fmale` spelling, unverified) **[FROZEN]** | "Recorded sex"; not gender identity | Unit n/a; prediction-time inference as above | Verify the exact delivered tokens by read-only local audit before any intake vocabulary is frozen; register direction explicitly. **No crosswalk to UCI-45 `sex` 0/1** |
+| 3 | `BMI` | Numeric, continuous; number cells | "Body-mass index"; whether recorded or derived (and the derivation) is **undocumented**; `Weight`/`Length`/`Obesity` excluded as redundant | Unit `kg/m^2`, `SECONDARY_SOURCE_UNVERIFIED`; prediction-time inference | Confirm recorded-vs-derived status and unit; define an intake unit token; keep the redundancy exclusions unless re-decided |
+| 4 | `DM` | Binary **numeric 0/1** — representation confirmed by the human SHA-256-verified read-only audit of all 303 records (2026-10-24) **[L]**; **direction `0`=absent, `1`=present is provisional** (S-9: peer-reviewed secondary literature Tao et al. 2025 Table 1, not an owner codebook) **[FROZEN]** | "History of diabetes mellitus"; defining criteria (duration, treatment status) **undocumented** | Unit n/a; prediction-time inference | Human acceptance of S-9 direction (or owner-codebook confirmation); document defining criteria before any clinical intake meaning is attached |
+| 5 | `HTN` | As `DM`: numeric 0/1 audited; direction provisional (S-9) | "History of hypertension"; criteria undocumented | Unit n/a; prediction-time inference | As `DM` |
+| 6 | `Current Smoker` | As `DM`: numeric 0/1 audited; direction provisional (S-9) | "Current smoking at assessment"; criteria undocumented | Unit n/a; prediction-time inference | As `DM` |
+| 7 | `EX-Smoker` | As `DM`: numeric 0/1 audited; direction provisional (S-9) | "Former smoking history"; criteria undocumented | Unit n/a; prediction-time inference | As `DM` |
+| 8 | `FH` | As `DM`: numeric 0/1 audited; direction provisional (S-9) | "Family history of coronary artery disease"; criteria undocumented | Unit n/a; prediction-time inference | As `DM` |
+| 9 | `DLP` | Binary **text**; registered `Y`/`N`/`Yes`/`No` → 1/0, `SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED` **[FROZEN]** | "History of dyslipidaemia"; whether a recorded diagnosis or a laboratory threshold is **undocumented** | Unit n/a; prediction-time inference | Audit exact tokens; adjudicate diagnosis-vs-threshold semantics |
+| 10 | `BP` | Numeric, continuous; single value | "Blood pressure recorded at assessment"; whether systolic, diastolic or a single recorded value is **not stated** — "probably systolic" per secondary summaries (**S-2 unresolved**) **[FROZEN]** | Unit `mmHg`, `SECONDARY_SOURCE_UNVERIFIED`; prediction-time inference | **Must not be mapped to `trestbps` or any systolic intake field until the measured quantity is confirmed.** Confirm quantity + unit + zero semantics; state admission context |
+| 11 | `PR` | Numeric, continuous; number cells | "Pulse rate recorded at assessment"; intended unit **unverified** — secondary tables label it "ppm" (**S-3 unresolved**) **[FROZEN]** | Unit `beats/min`, `SECONDARY_SOURCE_UNVERIFIED` (source notation "ppm"); prediction-time inference | Confirm unit/semantics; note there is **no UCI-45 counterpart** — a UCI-412 intake schema would need its own decision |
+| 12 | `Typical Chest Pain` | Binary **numeric 0/1** audited; direction provisional (S-9) **[FROZEN]** | "Typical-angina chest pain descriptor"; mutual exclusivity with `Atypical`/`Nonanginal` **unknown — never examined** (**S-4**) | Unit n/a; prediction-time inference | S-9 + S-4 adjudication. **No conversion to UCI-45 `cp` 1–4 is possible or proposed** — flags-to-category would invent rules |
+| 13 | `Atypical` | Binary **text**; `Y`/`N`/`Yes`/`No` registered, exact tokens unverified | "Atypical chest pain descriptor"; exclusivity unknown (S-4) | Unit n/a; prediction-time inference | Token audit + S-4 adjudication |
+| 14 | `Nonanginal` | As `Atypical` | "Non-anginal chest pain descriptor"; exclusivity unknown (S-4) | Unit n/a; prediction-time inference | As `Atypical` |
+| 15 | `Exertional CP` | As `Atypical` | "Exertional chest pain descriptor"; exclusivity unknown (S-4) | Unit n/a; prediction-time inference | As `Atypical` |
+| 16 | `Dyspnea` | As `Atypical` | "Dyspnea reported at assessment" | Unit n/a; prediction-time inference | Token audit |
+
+## 2. Preserved unresolved questions (not resolved, not invented away)
+
+These are carried forward **unchanged** from the frozen records (docs [08](08_m3a_uci412_source_specific_benchmark_SPECIFICATION.md)–[10](10_m3a_uci412_source_encoding_AMENDMENT_A1.md); dictionary 1.1.0) and remain binding on any future UCI-412 input-schema work:
+
+- **S-2 — `BP`**: single value, *probably* systolic-only, not documented by the source. Unresolved.
+- **S-3 — `PR`**: source notation "ppm"; unit vs pulse-rate semantics unverified. Unresolved.
+- **S-4 — chest-pain exclusivity**: whether `Typical Chest Pain`/`Atypical`/`Nonanginal` are mutually exclusive was never examined. Unresolved.
+- **S-9 — numeric-binary direction**: the `0`=absent / `1`=present reading of the six audited columns is secondary-literature supported (Tao et al. 2025, doi:10.31083/RCM26204, Table 1) but **not** owner-codebook verified, and still requires explicit human acceptance. Unresolved.
+- **S-1 (partial) — text vocabularies**: exact delivered tokens for the six text-binary columns and the `Sex` spelling remain unverified. Unresolved.
+- **Timing**: `EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY` is inference from feature group and workflow; the source documents **no per-field acquisition time**, so a prospective pre-angiography prediction moment is unproven (P-1 pending).
+- **Source-shape discrepancies**: "54 features" (landing page) vs 55 delivered predictors (S-8), both recorded verbatim; UCI-411 is the **same 303 participants** and never an independent dataset.
+- **Target side (out of input-mapping scope but recorded)**: ≥50% (UCI-412) vs >50% (UCI-45) wording, exact-50% coding unknown (H-01/S-7); never harmonized anywhere.
+
+## 3. What this appendix does NOT do
+
+- **No UCI-412 clinical adapter, validator or intake envelope is implemented** — the R1 implementation (doc 13) is Cleveland-five-field-only, by design and by test (UCI-412 column names are *rejected* as `other_dataset_source` there).
+- **No harmonized cross-dataset schema is proposed or implied.** Column-name similarity is not coding equivalence (Amendment A-1 demonstrated exactly this); age/sex/BP/chest-pain concepts overlap only conceptually between the two panels.
+- **No dataset access, download, workbook read, model fitting, prediction or performance claim** is made; the M3a internal-exploratory aggregates remain `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED` and were not used here.
+- **No change to governance status**: P-1 PENDING, P-3 CLOSED, P-5 prohibited; D-046/D-047/D-048 unchanged; no decision-register entry added.
+
+**Readiness verdict (documentation-level):** the 16-column panel is **registered for internal research only and NOT ready as a clinical intake mapping**. Four numeric binaries plus `Age`/`BMI` have confirmed *representations* (audited), but every field carries at least one unresolved semantic, unit, direction or timing question (§2); until those are human-adjudicated, no UCI-412 model input schema can be drafted without inventing semantics — which this project does not do.
