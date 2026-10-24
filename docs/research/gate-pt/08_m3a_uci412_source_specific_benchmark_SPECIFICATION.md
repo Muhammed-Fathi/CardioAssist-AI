@@ -95,7 +95,9 @@ The audited SHA-256 is an integrity cross-check, **not** a substitute for local 
 
 - the file is opened read-only, its bytes hashed before and after parsing, and a changed file aborts the run ([CODE]);
 - only the *(row, panel)* matrix and a binary target leave the adapter; no row, cell value, or patient-level structure is returned, logged, or raised;
-- every error message is patient-safe and is covered by a sentinel test that asserts source values are never echoed ([TEST]).
+- **workbook-supplied metadata is untrusted text, not a label.** A worksheet name or a column header is whatever the file's author typed, so neither is ever echoed. A header-set mismatch reports *counts*, the 1-based *positions* of unregistered columns (capped at 10, with a remainder count), and the **registered** identifiers that are missing; the unregistered names themselves are withheld. The audit object records a static `data_worksheet_identifier` (`data_worksheet_1`), the worksheet's ordinal, and a `workbook_supplied_sheet_and_header_names_withheld: true` flag — never the workbook string;
+- report construction carries a second guard: any mapping key such as `sheet_name`, `worksheet_name`, `header_names` or `unexpected_columns` fails the aggregate-report validator closed, so a future code change cannot silently publish workbook text;
+- every error message is patient-safe and is covered by sentinel tests that assert both source *values* and untrusted workbook *names* are never echoed ([TEST]).
 
 ---
 
@@ -232,21 +234,66 @@ requirement installs, `pytest tests/uci412 -q -W error`, `python -m research.uci
 the synthetic-only `dry-run`, and widens the forbidden-artifact `find` scan to
 `research/{experiments,audit,uci412}`, `tests/{experiments,audit,uci412}`, `*.xlsx` and `*.xls`.
 
-A maintainer with `workflows` permission applies it before or after merge:
+**Required permission.** Only a human with repository `workflows` permission can land this file.
+The automation identity that pushed the branch is rejected by GitHub with
+`refusing to allow a GitHub App to create or update workflow ... without 'workflows' permission`,
+and that restriction is **not** bypassed here (no API side-door, no force-push, no rewriting the
+workflow through another path).
+
+**Exact maintainer steps** (PowerShell or bash, from a clean clone of the repository):
 
 ```bash
-git apply research/uci412/ci/experiment-runner-ci.uci412.patch
+# 1) Fetch this PR's branch and confirm the pre-state is byte-identical to main
+git fetch origin arena/cd07b4ea-cardioassist-ai
+git switch arena/cd07b4ea-cardioassist-ai        # or the merge commit after merge
+git diff --stat origin/main -- .github/workflows/experiment-runner-ci.yml   # expected: no output
+
+# 2) Check the patch applies, then apply it
+git apply --check research/uci412/ci/experiment-runner-ci.uci412.patch
+git apply         research/uci412/ci/experiment-runner-ci.uci412.patch
+
+# 3) Sanity-check the result before committing
+git diff -- .github/workflows/experiment-runner-ci.yml   # expect: deps + tests/uci412 + describe/dry-run + widened find scan
+python -c "import yaml,sys; yaml.safe_load(open('.github/workflows/experiment-runner-ci.yml')); print('YAML OK')"
+
+# 4) Commit and push with an identity that holds `workflows` permission
+git add .github/workflows/experiment-runner-ci.yml
+git commit -m "ci: run UCI-412 synthetic tests and dry-run"
+git push origin arena/cd07b4ea-cardioassist-ai
+
+# 5) Delete the now-applied patch in a follow-up commit (optional, keeps the tree honest)
+git rm research/uci412/ci/experiment-runner-ci.uci412.patch
 ```
 
-Both the current and the patched workflow parse as YAML, and the patch applies cleanly with
-`git apply --check` against this branch's tree (**VERIFIED**, 2026-10-24). Until it is applied,
-`tests/uci412` runs locally but not in GitHub Actions.
+**Acceptance evidence to capture** (this is the condition that cannot be satisfied from inside the
+agent environment): on the pushed branch, the `synthetic-experiment-runner-validation` workflow run
+for **both** matrix entries (`3.11`, `3.12`) must be green through the steps
+`Run synthetic UCI-412 benchmark tests`, `Describe the proposed (unauthorized) UCI-412 protocol`,
+and `Execute the registered UCI-412 synthetic-only dry-run`. The expected step list after applying is:
+
+1. Check out repository
+2. Set up Python
+3. Install pinned local-runner dependencies (`experiments` + `audit` + `uci412`, then `pip check`)
+4. Run synthetic experiment-runner and dataset-audit tests (`tests/experiments tests/audit`)
+5. Run synthetic UCI-412 benchmark tests (`tests/uci412 -q -W error`)
+6. Execute the registered synthetic-only dry-run (`research.experiments dry-run`)
+7. Describe the proposed (unauthorized) UCI-412 protocol (`research.uci412 describe`)
+8. Execute the registered UCI-412 synthetic-only dry-run (`research.uci412 dry-run`)
+9. Verify source-material integrity
+10. Reject real datasets or generated artifacts in the checkout (`research/{experiments,audit,uci412}`,
+    `tests/{experiments,audit,uci412}`, including `*.xlsx`/`*.xls`)
+
+**Verified locally (2026-10-24):** `git apply --check` succeeds against this branch's tree; the
+patched file parses as YAML; the post-patch step list matches the ten steps above. **UNVERIFIED:**
+the actual GitHub Actions execution, because the pushing identity has neither `workflows` write
+permission nor `actions:read` (the runs API returns HTTP 403). Until a maintainer applies the patch,
+`tests/uci412` is covered by local runs only.
 
 ---
 
 ## 9. Tests (synthetic evidence only)
 
-`tests/uci412/` exercises the pass and fail-closed path of every safety-relevant rule: source schema, exact column set, prohibited/leakage columns, target labels, unknown categories, whitespace/malformed tokens, missing values, type/unit guards, row and class-count drift, duplicate headers, multi-sheet workbooks, header reordering, hash/size/source-change detection, safe error messages, sealed arrays, preprocessing learned on training folds only, unseen-category and all-missing-column failure, structural pipeline contract, bounded grids, inner-fold-only selection, deterministic repeats, read-only predictions, calibration/uncertainty status, negative-control determinism and alarm thresholds, leakage preconditions, report privacy guards, protected output directory creation, Git-ignore enforcement, non-authorizing template rejection, runtime guards before any parse, and Cleveland (D-047) regression compatibility — the frozen Cleveland panel, seeds, plan, and preprocessing contract are re-asserted unchanged, and constructing UCI-412 objects is proven not to perturb the global NumPy RNG.
+`tests/uci412/` exercises the pass and fail-closed path of every safety-relevant rule: source schema, exact column set, prohibited/leakage columns, target labels, unknown categories, whitespace/malformed tokens, missing values, type/unit guards, row and class-count drift, duplicate headers, multi-sheet workbooks, header reordering, hash/size/source-change detection, safe error messages, sealed arrays, preprocessing learned on training folds only, unseen-category and all-missing-column failure, structural pipeline contract, bounded grids, inner-fold-only selection, deterministic repeats, read-only predictions, calibration/uncertainty status, negative-control determinism and alarm thresholds, leakage preconditions, report privacy guards, untrusted workbook metadata (a synthetic secret in an unexpected header, a worksheet name, a reader-level failure, and a CLI error path is proven absent from messages, audit objects, and the aggregate report), protected output directory creation, Git-ignore enforcement, non-authorizing template rejection, runtime guards before any parse, and Cleveland (D-047) regression compatibility — the frozen Cleveland panel, seeds, plan, and preprocessing contract are re-asserted unchanged, and constructing UCI-412 objects is proven not to perturb the global NumPy RNG.
 
 **These tests are software evidence, not CAD performance evidence.** No test result here says anything about how well any model predicts CAD.
 
@@ -274,11 +321,11 @@ Consequence: this benchmark can be executed as an internal feasibility/replicati
 | Threshold rule | **> 50 %** | **≥ 50 %**, deliberately unresolved vs UCI-45 |
 | Feature panel | 5 ordered predictors | 16 ordered predictors |
 | Outcome meaning | angiography-referenced presence | angiography-referenced presence |
-| Cohort identity | Cleveland patients | Z-Alizadeh Sani patients — **different people**; UCI-411 is the same 303 |
+| Cohort identity | Cleveland (UCI-45) participants | Z-Alizadeh Sani (UCI-412) participants — **different named source cohorts; participant-level independence has not been established**; UCI-411 is the same 303 |
 | Cross-dataset comparison | prohibited | prohibited |
 | Authorization | D-047 (executed) | **this proposal (unsigned, not effective)** |
 
-The two experiments differ in population, era, referral pathway, panel, and threshold semantics. **No AUROC, calibration, or error metric may be compared across them**, and neither may be called external validation of the other.
+The two experiments come from different named source cohorts and differ in era, referral pathway, panel, and threshold semantics. Participant-level independence has **not** been established, and nothing here implies that these are unrelated individuals; the sources are simply never treated as one cohort. **No AUROC, calibration, or error metric may be compared across them**, and neither may be called external validation of the other.
 
 For orientation only, the executed Cleveland run reported inner-selected AUROC `0.8271 ± 0.0097` (logistic `0.8292 ± 0.0062`, forest `0.8211 ± 0.0085`, prevalence `0.4947`) at merge `146122b`; **these numbers must never be used as a target, baseline, or expectation for UCI-412**.
 

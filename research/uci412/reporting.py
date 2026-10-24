@@ -68,6 +68,22 @@ FORBIDDEN_REPORT_KEYS = frozenset(
     }
 )
 
+# Workbook-supplied metadata is untrusted text: a worksheet or column name may
+# contain anything its author typed. The adapter already replaces it with a
+# static identifier; this second guard makes any future re-introduction fail
+# closed instead of silently publishing the string in an aggregate report.
+UNTRUSTED_SOURCE_METADATA_KEYS: frozenset[str] = frozenset(
+    {
+        "sheet_name",
+        "worksheet_name",
+        "workbook_sheet_name",
+        "data_sheet_name",
+        "header_names",
+        "unexpected_columns",
+        "unregistered_column_names",
+    }
+)
+
 PACKAGE_FILES: tuple[str, ...] = (
     "research/uci412/__init__.py",
     "research/uci412/__main__.py",
@@ -146,9 +162,14 @@ def validate_aggregate_report(report: Mapping[str, Any], *, config: Uci412Config
     def walk(value: Any) -> None:
         if isinstance(value, Mapping):
             for key, item in value.items():
-                if str(key).lower() in FORBIDDEN_REPORT_KEYS:
+                normalized_key = str(key).lower()
+                if normalized_key in FORBIDDEN_REPORT_KEYS:
                     raise StorageProtectionError(
                         "The aggregate report schema rejects patient-level or row-aligned content."
+                    )
+                if normalized_key in UNTRUSTED_SOURCE_METADATA_KEYS:
+                    raise StorageProtectionError(
+                        "The aggregate report schema rejects untrusted workbook metadata."
                     )
                 walk(item)
         elif isinstance(value, (list, tuple)):

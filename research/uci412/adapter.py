@@ -11,7 +11,12 @@ Design rules enforced here:
 * blanks become ``NaN`` (imputed later inside training folds only), while the
   UCI-45 missing markers ``?`` and ``-9`` are rejected as wrong-source signals;
 * only aggregate metadata leaves this module: no row, cell value, or
-  patient-level structure is returned or printable.
+  patient-level structure is returned or printable;
+* workbook-supplied names are **untrusted input**. A worksheet name or an
+  unexpected header may contain anything a file's author typed, so it is never
+  echoed into an exception message, the audit object, or the aggregate report.
+  Structural failures report counts, header positions, and *registered* column
+  identifiers only; the audit records a static worksheet identifier and ordinal.
 """
 from __future__ import annotations
 
@@ -19,7 +24,7 @@ from dataclasses import dataclass, field
 import hashlib
 import math
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Final, Mapping
 
 import numpy as np
 
@@ -36,6 +41,15 @@ from research.uci412.source_spec import (
     WRONG_SOURCE_TOKENS,
 )
 
+# A workbook's own worksheet name is untrusted text. Nothing derived from it is
+# ever echoed; this static identifier is the only worksheet label that may reach
+# an error message, a log line, or the aggregate report.
+WORKSHEET_IDENTIFIER: Final[str] = "data_worksheet_1"
+# Structural diagnostics report header *positions* for columns that are not in
+# the registered profile, never their workbook-supplied names. The list is
+# capped so a pathological header row cannot bloat a console message.
+MAX_REPORTED_HEADER_POSITIONS: Final[int] = 10
+
 
 @dataclass(frozen=True, slots=True)
 class SourceSnapshot:
@@ -50,9 +64,12 @@ class SourceSnapshot:
 class ParsedWorkbook:
     """Typed, already-validated workbook content (never printed or logged)."""
 
-    sheet_name: str
-    headers: tuple[str, ...]
-    rows: tuple[tuple[Any, ...], ...]
+    worksheet_identifier: str
+    worksheet_ordinal: int
+    # Header text and cell rows are untrusted/patient-level content: they must
+    # never appear in a default repr, a log line, or a traceback frame display.
+    headers: tuple[str, ...] = field(repr=False)
+    rows: tuple[tuple[Any, ...], ...] = field(repr=False)
     other_sheet_count: int
     header_order_matches_registered_profile: bool
 
@@ -61,8 +78,9 @@ class ParsedWorkbook:
 class Uci412Dataset:
     """Target and admitted predictors in memory, plus aggregate-only audit facts."""
 
-    X: np.ndarray
-    y: np.ndarray
+    # Feature values and labels stay out of default reprs for the same reason.
+    X: np.ndarray = field(repr=False)
+    y: np.ndarray = field(repr=False)
     feature_names: tuple[str, ...]
     row_count: int
     class_counts: tuple[tuple[int, int], ...]
@@ -155,21 +173,35 @@ def validate_workbook_structure(
     if len(data_sheets) != 1:
         raise SourceFormatError(
             "The workbook must contain exactly one data-bearing worksheet; "
-            f"found {len(data_sheets)}. Sheets are never merged."
+            f"found {len(data_sheets)}. Sheets are never merged, and worksheet names are "
+            "withheld because they are untrusted workbook content."
         )
     sheet = workbook.sheets[data_sheets[0]]
+    worksheet_ordinal = workbook.sheet_names.index(data_sheets[0]) + 1
     headers = tuple(sheet.headers)
     normalized = [_normalize_header_key(name) for name in headers]
     if len(set(normalized)) != len(normalized):
         raise SourceFormatError("The workbook contains duplicate column headers.")
     if set(headers) != set(SOURCE_COLUMNS):
-        extra = sorted(set(headers) - set(SOURCE_COLUMNS))
-        missing = sorted(set(SOURCE_COLUMNS) - set(headers))
-        parts = []
+        registered = set(SOURCE_COLUMNS)
+        missing = sorted(registered - set(headers))
+        unexpected_positions = sorted(
+            position + 1 for position, name in enumerate(headers) if name not in registered
+        )
+        parts: list[str] = []
         if missing:
-            parts.append(f"missing listed columns: {missing}")
-        if extra:
-            parts.append(f"unregistered or prohibited columns: {extra}")
+            # Registered identifiers are static, reviewed strings, so naming them
+            # helps the operator without exposing workbook content.
+            parts.append(f"{len(missing)} registered column(s) missing: {missing}")
+        if unexpected_positions:
+            shown = unexpected_positions[:MAX_REPORTED_HEADER_POSITIONS]
+            remainder = len(unexpected_positions) - len(shown)
+            suffix = f" (+{remainder} more)" if remainder else ""
+            parts.append(
+                f"{len(unexpected_positions)} unregistered or prohibited column(s) at header "
+                f"position(s) {shown}{suffix}; workbook-supplied column names are withheld as "
+                "untrusted content"
+            )
         raise SourceFormatError(
             "The workbook columns do not match the registered UCI-412 profile; " + "; ".join(parts)
         )
@@ -186,7 +218,8 @@ def validate_workbook_structure(
         if len(row) != len(headers):
             raise SourceFormatError("A workbook row has a width that does not match the header row.")
     return ParsedWorkbook(
-        sheet_name=data_sheets[0],
+        worksheet_identifier=WORKSHEET_IDENTIFIER,
+        worksheet_ordinal=worksheet_ordinal,
         headers=headers,
         rows=tuple(sheet.rows),
         other_sheet_count=len(workbook.sheet_names) - 1,
@@ -367,7 +400,11 @@ def parse_workbook(
         "row_count": len(parsed.rows),
         "column_count": len(parsed.headers),
         "class_counts_by_binary_label": {str(label): count for label, count in class_counts},
-        "data_sheet_name": parsed.sheet_name,
+        # Static identifier only: the workbook's own worksheet name is untrusted
+        # text and is never copied into an aggregate object.
+        "data_worksheet_identifier": parsed.worksheet_identifier,
+        "data_worksheet_ordinal": parsed.worksheet_ordinal,
+        "workbook_supplied_sheet_and_header_names_withheld": True,
         "other_sheet_count": parsed.other_sheet_count,
         "header_order_matches_registered_profile": parsed.header_order_matches_registered_profile,
         "blank_cell_counts_by_admitted_column": dict(missing_counts),
