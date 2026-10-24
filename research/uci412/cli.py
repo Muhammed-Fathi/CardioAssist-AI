@@ -6,7 +6,12 @@ import json
 import sys
 from typing import Sequence
 
-from research.uci412.config import DEFAULT_CONFIG, PROPOSAL_RELATIVE_PATH, REPOSITORY_ROOT
+from research.uci412.config import (
+    DEFAULT_CONFIG,
+    M3A_PROTOCOL_AMENDMENT_ID,
+    PROPOSAL_RELATIVE_PATH,
+    REPOSITORY_ROOT,
+)
 from research.uci412.errors import Uci412Error
 from research.uci412.feature_schema import describe_panels
 from research.uci412.runner import run_authorized_local_experiment, run_synthetic_dry_run
@@ -66,11 +71,27 @@ def _describe() -> dict[str, object]:
         "current_status": "PROPOSED_NOT_AUTHORIZED_LOCALLY",
         "local_manifest_required": "data/manifests/uci412_internal_research_authorization.local.json",
     }
+    specification["protocol_amendment"] = {
+        "amendment_id": M3A_PROTOCOL_AMENDMENT_ID,
+        "document": "docs/research/gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md",
+        "change_class": "SOURCE_VALUE_ENCODING_CORRECTION_ONLY",
+        "evidence_addendum_id": "M3A-AMENDMENT-A1-E1",
+        "direction_evidence": "TAO_2025_RCM_TABLE1 (doi:10.31083/RCM26204, Table 1)",
+        "direction_official_codebook_confirmed": False,
+        "previous_authorization_reusable": False,
+    }
     specification["blockers_before_first_real_run"] = [
-        "Human maintainer ratification comment plus a merged governance PR.",
-        "Locally signed, hash-bound M3a authorization manifest binding proposal, plan, dictionary and source hash.",
+        "Human maintainer ratification comment on the amendment PR plus its human-approved merge.",
+        "A NEW locally signed, hash-bound M3a authorization manifest binding the amended proposal, plan, "
+        "feature dictionary (schema 1.1.0), panel (1.1.0), amendment id and source hash. The pre-amendment "
+        "manifest cannot be reused.",
         "Completed D-046 DA-A1 provenance and license chain for the exact workbook bytes.",
-        "Human review of the exact workbook header spellings and category tokens.",
+        "Human acceptance of residual item S-9: the six numeric 0/1 columns are read as "
+        "0 = absent/false and 1 = present/true. The direction is stated by peer-reviewed secondary "
+        "literature (Tao et al. 2025, doi:10.31083/RCM26204, Table 1), but no official dataset-owner "
+        "codebook confirms it.",
+        "Human review of the exact workbook header spellings and category tokens for the 43 non-admitted "
+        "columns (the 12 admitted categorical predictors were verified by the 2026-10-24 human audit).",
         "Human acceptance that the R²-dependent sample-size criteria remain NOT ASSESSED.",
     ]
     return specification

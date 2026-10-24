@@ -257,3 +257,45 @@ decision id, changes no register entry, and modifies no gate, guard, blocker or 
   created, committed, or uploaded by this preparation.
 
 This addendum authorizes no subsequent milestone and no real-data execution.
+
+## M3a Amendment A-1 — UCI-412 source-encoding correction (2026-10-24) — PROPOSED; NOT AUTHORIZED
+
+**Status: PROPOSED; nothing activated; no real-data execution is authorized by this section.**
+[Doc 10](docs/research/gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md) records a narrowly scoped
+schema/protocol amendment (`M3A-AMENDMENT-A1`) prepared after the first authorized real-data attempt failed
+closed **before model fitting** with `Column 'DM' contains a category outside the registered vocabulary.`
+
+- **Root cause:** the pre-amendment dictionary registered twelve admitted binary predictors with an
+  *unverified* `Y`/`N`/`Yes`/`No` text vocabulary. A human-executed, read-only, SHA-256-verified audit of all
+  303 records (2026-10-24) showed that six of them (`DM`, `HTN`, `Current Smoker`, `EX-Smoker`, `FH`,
+  `Typical Chest Pain`) are delivered as numeric `0`/`1`; the other six keep their text vocabularies.
+- **Registered correction:** an explicit numeric-binary source encoding for exactly those six columns
+  (`0` → absent/false, `1` → present/true), validated in code (single encoding id, fixed direction, mandatory
+  human-audit verification status, closed six-column allowlist). Text, booleans, non-binary/non-integral
+  numbers, non-finite cells and unknown values **fail closed**; there is **no** global auto-conversion, and no
+  other column's coding changed.
+- **Versions:** feature dictionary `uci412_research_feature_dictionary` **1.1.0**, panel
+  `uci412_basic_clinical_v1` **1.1.0**. The plan file name and protocol id are unchanged; the plan gains a
+  `protocol_revision` and a `source_encoding` block.
+- **Unchanged:** the 16-column panel and its order, 16 encoded parameters, `Cath` `Cad`→1 / `Normal`→0,
+  the three model families and their grids, nested-CV folds/seeds, the 0.5 exploratory threshold,
+  leakage checks, and every output-privacy control.
+- **Unresolved:** **S-9** — the audit establishes the representation (numeric 0/1); the direction
+  (`1` = present) is now **directly stated by peer-reviewed secondary literature** (Tao et al. 2025,
+  *Reviews in Cardiovascular Medicine* 26(3):26204, doi:10.31083/RCM26204, Table 1: `True = 1; false = 0`),
+  but it is still **not independently verified against an official dataset-owner codebook**, so it stays
+  provisional and a human must accept it explicitly (evidence addendum `M3A-AMENDMENT-A1-E1` changed
+  documentation and evidence only — no mapping, contract version, parameter or guard). Header
+  spellings/codings for the 43 non-admitted columns remain unverified (S-1, partially resolved).
+- **Authorization:** the PR #45-era signed manifest **cannot be reused** — the plan/dictionary/proposal
+  hashes and the panel version changed, and the local manifest must now also bind
+  `dictionary_schema_version: "1.1.0"` and `protocol_amendment_id: "M3A-AMENDMENT-A1"`. Three independent
+  guards fail closed, covered by synthetic tests. A new human authorization comment
+  (`AUTHORIZE-M3A-UCI412-INTERNAL-RESEARCH`), a human-approved merge, and a **new** locally signed,
+  hash-bound, Git-ignored manifest are required before any real-data run.
+- **Not claimed or implied:** no signature, approval, or activation; no supervisor/ethics/institutional
+  approval; **Gate PT P-3 remains CLOSED**, P-1 PENDING, P-5 prohibited; D-046 stays read-only audit and
+  D-047 stays Cleveland-only. No workbook was downloaded, opened, modified, or uploaded; no model was
+  fitted; no patient-level value, fingerprint, prediction file, or performance number exists.
+
+This section authorizes no subsequent milestone and no real-data execution.

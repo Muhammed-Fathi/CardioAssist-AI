@@ -120,7 +120,10 @@ def test_every_excluded_feature_records_why_it_is_excluded() -> None:
                 assert spec.unit
                 assert spec.plausible_range is not None
             else:
-                assert spec.vocabulary
+                # A categorical input is coded either by a registered text
+                # vocabulary or by the Amendment A-1 numeric-binary source
+                # encoding; exactly one of the two, never both and never neither.
+                assert (spec.vocabulary is None) != (spec.source_value_encoding is None)
             assert spec.availability_at_decision_time
             assert spec.leakage_risk
             assert spec.evidence

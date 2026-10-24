@@ -45,6 +45,7 @@ from research.uci412.config import (
     M3A_AUTHORIZATION_STATUS,
     M3A_AUTHORIZING_MAINTAINER,
     M3A_LOCAL_SIGNATURE_ATTESTATION,
+    M3A_PROTOCOL_AMENDMENT_ID,
     M3A_SIGNATURE_SEMANTICS,
     OUTPUT_ROOT_RELATIVE_PATH,
     PROPOSAL_RELATIVE_PATH,
@@ -58,6 +59,7 @@ from research.uci412.errors import (
     RuntimeGuardError,
     StorageProtectionError,
 )
+from research.uci412.feature_schema import DICTIONARY_SCHEMA_VERSION
 from research.uci412.source_spec import (
     AUDITED_REFERENCE_SHA256,
     DATASET_ID,
@@ -303,6 +305,18 @@ def validate_m3a_authorization(
         raise AuthorizationError("The M3a authorization does not bind the registered primary panel.")
     if manifest.get("panel_schema_version") != config.panel_version:
         raise AuthorizationError("The M3a authorization binds a different panel version.")
+    # Amendment A-1: a manifest must name the amended dictionary schema and the
+    # amendment itself. A manifest written before the source-encoding correction
+    # therefore fails closed on three independent checks rather than being
+    # silently reusable.
+    if manifest.get("dictionary_schema_version") != DICTIONARY_SCHEMA_VERSION:
+        raise AuthorizationError(
+            "The M3a authorization does not bind the amended feature-dictionary schema version."
+        )
+    if manifest.get("protocol_amendment_id") != M3A_PROTOCOL_AMENDMENT_ID:
+        raise AuthorizationError(
+            "The M3a authorization does not bind the reviewed protocol amendment."
+        )
     if manifest.get("allowlisted_model_families") != list(ALLOWED_MODEL_FAMILIES):
         raise AuthorizationError("The M3a authorization model families do not match the registered list.")
     if manifest.get("allowed_operations_if_approved") != list(ALLOWED_OPERATIONS):
@@ -405,6 +419,8 @@ def validate_m3a_authorization(
         "frozen_authorization_proposal_sha256": frozen_proposal.lower(),
         "frozen_feature_dictionary_sha256": frozen_dictionary.lower(),
         "frozen_research_plan_sha256": frozen_plan.lower(),
+        "dictionary_schema_version": DICTIONARY_SCHEMA_VERSION,
+        "protocol_amendment_id": M3A_PROTOCOL_AMENDMENT_ID,
         "signature_semantics": M3A_SIGNATURE_SEMANTICS,
     }
 

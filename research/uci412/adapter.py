@@ -10,6 +10,13 @@ Design rules enforced here:
   coercion, no row deletion, and no value repair;
 * blanks become ``NaN`` (imputed later inside training folds only), while the
   UCI-45 missing markers ``?`` and ``-9`` are rejected as wrong-source signals;
+* six admitted categorical predictors (``NUMERIC_BINARY_SOURCE_COLUMNS``,
+  Amendment A-1) are read through one explicit, registered numeric-binary
+  encoding: the numeric cell ``0`` maps to model code 0 (absent/false) and ``1``
+  to model code 1 (present/true). Nothing else converts: text cells (including
+  ``"0"``, ``"1"``, ``"Y"``, ``"N"``), booleans, non-integral or non-binary
+  numbers, non-finite cells and unknown values fail closed. No other column may
+  be converted, and there is no global "coerce to numeric" fallback;
 * only aggregate metadata leaves this module: no row, cell value, or
   patient-level structure is returned or printable;
 * workbook-supplied names are **untrusted input**. A worksheet name or an
@@ -31,7 +38,12 @@ import numpy as np
 from research.audit.xlsx_reader import SheetData, WorkbookData, read_xlsx_workbook
 from research.uci412.config import DEFAULT_CONFIG, Uci412Config
 from research.uci412.errors import ProvenanceError, SourceFormatError
-from research.uci412.feature_schema import DEFAULT_DICTIONARY, FeatureDictionary, FeatureSpec
+from research.uci412.feature_schema import (
+    DEFAULT_DICTIONARY,
+    FeatureDictionary,
+    FeatureSpec,
+    SourceValueEncoding,
+)
 from research.uci412.source_spec import (
     MAX_SOURCE_BYTES,
     PROHIBITED_PREDICTORS,
@@ -252,6 +264,54 @@ def _categorical_token(value: Any, *, column: str) -> str:
     raise SourceFormatError(f"Unsupported cell type in categorical column '{column}'.")
 
 
+def _numeric_binary_code(
+    value: Any,
+    *,
+    column: str,
+    encoding: SourceValueEncoding,
+) -> int:
+    """Map one numeric 0/1 source cell to its registered model code.
+
+    Amendment A-1. Only an actual integer 0/1 (or the exactly equal float 0.0/1.0)
+    is accepted. Text is never coerced — including ``"0"``/``"1"`` and the
+    retired ``Y``/``N``/``Yes``/``No`` assumption — and booleans are rejected so
+    that ``True``/``False`` cannot silently become a patient-level code.
+    """
+    if isinstance(value, bool):
+        raise SourceFormatError(
+            f"Column '{column}' is registered as a numeric 0/1 source column; boolean cells are "
+            "not the registered encoding."
+        )
+    if isinstance(value, str):
+        raise SourceFormatError(
+            f"Column '{column}' is registered as a numeric 0/1 source column; text cells are "
+            "rejected (no coercion, and the earlier Y/N assumption is retired)."
+        )
+    if isinstance(value, int):
+        number = float(value)
+    elif isinstance(value, float):
+        if not math.isfinite(value):
+            raise SourceFormatError(
+                f"Column '{column}' is registered as a numeric 0/1 source column; non-finite cells "
+                "are rejected."
+            )
+        number = value
+    else:
+        raise SourceFormatError(
+            f"Column '{column}' is registered as a numeric 0/1 source column; unsupported cell type."
+        )
+    if number != encoding.absent_source_value and number != encoding.present_source_value:
+        raise SourceFormatError(
+            f"Column '{column}' is registered as a numeric 0/1 source column; the observed value is "
+            "not one of the registered binary source values."
+        )
+    return int(
+        encoding.absent_model_code
+        if number == encoding.absent_source_value
+        else encoding.present_model_code
+    )
+
+
 def _numeric_value(value: Any, *, column: str) -> float:
     if isinstance(value, bool):
         raise SourceFormatError(f"Unsupported boolean cell type in numeric column '{column}'.")
@@ -293,7 +353,17 @@ def parse_workbook(
 
     missing_counts: dict[str, int] = {name: 0 for name in config.feature_names}
     observed_tokens: dict[str, dict[str, int]] = {
-        name: {} for name in config.categorical_features
+        name: {}
+        for name in config.categorical_features
+        if dictionary.feature(name).source_value_encoding is None
+    }
+    # Amendment A-1: numeric 0/1 source cells are counted separately so the audit
+    # distinguishes "registered text token observed" from "registered numeric
+    # binary value observed". Both remain aggregate counts only.
+    observed_numeric_binary: dict[str, dict[str, int]] = {
+        name: {}
+        for name in config.categorical_features
+        if dictionary.feature(name).source_value_encoding is not None
     }
     out_of_typical_range: dict[str, int] = {name: 0 for name in config.numeric_features}
     unregistered_token_warnings: dict[str, int] = {}
@@ -349,6 +419,16 @@ def parse_workbook(
                     if not (low <= number <= high):
                         out_of_typical_range[spec.column] += 1
                 row_values.append(number)
+            elif spec.source_value_encoding is not None:
+                # Amendment A-1: the only registered numeric-binary conversion.
+                code = _numeric_binary_code(
+                    raw_value, column=spec.column, encoding=spec.source_value_encoding
+                )
+                key = str(code)
+                observed_numeric_binary[spec.column][key] = (
+                    observed_numeric_binary[spec.column].get(key, 0) + 1
+                )
+                row_values.append(float(code))
             else:
                 token = _categorical_token(raw_value, column=spec.column)
                 if spec.vocabulary is None or token not in spec.vocabulary:
@@ -372,6 +452,10 @@ def parse_workbook(
             try:
                 if spec.is_numeric:
                     _numeric_value(raw_value, column=name)
+                elif spec.source_value_encoding is not None:
+                    _numeric_binary_code(
+                        raw_value, column=name, encoding=spec.source_value_encoding
+                    )
                 else:
                     token = _categorical_token(raw_value, column=name)
                     if spec.vocabulary is None or token not in spec.vocabulary:
@@ -411,6 +495,19 @@ def parse_workbook(
         "observed_category_token_counts": {
             name: dict(counts) for name, counts in observed_tokens.items()
         },
+        "numeric_binary_source_value_counts": {
+            name: dict(counts) for name, counts in observed_numeric_binary.items()
+        },
+        # One registered encoding id covers all six columns (enforced by the
+        # dictionary loader); recording it proves which mapping was applied.
+        "numeric_binary_source_encoding_id": (
+            dictionary.feature(
+                next(iter(observed_numeric_binary))
+            ).source_value_encoding.encoding_id
+            if observed_numeric_binary
+            else None
+        ),
+        "numeric_binary_source_semantics": {"0": "ABSENT_OR_FALSE", "1": "PRESENT_OR_TRUE"},
         "out_of_source_reported_typical_range_counts": dict(out_of_typical_range),
         "non_admitted_unregistered_token_warnings": dict(unregistered_token_warnings),
         "value_repair_or_row_deletion_performed": False,

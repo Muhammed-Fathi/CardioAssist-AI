@@ -169,8 +169,10 @@ def test_text_in_numeric_columns_is_never_coerced(column: str, value: Any) -> No
         dataset_from_rows(headers, rows)
 
 
-def test_numeric_token_in_a_y_n_column_is_rejected() -> None:
-    headers, rows = _mutated("DM", 1)
+def test_numeric_token_in_a_text_categorical_column_is_rejected() -> None:
+    # DLP keeps its registered text vocabulary; a bare numeric cell must not be
+    # coerced into a token, and no numeric conversion is registered for it.
+    headers, rows = _mutated("DLP", 1)
     with pytest.raises(SourceFormatError, match="vocabulary"):
         dataset_from_rows(headers, rows)
 
