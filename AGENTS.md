@@ -299,3 +299,34 @@ closed **before model fitting** with `Column 'DM' contains a category outside th
   fitted; no patient-level value, fingerprint, prediction file, or performance number exists.
 
 This section authorizes no subsequent milestone and no real-data execution.
+
+## R1 — Clinical input mapping feasibility, Cleveland five-field (2026-10-24)
+
+**Status: PROPOSED; SYNTHETIC-ONLY; technical mapping readiness only.** R1 implements the
+"smallest next implementation task" of [Gate PT doc 12 §6](docs/research/gate-pt/12_dataset_selection_and_clinical_workflow_alignment_REVIEW_DRAFT.md)
+(the R1 row of its §6 roadmap): a versioned, explicitly PROPOSED research input mapping
+specification for the five-field UCI-45 processed-Cleveland resting-assessment proposal
+(`age`, `sex`, `cp`, `trestbps`, `restecg`), plus an offline synthetic-only validator and
+automated tests, plus a documentation-only UCI-412 16-column mapping-readiness appendix.
+
+- **Artifacts:** `research/intake/schemas/cleveland_resting_five_field_mapping.v0.1.json`
+  (`cleveland_resting_five_field.v0.1`, status `PROPOSED_NOT_APPROVED`),
+  `research/intake/cleveland_source_mapping.py` (offline, stdlib-only, deterministic),
+  `tests/audit/test_cleveland_five_field_source_mapping.py` (167 cases),
+  [Gate PT docs 13–14](docs/research/gate-pt/13_r1_cleveland_five_field_input_mapping_SPECIFICATION_PROPOSED.md).
+- **Boundaries:** synthetic fixtures only — no dataset file is read, downloaded or bundled; no
+  real patient data; no model fitting, prediction, calibration or SHAP/LIME execution; no real
+  scoring path exists or may be introduced downstream without separate authorization; the
+  validator is never imported by the backend and touches no `/v1` contract, database,
+  migration, frontend, frozen protocol, registered plan or feature dictionary (all enforced by
+  tests). Valid categorical zero is data; a measured `trestbps` of 0 is unavailable
+  (ED-DA-A2-01); ambiguous category conversions, wrong units, missing metadata, Track-B
+  provenance and outcome-derived/other-dataset fields fail closed; every accepted payload
+  returns `NO_RESULT_NO_CAD_PROBABILITY_COMPUTED`.
+- **Explicitly not decided:** **Cleveland has NOT been selected as the final project dataset**
+  (machine-checked in the spec and tests). No UCI-412 clinical adapter is implemented or run;
+  no harmonized cross-dataset schema exists or is proposed. Governance status is unchanged:
+  P-1 PENDING, P-3 CLOSED, P-5 prohibited; D-046/D-047/D-048 unmodified; no decision-register
+  entry added. Merging an R1 PR is technical review only, never scientific or clinical approval.
+
+This section authorizes no subsequent milestone, no dataset access and no real-data execution.
