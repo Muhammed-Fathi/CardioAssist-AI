@@ -186,3 +186,42 @@ authorization is granted here**.
 This section authorizes no subsequent milestone; the next stage still requires
 its own explicit maintainer authorization and, for any real artifact,
 independent scientific review.
+
+## M3a context: UCI-412 source-specific research benchmark (2026-10-24)
+
+**Status: PROPOSED; NOT AUTHORIZED.** Milestone **M3a** prepares proposed
+governance decision **D-048** (`docs/DECISIONS.md`) together with a synthetic-only,
+Windows-local research package (`research/uci412/`, `tests/uci412/`) for the
+single dataset **`DA-A1` UCI-412** (*Z-Alizadeh Sani*, 303 participants).
+
+- **What is prepared:** a strict, versioned, read-only adapter (exact 56-column
+  header, `Normal`→0 / `Cad`→1 only, no coercion or row deletion); a versioned
+  feature dictionary with **one executable panel** (16 ordered basic clinical
+  columns) and three registered-but-blocked panels; a bounded repeated
+  nested-CV harness with training-fold-only preprocessing and a reserved
+  gradient-boosting extension point; a label-permutation negative control;
+  aggregate-only reporting; and fail-closed local authorization/provenance
+  gates. The checked-in authorization JSON is a **template that authorizes
+  nothing**.
+- **What is not prepared, permitted or implied:** no real workbook is bundled,
+  downloaded, or read; no model is fitted on real records; no patient-level
+  result exists; **Gate PT P-3 remains CLOSED**; no supervisor, ethics or
+  institutional approval is claimed; no clinical, deployment, novelty or
+  publication claim is made. Synthetic results are software evidence only.
+- **Relationship to earlier decisions:** the D-046 ratification remains
+  read-only audit and is **not** training permission; D-047 remains limited to
+  `DA-A2` processed Cleveland and is unchanged by this milestone. D-048 shares
+  no scope with either.
+- **Scientific constraints binding on any future authorized work:** the target is
+  cross-sectional angiography-referenced CAD presence, never future-event risk;
+  UCI-412 and UCI-411 are the **same 303 participants** and are never independent
+  datasets; no pooling with Cleveland/Hungary/VA/Switzerland; the ≥50% versus
+  >50% threshold question stays unresolved; angiography-derived features,
+  identifiers and post-outcome fields stay excluded; feature selection never
+  uses outcome data.
+- **CI note:** `.github/workflows/**` is untouched by this branch (the pushing
+  automation identity has no `workflows` permission). The reviewed CI change
+  ships as `research/uci412/ci/experiment-runner-ci.uci412.patch` for a
+  maintainer to apply.
+
+This section authorizes no subsequent milestone and no real-data execution.

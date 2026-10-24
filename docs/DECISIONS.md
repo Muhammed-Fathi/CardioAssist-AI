@@ -208,6 +208,25 @@ The team requested a **self-executed, documented preliminary comparison before s
 
 ---
 
+## D-048 — Proposed M3a UCI-412 source-specific research benchmark (PROPOSED; NOT AUTHORIZED)
+
+**Proposed date:** 2026-10-24; **status:** `PROPOSED_NOT_AUTHORIZED`; **supersedes no prior decision and changes no existing gate status.**
+
+A separate governance proposal to add a **single-dataset, source-specific** internal research benchmark on **`DA-A1` UCI-412** (*Z-Alizadeh Sani*, 303 participants). The implementation (synthetic-only code and tests) exists on its own PR; **nothing here authorizes a real-data run today**.
+
+- **Relationship to D-046/D-047 — no new permission is inherited.** The D-046 ratification authorizes *read-only audit* of `DA-A1` and explicitly **does not** authorize model fitting. D-047's internal exploratory exception covers **only** `DA-A2` processed Cleveland. D-048 is a third, separate scope; neither earlier decision may be relabeled to cover it.
+- **Scope if ratified:** one bounded internal exploratory benchmark on the UCI-412 workbook, using the prespecified **Basic Clinical Input Panel** (`uci412_basic_clinical_v1`, 16 ordered source columns → 16 encoded parameters), repeated stratified nested CV, prevalence baseline / bounded L2 logistic regression / constrained random forest only, participant-level bootstrap uncertainty qualified as conditional on fixed folds, and a label-permutation negative control. Everything is local, $0, CPU-only.
+- **Scientific reading (binding on every output):** the label is **cross-sectional angiography-referenced CAD presence** at a ≥50% stenosis threshold — never future-event risk, never a risk score, never a horizon. UCI-412 and UCI-411 are **the same 303 participants** and can never be treated as independent datasets, pooled, or used to validate each other. The dataset's own ≥50% versus UCI-45's >50% threshold distinction **remains unresolved** and must not be silently reconciled.
+- **Data boundary:** no pooling with Cleveland/Hungary/VA/Switzerland, no external validation, no patient-level output in Git, CI, chat, or any report. Angiography-derived fields (`Cath`, `LAD`, `LCX`, `RCA`), identifiers, post-outcome fields and outcome-adjacent echocardiographic timing remain excluded; the resting-ECG, expanded-clinical and laboratory panels stay **registered but blocked** until a definition/timing basis is established.
+- **Human activation condition (all three required):** (1) an explicit maintainer review comment `AUTHORIZE-M3A-UCI412-INTERNAL-RESEARCH` on the separately reviewed governance PR; (2) that PR's human-approved merge; (3) a locally signed, hash-bound, Git-ignored authorization manifest at `data/manifests/uci412_internal_research_authorization.local.json` binding this proposal, the protocol, the feature dictionary, the source SHA-256/byte size and the permitted operations. The checked-in template authorizes nothing and is rejected by the code.
+- **Pre-existing gap that blocks even a compliant local run today:** the checked-in `research/audit/gate_da_authorization.json` is still `PENDING_HUMAN_ACCEPTANCE` with null sign-off fields, so the local D-046 `DA-A1` chain this proposal depends on is not satisfied in-repo either. D-048 records that dependency; it does not cure it.
+- **Evidence boundary:** every output is marked exactly `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`; no supervisor, ethics or institutional approval is claimed; no clinical, deployment, novelty or publication claim follows. Synthetic test results are software evidence, **not** CAD performance evidence. **Gate PT P-3 remains CLOSED.**
+
+**Status on this PR: PROPOSED; no authorization manifest, human signature, or real-data result exists.** Changing this section, or the plan/dictionary it references, requires a new named human decision.
+
+
+---
+
 ## Standing rules
 
 - Status vocabulary: **CONFIRMED** (project team), **APPROVED** (maintainer,

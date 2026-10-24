@@ -40,6 +40,8 @@ coverage/
 **/model_artifacts/
 *.parquet
 *.feather
+*.xlsx
+*.xls
 *.pkl
 *.joblib
 *.pt
