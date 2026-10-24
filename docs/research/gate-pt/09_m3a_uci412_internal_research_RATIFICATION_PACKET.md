@@ -192,8 +192,9 @@ only way the code will open a single real row. **No step may be performed by an 
 
 ### 6.1 Step 1 — the required explicit PR authorization comment
 
-On **this** governance PR, post a review comment containing **exactly** this token, verbatim, as its own
-line and with no paraphrase, prefix, or spelling change:
+On **this** governance PR — **#45** on `Muhammed-Fathi/CardioAssist-AI`
+(`arena/a84ccc7f-cardioassist-ai` → `main`) — post a review comment containing **exactly** this token,
+verbatim, as its own line and with no paraphrase, prefix, or spelling change:
 
 ```
 AUTHORIZE-M3A-UCI412-INTERNAL-RESEARCH
@@ -278,7 +279,7 @@ failure, not a warning.
 | `supervisor_signoff_claimed` | `false` (must stay `false`) |
 | `gate_pt_status` | `"CLOSED_REQUIRES_SUPERVISOR_SIGNOFF_P3"` |
 | `maintainer_approval_comment_exact` | `"AUTHORIZE-M3A-UCI412-INTERNAL-RESEARCH"` (the template's `REPLACE_WITH_…` prefix must be removed) |
-| `governance_pr_number` | this PR's number, as a positive integer |
+| `governance_pr_number` | `45` (this governance PR), as a positive integer |
 | `governance_merge_commit_sha` | the merge commit from step 2, 40 hex chars |
 | `pinned_protocol_commit_sha` | **identical** to `governance_merge_commit_sha` |
 | `authorization_proposal_relative_path` | `"docs/research/gate-pt/08_m3a_uci412_source_specific_benchmark_SPECIFICATION.md"` |
