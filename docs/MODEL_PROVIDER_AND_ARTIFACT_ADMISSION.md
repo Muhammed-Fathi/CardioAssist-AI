@@ -10,7 +10,7 @@ untouched.
 |---|---|
 | **IMPLEMENTED** | A narrowly typed internal CAD inference provider boundary with exactly one constructible implementation (`MOCK_SYNTHETIC`); a fail-closed placeholder for a future reviewed real provider; a versioned offline research-artifact descriptor plus a validator that enforces an explicit ordered feature binding, verifies calibration bytes, and always returns `RESEARCH_ONLY`. |
 | **TESTED** | `tests/backend/test_inference_provider.py` (33 tests) and `tests/backend/test_model_artifact_admission.py` (177 tests), plus the unchanged 371 existing backend regression tests and the 249 contract tests. Synthetic, non-clinical fixtures only. Local result for this checkout: `tests/backend` **581 passed**, `tests/contracts` **249 passed**, full suite **1099 passed**. |
-| **PROPOSED / NOT APPLIED** | A one-sentence `AGENTS.md` M1c authorization amendment (§7). It stays unapplied until the human maintainer ratifies it; this PR does not self-authorize. |
+| **RATIFIED (2026-10-24)** | The human maintainer approved M1c as a narrowly scoped engineering milestone (provider boundary, offline `RESEARCH_ONLY` admission, synthetic order/calibration tests). Recorded in `AGENTS.md` §7; real inference, training, dataset access, clinical deployment, genuine SHAP/LIME, the approved contracts and P-1/P-3/P-5/D-046/D-047 remain unauthorized and unchanged. |
 | **NOT IMPLEMENTED / UNAVAILABLE** | Real inference, artifact loading/deserialization, model fitting or tuning, dataset access, real calibration, thresholds, patient-facing score interpretation, serving eligibility, genuine TreeSHAP/LIME, an approved research feature-binding for the five Cleveland predictors, authentication, new endpoints, UI, clinical claims. |
 | **UNVERIFIED** | Windows-local behavior, any future artifact's scientific/clinical validity, and any supervisor, ethics or institutional approval. Nothing here is external validation. CI results are reported by the PR checks, not by this document. |
 
@@ -291,28 +291,29 @@ python scripts/verify_sources.py
 
 ## 7. Governance and authorization boundary
 
-This change does **not** modify `docs/DECISIONS.md`, `AGENTS.md`, the Gate PT
-records, P-1, P-3, P-5, D-046 or D-047, and it does not alter the `/v1`
-contracts. The completed D-047 Cleveland run is treated strictly as internal
-exploratory evidence, never as a deployable model.
+The implementation in this PR does **not** modify `docs/DECISIONS.md`, the Gate
+PT records, P-1, P-3, P-5, D-046 or D-047, and it does not alter the `/v1`
+contracts. The only governance change accompanying it is the maintainer's
+ratification of M1c, recorded in `AGENTS.md`; no decision id was added and no
+register entry was edited. The completed D-047 Cleveland run is treated strictly
+as internal exploratory evidence, never as a deployable model.
 
-`AGENTS.md` still records "Current authorization: M1b.1 only". The authority for
-this slice is the maintainer's active milestone instruction (AGENTS.md
-priority 1), not that historical paragraph. The following one-sentence amendment
-is therefore recorded here as **PROPOSED — NOT APPLIED** and requires the human
-maintainer's own decision; it must not be treated as already granted:
+The historical "Current authorization: M1b.1 only" paragraph in `AGENTS.md` is
+retained verbatim. On **2026-10-24** the human maintainer explicitly ratified
+**M1c as a narrowly scoped engineering milestone**: the `MOCK_SYNTHETIC`-only
+provider boundary, the offline `RESEARCH_ONLY` admission validator, and the
+synthetic feature-order, calibration-integrity and regression tests. That
+ratification is recorded in the `AGENTS.md` M1c section; this document does not
+grant it.
 
-> **PROPOSED (NOT APPLIED) — M1c authorization:** Under maintainer instruction
-> dated 2026-10-23, agents may implement and test (a) an internal CAD inference
-> provider boundary whose only constructible implementation is `MOCK_SYNTHETIC`
-> and (b) an offline, fail-closed research-artifact descriptor/validator that
-> enforces an explicit synthetic-only ordered feature binding, verifies
-> calibration bytes when a separate calibration artifact is declared, refuses
-> unsupported explainability claims, and always reports `RESEARCH_ONLY`. This
-> does not authorize real inference, model fitting, dataset access, artifact
-> activation, genuine SHAP/LIME computation, contract changes, or any
-> clinical/scientific claim, and it changes no gate (P-1/P-3/P-5, D-046, D-047).
+Its limits are unchanged and binding: no real model inference, no training or
+calibration, no patient-dataset access, no clinical deployment, no genuine
+SHAP/LIME computation, no change to P-1 (pending), P-3 (closed), P-5
+(prohibited), D-046 (read-only audit), D-047 (Cleveland-only internal
+exploratory) or the approved `/v1` contracts. No research-only artifact may be
+served, and an independently reviewed research feature-binding mapping plus a
+real artifact packaging/provenance protocol remain future work under their own
+authorization.
 
-**Human action required:** the maintainer should review and record this
-narrowly scoped M1c engineering authorization before (or together with) merging
-the PR; the agent neither authorizes nor merges it.
+Merging is still a separate human action; the agent neither approves nor merges
+the PR.
