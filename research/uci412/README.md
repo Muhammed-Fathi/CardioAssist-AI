@@ -42,6 +42,7 @@ python -m research.uci412 run        # Windows-local; requires RUN M3A UCI412 LO
 | `safety.py` | runtime/authorization/provenance/Git-ignore gates |
 | `runner.py`, `cli.py` | orchestration and command-line entry point |
 | `synthetic.py` | deterministic in-memory fixtures |
+| `ci/experiment-runner-ci.uci412.patch` | maintainer-applied CI coverage; the workflow file itself is untouched (push identity lacks `workflows` permission) |
 
 Specification, blockers, comparison with Cleveland, and the human authorization
 proposal: `docs/research/gate-pt/08_m3a_uci412_source_specific_benchmark_SPECIFICATION.md`.

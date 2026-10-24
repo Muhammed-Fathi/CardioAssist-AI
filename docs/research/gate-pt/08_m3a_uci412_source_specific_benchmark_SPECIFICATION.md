@@ -221,6 +221,27 @@ Row-aligned out-of-fold probabilities are written to the **same protected local 
 
 Fail-closed rules: non-Windows, CI/hosted notebook, remote/UNC drive, non-TTY stdin, dirty worktree, tracked `data/` file, missing/symlinked manifest, hash mismatch, future-dated or pre-merge signature, non-ancestor governance commit, or a leaked-label alarm all stop the run **before** rows are parsed or results are written, with exit code `2` and a safe message.
 
+### 8.1 CI coverage (maintainer-applied patch)
+
+This PR **does not** modify `.github/workflows/experiment-runner-ci.yml`; the automation
+identity used to push the branch has no `workflows` permission, so that file is left byte-identical.
+
+Instead, the exact, already-reviewed change ships as a plain diff:
+`research/uci412/ci/experiment-runner-ci.uci412.patch`. It adds the audit and UCI-412
+requirement installs, `pytest tests/uci412 -q -W error`, `python -m research.uci412 describe`,
+the synthetic-only `dry-run`, and widens the forbidden-artifact `find` scan to
+`research/{experiments,audit,uci412}`, `tests/{experiments,audit,uci412}`, `*.xlsx` and `*.xls`.
+
+A maintainer with `workflows` permission applies it before or after merge:
+
+```bash
+git apply research/uci412/ci/experiment-runner-ci.uci412.patch
+```
+
+Both the current and the patched workflow parse as YAML, and the patch applies cleanly with
+`git apply --check` against this branch's tree (**VERIFIED**, 2026-10-24). Until it is applied,
+`tests/uci412` runs locally but not in GitHub Actions.
+
 ---
 
 ## 9. Tests (synthetic evidence only)

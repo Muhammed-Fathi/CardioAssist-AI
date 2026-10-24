@@ -1,0 +1,66 @@
+diff --git a/.github/workflows/experiment-runner-ci.yml b/.github/workflows/experiment-runner-ci.yml
+index 738e844..10bf382 100644
+--- a/.github/workflows/experiment-runner-ci.yml
++++ b/.github/workflows/experiment-runner-ci.yml
+@@ -1,8 +1,9 @@
+ name: synthetic-experiment-runner-validation
+ 
+-# M2c tests are synthetic-only. This workflow never invokes preflight/run,
+-# never accesses data/, and never consumes a real Cleveland source file.
+-# The dry-run fits only generated in-memory fixtures on the hosted CI CPU.
++# M2c/M2a/M3a tests are synthetic-only. This workflow never invokes preflight/run,
++# never accesses data/, and never consumes a real Cleveland, UCI-411 or UCI-412
++# source file. Each dry-run fits only generated in-memory fixtures on the hosted
++# CI CPU. M3a UCI-412 execution is Windows-local and human-authorized only.
+ 
+ on:
+   pull_request:
+@@ -41,16 +42,30 @@ jobs:
+       - name: Install pinned local-runner dependencies
+         run: |
+           python -m pip install -r research/experiments/requirements.txt
++          python -m pip install -r research/audit/requirements.txt
++          python -m pip install -r research/uci412/requirements.txt
+           python -m pip check
+ 
+-      - name: Run synthetic experiment-runner tests
++      - name: Run synthetic experiment-runner and dataset-audit tests
+         run: |
+-          python -m pytest tests/experiments -q -W error
++          python -m pytest tests/experiments tests/audit -q -W error
++
++      - name: Run synthetic UCI-412 benchmark tests
++        run: |
++          python -m pytest tests/uci412 -q -W error
+ 
+       - name: Execute the registered synthetic-only dry-run
+         run: |
+           python -m research.experiments dry-run
+ 
++      - name: Describe the proposed (unauthorized) UCI-412 protocol
++        run: |
++          python -m research.uci412 describe
++
++      - name: Execute the registered UCI-412 synthetic-only dry-run
++        run: |
++          python -m research.uci412 dry-run
++
+       - name: Verify source-material integrity
+         run: |
+           python scripts/verify_sources.py
+@@ -65,11 +80,13 @@ jobs:
+             exit 1
+           fi
+ 
+-          if find research/experiments tests/experiments -type f \
++          if find research/experiments research/audit research/uci412 \
++            tests/experiments tests/audit tests/uci412 -type f \
+             \( -name '*.data' -o -name '*.dat' -o -name '*.csv' -o -name '*.parquet' \
+             -o -name '*.feather' -o -name '*.pkl' -o -name '*.joblib' \
+             -o -name '*.pt' -o -name '*.pth' -o -name '*.onnx' -o -name '*.h5' \
+-            -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.db' \) \
++            -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.db' \
++            -o -name '*.xlsx' -o -name '*.xls' \) \
+             -print -quit | grep -q .; then
+             echo "ERROR: Prohibited dataset or experiment artifact found in source/tests." >&2
+             exit 1
