@@ -1,0 +1,22 @@
+# Pinned $0 CPU-only dependencies for the UCI-412 source-specific research
+# benchmark (Python 3.11/3.12, Windows + Linux synthetic tests). No cloud SDK,
+# telemetry, paid service, or account is required.
+#
+# Windows PowerShell setup from the repository root:
+#   py -3.12 -m venv .venv-uci412
+#   .\.venv-uci412\Scripts\Activate.ps1
+#   python -m pip install -r research/uci412/requirements.txt
+#   python -m pip check
+numpy==1.26.4
+scipy==1.15.3
+scikit-learn==1.6.1
+joblib==1.4.2
+threadpoolctl==3.6.0
+openpyxl==3.1.5
+et-xmlfile==2.0.0
+pytest==9.0.3
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+Pygments==2.21.0
+colorama==0.4.6; sys_platform == 'win32'

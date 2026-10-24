@@ -1,0 +1,2304 @@
+{
+  "schema_id": "uci412_research_feature_dictionary",
+  "schema_version": "1.0.0",
+  "source_id": "UCI-412",
+  "dataset_id": "DA-A1",
+  "status": "PROPOSED_NOT_SUPERVISOR_APPROVED",
+  "status_statement": "This dictionary is a reviewable research artifact. It is not a clinical feature standard, not a validated input schema, and not supervisor-approved. Only the panel explicitly marked executable may be used by the guarded internal run after a separate human authorization.",
+  "admission_status_definitions": {
+    "ADMITTED_PRIMARY_PANEL": "Member of the executable Basic Clinical Input Panel v1.",
+    "REGISTERED_EXPANDED_PANEL_ONLY": "Registered in one or more blocked panels; not executable.",
+    "EXCLUDED_DERIVED_REDUNDANT": "Excluded from every panel as a documented duplicate of another measurement.",
+    "EXCLUDED_ECHO_TIMING_UNVERIFIED": "Excluded from every panel pending echocardiography timing evidence.",
+    "EXCLUDED_TARGET": "Outcome label; never a predictor."
+  },
+  "panel_status_definitions": {
+    "ADMITTED_FOR_INTERNAL_RESEARCH_SUBJECT_TO_M3A_AUTHORIZATION": "Executable only after the separate M3a local internal-research authorization exists.",
+    "REGISTERED_BLOCKED": "Registered for review; the adapter and runner refuse to execute it."
+  },
+  "citations": {
+    "UCI412_OFFICIAL_PAGE": {
+      "citation_id": "UCI412_OFFICIAL_PAGE",
+      "reference": "UCI Machine Learning Repository, Z-Alizadeh Sani (id 412), https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani, DOI 10.24432/C5Q31T",
+      "retrieved": "2026-10-24",
+      "status": "VERIFIED_OFFICIAL_SOURCE",
+      "supports": "303 instances; four published feature groups; binary CAD definition (diameter narrowing >=50%); 'Has Missing Values? No'; 54-feature description; CC BY 4.0 license.",
+      "does_not_support": "Per-variable descriptions, exact column names, coding, units, or measurement timing are not populated in the public variable table."
+    },
+    "UCI411_OFFICIAL_PAGE": {
+      "citation_id": "UCI411_OFFICIAL_PAGE",
+      "reference": "UCI Machine Learning Repository, extention of Z-Alizadeh sani dataset (id 411), https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset, DOI 10.24432/C5461K",
+      "retrieved": "2026-10-24",
+      "status": "VERIFIED_OFFICIAL_SOURCE",
+      "supports": "The extension adds only LAD/LCX/RCA; CAD label means at least one stenotic artery; only one of LAD/LCX/RCA/Cath may be kept for classification.",
+      "does_not_support": "No statement that UCI-411 is an independent cohort; it is the same 303 participants."
+    },
+    "ALIZADEHSANI_2013_CMBP": {
+      "citation_id": "ALIZADEHSANI_2013_CMBP",
+      "reference": "Alizadehsani R. et al., 'A data mining approach for diagnosis of coronary artery disease', Computer Methods and Programs in Biomedicine 111(1):52-61, 2013",
+      "retrieved": "not retrieved in full text for this milestone",
+      "status": "PRIMARY_DATASET_PAPER_NOT_READ_IN_FULL_TEXT",
+      "supports": "The dataset's originating publication and the intended clinical meaning of its feature groups (dataset provenance / citation requirement).",
+      "does_not_support": "Per-variable coding tables were not independently read here; secondary summaries are used only for provisional ranges/units and are labelled as such."
+    },
+    "SECONDARY_FEATURE_TABLE": {
+      "citation_id": "SECONDARY_FEATURE_TABLE",
+      "reference": "Secondary literature feature tables for Z-Alizadeh Sani (e.g. published dataset-summary tables listing Age/Weight/Length/BMI/BP/PR ranges and Yes/No codings); not an official source.",
+      "retrieved": "2026-10-24 (public web summaries)",
+      "status": "SECONDARY_SOURCE_UNVERIFIED",
+      "supports": "Provisional ranges/codings used ONLY as plausibility guards and as documented expectations, never as source authority.",
+      "does_not_support": "Cannot establish exact workbook tokens, units, or measurement timing; any conflict with the source fails closed."
+    },
+    "LOCAL_DA_A1_AUDIT_2026_10_22": {
+      "citation_id": "LOCAL_DA_A1_AUDIT_2026_10_22",
+      "reference": "Maintainer-reported local read-only D-046 audit aggregates (docs/research/gate-da/10_m2a_uci412_uci411_evidence_and_decisions.md)",
+      "retrieved": "2026-10-22",
+      "status": "MAINTAINER_REPORTED_LOCAL_AGGREGATE",
+      "supports": "303 rows; 55 predictors + Cath with BBB present; 216 'Cad' / 87 'Normal'; 0 detected missing cells; local SHA-256 recorded.",
+      "does_not_support": "Not independently re-verified by any agent; does not prove clinical validity of any code, unit, or timing."
+    },
+    "GATE_DA_L08": {
+      "citation_id": "GATE_DA_L08",
+      "reference": "docs/research/gate-da/03_leakage_and_target_harmonization_register.md (L-03, L-08-ECHO, L-08-LAB, L-08-CLIN) and research/audit/registry.py FEATURE_AVAILABILITY_AND_LEAKAGE_TABLE",
+      "retrieved": "2026-10-24",
+      "status": "VERIFIED_REPOSITORY_RECORD",
+      "supports": "Echo timing is unverified and default-excluded; laboratory units/timing unverified; Cath/LAD/LCX/RCA are leakage blockers; the clinical group is a candidate pending Gate PT.",
+      "does_not_support": "Does not establish per-feature pre-angiography availability; that remains pending human review."
+    }
+  },
+  "panels": [
+    {
+      "panel_id": "uci412_basic_clinical_v1",
+      "version": "1.0.0",
+      "display_name": "Basic Clinical Input Panel (history, symptoms, vital signs)",
+      "status": "ADMITTED_FOR_INTERNAL_RESEARCH_SUBJECT_TO_M3A_AUTHORIZATION",
+      "executable_in_this_code_commit": true,
+      "intended_moment": "First clinical assessment of a patient referred for consideration of coronary angiography, before angiography is performed.",
+      "columns": [
+        "Age",
+        "Sex",
+        "BMI",
+        "DM",
+        "HTN",
+        "Current Smoker",
+        "EX-Smoker",
+        "FH",
+        "DLP",
+        "BP",
+        "PR",
+        "Typical Chest Pain",
+        "Atypical",
+        "Nonanginal",
+        "Exertional CP",
+        "Dyspnea"
+      ],
+      "rationale": "Prespecified from clinical availability and workflow, not from any correlation, univariate result, or model performance. The panel contains only variables recorded by history, symptom characterisation, and vital signs at intake: age, sex, BMI, five cardiovascular risk-factor history items, five chest-pain/dyspnoea descriptors, and resting blood pressure and pulse rate. It excludes all test-dependent data (ECG, laboratory, echocardiography), the outcome, identifiers, and redundant anthropometric duplicates.",
+      "prespecification_statement": "No member was added because it improved apparent accuracy; the panel is fixed before any real-data fitting and may only change through a documented protocol amendment with a new schema version.",
+      "limitations": [
+        "Availability is inferred from the feature group and the clinical workflow; the source does not document per-field acquisition time.",
+        "Predictive value is unproven; no feature was selected from data.",
+        "Parameter count and events are not a sample-size justification (see sample_size.py status)."
+      ],
+      "encoded_parameter_count_note": "Four continuous fields + twelve binary fields under reference coding = 16 parameters before any interaction."
+    },
+    {
+      "panel_id": "uci412_basic_plus_resting_ecg_v1",
+      "version": "1.0.0",
+      "display_name": "Basic Clinical Input Panel + resting ECG block",
+      "status": "REGISTERED_BLOCKED",
+      "executable_in_this_code_commit": false,
+      "intended_moment": "Same assessment moment, only if a resting 12-lead ECG was actually recorded before the angiography decision.",
+      "columns": [
+        "Age",
+        "Sex",
+        "BMI",
+        "DM",
+        "HTN",
+        "Current Smoker",
+        "EX-Smoker",
+        "FH",
+        "DLP",
+        "BP",
+        "PR",
+        "Typical Chest Pain",
+        "Atypical",
+        "Nonanginal",
+        "Exertional CP",
+        "Dyspnea",
+        "Q Wave",
+        "St Elevation",
+        "St Depression",
+        "Tinversion",
+        "LVH",
+        "Poor R Progression",
+        "BBB"
+      ],
+      "rationale": "Registered expansion; blocked because the source does not document ECG acquisition timing relative to angiography (L-08-CLIN).",
+      "blockers": [
+        "Documented source/clinician evidence that the seven ECG findings were recorded before the angiography decision.",
+        "Protocol amendment and a new schema version."
+      ]
+    },
+    {
+      "panel_id": "uci412_expanded_clinical_v1",
+      "version": "1.0.0",
+      "display_name": "Expanded clinical panel (additional history and examination findings)",
+      "status": "REGISTERED_BLOCKED",
+      "executable_in_this_code_commit": false,
+      "intended_moment": "Same assessment moment; adds secondary comorbidities, examination findings, functional class and low-threshold angina.",
+      "columns": [
+        "Age",
+        "Sex",
+        "BMI",
+        "DM",
+        "HTN",
+        "Current Smoker",
+        "EX-Smoker",
+        "FH",
+        "CRF",
+        "CVA",
+        "Airway disease",
+        "Thyroid Disease",
+        "CHF",
+        "DLP",
+        "BP",
+        "PR",
+        "Edema",
+        "Weak Peripheral Pulse",
+        "Lung rales",
+        "Systolic Murmur",
+        "Diastolic Murmur",
+        "Typical Chest Pain",
+        "Atypical",
+        "Nonanginal",
+        "Exertional CP",
+        "Dyspnea",
+        "Function Class",
+        "LowTH Ang"
+      ],
+      "rationale": "Registered expansion; blocked because the additional parameters are not justified by the available events and several definitions are undocumented.",
+      "blockers": [
+        "Human-reviewed parameter budget / sample-size justification.",
+        "Documented definitions for Function Class and LowTH Ang.",
+        "Protocol amendment and a new schema version."
+      ]
+    },
+    {
+      "panel_id": "uci412_basic_plus_laboratory_v1",
+      "version": "1.0.0",
+      "display_name": "Basic Clinical Input Panel + laboratory block",
+      "status": "REGISTERED_BLOCKED",
+      "executable_in_this_code_commit": false,
+      "intended_moment": "Same assessment moment, only if laboratory results were available before the angiography decision.",
+      "columns": [
+        "Age",
+        "Sex",
+        "BMI",
+        "DM",
+        "HTN",
+        "Current Smoker",
+        "EX-Smoker",
+        "FH",
+        "DLP",
+        "BP",
+        "PR",
+        "Typical Chest Pain",
+        "Atypical",
+        "Nonanginal",
+        "Exertional CP",
+        "Dyspnea",
+        "FBS",
+        "CR",
+        "TG",
+        "LDL",
+        "HDL",
+        "BUN",
+        "ESR",
+        "HB",
+        "K",
+        "Na",
+        "WBC",
+        "Lymph",
+        "Neut",
+        "PLT"
+      ],
+      "rationale": "Registered expansion; blocked because laboratory units and collection timing relative to angiography are unverified (L-08-LAB).",
+      "blockers": [
+        "Verified units and reference ranges from the source documentation.",
+        "Evidence that results preceded the angiography decision.",
+        "Protocol amendment and a new schema version."
+      ]
+    }
+  ],
+  "features": {
+    "Age": {
+      "column": "Age",
+      "position": 1,
+      "group": "demographic",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Patient age at assessment.",
+      "unit": "years",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "SECONDARY_FEATURE_TABLE",
+        "LOCAL_DA_A1_AUDIT_2026_10_22",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Exact recording convention (age at angiography vs age at first assessment) is not documented in the official source.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        1.0,
+        120.0
+      ],
+      "source_reported_typical_range": [
+        30,
+        86
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "Weight": {
+      "column": "Weight",
+      "position": 2,
+      "group": "demographic",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Body weight recorded at assessment.",
+      "unit": "kg",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "physical_examination",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "LOCAL_DA_A1_AUDIT_2026_10_22"
+      ],
+      "uncertainty": "Exact measuring conditions and rounding are undocumented.",
+      "admission": "EXCLUDED_DERIVED_REDUNDANT",
+      "panels": [],
+      "exclusion_reason": "Excluded from every panel: with Length and BMI the same anthropometric measurement is encoded three times; BMI is retained as the prespecified index. Not evidence that weight is clinically irrelevant.",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        20.0,
+        300.0
+      ],
+      "source_reported_typical_range": [
+        48,
+        120
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "Length": {
+      "column": "Length",
+      "position": 3,
+      "group": "demographic",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Body height/length recorded at assessment.",
+      "unit": "cm",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "physical_examination",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "LOCAL_DA_A1_AUDIT_2026_10_22"
+      ],
+      "uncertainty": "Unit (cm vs m) is not stated in the official source; a unit error would be visible as an implausible value.",
+      "admission": "EXCLUDED_DERIVED_REDUNDANT",
+      "panels": [],
+      "exclusion_reason": "Excluded from every panel as a deterministic input to BMI (see Weight).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        50.0,
+        250.0
+      ],
+      "source_reported_typical_range": [
+        140,
+        188
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "Sex": {
+      "column": "Sex",
+      "position": 4,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Recorded sex.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "The delivered workbook is widely reported to contain the token 'Fmale' rather than 'Female'; exact source tokens are unverified. Both are registered with an explicit, reported mapping (Male=1, Fmale/Female=0).",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Male": 1,
+        "Fmale": 0,
+        "Female": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "BMI": {
+      "column": "BMI",
+      "position": 5,
+      "group": "demographic",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Body-mass index.",
+      "unit": "kg/m^2",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "physical_examination",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Whether the source value is recorded or derived, and the exact derivation, is undocumented.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        10.0,
+        80.0
+      ],
+      "source_reported_typical_range": [
+        18.1,
+        40.9
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "DM": {
+      "column": "DM",
+      "position": 6,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "History of diabetes mellitus.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "LOCAL_DA_A1_AUDIT_2026_10_22"
+      ],
+      "uncertainty": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status).",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "HTN": {
+      "column": "HTN",
+      "position": 7,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "History of hypertension.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "LOCAL_DA_A1_AUDIT_2026_10_22"
+      ],
+      "uncertainty": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status).",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Current Smoker": {
+      "column": "Current Smoker",
+      "position": 8,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Current smoking at assessment.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "LOCAL_DA_A1_AUDIT_2026_10_22"
+      ],
+      "uncertainty": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status).",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "EX-Smoker": {
+      "column": "EX-Smoker",
+      "position": 9,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Former smoking history.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "LOCAL_DA_A1_AUDIT_2026_10_22"
+      ],
+      "uncertainty": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status).",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "FH": {
+      "column": "FH",
+      "position": 10,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Family history of coronary artery disease.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "LOCAL_DA_A1_AUDIT_2026_10_22"
+      ],
+      "uncertainty": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status).",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Obesity": {
+      "column": "Obesity",
+      "position": 11,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Recorded obesity annotation.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "The threshold/derivation is undocumented; if it is a BMI cut-off the field duplicates BMI.",
+      "admission": "EXCLUDED_DERIVED_REDUNDANT",
+      "panels": [],
+      "exclusion_reason": "Excluded from every panel: it duplicates the BMI measurement with an undocumented threshold; BMI is retained so the underlying value is modelled explicitly.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "CRF": {
+      "column": "CRF",
+      "position": 12,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "History of chronic renal failure.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Definition, severity, and activity status are undocumented; comorbidity may reflect treatment pathways after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: secondary comorbidity outside the prespecified chest-pain/risk-factor core; registered for a separately approved expansion.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "CVA": {
+      "column": "CVA",
+      "position": 13,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "History of cerebrovascular accident.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Definition, severity, and activity status are undocumented; comorbidity may reflect treatment pathways after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: secondary comorbidity outside the prespecified chest-pain/risk-factor core; registered for a separately approved expansion.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Airway disease": {
+      "column": "Airway disease",
+      "position": 14,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "History of airway disease.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Definition, severity, and activity status are undocumented; comorbidity may reflect treatment pathways after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: secondary comorbidity outside the prespecified chest-pain/risk-factor core; registered for a separately approved expansion.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Thyroid Disease": {
+      "column": "Thyroid Disease",
+      "position": 15,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "History of thyroid disease.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Definition, severity, and activity status are undocumented; comorbidity may reflect treatment pathways after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: secondary comorbidity outside the prespecified chest-pain/risk-factor core; registered for a separately approved expansion.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "CHF": {
+      "column": "CHF",
+      "position": 16,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "History of congestive heart failure.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Definition, severity, and activity status are undocumented; comorbidity may reflect treatment pathways after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: secondary comorbidity outside the prespecified chest-pain/risk-factor core; registered for a separately approved expansion.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "DLP": {
+      "column": "DLP",
+      "position": 17,
+      "group": "demographic",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "History of dyslipidaemia.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Whether this reflects a recorded diagnosis or a laboratory threshold is undocumented.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "BP": {
+      "column": "BP",
+      "position": 18,
+      "group": "symptom_and_examination",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Blood pressure recorded at assessment.",
+      "unit": "mmHg",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "vital_signs",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Whether this is systolic, diastolic, or a single recorded value is not stated in the official source; public summaries imply a single systolic-like value.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        40.0,
+        300.0
+      ],
+      "source_reported_typical_range": [
+        90,
+        190
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "PR": {
+      "column": "PR",
+      "position": 19,
+      "group": "symptom_and_examination",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Pulse rate recorded at assessment.",
+      "unit": "beats/min",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "vital_signs",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Some secondary tables label the unit 'ppm'; the intended unit is beats per minute but the official source is silent.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        20.0,
+        250.0
+      ],
+      "source_reported_typical_range": [
+        50,
+        110
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "Edema": {
+      "column": "Edema",
+      "position": 20,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Peripheral edema on examination.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "physical_examination",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Examination technique, observer, and recording protocol are undocumented; findings point more to valve disease or heart failure than to CAD likelihood.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: observer-dependent examination findings outside the prespecified chest-pain/risk-factor core.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Weak Peripheral Pulse": {
+      "column": "Weak Peripheral Pulse",
+      "position": 21,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Weak peripheral pulse on examination.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "physical_examination",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Examination technique, observer, and recording protocol are undocumented; findings point more to valve disease or heart failure than to CAD likelihood.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: observer-dependent examination findings outside the prespecified chest-pain/risk-factor core.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Lung rales": {
+      "column": "Lung rales",
+      "position": 22,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Lung rales/crackles on examination.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "physical_examination",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Examination technique, observer, and recording protocol are undocumented; findings point more to valve disease or heart failure than to CAD likelihood.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: observer-dependent examination findings outside the prespecified chest-pain/risk-factor core.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Systolic Murmur": {
+      "column": "Systolic Murmur",
+      "position": 23,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Systolic murmur on auscultation.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "physical_examination",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Examination technique, observer, and recording protocol are undocumented; findings point more to valve disease or heart failure than to CAD likelihood.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: observer-dependent examination findings outside the prespecified chest-pain/risk-factor core.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Diastolic Murmur": {
+      "column": "Diastolic Murmur",
+      "position": 24,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Diastolic murmur on auscultation.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "physical_examination",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Examination technique, observer, and recording protocol are undocumented; findings point more to valve disease or heart failure than to CAD likelihood.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: observer-dependent examination findings outside the prespecified chest-pain/risk-factor core.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Typical Chest Pain": {
+      "column": "Typical Chest Pain",
+      "position": 25,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Typical/typical-angina chest pain descriptor.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Dyspnea": {
+      "column": "Dyspnea",
+      "position": 26,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Dyspnea reported at assessment.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Function Class": {
+      "column": "Function Class",
+      "position": 27,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "ordinal",
+      "clinical_meaning": "Ordinal functional class recorded at assessment (NYHA-like 1-4).",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_ORDINAL",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "clinician",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "The scale definition and whether the source value is clinician-assigned NYHA class is undocumented.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: an ordinal severity scale with undocumented derivation adds three parameters to the primary model.",
+      "vocabulary": {
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4
+      },
+      "vocabulary_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Atypical": {
+      "column": "Atypical",
+      "position": 28,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Atypical chest pain descriptor.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Nonanginal": {
+      "column": "Nonanginal",
+      "position": 29,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Non-anginal chest pain descriptor.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Exertional CP": {
+      "column": "Exertional CP",
+      "position": 30,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Exertional chest pain descriptor.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived.",
+      "admission": "ADMITTED_PRIMARY_PANEL",
+      "panels": [
+        "uci412_basic_clinical_v1",
+        "uci412_basic_plus_resting_ecg_v1",
+        "uci412_expanded_clinical_v1",
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": null,
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "LowTH Ang": {
+      "column": "LowTH Ang",
+      "position": 31,
+      "group": "symptom_and_examination",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Low-threshold angina descriptor.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "patient_history",
+      "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "patient",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE"
+      ],
+      "uncertainty": "Secondary sources give conflicting definitions (a symptom descriptor vs an age/sex-conditional definition); the official source is silent.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_expanded_clinical_v1"
+      ],
+      "exclusion_reason": "Not in the primary panel: the feature definition is ambiguous across sources, so its semantics cannot be defended yet.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Q Wave": {
+      "column": "Q Wave",
+      "position": 32,
+      "group": "ecg",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Q wave on resting ECG.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "resting_ecg",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": "Not angiography-derived, but the acquisition time is unverified (L-08-CLIN).",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "The workbook does not document when the ECG was recorded relative to the angiography decision; resting ECG findings could also be documented after referral.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_resting_ecg_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked resting-ECG panel: acquisition timing relative to the angiographic decision is not documented in the source.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "St Elevation": {
+      "column": "St Elevation",
+      "position": 33,
+      "group": "ecg",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "ST elevation on resting ECG.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "resting_ecg",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": "Not angiography-derived, but the acquisition time is unverified (L-08-CLIN).",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "The workbook does not document when the ECG was recorded relative to the angiography decision; resting ECG findings could also be documented after referral.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_resting_ecg_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked resting-ECG panel: acquisition timing relative to the angiographic decision is not documented in the source.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "St Depression": {
+      "column": "St Depression",
+      "position": 34,
+      "group": "ecg",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "ST depression on resting ECG.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "resting_ecg",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": "Not angiography-derived, but the acquisition time is unverified (L-08-CLIN).",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "The workbook does not document when the ECG was recorded relative to the angiography decision; resting ECG findings could also be documented after referral.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_resting_ecg_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked resting-ECG panel: acquisition timing relative to the angiographic decision is not documented in the source.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Tinversion": {
+      "column": "Tinversion",
+      "position": 35,
+      "group": "ecg",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "T-wave inversion on resting ECG.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "resting_ecg",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": "Not angiography-derived, but the acquisition time is unverified (L-08-CLIN).",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "The workbook does not document when the ECG was recorded relative to the angiography decision; resting ECG findings could also be documented after referral.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_resting_ecg_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked resting-ECG panel: acquisition timing relative to the angiographic decision is not documented in the source.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "LVH": {
+      "column": "LVH",
+      "position": 36,
+      "group": "ecg",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Left ventricular hypertrophy on resting ECG.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "resting_ecg",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": "Not angiography-derived, but the acquisition time is unverified (L-08-CLIN).",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "The workbook does not document when the ECG was recorded relative to the angiography decision; resting ECG findings could also be documented after referral.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_resting_ecg_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked resting-ECG panel: acquisition timing relative to the angiographic decision is not documented in the source.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Poor R Progression": {
+      "column": "Poor R Progression",
+      "position": 37,
+      "group": "ecg",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Poor R-wave progression on resting ECG.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "resting_ecg",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": "Not angiography-derived, but the acquisition time is unverified (L-08-CLIN).",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "The workbook does not document when the ECG was recorded relative to the angiography decision; resting ECG findings could also be documented after referral.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_resting_ecg_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked resting-ECG panel: acquisition timing relative to the angiographic decision is not documented in the source.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "BBB": {
+      "column": "BBB",
+      "position": 38,
+      "group": "ecg",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Bundle-branch block on resting ECG.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "resting_ecg",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": "Not angiography-derived, but the acquisition time is unverified (L-08-CLIN).",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "The workbook does not document when the ECG was recorded relative to the angiography decision; resting ECG findings could also be documented after referral.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_resting_ecg_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked resting-ECG panel: acquisition timing relative to the angiographic decision is not documented in the source.",
+      "vocabulary": {
+        "Y": 1,
+        "N": 0,
+        "Yes": 1,
+        "No": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_RANGES_DESCRIBED_AS_YES_NO_EXACT_WORKBOOK_TOKENS_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "FBS": {
+      "column": "FBS",
+      "position": 39,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Fasting blood sugar",
+      "unit": "mg/dL",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        20.0,
+        700.0
+      ],
+      "source_reported_typical_range": [
+        70,
+        400
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "CR": {
+      "column": "CR",
+      "position": 40,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Serum creatinine",
+      "unit": "mg/dL",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        0.1,
+        20.0
+      ],
+      "source_reported_typical_range": [
+        0.5,
+        2.5
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "TG": {
+      "column": "TG",
+      "position": 41,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Triglycerides",
+      "unit": "mg/dL",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        20.0,
+        2000.0
+      ],
+      "source_reported_typical_range": [
+        50,
+        400
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "LDL": {
+      "column": "LDL",
+      "position": 42,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Low-density lipoprotein cholesterol",
+      "unit": "mg/dL",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        10.0,
+        600.0
+      ],
+      "source_reported_typical_range": [
+        40,
+        250
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "HDL": {
+      "column": "HDL",
+      "position": 43,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "High-density lipoprotein cholesterol",
+      "unit": "mg/dL",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        5.0,
+        150.0
+      ],
+      "source_reported_typical_range": [
+        20,
+        90
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "BUN": {
+      "column": "BUN",
+      "position": 44,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Blood urea nitrogen",
+      "unit": "mg/dL",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        2.0,
+        200.0
+      ],
+      "source_reported_typical_range": [
+        5,
+        60
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "ESR": {
+      "column": "ESR",
+      "position": 45,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Erythrocyte sedimentation rate",
+      "unit": "mm/hr",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        0.0,
+        150.0
+      ],
+      "source_reported_typical_range": [
+        0,
+        60
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "HB": {
+      "column": "HB",
+      "position": 46,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Haemoglobin",
+      "unit": "g/dL",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        3.0,
+        25.0
+      ],
+      "source_reported_typical_range": [
+        8,
+        19
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "K": {
+      "column": "K",
+      "position": 47,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Serum potassium",
+      "unit": "mEq/L",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        1.5,
+        8.0
+      ],
+      "source_reported_typical_range": [
+        3.0,
+        6.0
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "Na": {
+      "column": "Na",
+      "position": 48,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Serum sodium",
+      "unit": "mEq/L",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        100.0,
+        180.0
+      ],
+      "source_reported_typical_range": [
+        125,
+        155
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "WBC": {
+      "column": "WBC",
+      "position": 49,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "White blood cell count",
+      "unit": "cells/uL",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        500.0,
+        50000.0
+      ],
+      "source_reported_typical_range": [
+        2000,
+        15000
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "Lymph": {
+      "column": "Lymph",
+      "position": 50,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Lymphocyte percentage",
+      "unit": "%",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        1.0,
+        95.0
+      ],
+      "source_reported_typical_range": [
+        10,
+        50
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "Neut": {
+      "column": "Neut",
+      "position": 51,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Neutrophil percentage",
+      "unit": "%",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        1.0,
+        99.0
+      ],
+      "source_reported_typical_range": [
+        30,
+        85
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "PLT": {
+      "column": "PLT",
+      "position": 52,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Platelet count",
+      "unit": "x10^3/uL",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "laboratory",
+      "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "NONE_EXPECTED",
+      "leakage_note": null,
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "Units and pre-angiography collection timing are not stated in the official source; laboratory values may also reflect treatment after prior cardiac care.",
+      "admission": "REGISTERED_EXPANDED_PANEL_ONLY",
+      "panels": [
+        "uci412_basic_plus_laboratory_v1"
+      ],
+      "exclusion_reason": "Registered only in a blocked laboratory panel: units and pre-angiography collection timing are unverified (L-08-LAB).",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        20.0,
+        1500.0
+      ],
+      "source_reported_typical_range": [
+        100,
+        450
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "EF-TTE": {
+      "column": "EF-TTE",
+      "position": 53,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Left ventricular ejection fraction on transthoracic echocardiography",
+      "unit": "%",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "echocardiography",
+      "availability_at_decision_time": "UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "POST_ANGIOGRAPHY_UNVERIFIED",
+      "leakage_note": "Echocardiographic findings may be recorded during the same admission as angiography and can be affected by the event under study.",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08",
+        "UCI412_OFFICIAL_PAGE"
+      ],
+      "uncertainty": "Acquisition time relative to angiography and to any revascularisation is undocumented; RWMA in particular can be a consequence of the ischaemic event being diagnosed.",
+      "admission": "EXCLUDED_ECHO_TIMING_UNVERIFIED",
+      "panels": [],
+      "exclusion_reason": "Excluded from every panel by default: echocardiography timing relative to angiography is unverified (L-08-ECHO) and RWMA may be a consequence rather than a predictor of the outcome. Requires a documented protocol amendment.",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        5.0,
+        90.0
+      ],
+      "source_reported_typical_range": [
+        20,
+        70
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "Region RWMA": {
+      "column": "Region RWMA",
+      "position": 54,
+      "group": "laboratory_and_echocardiography",
+      "role": "numeric",
+      "kind": "continuous",
+      "clinical_meaning": "Number of left-ventricular regions with regional wall-motion abnormality",
+      "unit": "regions",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "source_domain": "echocardiography",
+      "availability_at_decision_time": "UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "POST_ANGIOGRAPHY_UNVERIFIED",
+      "leakage_note": "Echocardiographic findings may be recorded during the same admission as angiography and can be affected by the event under study.",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08",
+        "UCI412_OFFICIAL_PAGE"
+      ],
+      "uncertainty": "Acquisition time relative to angiography and to any revascularisation is undocumented; RWMA in particular can be a consequence of the ischaemic event being diagnosed.",
+      "admission": "EXCLUDED_ECHO_TIMING_UNVERIFIED",
+      "panels": [],
+      "exclusion_reason": "Excluded from every panel by default: echocardiography timing relative to angiography is unverified (L-08-ECHO) and RWMA may be a consequence rather than a predictor of the outcome. Requires a documented protocol amendment.",
+      "vocabulary": null,
+      "vocabulary_evidence_status": null,
+      "plausible_range": [
+        0.0,
+        3.0
+      ],
+      "source_reported_typical_range": [
+        0,
+        3
+      ],
+      "typical_range_evidence_status": "SECONDARY_SOURCE_UNVERIFIED"
+    },
+    "VHD": {
+      "column": "VHD",
+      "position": 55,
+      "group": "laboratory_and_echocardiography",
+      "role": "categorical",
+      "kind": "ordinal",
+      "clinical_meaning": "Valvular heart disease severity class",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_ORDINAL",
+      "source_domain": "echocardiography",
+      "availability_at_decision_time": "UNVERIFIED_TIMING",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "TREATMENT_ADJACENT_UNVERIFIED",
+      "leakage_note": "Echocardiographic findings may be recorded during the same admission as angiography and can be affected by the event under study.",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "SECONDARY_FEATURE_TABLE",
+        "GATE_DA_L08",
+        "UCI412_OFFICIAL_PAGE"
+      ],
+      "uncertainty": "Acquisition time relative to angiography and to any revascularisation is undocumented; RWMA in particular can be a consequence of the ischaemic event being diagnosed.",
+      "admission": "EXCLUDED_ECHO_TIMING_UNVERIFIED",
+      "panels": [],
+      "exclusion_reason": "Excluded from every panel by default: echocardiography timing relative to angiography is unverified (L-08-ECHO) and RWMA may be a consequence rather than a predictor of the outcome. Requires a documented protocol amendment.",
+      "vocabulary": {
+        "N": 0,
+        "Mild": 1,
+        "Moderate": 2,
+        "Severe": 3,
+        "mild": 1,
+        "moderate": 2,
+        "severe": 3
+      },
+      "vocabulary_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    },
+    "Cath": {
+      "column": "Cath",
+      "position": 56,
+      "group": "target_label",
+      "role": "categorical",
+      "kind": "binary",
+      "clinical_meaning": "Angiographic CAD outcome as recorded by the source: 'Cad' when diameter narrowing is >=50%, otherwise 'Normal'.",
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "source_domain": "outcome_label",
+      "availability_at_decision_time": "NOT_AVAILABLE_OUTCOME",
+      "missing_semantics": "Official source states the dataset has no missing values. A blank cell is treated as an undocumented gap (NaN) and imputed inside training folds only; the literal tokens '?' and '-9' are rejected as wrong-source markers.",
+      "leakage_risk": "TARGET_DEFINITION",
+      "leakage_note": "Target definition (L-03).",
+      "input_owner": "diagnostic_test",
+      "evidence": [
+        "UCI412_OFFICIAL_PAGE",
+        "UCI411_OFFICIAL_PAGE",
+        "LOCAL_DA_A1_AUDIT_2026_10_22",
+        "GATE_DA_L08"
+      ],
+      "uncertainty": "The exact-50% boundary is defined by the source but individual boundary cases cannot be inspected without local data; H-01 (>50% in UCI-45 vs >=50% in UCI-412) remains unresolved and forbids pooling.",
+      "admission": "EXCLUDED_TARGET",
+      "panels": [],
+      "exclusion_reason": "Outcome label only. Never a predictor; the adapter rejects it from any feature matrix.",
+      "vocabulary": {
+        "Cad": 1,
+        "Normal": 0
+      },
+      "vocabulary_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "plausible_range": null,
+      "source_reported_typical_range": null,
+      "typical_range_evidence_status": null
+    }
+  },
+  "explicitly_not_registered": {
+    "all_55_predictor_panel": "No all-feature panel is registered. Selecting every available column would ignore timing, units, redundancy and parameter-count constraints.",
+    "cross_dataset_harmonisation": "No mapping of these columns onto UCI-45 names is registered; H-01 (>50% vs >=50%) is unresolved and pooling is prohibited.",
+    "uci411_artery_columns": "LAD/LCX/RCA are outcome definitions from the same 303 participants and are rejected outright if present in a DA-A1 workbook."
+  }
+}

@@ -1,0 +1,212 @@
+{
+  "protocol_id": "CAI-UCI412-CAD-BENCHMARK-V0.1",
+  "protocol_status": "PROPOSED_NOT_FROZEN_NOT_SUPERVISOR_APPROVED",
+  "protocol_status_statement": "Registered research configuration for review. It authorizes nothing: no real source may be read and no model may be fitted until a separate M3a local internal-research authorization exists and the plan hash is bound into it.",
+  "report_banner": "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
+  "scientific_question": "Source-specific classification of current, angiography-referenced CAD presence (Cath 'Cad' vs 'Normal') in the UCI-412 cohort using information plausibly available at the pre-angiography assessment. This is NOT future-event or 30-day risk prediction.",
+  "prohibited_interpretations": [
+    "future or 30-day CAD-event risk",
+    "clinical or patient-facing risk percentage",
+    "external validation or transportability",
+    "supervisor approval or publication claim",
+    "cross-dataset pooling with UCI-45, UCI-411, UCI-145 or any other cohort",
+    "patient independence of the 303 UCI-412/UCI-411 records"
+  ],
+  "dataset": {
+    "id": "DA-A1",
+    "source": "UCI-412",
+    "relative_file": "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx",
+    "filename": "Z-Alizadeh sani dataset.xlsx",
+    "source_profile_id": "uci412_da_a1_workbook_profile_v1",
+    "expected_row_count": 303,
+    "expected_class_counts": {
+      "0": 87,
+      "1": 216
+    },
+    "target_column": "Cath",
+    "target_mapping": {
+      "Cad": 1,
+      "Normal": 0
+    },
+    "source_columns": [
+      "Age",
+      "Weight",
+      "Length",
+      "Sex",
+      "BMI",
+      "DM",
+      "HTN",
+      "Current Smoker",
+      "EX-Smoker",
+      "FH",
+      "Obesity",
+      "CRF",
+      "CVA",
+      "Airway disease",
+      "Thyroid Disease",
+      "CHF",
+      "DLP",
+      "BP",
+      "PR",
+      "Edema",
+      "Weak Peripheral Pulse",
+      "Lung rales",
+      "Systolic Murmur",
+      "Diastolic Murmur",
+      "Typical Chest Pain",
+      "Dyspnea",
+      "Function Class",
+      "Atypical",
+      "Nonanginal",
+      "Exertional CP",
+      "LowTH Ang",
+      "Q Wave",
+      "St Elevation",
+      "St Depression",
+      "Tinversion",
+      "LVH",
+      "Poor R Progression",
+      "BBB",
+      "FBS",
+      "CR",
+      "TG",
+      "LDL",
+      "HDL",
+      "BUN",
+      "ESR",
+      "HB",
+      "K",
+      "Na",
+      "WBC",
+      "Lymph",
+      "Neut",
+      "PLT",
+      "EF-TTE",
+      "Region RWMA",
+      "VHD",
+      "Cath"
+    ],
+    "independent_cohort": false,
+    "uci_411_is_same_participants": true
+  },
+  "feature_dictionary": {
+    "schema_id": "uci412_research_feature_dictionary",
+    "schema_version": "1.0.0",
+    "panel_id": "uci412_basic_clinical_v1",
+    "panel_version": "1.0.0",
+    "selection_basis": "PRESPECIFIED_AVAILABILITY_AND_WORKFLOW_NOT_OUTCOME_DATA"
+  },
+  "cv": {
+    "outer_folds": 5,
+    "inner_folds": 5,
+    "stratified": true,
+    "outer_repeat_seeds": [
+      20261024,
+      20261025,
+      20261026,
+      20261027
+    ],
+    "primary_inner_selection_metric": "roc_auc",
+    "primary_outer_assessment_metric": "roc_auc",
+    "simplicity_preference": "l2_logistic_regression",
+    "inner_auc_equivalence_tolerance": 0.01,
+    "seed_derivation": {
+      "inner_cv_seed": "outer_repeat_seed + 211 + 1013 * outer_fold_number_1_based",
+      "model_seed": "outer_repeat_seed + 200003 + 131 * outer_fold_number_1_based + model_family_offset",
+      "model_family_offsets": {
+        "l2_logistic_regression": 17,
+        "constrained_random_forest": 29
+      },
+      "bootstrap_seed": "outer_repeat_seed + 500009"
+    }
+  },
+  "models": {
+    "prevalence_dummy": {
+      "strategy": "prior"
+    },
+    "l2_logistic_regression": {
+      "solver": "liblinear",
+      "penalty": "l2",
+      "C": [
+        0.1,
+        1,
+        10
+      ],
+      "max_iter": 2000,
+      "class_weight": null
+    },
+    "constrained_random_forest": {
+      "n_estimators": 200,
+      "max_depth": [
+        3,
+        5
+      ],
+      "min_samples_leaf": [
+        5,
+        10
+      ],
+      "max_features": "sqrt",
+      "class_weight": null
+    }
+  },
+  "reserved_not_implemented": {
+    "gradient_boosting_reserved": {
+      "status": "RESERVED_EXTENSION_POINT_NOT_IMPLEMENTED",
+      "requires": "A separately justified protocol amendment with a bounded grid, a scientific reason, and a reproducibility review before any comparator is added."
+    }
+  },
+  "preprocessing": {
+    "numeric_imputation": "training_fold_median",
+    "numeric_scaling_for_lr": "training_fold_standard",
+    "categorical": "fixed_registered_vocabulary_reference_one_hot",
+    "categorical_missing_imputation": "training_fold_most_frequent",
+    "learn_transforms_inside_inner_cv": true,
+    "missing_reason_columns": "FORBIDDEN_NOT_RECORDED_IN_UCI412",
+    "fake_synthetic_flag_for_real_data": "FORBIDDEN",
+    "global_transformation_before_cv": "FORBIDDEN"
+  },
+  "metrics": {
+    "primary": "roc_auc",
+    "secondary": [
+      "average_precision",
+      "sensitivity",
+      "specificity",
+      "brier_score",
+      "accuracy_secondary_only"
+    ],
+    "decision_threshold_exploratory_only": 0.5,
+    "threshold_tuning": "FORBIDDEN",
+    "calibration_diagnostics": [
+      "calibration_in_the_large_intercept",
+      "calibration_slope_and_intercept",
+      "five_bin_quantile_reliability_curve_when_estimable"
+    ],
+    "uncertainty": {
+      "method": "PARTICIPANT_LEVEL_PERCENTILE_BOOTSTRAP_WITHIN_EACH_REPEAT",
+      "resamples": 500,
+      "interpretation": "CONDITIONAL_ON_FIXED_FOLD_FITS_NOT_A_CONFIDENCE_INTERVAL_FOR_FUTURE_PATIENTS",
+      "pooled_repeat_inference": "FORBIDDEN"
+    },
+    "naive_ci_treating_repeated_oof_rows_as_independent": "FORBIDDEN"
+  },
+  "negative_control": {
+    "method": "permute_source_labels_before_nested_cv",
+    "shuffle_seeds": [
+      20262004,
+      20262005,
+      20262006
+    ],
+    "outer_repeats_per_shuffle": 1,
+    "interpretation": "SMOKE_TEST_NOT_FORMAL_PERMUTATION_P_VALUE",
+    "leakage_alarm_threshold_auroc": 0.9,
+    "leakage_warning_threshold_auroc": 0.7
+  },
+  "execution": {
+    "environment": "MAINTAINER_LOCAL_WINDOWS_CPU_ONLY",
+    "authorized_only_after_m3a_human_authorization_and_signed_local_manifest": true,
+    "local_output_root": "data/uci412-experiments",
+    "patient_level_git_upload": false,
+    "external_validation_or_clinical_claims": false,
+    "artifact_saved": false
+  }
+}
