@@ -69,6 +69,7 @@ from .feature_order import (
     SYNTHETIC_FIXTURE_ORDER_POLICY_ID,
     SYNTHETIC_FIXTURE_ORDER_POLICY_STATUS,
     FeatureOrderPolicy,
+    is_registered_definition,
     registered_feature_order_policy,
 )
 from .errors import ArtifactAdmissionError
@@ -113,5 +114,6 @@ __all__ = [
     "SYNTHETIC_ONLY_ORDER_REASON",
     "UNVERIFIED_EXPLAINABILITY_REASON",
     "admit_research_artifact",
+    "is_registered_definition",
     "registered_feature_order_policy",
 ]

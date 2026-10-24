@@ -28,7 +28,9 @@ provider.
 future research model packages. It hashes artifact bytes (never deserializing
 them), cross-checks the declared feature names/types/units against the pinned
 `shared/contracts/schemas` files, enforces an explicit ordered feature binding
-(`feature_order.py`, `synthetic_fixture_input_order/v1`) by position, verifies
+(`feature_order.py`, `synthetic_fixture_input_order/v1`) by position, verifying
+the supplied policy against the read-only registry definition (a reused policy
+id with a different order, status, schema coverage or metadata is rejected), verifies
 calibration bytes and SHA-256 whenever a separate calibration artifact is
 declared (an embedded calibration is recorded only as *not independently
 verified*), pins the target definition and model family, refuses any claim of

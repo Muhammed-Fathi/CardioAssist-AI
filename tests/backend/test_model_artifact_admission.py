@@ -16,6 +16,7 @@ import hashlib
 import json
 import pickle
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -47,6 +48,7 @@ from backend.app.artifact_admission import (
     FeatureSchemaCatalog,
     InMemoryArtifactSource,
     admit_research_artifact,
+    is_registered_definition,
     registered_feature_order_policy,
 )
 from backend.app.inference import FailClosedRealModelProvider, RealModelServingNotAuthorized
@@ -225,6 +227,26 @@ def source() -> InMemoryArtifactSource:
             "protocol.md": PROTOCOL_BYTES,
             "calibration.json": CALIBRATION_BYTES,
         }
+    )
+
+
+def _register_for_test(monkeypatch, *policies) -> None:
+    """Register test-only policies under NEW ids for this test only.
+
+    Never reuses a production policy id: doing so is exactly what the
+    registration-integrity check exists to reject.
+    """
+
+    import backend.app.artifact_admission.feature_order as feature_order_module
+
+    registry = dict(REGISTERED_FEATURE_ORDER_POLICIES)
+    for policy in policies:
+        assert policy.policy_id not in REGISTERED_FEATURE_ORDER_POLICIES
+        registry[policy.policy_id] = policy
+    monkeypatch.setattr(
+        feature_order_module,
+        "REGISTERED_FEATURE_ORDER_POLICIES",
+        MappingProxyType(registry),
     )
 
 
@@ -418,22 +440,28 @@ def test_missing_order_policy_fails_closed(source):
     assert error.field == "feature_contract.order_policy_id"
 
 
-def test_schema_without_a_registered_order_fails_closed(source):
-    """A schema the policy does not cover cannot be admitted by inference."""
+def test_schema_without_a_registered_order_fails_closed(source, monkeypatch):
+    """A schema the *registered* policy does not cover is admitted by no inference.
+
+    Only a test-only registration under a NEW policy id may narrow coverage;
+    reusing the registered id that way is rejected (see the identity tests).
+    """
 
     v1_only = FeatureOrderPolicy(
-        policy_id="synthetic_fixture_input_order/v1",
+        policy_id="test_only_fixture_input_order/v1",
         status="SYNTHETIC_ONLY_NOT_CLINICAL",
         ordered_feature_names={
             FEATURE_SCHEMA_ID: SYNTHETIC_FIXTURE_INPUT_ORDER.order_for(FEATURE_SCHEMA_ID)
         },
     )
+    _register_for_test(monkeypatch, v1_only)
     policy = AdmissionPolicy(
         registered_targets={TARGET_ID: TARGET_DEFINITION},
         catalog=FeatureSchemaCatalog.from_shared_contracts(),
         input_order_policy=v1_only,
     )
     document = _descriptor(
+        ("feature_contract.order_policy_id", v1_only.policy_id),
         ("feature_contract.feature_schema_id", "mock_clinical_v2"),
         (
             "feature_contract.feature_schema_sha256",
@@ -458,17 +486,19 @@ def test_unknown_order_policy_id_is_rejected(source, policy):
     )
 
 
-def test_descriptor_naming_a_different_registered_policy_is_rejected(source):
+def test_descriptor_naming_a_different_registered_policy_is_rejected(source, monkeypatch):
     alternate = FeatureOrderPolicy(
-        policy_id="synthetic_fixture_input_order/v2",
+        policy_id="test_only_fixture_input_order/v2",
         status="SYNTHETIC_ONLY_NOT_CLINICAL",
         ordered_feature_names=dict(SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names),
     )
+    _register_for_test(monkeypatch, alternate)
     policy = AdmissionPolicy(
         registered_targets={TARGET_ID: TARGET_DEFINITION},
         catalog=FeatureSchemaCatalog.from_shared_contracts(),
         input_order_policy=alternate,
     )
+    # Descriptor still names the v1 policy while the active policy is v2.
     _reject(_base_descriptor(), source, policy, "feature_order_policy_mismatch")
 
 
@@ -553,6 +583,314 @@ def test_reordered_schema_serialization_does_not_change_the_binding(source, poli
         reordered_policy,
         "feature_position_binding_mismatch",
     )
+
+
+# --------------------------------------------------------------------------- #
+# Correction 5 — registered policy identity and immutability
+# --------------------------------------------------------------------------- #
+
+
+def _registered_policy() -> FeatureOrderPolicy:
+    return SYNTHETIC_FIXTURE_INPUT_ORDER
+
+
+def _impostor(**overrides) -> FeatureOrderPolicy:
+    """Reuse the registered id with one part of the definition altered."""
+
+    fields = {
+        "policy_id": SYNTHETIC_FIXTURE_ORDER_POLICY_ID,
+        "status": SYNTHETIC_FIXTURE_INPUT_ORDER.status,
+        "note": SYNTHETIC_FIXTURE_INPUT_ORDER.note,
+        "ordered_feature_names": dict(SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names),
+    }
+    fields.update(overrides)
+    return FeatureOrderPolicy(**fields)
+
+
+def _swapped_order() -> dict:
+    order = dict(SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names)
+    v1 = list(order[FEATURE_SCHEMA_ID])
+    v1[0], v1[1] = v1[1], v1[0]
+    order[FEATURE_SCHEMA_ID] = tuple(v1)
+    return order
+
+
+def test_genuine_registered_policy_still_admits_a_valid_descriptor(source, policy):
+    assert policy.input_order_policy is _registered_policy()
+
+    decision = admit_research_artifact(_descriptor(), source=source, policy=policy)
+    assert decision.feature_names == SYNTHETIC_FIXTURE_INPUT_ORDER.order_for(FEATURE_SCHEMA_ID)
+    assert decision.feature_order_policy_id == SYNTHETIC_FIXTURE_ORDER_POLICY_ID
+    assert decision.feature_order_policy_status == SYNTHETIC_FIXTURE_ORDER_POLICY_STATUS
+    assert decision.serving_eligibility == RESEARCH_ONLY
+
+
+def test_structurally_identical_reconstruction_is_admitted(source, policy):
+    """Verification is definitional: a faithful copy of the registered policy
+    passes, because every registered field is compared strictly."""
+
+    rebuilt = _impostor()
+    assert rebuilt is not _registered_policy()
+    assert is_registered_definition(rebuilt, _registered_policy()) is True
+
+    rebuilt_policy = AdmissionPolicy(
+        registered_targets={TARGET_ID: TARGET_DEFINITION},
+        catalog=policy.catalog,
+        input_order_policy=rebuilt,
+    )
+    decision = admit_research_artifact(_descriptor(), source=source, policy=rebuilt_policy)
+    assert decision.feature_names == SYNTHETIC_FIXTURE_INPUT_ORDER.order_for(FEATURE_SCHEMA_ID)
+
+
+def test_same_registered_id_with_swapped_feature_order_is_rejected(source, policy):
+    impostor = _impostor(ordered_feature_names=_swapped_order())
+    # The impostor still answers with a *different* order for the same schema.
+    assert impostor.order_for(FEATURE_SCHEMA_ID) != _registered_policy().order_for(FEATURE_SCHEMA_ID)
+    assert is_registered_definition(impostor, _registered_policy()) is False
+
+    tampered_policy = AdmissionPolicy(
+        registered_targets={TARGET_ID: TARGET_DEFINITION},
+        catalog=policy.catalog,
+        input_order_policy=impostor,
+    )
+    error = _reject(_base_descriptor(), source, tampered_policy, "feature_order_policy_tampered")
+    assert error.field == "feature_contract.order_policy_id"
+
+
+def test_same_registered_id_with_swapped_order_cannot_admit_its_own_order(source, policy):
+    """Even a descriptor matching the impostor's order must not be admitted."""
+
+    impostor = _impostor(ordered_feature_names=_swapped_order())
+    swapped = impostor.order_for(FEATURE_SCHEMA_ID)
+    document = _descriptor(
+        ("feature_contract.features", _schema_features(FEATURE_SCHEMA_ID, swapped))
+    )
+    tampered_policy = AdmissionPolicy(
+        registered_targets={TARGET_ID: TARGET_DEFINITION},
+        catalog=policy.catalog,
+        input_order_policy=impostor,
+    )
+    _reject(document, source, tampered_policy, "feature_order_policy_tampered")
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["CLINICAL_APPROVED", "SYNTHETIC_ONLY", "approved", ""],
+)
+def test_same_registered_id_with_altered_status_is_rejected(status, source, policy):
+    if not status:
+        # An empty status is rejected at construction (fail closed earlier).
+        with pytest.raises(ValueError):
+            _impostor(status=status)
+        return
+
+    impostor = _impostor(status=status)
+    assert is_registered_definition(impostor, _registered_policy()) is False
+    tampered_policy = AdmissionPolicy(
+        registered_targets={TARGET_ID: TARGET_DEFINITION},
+        catalog=policy.catalog,
+        input_order_policy=impostor,
+    )
+    _reject(_base_descriptor(), source, tampered_policy, "feature_order_policy_tampered")
+
+
+def test_same_registered_id_with_altered_metadata_is_rejected(source, policy):
+    impostor = _impostor(note="Reviewed clinical ordering — approved")
+    assert is_registered_definition(impostor, _registered_policy()) is False
+
+    tampered_policy = AdmissionPolicy(
+        registered_targets={TARGET_ID: TARGET_DEFINITION},
+        catalog=policy.catalog,
+        input_order_policy=impostor,
+    )
+    _reject(_base_descriptor(), source, tampered_policy, "feature_order_policy_tampered")
+
+
+@pytest.mark.parametrize(
+    "order_change",
+    [
+        # drop a covered schema
+        "dropped",
+        # add coverage for a schema the registered policy does not cover
+        "added",
+        # rename a covered schema key
+        "renamed",
+    ],
+)
+def test_same_registered_id_with_altered_schema_coverage_is_rejected(
+    order_change, source, policy
+):
+    registered_order = dict(SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names)
+    if order_change == "dropped":
+        order = {FEATURE_SCHEMA_ID: registered_order[FEATURE_SCHEMA_ID]}
+    elif order_change == "added":
+        order = {
+            **registered_order,
+            "mock_clinical_v9": tuple(registered_order[FEATURE_SCHEMA_ID]),
+        }
+    else:
+        order = {"mock_clinical_v1_renamed": tuple(registered_order[FEATURE_SCHEMA_ID])}
+
+    impostor = _impostor(ordered_feature_names=order)
+    assert is_registered_definition(impostor, _registered_policy()) is False
+
+    tampered_policy = AdmissionPolicy(
+        registered_targets={TARGET_ID: TARGET_DEFINITION},
+        catalog=policy.catalog,
+        input_order_policy=impostor,
+    )
+    error = _reject(
+        _base_descriptor(), source, tampered_policy, "feature_order_policy_tampered"
+    )
+    assert error.field == "feature_contract.order_policy_id"
+
+
+def test_same_registered_id_with_a_shortened_order_is_rejected(source, policy):
+    order = dict(SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names)
+    order[FEATURE_SCHEMA_ID] = tuple(order[FEATURE_SCHEMA_ID])[:-1]
+    impostor = _impostor(ordered_feature_names=order)
+    assert is_registered_definition(impostor, _registered_policy()) is False
+
+    tampered_policy = AdmissionPolicy(
+        registered_targets={TARGET_ID: TARGET_DEFINITION},
+        catalog=policy.catalog,
+        input_order_policy=impostor,
+    )
+    _reject(_base_descriptor(), source, tampered_policy, "feature_order_policy_tampered")
+
+
+@pytest.mark.parametrize(
+    "replacements",
+    [
+        {"status": "CLINICAL_APPROVED"},
+        {"note": "relabelled"},
+        {"ordered_feature_names": _swapped_order()},
+    ],
+)
+def test_dataclasses_replace_cannot_relabel_the_registered_policy(
+    replacements, source, policy
+):
+    assert is_registered_definition(
+        _impostor(**replacements), _registered_policy()
+    ) is False
+
+    tampered = dataclasses.replace(_registered_policy(), **replacements)
+    assert tampered.policy_id == SYNTHETIC_FIXTURE_ORDER_POLICY_ID
+    assert is_registered_definition(tampered, _registered_policy()) is False
+
+    tampered_policy = AdmissionPolicy(
+        registered_targets={TARGET_ID: TARGET_DEFINITION},
+        catalog=policy.catalog,
+        input_order_policy=tampered,
+    )
+    _reject(_base_descriptor(), source, tampered_policy, "feature_order_policy_tampered")
+
+
+def test_unregistered_active_policy_id_is_rejected(source, policy):
+    unregistered = FeatureOrderPolicy(
+        policy_id="caller_invented_input_order/v1",
+        status=SYNTHETIC_FIXTURE_INPUT_ORDER.status,
+        note=SYNTHETIC_FIXTURE_INPUT_ORDER.note,
+        ordered_feature_names=dict(SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names),
+    )
+    assert registered_feature_order_policy(unregistered.policy_id) is None
+    assert is_registered_definition(unregistered, _registered_policy()) is False
+
+    caller_policy = AdmissionPolicy(
+        registered_targets={TARGET_ID: TARGET_DEFINITION},
+        catalog=policy.catalog,
+        input_order_policy=unregistered,
+    )
+    _reject(
+        _descriptor(("feature_contract.order_policy_id", unregistered.policy_id)),
+        source,
+        caller_policy,
+        "feature_order_policy_not_registered",
+    )
+
+
+def test_registered_order_mapping_cannot_be_mutated():
+    names = SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names
+    with pytest.raises(TypeError):
+        names[FEATURE_SCHEMA_ID] = ("mock_feature_count",)  # type: ignore[index]
+    with pytest.raises(TypeError):
+        del names[FEATURE_SCHEMA_ID]  # type: ignore[attr-defined]
+    with pytest.raises(AttributeError):
+        names.update({FEATURE_SCHEMA_ID: ("mock_feature_count",)})  # type: ignore[attr-defined]
+    with pytest.raises(AttributeError):
+        names.clear()  # type: ignore[attr-defined]
+
+    assert tuple(names[FEATURE_SCHEMA_ID]) == SYNTHETIC_FIXTURE_INPUT_ORDER.order_for(
+        FEATURE_SCHEMA_ID
+    )
+
+
+def test_registered_order_tuples_cannot_be_mutated():
+    names = SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names[FEATURE_SCHEMA_ID]
+    assert isinstance(names, tuple)
+    with pytest.raises(TypeError):
+        names[0] = "mock_feature_count"  # type: ignore[index]
+
+
+def test_registered_policy_attributes_cannot_be_reassigned():
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        SYNTHETIC_FIXTURE_INPUT_ORDER.status = "CLINICAL_APPROVED"  # type: ignore[misc]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names = {}  # type: ignore[misc]
+    # Adding new state is impossible for a slots dataclass (raises TypeError or
+    # AttributeError depending on the interpreter's dataclass implementation).
+    with pytest.raises((TypeError, AttributeError)):
+        SYNTHETIC_FIXTURE_INPUT_ORDER.extra = True  # type: ignore[attr-defined]
+    assert not hasattr(SYNTHETIC_FIXTURE_INPUT_ORDER, "__dict__")
+
+
+def test_registry_mapping_cannot_be_mutated():
+    with pytest.raises(TypeError):
+        REGISTERED_FEATURE_ORDER_POLICIES["x/v1"] = SYNTHETIC_FIXTURE_INPUT_ORDER  # type: ignore[index]
+    with pytest.raises(TypeError):
+        del REGISTERED_FEATURE_ORDER_POLICIES[SYNTHETIC_FIXTURE_ORDER_POLICY_ID]  # type: ignore[attr-defined]
+    with pytest.raises(AttributeError):
+        REGISTERED_FEATURE_ORDER_POLICIES.update({})  # type: ignore[attr-defined]
+
+    assert registered_feature_order_policy(SYNTHETIC_FIXTURE_ORDER_POLICY_ID) is (
+        SYNTHETIC_FIXTURE_INPUT_ORDER
+    )
+
+
+def test_caller_dictionary_mutation_cannot_change_a_policy():
+    order = dict(SYNTHETIC_FIXTURE_INPUT_ORDER.ordered_feature_names)
+    policy = FeatureOrderPolicy(
+        policy_id="victim/v1",
+        status="SYNTHETIC_ONLY_NOT_CLINICAL",
+        ordered_feature_names=order,
+    )
+    before = policy.order_for(FEATURE_SCHEMA_ID)
+
+    order[FEATURE_SCHEMA_ID] = ("mock_feature_count",)
+    order["mock_clinical_v9"] = ("mock_feature_count",)
+
+    assert policy.order_for(FEATURE_SCHEMA_ID) == before
+    assert policy.order_for("mock_clinical_v9") is None
+
+
+def test_admission_policy_detaches_and_freezes_registered_targets():
+    targets = {TARGET_ID: TARGET_DEFINITION}
+    policy = AdmissionPolicy.from_shared_contracts(
+        registered_targets=targets,
+        input_order_policy=SYNTHETIC_FIXTURE_INPUT_ORDER,
+    )
+    targets[TARGET_ID] = "MUTATED DEFINITION"
+    targets["injected"] = "INJECTED"
+
+    assert policy.registered_targets[TARGET_ID] == TARGET_DEFINITION
+    assert "injected" not in policy.registered_targets
+    with pytest.raises(TypeError):
+        policy.registered_targets["injected"] = "INJECTED"  # type: ignore[index]
+
+
+def test_identity_helper_rejects_non_policy_objects():
+    for value in (None, "synthetic_fixture_input_order/v1", object(), {}):
+        assert is_registered_definition(value, _registered_policy()) is False
 
 
 def test_feature_order_policy_rejects_malformed_registrations():

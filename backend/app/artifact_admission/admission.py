@@ -37,6 +37,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Mapping, NoReturn
 
 from jsonschema import Draft202012Validator
@@ -48,6 +49,7 @@ from .errors import ArtifactAdmissionError
 from .feature_order import (
     CLINICAL_APPROVED_ORDER_STATUS,
     FeatureOrderPolicy,
+    is_registered_definition,
     registered_feature_order_policy,
 )
 from .sources import ArtifactReferenceError, ArtifactSource
@@ -170,11 +172,15 @@ class AdmissionPolicy:
     def __post_init__(self) -> None:
         if not self.registered_targets:
             raise ValueError("AdmissionPolicy requires at least one registered target.")
+        targets: dict[str, str] = {}
         for target_id, definition in self.registered_targets.items():
             if not isinstance(target_id, str) or not isinstance(definition, str):
                 raise ValueError("Registered target ids and definitions must be strings.")
             if not definition.strip():
                 raise ValueError("A registered target definition must not be blank.")
+            targets[target_id] = definition
+        # Detach from the caller's dict and make the registry read-only.
+        object.__setattr__(self, "registered_targets", MappingProxyType(targets))
 
     @classmethod
     def from_shared_contracts(
@@ -410,12 +416,25 @@ def _check_feature_contract(
     active = policy.input_order_policy
     if active is None:
         _fail("feature_order_policy_missing", "feature_contract.order_policy_id")
+
+    # The supplied policy must *be* the registered, code-reviewed definition:
+    # reusing a registered id with a different ordering, status, schema
+    # coverage or metadata is rejected. Registration identity -- not the id
+    # string alone -- is what makes a position binding trustworthy.
+    registered_active = registered_feature_order_policy(active.policy_id)
+    if registered_active is None:
+        _fail("feature_order_policy_not_registered", "feature_contract.order_policy_id")
+    if not is_registered_definition(active, registered_active):
+        _fail("feature_order_policy_tampered", "feature_contract.order_policy_id")
+
     declared_policy_id = contract["order_policy_id"]
     if registered_feature_order_policy(declared_policy_id) is None:
         _fail("feature_order_policy_unknown", "feature_contract.order_policy_id")
     if declared_policy_id != active.policy_id:
         _fail("feature_order_policy_mismatch", "feature_contract.order_policy_id")
-    approved_order = active.order_for(schema_id)
+    # Read the order from the registered definition, never from the caller's
+    # object, so a verified-identical copy and the registered policy agree.
+    approved_order = registered_active.order_for(schema_id)
     if approved_order is None:
         # A schema with no registered order cannot be admitted: guessing an
         # order would silently change the model's input semantics.

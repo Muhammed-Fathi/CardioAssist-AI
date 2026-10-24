@@ -38,6 +38,7 @@ Deliberate design choices:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Mapping
 
 #: Status reserved for a future clinically reviewed ordering. **No policy with
@@ -53,12 +54,23 @@ SYNTHETIC_FIXTURE_ORDER_POLICY_NOTE = (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FeatureOrderPolicy:
     """Explicit ordered feature binding for one or more feature-schema ids.
 
     ``ordered_feature_names`` maps a shared feature-schema id to the exact
     tuple of feature names in approved input position order.
+
+    Instances are immutable in practice, not only by convention:
+
+    * ``frozen=True`` blocks attribute assignment and ``slots=True`` blocks
+      adding new attributes;
+    * the mapping is copied into a :class:`types.MappingProxyType` and every
+      value into a ``tuple``, so item assignment, ``del``, ``update`` and
+      tuple mutation all raise instead of silently changing an order.
+
+    The copy also detaches the instance from the caller's dictionary: mutating
+    the original dict afterwards cannot alter this policy.
     """
 
     policy_id: str
@@ -66,21 +78,34 @@ class FeatureOrderPolicy:
     ordered_feature_names: Mapping[str, tuple[str, ...]]
     note: str = ""
 
-    def order_for(self, feature_schema_id: str) -> tuple[str, ...] | None:
-        return self.ordered_feature_names.get(feature_schema_id)
-
     def __post_init__(self) -> None:
         if not self.policy_id or not isinstance(self.policy_id, str):
             raise ValueError("A feature-order policy requires a non-empty policy id.")
         if not self.status or not isinstance(self.status, str):
             raise ValueError("A feature-order policy requires an explicit status.")
+        if not isinstance(self.note, str):
+            raise ValueError("A feature-order policy note must be a string.")
+        if not isinstance(self.ordered_feature_names, Mapping):
+            raise ValueError("A feature-order policy requires a schema-id mapping.")
+
+        frozen_order: dict[str, tuple[str, ...]] = {}
         for schema_id, names in self.ordered_feature_names.items():
             if not isinstance(schema_id, str) or not schema_id:
                 raise ValueError("Feature-order policy schema ids must be non-empty strings.")
-            if not names or not all(isinstance(name, str) and name for name in names):
+            if isinstance(names, (str, bytes)) or not isinstance(names, (tuple, list)):
+                raise ValueError("A registered feature order must be a sequence of names.")
+            frozen_names = tuple(names)
+            if not frozen_names or not all(isinstance(name, str) and name for name in frozen_names):
                 raise ValueError("A registered feature order must be a non-empty list of names.")
-            if len(set(names)) != len(names):
+            if len(set(frozen_names)) != len(frozen_names):
                 raise ValueError("A registered feature order must not repeat a feature name.")
+            frozen_order[schema_id] = frozen_names
+
+        # Detach from the caller's objects and make the contents read-only.
+        object.__setattr__(self, "ordered_feature_names", MappingProxyType(frozen_order))
+
+    def order_for(self, feature_schema_id: str) -> tuple[str, ...] | None:
+        return self.ordered_feature_names.get(feature_schema_id)
 
 
 #: The single registered admission order. Mock-fixture scope only.
@@ -116,11 +141,51 @@ SYNTHETIC_FIXTURE_INPUT_ORDER = FeatureOrderPolicy(
     },
 )
 
-REGISTERED_FEATURE_ORDER_POLICIES: Mapping[str, FeatureOrderPolicy] = {
-    SYNTHETIC_FIXTURE_INPUT_ORDER.policy_id: SYNTHETIC_FIXTURE_INPUT_ORDER,
-}
+#: Read-only registry: adding, replacing or deleting a registration at runtime
+#: raises instead of silently redefining an approved input order.
+REGISTERED_FEATURE_ORDER_POLICIES: Mapping[str, FeatureOrderPolicy] = MappingProxyType(
+    {SYNTHETIC_FIXTURE_INPUT_ORDER.policy_id: SYNTHETIC_FIXTURE_INPUT_ORDER}
+)
 
 
 def registered_feature_order_policy(policy_id: str) -> FeatureOrderPolicy | None:
     """Return the registered policy with this id, or ``None`` (fail closed)."""
     return REGISTERED_FEATURE_ORDER_POLICIES.get(policy_id)
+
+
+def is_registered_definition(candidate: FeatureOrderPolicy, registered: FeatureOrderPolicy) -> bool:
+    """Return whether ``candidate`` is byte-for-byte the registered definition.
+
+    Compares every registered field with strict semantics, so a caller cannot
+    reuse a registered ``policy_id`` while changing its feature ordering,
+    schema coverage, status or metadata:
+
+    * ``policy_id``, ``status`` and ``note`` must match exactly;
+    * the schema-id key set must match exactly (no added or removed schemas);
+    * every schema's ordered name tuple must match exactly.
+
+    Anything unreadable or unexpected fails closed (returns ``False``) rather
+    than raising, so callers report one uniform rejection.
+    """
+
+    if not isinstance(candidate, FeatureOrderPolicy):
+        return False
+    if candidate.policy_id != registered.policy_id:
+        return False
+    if candidate.status != registered.status:
+        return False
+    if candidate.note != registered.note:
+        return False
+    candidate_order = candidate.ordered_feature_names
+    registered_order = registered.ordered_feature_names
+    if not isinstance(candidate_order, Mapping):
+        return False
+    if set(candidate_order) != set(registered_order):
+        return False
+    for schema_id, names in registered_order.items():
+        candidate_names = candidate_order[schema_id]
+        if not isinstance(candidate_names, (tuple, list)):
+            return False
+        if tuple(candidate_names) != tuple(names):
+            return False
+    return True

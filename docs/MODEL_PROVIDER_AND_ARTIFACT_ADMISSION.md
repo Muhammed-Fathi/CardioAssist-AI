@@ -9,7 +9,7 @@ untouched.
 | Report label | Content |
 |---|---|
 | **IMPLEMENTED** | A narrowly typed internal CAD inference provider boundary with exactly one constructible implementation (`MOCK_SYNTHETIC`); a fail-closed placeholder for a future reviewed real provider; a versioned offline research-artifact descriptor plus a validator that enforces an explicit ordered feature binding, verifies calibration bytes, and always returns `RESEARCH_ONLY`. |
-| **TESTED** | `tests/backend/test_inference_provider.py` (33 tests) and `tests/backend/test_model_artifact_admission.py` (153 tests), plus the unchanged 371 existing backend regression tests and the 249 contract tests. Synthetic, non-clinical fixtures only. Local result for this checkout: `tests/backend` **557 passed**, `tests/contracts` **249 passed**, full suite **1075 passed**. |
+| **TESTED** | `tests/backend/test_inference_provider.py` (33 tests) and `tests/backend/test_model_artifact_admission.py` (177 tests), plus the unchanged 371 existing backend regression tests and the 249 contract tests. Synthetic, non-clinical fixtures only. Local result for this checkout: `tests/backend` **581 passed**, `tests/contracts` **249 passed**, full suite **1099 passed**. |
 | **PROPOSED / NOT APPLIED** | A one-sentence `AGENTS.md` M1c authorization amendment (§7). It stays unapplied until the human maintainer ratifies it; this PR does not self-authorize. |
 | **NOT IMPLEMENTED / UNAVAILABLE** | Real inference, artifact loading/deserialization, model fitting or tuning, dataset access, real calibration, thresholds, patient-facing score interpretation, serving eligibility, genuine TreeSHAP/LIME, an approved research feature-binding for the five Cleveland predictors, authentication, new endpoints, UI, clinical claims. |
 | **UNVERIFIED** | Windows-local behavior, any future artifact's scientific/clinical validity, and any supervisor, ethics or institutional approval. Nothing here is external validation. CI results are reported by the PR checks, not by this document. |
@@ -131,6 +131,43 @@ Input order is a contract, not an accident of serialization.
   unregistered `order_policy_id` (`feature_order_policy_unknown`) or a policy id
   different from the active one (`feature_order_policy_mismatch`) is rejected.
 
+**Registration identity, not just the id string.** The active
+`AdmissionPolicy.input_order_policy` must be the registered, code-reviewed
+definition. Admission resolves `policy_id` in the read-only registry and
+compares **every** registered field — policy id, status, note and the full
+schema→order mapping, including the exact name tuple per schema and the exact
+set of covered schemas:
+
+| Caller-supplied active policy | Result |
+|---|---|
+| the registered object, or a faithful reconstruction of it | admitted |
+| same registered id, different feature ordering | `feature_order_policy_tampered` |
+| same registered id, different status or note | `feature_order_policy_tampered` |
+| same registered id, added/removed/renamed schema coverage or shortened order | `feature_order_policy_tampered` |
+| a policy id that is not registered at all | `feature_order_policy_not_registered` |
+
+The comparison also reads the admitted order from the **registered** object, so
+even a descriptor built around an impostor's ordering cannot be admitted.
+
+**Immutability of the registered definition.** `FeatureOrderPolicy` is a
+`frozen=True, slots=True` dataclass whose mapping is copied into a
+`MappingProxyType` with tuple values at construction, and
+`REGISTERED_FEATURE_ORDER_POLICIES` is itself a `MappingProxyType`. Therefore:
+
+* item assignment, `del`, `update` and `clear` on the order mapping raise;
+* the order tuples are immutable;
+* field reassignment raises `FrozenInstanceError` and adding new state is
+  impossible;
+* the registry rejects insertions, replacements and deletions at runtime;
+* mutating the caller's original dictionary afterwards cannot change an
+  existing policy instance.
+
+`dataclasses.replace(...)` still produces a new object, but it is rejected at
+admission unless it reproduces the registered definition exactly. (As with any
+Python frozen dataclass, `object.__setattr__` remains an in-process escape hatch;
+the guarantees are about the declared API, not about defending a process from
+itself.)
+
 ### 3.3 Calibration integrity
 
 A declared calibration hash is only accepted when the corresponding **bytes**
@@ -177,7 +214,7 @@ registered definition text are never echoed, and nothing is logged.
 | Structure | `malformed_descriptor`, `descriptor_schema_invalid` |
 | Eligibility | `self_declared_serving_status_not_permitted`, `unsupported_research_label` |
 | Model | `unexpected_model_family`, `score_interpretation_mismatch`, `calibration_integrity_missing`, `calibration_reference_missing`, `calibration_reference_unexpected`, `calibration_reference_conflict`, `calibration_size_mismatch`, `calibration_sha256_mismatch`, `explainability_claim_unsupported`, `explainability_capability_mismatch` |
-| Features / order | `unknown_feature_schema`, `feature_schema_digest_mismatch`, `duplicate_feature`, `feature_set_mismatch`, `feature_order_policy_missing`, `feature_order_policy_unknown`, `feature_order_policy_mismatch`, `feature_order_unregistered`, `feature_order_mismatch`, `feature_position_binding_mismatch`, `feature_unit_mismatch`, `feature_type_mismatch`, `feature_required_mismatch`, `feature_schema_unsupported` |
+| Features / order | `unknown_feature_schema`, `feature_schema_digest_mismatch`, `duplicate_feature`, `feature_set_mismatch`, `feature_order_policy_missing`, `feature_order_policy_unknown`, `feature_order_policy_mismatch`, `feature_order_policy_not_registered`, `feature_order_policy_tampered`, `feature_order_unregistered`, `feature_order_mismatch`, `feature_position_binding_mismatch`, `feature_unit_mismatch`, `feature_type_mismatch`, `feature_required_mismatch`, `feature_schema_unsupported` |
 | Target | `unknown_target`, `target_definition_mismatch`, `cohort_pooling_not_admitted` |
 | Bytes / sources | `artifact_type_reference_mismatch`, `artifact_missing`, `artifact_empty`, `artifact_too_large`, `artifact_reference_invalid`, `artifact_symlink_not_permitted`, `artifact_size_mismatch`, `artifact_sha256_mismatch`, `preprocessing_sha256_mismatch`, `protocol_sha256_mismatch` |
 
@@ -229,7 +266,7 @@ clearly-fake template (`REPLACE_WITH_…` placeholders). It is intentionally
 
 ```bash
 python -m pip install -r backend/requirements-dev.txt
-python -m pytest tests/backend -q -W error     # 557 tests
+python -m pytest tests/backend -q -W error     # 581 tests
 python -m pytest tests/contracts -q            # 249 tests
 python -m pytest -q -W error                   # full repository suite
 git diff --check
