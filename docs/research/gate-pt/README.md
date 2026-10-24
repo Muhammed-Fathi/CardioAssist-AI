@@ -6,6 +6,7 @@
 - [Existing full M2a v0.1 research proposal](../gate-da/15_ai_model_development_evaluation_protocol_DRAFT.md): broader study rationale and conditional future multi-cohort evaluation.
 - [Existing formal Gate PT methodology checklist](../gate-da/05_gate_pt_methodology_outline_NOT_APPROVED.md): umbrella governance.
 - [Tracked approval action — Issue #29](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/29).
+- [M2f — Hungary scientific decision & conditional evaluation protocol (REVIEW DRAFT; NOT an experiment authorization)](07_m2f_hungary_scientific_decision_and_conditional_protocol.md).
 
 **Explicit status:** P-1 pending, P-3 closed; D-046 read-only local data audit only; D-046-EP not approved. No signed clinical study plan and no supervisor-approved, externally validated or clinical performance exists. A real **internal exploratory** model run has been executed and is recorded in [04](04_d047_first_internal_results_REVIEW_DRAFT.md) under the banner `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`; its register entry in [`docs/DECISIONS.md`](../../DECISIONS.md) remains `PENDING_EXPLICIT_HUMAN_RATIFICATION`. Earlier wording here said that no real model fit existed, which the merged record no longer supports; that wording is corrected without changing the register, the protocol, or any gate status.
 
