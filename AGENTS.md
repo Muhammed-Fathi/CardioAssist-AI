@@ -159,10 +159,30 @@ Binding conditions:
   separated; wearable payloads never reach a CAD provider.
 
 Governance record: this authorization is recorded **here** only. It adds no
-decision id to `docs/DECISIONS.md` and changes no register entry; the historical
-M1b.1 (2026-10-17), M2a/D-046 read-only (2026-10-21) and D-047 proposal
-**(still `PENDING_EXPLICIT_HUMAN_RATIFICATION`)** sections above remain in force
-exactly as written. The completed D-047 Cleveland run stays internal exploratory
-evidence, never a deployable model. This section authorizes no subsequent
-milestone; the next stage still requires its own explicit maintainer
-authorization and, for any real artifact, independent scientific review.
+decision id to `docs/DECISIONS.md` and changes no register entry. The historical
+**M1b.1 (2026-10-17)** and **M2a / D-046 read-only (2026-10-21)** sections above
+remain in force exactly as written.
+
+The older **D-047 / M2c proposal** section above is retained verbatim as a
+**historical snapshot** of the proposal as it was written on 2026-10-23; its own
+status line and "not effective until ratification" wording describe that earlier
+moment and are **not** a current-status statement. That limited internal
+exploratory authorization was subsequently **activated**: through the
+maintainer's `AUTHORIZE-D047-INTERNAL-CLEVELAND` review comment on PR #31, the
+merge of that PR (`434e49a`), and a separate locally signed, hash-bound,
+Git-ignored authorization manifest, after which the bounded Cleveland
+(`DA-A2`) internal exploratory experiment was executed by the human local
+operator under the required
+`INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED` label.
+
+That activation is exactly the pre-existing D-047 internal exploratory scope. It
+is not reopened, extended, reinterpreted or re-granted by this M1c section, and
+it authorizes nothing else: **Gate PT P-3 remains CLOSED**, no supervisor,
+ethics or institutional approval is claimed, the D-047 results stay internal
+exploratory evidence and never a deployable model, and **no new model fitting,
+artifact serving, patient-facing use, publication/novelty claim or clinical
+authorization is granted here**.
+
+This section authorizes no subsequent milestone; the next stage still requires
+its own explicit maintainer authorization and, for any real artifact,
+independent scientific review.

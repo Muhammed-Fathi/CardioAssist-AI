@@ -10,7 +10,7 @@ untouched.
 |---|---|
 | **IMPLEMENTED** | A narrowly typed internal CAD inference provider boundary with exactly one constructible implementation (`MOCK_SYNTHETIC`); a fail-closed placeholder for a future reviewed real provider; a versioned offline research-artifact descriptor plus a validator that enforces an explicit ordered feature binding, verifies calibration bytes, and always returns `RESEARCH_ONLY`. |
 | **TESTED** | `tests/backend/test_inference_provider.py` (33 tests) and `tests/backend/test_model_artifact_admission.py` (177 tests), plus the unchanged 371 existing backend regression tests and the 249 contract tests. Synthetic, non-clinical fixtures only. Local result for this checkout: `tests/backend` **581 passed**, `tests/contracts` **249 passed**, full suite **1099 passed**. |
-| **RATIFIED (2026-10-24)** | The human maintainer approved M1c as a narrowly scoped engineering milestone (provider boundary, offline `RESEARCH_ONLY` admission, synthetic order/calibration tests). Recorded in `AGENTS.md` §7; real inference, training, dataset access, clinical deployment, genuine SHAP/LIME, the approved contracts and P-1/P-3/P-5/D-046/D-047 remain unauthorized and unchanged. |
+| **RATIFIED (2026-10-24)** | The human maintainer approved M1c as a narrowly scoped engineering milestone (provider boundary, offline `RESEARCH_ONLY` admission, synthetic order/calibration tests). Recorded in the `AGENTS.md` M1c section; real inference, training, dataset access, clinical deployment, genuine SHAP/LIME and the approved contracts remain unauthorized. P-1 (pending), P-3 (closed), P-5 (prohibited) and D-046 (read-only audit) are unchanged, as is D-047's bounded internal exploratory scope, which was already activated and executed. |
 | **NOT IMPLEMENTED / UNAVAILABLE** | Real inference, artifact loading/deserialization, model fitting or tuning, dataset access, real calibration, thresholds, patient-facing score interpretation, serving eligibility, genuine TreeSHAP/LIME, an approved research feature-binding for the five Cleveland predictors, authentication, new endpoints, UI, clinical claims. |
 | **UNVERIFIED** | Windows-local behavior, any future artifact's scientific/clinical validity, and any supervisor, ethics or institutional approval. Nothing here is external validation. CI results are reported by the PR checks, not by this document. |
 
@@ -308,9 +308,10 @@ grant it.
 
 Its limits are unchanged and binding: no real model inference, no training or
 calibration, no patient-dataset access, no clinical deployment, no genuine
-SHAP/LIME computation, no change to P-1 (pending), P-3 (closed), P-5
+SHAP/LIME computation, and no change to P-1 (pending), P-3 (closed), P-5
 (prohibited), D-046 (read-only audit), D-047 (Cleveland-only internal
-exploratory) or the approved `/v1` contracts. No research-only artifact may be
+exploratory scope, already activated and executed under PR #31) or the approved
+`/v1` contracts. No research-only artifact may be
 served, and an independently reviewed research feature-binding mapping plus a
 real artifact packaging/provenance protocol remain future work under their own
 authorization.
