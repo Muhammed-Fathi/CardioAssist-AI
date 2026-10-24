@@ -30,6 +30,9 @@ from research.uci412.source_spec import (
     EXPECTED_NEGATIVE_COUNT,
     EXPECTED_POSITIVE_COUNT,
     EXPECTED_ROW_COUNT,
+    NUMERIC_BINARY_SOURCE_COLUMNS,
+    NUMERIC_BINARY_SOURCE_ENCODING_ID,
+    NUMERIC_BINARY_SOURCE_SEMANTICS,
     SOURCE_COLUMNS,
     SOURCE_FILENAME,
     SOURCE_ID,
@@ -38,6 +41,7 @@ from research.uci412.source_spec import (
     TARGET_COLUMN,
     TARGET_NEGATIVE_TOKENS,
     TARGET_POSITIVE_TOKENS,
+    TEXT_CATEGORICAL_SOURCE_COLUMNS,
 )
 
 PACKAGE_ROOT: Final[Path] = Path(__file__).resolve().parent
@@ -58,6 +62,12 @@ M3A_AUTHORIZATION_COMMENT: Final[str] = "AUTHORIZE-M3A-UCI412-INTERNAL-RESEARCH"
 M3A_AUTHORIZATION_STATUS: Final[str] = "AUTHORIZED_FOR_LOCAL_INTERNAL_RESEARCH"
 M3A_AUTHORIZING_MAINTAINER: Final[str] = "Muhammed Fathi"
 M3A_SIGNATURE_SEMANTICS: Final[str] = "HUMAN_ATTESTATION_FIELDS_NOT_A_CRYPTOGRAPHIC_SIGNATURE"
+#: Amendment A-1: the only registered numeric-binary source encoding. Binding the
+#: id (rather than restating the mapping) keeps one source of truth in
+#: ``source_spec.py`` and makes a silent mapping change impossible.
+M3A_PROTOCOL_AMENDMENT_ID: Final[str] = "M3A-AMENDMENT-A1"
+SOURCE_ENCODING_REGISTER_ID: Final[str] = NUMERIC_BINARY_SOURCE_ENCODING_ID
+
 M3A_LOCAL_SIGNATURE_ATTESTATION: Final[str] = (
     "I have reviewed and authorize this exact hash-bound local UCI-412 internal research "
     "benchmark. I understand Gate PT P-3 remains CLOSED, that no supervisor approval is "
@@ -120,6 +130,9 @@ class Uci412Config:
     numeric_features: tuple[str, ...]
     categorical_features: tuple[str, ...]
     category_codes: tuple[tuple[str, tuple[int, ...]], ...]
+    numeric_binary_source_features: tuple[str, ...]
+    source_encoding_register_id: str
+    protocol_amendment_id: str
     outer_folds: int
     inner_folds: int
     outer_repeat_seeds: tuple[int, ...]
@@ -215,6 +228,21 @@ class Uci412Config:
                     key: list(values) for key, values in self.category_codes
                 },
             },
+            "source_value_encoding": {
+                "protocol_amendment_id": self.protocol_amendment_id,
+                "register_id": self.source_encoding_register_id,
+                "numeric_binary_source_columns": list(self.numeric_binary_source_features),
+                "numeric_binary_semantics": {
+                    str(code): meaning for code, meaning in NUMERIC_BINARY_SOURCE_SEMANTICS
+                },
+                "numeric_binary_semantics_status": (
+                    "PROVISIONAL_INFERRED_FROM_ATTRIBUTE_NAMES_AND_SECONDARY_LITERATURE"
+                ),
+                "text_categorical_source_columns": list(TEXT_CATEGORICAL_SOURCE_COLUMNS),
+                "global_automatic_coercion": "FORBIDDEN",
+                "numeric_binary_model_codes_unchanged": [0, 1],
+                "encoded_parameter_count": DEFAULT_DICTIONARY.encoded_parameter_count(),
+            },
             "model_configuration": self.model_configuration(),
             "cv": {
                 "outer_folds": self.outer_folds,
@@ -307,6 +335,63 @@ def load_registered_config(plan_path: Path = PLAN_PATH) -> Uci412Config:
     )
     _require(dataset.get("independent_cohort") is False, "source must not be labelled an independent cohort")
     _require(dataset.get("uci_411_is_same_participants") is True, "UCI-411 identity rule")
+
+    revision = plan.get("protocol_revision")
+    _require(isinstance(revision, dict), "protocol revision block")
+    _require(revision.get("revision_id") == M3A_PROTOCOL_AMENDMENT_ID, "protocol revision id")
+    _require(
+        revision.get("change_class") == "SOURCE_VALUE_ENCODING_CORRECTION_ONLY",
+        "protocol revision change class",
+    )
+    _require(revision.get("gate_pt_p3_status") == "CLOSED", "protocol revision must keep P-3 closed")
+    _require(
+        revision.get("previous_authorization_status")
+        == "NOT_SUFFICIENT_FOR_THESE_BYTES_A_NEW_HUMAN_DECISION_AND_MANIFEST_ARE_REQUIRED",
+        "protocol revision must state that the previous authorization is not sufficient",
+    )
+
+    source_encoding = plan.get("source_encoding")
+    _require(isinstance(source_encoding, dict), "source encoding block")
+    _require(source_encoding.get("register_id") == SOURCE_ENCODING_REGISTER_ID, "source encoding id")
+    _require(
+        tuple(source_encoding.get("numeric_binary_source_columns", ()))
+        == NUMERIC_BINARY_SOURCE_COLUMNS,
+        "numeric-binary source column allowlist",
+    )
+    _require(
+        tuple(source_encoding.get("text_categorical_source_columns", ()))
+        == TEXT_CATEGORICAL_SOURCE_COLUMNS,
+        "text-categorical source column allowlist",
+    )
+    _require(
+        source_encoding.get("numeric_binary_source_semantics")
+        == {str(code): meaning for code, meaning in NUMERIC_BINARY_SOURCE_SEMANTICS},
+        "numeric-binary source semantics",
+    )
+    _require(
+        source_encoding.get("numeric_binary_semantics_status")
+        == "PROVISIONAL_INFERRED_NOT_OFFICIALLY_DOCUMENTED",
+        "the provisional status of the 0/1 direction must be stated",
+    )
+    _require(
+        tuple(source_encoding.get("accepted_numeric_values", ())) == (0, 1),
+        "accepted numeric source values must be exactly 0 and 1",
+    )
+    _require(
+        source_encoding.get("global_automatic_coercion") == "FORBIDDEN",
+        "global automatic conversion must be forbidden",
+    )
+    _require(source_encoding.get("affected_predictor_count") == 6, "six affected predictors")
+    _require(source_encoding.get("unaffected_predictor_count") == 10, "ten unaffected predictors")
+    _require(
+        source_encoding.get("encoded_parameter_count_unchanged") is True,
+        "the encoding correction may not change the encoded parameter count",
+    )
+    _require(
+        source_encoding.get("verification_status")
+        == "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24",
+        "source encoding must be human-audit verified",
+    )
 
     dictionary_block = plan.get("feature_dictionary")
     _require(isinstance(dictionary_block, dict), "feature dictionary settings")
@@ -470,6 +555,9 @@ def load_registered_config(plan_path: Path = PLAN_PATH) -> Uci412Config:
         numeric_features=numeric_features,
         categorical_features=categorical_features,
         category_codes=tuple((name, tuple(category_codes[name])) for name in categorical_features),
+        numeric_binary_source_features=dictionary.numeric_binary_source_columns(),
+        source_encoding_register_id=SOURCE_ENCODING_REGISTER_ID,
+        protocol_amendment_id=M3A_PROTOCOL_AMENDMENT_ID,
         outer_folds=_positive_int(cv["outer_folds"], "outer_folds"),
         inner_folds=_positive_int(cv["inner_folds"], "inner_folds"),
         outer_repeat_seeds=tuple(cv["outer_repeat_seeds"]),
@@ -507,6 +595,19 @@ def load_registered_config(plan_path: Path = PLAN_PATH) -> Uci412Config:
         and tuple(name for name in config.feature_names if name in config.numeric_features)
         == config.numeric_features,
         "feature order and types",
+    )
+    _require(
+        config.numeric_binary_source_features == NUMERIC_BINARY_SOURCE_COLUMNS,
+        "numeric-binary source columns must be the reviewed six, in source order",
+    )
+    _require(
+        set(config.numeric_binary_source_features) <= set(config.categorical_features),
+        "numeric-binary source columns must stay categorical (binary) model inputs",
+    )
+    _require(
+        dict(config.category_code_map)["DM"] == (0, 1)
+        and dict(config.category_code_map)["Typical Chest Pain"] == (0, 1),
+        "numeric-binary source columns must encode to exactly 0/1",
     )
     return config
 

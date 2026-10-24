@@ -46,3 +46,18 @@ python -m research.uci412 run        # Windows-local; requires RUN M3A UCI412 LO
 
 Specification, blockers, comparison with Cleveland, and the human authorization
 proposal: `docs/research/gate-pt/08_m3a_uci412_source_specific_benchmark_SPECIFICATION.md`.
+Ratification/activation packet: `docs/research/gate-pt/09_m3a_uci412_internal_research_RATIFICATION_PACKET.md`.
+
+## Source encoding (Amendment A-1, dictionary schema 1.1.0 / panel 1.1.0)
+
+A human-executed, read-only, SHA-256-verified audit of all 303 records showed that six admitted
+categorical predictors — `DM`, `HTN`, `Current Smoker`, `EX-Smoker`, `FH`, `Typical Chest Pain` — are
+delivered as **numeric `0`/`1`**, while `Sex`, `DLP`, `Atypical`, `Nonanginal`, `Exertional CP` and
+`Dyspnea` hold registered text values. Those six now carry one explicit numeric-binary source encoding
+(`0` → absent/false, `1` → present/true; model codes unchanged). Only an actual integer/numeric `0` or `1`
+is accepted there: text tokens, booleans, non-binary or non-integral numbers, non-finite cells and mixed
+representations **fail closed**, and no other column has a numeric conversion or any global coercion. The
+direction is a provisional inference, not a published codebook (residual item S-9). Every hash from the
+pre-amendment freeze is superseded: the previous signed local manifest is **not** reusable and a new human
+decision plus a new local manifest are required. See
+`docs/research/gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md`.

@@ -15,6 +15,25 @@
 > - **Nothing here is a new feasibility study, dataset audit, or literature review.** It exists only to
 >   give the maintainer one place to (a) accept or reject the residual scientific uncertainties and
 >   (b) execute the exact, already-specified activation sequence.
+>
+> ### ⚠ Superseded in part by Amendment A-1 (2026-10-24) — `M3A-AMENDMENT-A1`
+>
+> [Doc 10](10_m3a_uci412_source_encoding_AMENDMENT_A1.md) corrects the **source encoding** of six admitted
+> predictors (numeric `0`/`1` in the delivered workbook) and therefore bumps the feature dictionary to
+> **schema 1.1.0** and the executable panel to **1.1.0**. Consequences for this packet:
+>
+> - every SHA-256 in §2 below is **obsolete**; the human must recompute the plan, dictionary and doc-08
+>   hashes at the *amendment* merge commit and bind those instead (§6.6 of this packet still describes the
+>   correct procedure);
+> - the local-manifest table in §6.5 must additionally bind `panel_schema_version = "1.1.0"`,
+>   `dictionary_schema_version = "1.1.0"` and `protocol_amendment_id = "M3A-AMENDMENT-A1"`;
+> - residual item **S-1** is partially resolved (the twelve admitted categorical encodings are now
+>   human-audited) and the new residual item **S-9** (the provisional `0` = absent, `1` = present direction)
+>   joins the list of items that require explicit human acceptance;
+> - the scope in §3, the sample-size findings in §5, the guards, the gates and every prohibition are
+>   **unchanged** — including **Gate PT P-3 CLOSED**.
+>
+> The historical text below is retained verbatim as the state of the packet before the amendment.
 
 ---
 

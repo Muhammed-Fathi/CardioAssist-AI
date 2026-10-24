@@ -6,6 +6,14 @@ repository. Exact source column names come from the UCI-412/411 public column
 structure documented in ``research/audit/registry.py``; exact workbook header
 spelling and column order remain unverified until a local human audit confirms
 them (see ``docs/research/gate-pt/08_m3a_uci412_source_specific_benchmark_SPECIFICATION.md``).
+
+Amendment A-1 (2026-10-24, ``docs/research/gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md``)
+records the maintainer-executed, SHA-256-verified read-only audit of all 303
+records: six admitted categorical predictors carry **numeric** ``0``/``1`` cells
+rather than the previously *assumed* ``Y``/``N``/``Yes``/``No`` text tokens. The
+six are enumerated in ``NUMERIC_BINARY_SOURCE_COLUMNS`` and are the **only**
+columns for which any numeric-to-code source conversion is permitted. Every
+other admitted categorical predictor keeps its registered text vocabulary.
 """
 from __future__ import annotations
 
@@ -110,6 +118,64 @@ PROHIBITED_PREDICTORS: Final[frozenset[str]] = frozenset(
 #: Exact source target tokens (case sensitive, as recorded by the local audit).
 TARGET_POSITIVE_TOKENS: Final[tuple[str, ...]] = ("Cad",)
 TARGET_NEGATIVE_TOKENS: Final[tuple[str, ...]] = ("Normal",)
+
+#: Amendment A-1 — the **exhaustive** set of admitted predictors whose delivered
+#: cells are numeric ``0``/``1`` instead of text tokens.
+#:
+#: Evidence (recorded by the maintainer's human-executed, read-only, SHA-256
+#: verified local audit of 2026-10-24 over all 303 source records and all 12
+#: admitted categorical predictors; the workbook bytes were verified identical
+#: before and after the audit):
+#:
+#: * ``DM`` 0/1 = 213/90, ``HTN`` 124/179, ``Current Smoker`` 240/63,
+#:   ``EX-Smoker`` 293/10, ``FH`` 255/48, ``Typical Chest Pain`` 139/164;
+#:   no blanks in any of the six.
+#: * The remaining six admitted categorical predictors (``Sex``, ``DLP``,
+#:   ``Atypical``, ``Nonanginal``, ``Exertional CP``, ``Dyspnea``) hold
+#:   registered values in 303/303 records.
+#: * Secondary literature describes these six attributes as binary 0/1
+#:   (``https://doi.org/10.3390/electronics11030315`` Table 1;
+#:   ``https://pmc.ncbi.nlm.nih.gov/articles/PMC7037941/``).
+#: * Dataset identity: ``https://doi.org/10.24432/C5Q31T``.
+#:
+#: This is supporting evidence, not an official per-column codebook: the UCI
+#: landing page documents no per-field coding (see doc 08 §5.5). The audit
+#: establishes the *representation* (numeric 0/1); the *direction*
+#: (0 = absent/false, 1 = present/true) is a provisional, explicitly reviewed
+#: inference recorded in the feature dictionary and the amendment document.
+#:
+#: Duplicated here in code — like ``PRIMARY_PANEL_COLUMNS`` — so a JSON-only
+#: dictionary edit can never widen or narrow the numeric-conversion allowlist.
+NUMERIC_BINARY_SOURCE_COLUMNS: Final[tuple[str, ...]] = (
+    "DM",
+    "HTN",
+    "Current Smoker",
+    "EX-Smoker",
+    "FH",
+    "Typical Chest Pain",
+)
+
+#: Identifier of the only permitted numeric-to-code source conversion. A single
+#: fixed id keeps the mapping auditable: the adapter has no other numeric
+#: categorical path, and no global automatic coercion exists anywhere.
+NUMERIC_BINARY_SOURCE_ENCODING_ID: Final[str] = "numeric_binary_0_1_v1"
+NUMERIC_BINARY_SOURCE_ENCODING_KIND: Final[str] = "NUMERIC_BINARY_0_1"
+NUMERIC_BINARY_SOURCE_SEMANTICS: Final[tuple[tuple[int, str], ...]] = (
+    (0, "ABSENT_OR_FALSE"),
+    (1, "PRESENT_OR_TRUE"),
+)
+
+#: Columns whose registered text vocabularies are preserved unchanged. Recorded
+#: as an explicit positive statement so "the other six keep their vocabulary" is
+#: a checkable fact rather than an omission.
+TEXT_CATEGORICAL_SOURCE_COLUMNS: Final[tuple[str, ...]] = (
+    "Sex",
+    "DLP",
+    "Atypical",
+    "Nonanginal",
+    "Exertional CP",
+    "Dyspnea",
+)
 
 #: Tokens that indicate the wrong source file rather than a missing value.
 #: ``?`` is the UCI-45 missing marker and ``-9`` its raw numeric sentinel.

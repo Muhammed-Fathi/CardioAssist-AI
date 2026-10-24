@@ -2,6 +2,15 @@
   "protocol_id": "CAI-UCI412-CAD-BENCHMARK-V0.1",
   "protocol_status": "PROPOSED_NOT_FROZEN_NOT_SUPERVISOR_APPROVED",
   "protocol_status_statement": "Registered research configuration for review. It authorizes nothing: no real source may be read and no model may be fitted until a separate M3a local internal-research authorization exists and the plan hash is bound into it.",
+  "protocol_revision": {
+    "revision_id": "M3A-AMENDMENT-A1",
+    "date": "2026-10-24",
+    "amendment_document": "docs/research/gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md",
+    "change_class": "SOURCE_VALUE_ENCODING_CORRECTION_ONLY",
+    "summary": "Six admitted predictors (DM, HTN, Current Smoker, EX-Smoker, FH, Typical Chest Pain) are numeric 0/1 in the delivered workbook and are now registered with an explicit numeric-binary source encoding. Panel membership, column order, target mapping, model families, parameter grids, nested-CV folds/seeds, leakage checks, threshold and output privacy controls are unchanged.",
+    "previous_authorization_status": "NOT_SUFFICIENT_FOR_THESE_BYTES_A_NEW_HUMAN_DECISION_AND_MANIFEST_ARE_REQUIRED",
+    "gate_pt_p3_status": "CLOSED"
+  },
   "report_banner": "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
   "scientific_question": "Source-specific classification of current, angiography-referenced CAD presence (Cath 'Cad' vs 'Normal') in the UCI-412 cohort using information plausibly available at the pre-angiography assessment. This is NOT future-event or 30-day risk prediction.",
   "prohibited_interpretations": [
@@ -89,11 +98,51 @@
     "independent_cohort": false,
     "uci_411_is_same_participants": true
   },
+  "source_encoding": {
+    "register_id": "numeric_binary_0_1_v1",
+    "verification_status": "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24",
+    "numeric_binary_source_columns": [
+      "DM",
+      "HTN",
+      "Current Smoker",
+      "EX-Smoker",
+      "FH",
+      "Typical Chest Pain"
+    ],
+    "numeric_binary_source_semantics": {
+      "0": "ABSENT_OR_FALSE",
+      "1": "PRESENT_OR_TRUE"
+    },
+    "numeric_binary_semantics_status": "PROVISIONAL_INFERRED_NOT_OFFICIALLY_DOCUMENTED",
+    "text_categorical_source_columns": [
+      "Sex",
+      "DLP",
+      "Atypical",
+      "Nonanginal",
+      "Exertional CP",
+      "Dyspnea"
+    ],
+    "accepted_numeric_values": [
+      0,
+      1
+    ],
+    "rejected_in_numeric_binary_columns": [
+      "text tokens (including '0', '1', 'Y', 'N', 'Yes', 'No')",
+      "boolean cells",
+      "non-binary or non-integral numbers",
+      "non-finite cells",
+      "unknown or malformed values"
+    ],
+    "global_automatic_coercion": "FORBIDDEN",
+    "affected_predictor_count": 6,
+    "unaffected_predictor_count": 10,
+    "encoded_parameter_count_unchanged": true
+  },
   "feature_dictionary": {
     "schema_id": "uci412_research_feature_dictionary",
-    "schema_version": "1.0.0",
+    "schema_version": "1.1.0",
     "panel_id": "uci412_basic_clinical_v1",
-    "panel_version": "1.0.0",
+    "panel_version": "1.1.0",
     "selection_basis": "PRESPECIFIED_AVAILABILITY_AND_WORKFLOW_NOT_OUTCOME_DATA"
   },
   "cv": {
@@ -163,7 +212,8 @@
     "learn_transforms_inside_inner_cv": true,
     "missing_reason_columns": "FORBIDDEN_NOT_RECORDED_IN_UCI412",
     "fake_synthetic_flag_for_real_data": "FORBIDDEN",
-    "global_transformation_before_cv": "FORBIDDEN"
+    "global_transformation_before_cv": "FORBIDDEN",
+    "categorical_source_value_encoding": "explicit_registered_numeric_binary_0_1_for_six_verified_columns_and_text_vocabulary_for_the_rest"
   },
   "metrics": {
     "primary": "roc_auc",

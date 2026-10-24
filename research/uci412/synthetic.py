@@ -14,17 +14,20 @@ import numpy as np
 
 from research.audit.xlsx_reader import write_synthetic_xlsx
 from research.uci412.config import DEFAULT_CONFIG, Uci412Config
-from research.uci412.source_spec import SOURCE_COLUMNS, TARGET_COLUMN
+from research.uci412.source_spec import (
+    NUMERIC_BINARY_SOURCE_COLUMNS,
+    SOURCE_COLUMNS,
+    TARGET_COLUMN,
+)
 
 SYNTHETIC_SCOPE = "SYNTHETIC_SOFTWARE_FIXTURE_NOT_UCI_DATA"
 DEFAULT_SYNTHETIC_SEED = 412303
 
-_BINARY_COLUMNS: tuple[str, ...] = (
-    "DM",
-    "HTN",
-    "Current Smoker",
-    "EX-Smoker",
-    "FH",
+#: Text-token binary columns. The six numeric-0/1 columns of Amendment A-1 are
+#: generated separately so the fixture matches the audited source encoding: a
+#: synthetic workbook that still emitted "Y"/"N" there would exercise a source
+#: representation this harness now correctly refuses.
+_TEXT_BINARY_COLUMNS: tuple[str, ...] = (
     "Obesity",
     "CRF",
     "CVA",
@@ -51,6 +54,8 @@ _BINARY_COLUMNS: tuple[str, ...] = (
     "Poor R Progression",
     "BBB",
 )
+
+_NUMERIC_BINARY_COLUMNS: tuple[str, ...] = NUMERIC_BINARY_SOURCE_COLUMNS
 
 _NUMERIC_RANGES: dict[str, tuple[float, float]] = {
     "Age": (30.0, 86.0),
@@ -108,9 +113,12 @@ def synthetic_workbook_rows(
         )
         record["Region RWMA"] = int(record["Region RWMA"])
         record["Sex"] = "Male" if rng.random() < 0.72 else "Fmale"
-        vector = rng.random(len(_BINARY_COLUMNS))
-        for column, probability in zip(_BINARY_COLUMNS, vector, strict=True):
+        vector = rng.random(len(_TEXT_BINARY_COLUMNS))
+        for column, probability in zip(_TEXT_BINARY_COLUMNS, vector, strict=True):
             record[column] = "Y" if probability < 0.35 else "N"
+        for column in _NUMERIC_BINARY_COLUMNS:
+            # Numeric 0/1, exactly the audited DA-A1 representation (Amendment A-1).
+            record[column] = int(rng.integers(0, 2))
         record["Function Class"] = int(rng.integers(1, 5))
         record["VHD"] = "N" if rng.random() < 0.6 else ("Mild" if rng.random() < 0.5 else "Moderate")
         record[TARGET_COLUMN] = "Cad" if int(labels[index]) == 1 else "Normal"

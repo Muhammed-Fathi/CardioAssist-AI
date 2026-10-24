@@ -19,20 +19,29 @@ from research.uci412.errors import SchemaError
 from research.uci412.source_spec import (
     ECHO_COLUMNS,
     LAB_COLUMNS,
+    NUMERIC_BINARY_SOURCE_COLUMNS,
+    NUMERIC_BINARY_SOURCE_ENCODING_ID,
+    NUMERIC_BINARY_SOURCE_ENCODING_KIND,
+    NUMERIC_BINARY_SOURCE_SEMANTICS,
     PREDICTOR_COLUMNS,
     PROHIBITED_PREDICTORS,
     SOURCE_COLUMNS,
     TARGET_COLUMN,
+    TEXT_CATEGORICAL_SOURCE_COLUMNS,
     column_group,
 )
 
 PACKAGE_ROOT: Final[Path] = Path(__file__).resolve().parent
 DICTIONARY_PATH: Final[Path] = PACKAGE_ROOT / "schemas" / "uci412_feature_dictionary.v1.json"
 DICTIONARY_SCHEMA_ID: Final[str] = "uci412_research_feature_dictionary"
-DICTIONARY_SCHEMA_VERSION: Final[str] = "1.0.0"
+#: Amendment A-1 (2026-10-24) bumps 1.0.0 -> 1.1.0 for a **source-value encoding
+#: correction only**: the six columns in ``NUMERIC_BINARY_SOURCE_COLUMNS`` are
+#: recorded as numeric 0/1 cells. No column, panel membership, ordering, model,
+#: seed, fold, metric, threshold or privacy rule changes.
+DICTIONARY_SCHEMA_VERSION: Final[str] = "1.1.0"
 
 PRIMARY_PANEL_ID: Final[str] = "uci412_basic_clinical_v1"
-PRIMARY_PANEL_VERSION: Final[str] = "1.0.0"
+PRIMARY_PANEL_VERSION: Final[str] = "1.1.0"
 
 #: Ordered executable panel. Duplicated deliberately: the JSON must agree with
 #: this tuple, and any new predictor requires a reviewed code change.
@@ -106,8 +115,78 @@ REQUIRED_FEATURE_FIELDS: Final[tuple[str, ...]] = (
     "plausible_range",
 )
 
+#: Fields required inside a registered ``source_value_encoding`` block.
+REQUIRED_SOURCE_ENCODING_FIELDS: Final[tuple[str, ...]] = (
+    "encoding_id",
+    "source_value_kind",
+    "absent_source_value",
+    "present_source_value",
+    "absent_model_code",
+    "present_model_code",
+    "verification_status",
+    "semantic_interpretation",
+    "semantic_evidence",
+    "semantic_uncertainty",
+    "legacy_tokens_rejected",
+    "observed_aggregate_counts",
+)
+
+#: Only a human-executed, SHA-256-verified, read-only local audit may justify a
+#: numeric source conversion. Anything weaker is not registrable.
+SOURCE_ENCODING_VERIFICATION_STATUSES: Final[frozenset[str]] = frozenset(
+    {
+        "HUMAN_SHA256_VERIFIED_LOCAL_READ_ONLY_AUDIT_2026-10-24",
+    }
+)
+
 NUMERIC_ROLES: Final[frozenset[str]] = frozenset({"numeric"})
 CATEGORICAL_ROLES: Final[frozenset[str]] = frozenset({"categorical"})
+
+
+@dataclass(frozen=True, slots=True)
+class SourceValueEncoding:
+    """Explicit numeric-binary source encoding for one verified source column.
+
+    The object exists to make one specific, audited fact reviewable: the
+    delivered cells for this column are numeric ``0``/``1`` and must be read as
+    ``0 = absent/false`` and ``1 = present/true``. It is *not* a general
+    coercion facility: no other numeric value, no text token, and no boolean is
+    accepted, and no other column may register an encoding of this kind.
+    """
+
+    encoding_id: str
+    source_value_kind: str
+    absent_source_value: int
+    present_source_value: int
+    absent_model_code: int
+    present_model_code: int
+    verification_status: str
+    semantic_interpretation: str
+    semantic_evidence: tuple[str, ...]
+    semantic_uncertainty: str
+    legacy_tokens_rejected: tuple[str, ...]
+    observed_aggregate_counts: Mapping[str, int]
+
+    @property
+    def model_codes(self) -> tuple[int, int]:
+        return (self.absent_model_code, self.present_model_code)
+
+    def as_review_dict(self) -> dict[str, Any]:
+        return {
+            "encoding_id": self.encoding_id,
+            "source_value_kind": self.source_value_kind,
+            "absent_source_value": self.absent_source_value,
+            "present_source_value": self.present_source_value,
+            "absent_model_code": self.absent_model_code,
+            "present_model_code": self.present_model_code,
+            "verification_status": self.verification_status,
+            "semantic_interpretation": self.semantic_interpretation,
+            "semantic_evidence": list(self.semantic_evidence),
+            "semantic_uncertainty": self.semantic_uncertainty,
+            "legacy_tokens_rejected": list(self.legacy_tokens_rejected),
+            "observed_aggregate_counts": dict(self.observed_aggregate_counts),
+            "aggregate_counts_are_descriptive_not_enforced": True,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +215,7 @@ class FeatureSpec:
     vocabulary: Mapping[str, int] | None
     plausible_range: tuple[float, float] | None
     source_reported_typical_range: tuple[float, float] | None
+    source_value_encoding: SourceValueEncoding | None = None
 
     @property
     def is_numeric(self) -> bool:
@@ -147,6 +227,12 @@ class FeatureSpec:
 
     @property
     def codes(self) -> tuple[int, ...]:
+        """Registered model codes for a categorical column (text or numeric source)."""
+        if self.source_value_encoding is not None:
+            # Keeping the model-side codes at 0/1 means the executable panel,
+            # its reference coding and its parameter count are unchanged by the
+            # source-representation correction.
+            return tuple(sorted(set(self.source_value_encoding.model_codes)))
         if not self.vocabulary:
             raise SchemaError(f"Column '{self.column}' has no registered categorical vocabulary.")
         return tuple(sorted(set(int(value) for value in self.vocabulary.values())))
@@ -172,6 +258,9 @@ class FeatureSpec:
             "admission": self.admission,
             "panels": list(self.panels),
             "exclusion_reason": self.exclusion_reason,
+            "source_value_encoding": (
+                None if self.source_value_encoding is None else self.source_value_encoding.as_review_dict()
+            ),
         }
 
 
@@ -248,6 +337,14 @@ class FeatureDictionary:
     def category_codes(self) -> dict[str, tuple[int, ...]]:
         return {column: self.feature(column).codes for column in self.categorical_columns()}
 
+    def numeric_binary_source_columns(self) -> tuple[str, ...]:
+        """Admitted columns whose delivered cells are numeric 0/1 (Amendment A-1)."""
+        return tuple(
+            column
+            for column in self.executable_columns()
+            if self.feature(column).source_value_encoding is not None
+        )
+
     def encoded_parameter_count(self, columns: tuple[str, ...] | None = None) -> int:
         """Reference-coded parameter count for the named columns (see sample_size.py)."""
         selected = self.executable_columns() if columns is None else columns
@@ -297,6 +394,89 @@ def _as_range(value: Any, column: str) -> tuple[float, float] | None:
     return (low, high)
 
 
+def _type_is_int(value: Any) -> bool:
+    """A true integer, never a ``bool`` (``True == 1`` would smuggle a code)."""
+    return type(value) is int
+
+
+def _build_source_value_encoding(raw: Any, column: str) -> SourceValueEncoding:
+    """Validate the explicit numeric-binary source encoding of one column.
+
+    Only the single registered encoding id/kind is acceptable, and only the
+    registered 0 -> absent/false, 1 -> present/true direction. A dictionary edit
+    can therefore document the fact but cannot redefine it, invert it, add a
+    second numeric mapping, or widen it to another column.
+    """
+    _require(isinstance(raw, dict), f"'{column}' source_value_encoding must be an object")
+    for field in REQUIRED_SOURCE_ENCODING_FIELDS:
+        _require(field in raw, f"'{column}' source_value_encoding is missing '{field}'")
+    _require(
+        raw["encoding_id"] == NUMERIC_BINARY_SOURCE_ENCODING_ID,
+        f"'{column}' registers an unknown source encoding id",
+    )
+    _require(
+        raw["source_value_kind"] == NUMERIC_BINARY_SOURCE_ENCODING_KIND,
+        f"'{column}' registers an unknown source value kind",
+    )
+    for field, expected in (
+        ("absent_source_value", 0),
+        ("present_source_value", 1),
+        ("absent_model_code", 0),
+        ("present_model_code", 1),
+    ):
+        _require(
+            _type_is_int(raw[field]) and raw[field] == expected,
+            f"'{column}' source_value_encoding '{field}' must be exactly {expected}",
+        )
+    _require(
+        raw["verification_status"] in SOURCE_ENCODING_VERIFICATION_STATUSES,
+        f"'{column}' source encoding lacks human-audit verification status",
+    )
+    for field in ("semantic_interpretation", "semantic_uncertainty"):
+        _require(
+            isinstance(raw[field], str) and raw[field].strip(),
+            f"'{column}' source_value_encoding '{field}' must be a non-empty statement",
+        )
+    _require(
+        isinstance(raw["semantic_evidence"], list)
+        and raw["semantic_evidence"]
+        and all(isinstance(item, str) and item.strip() for item in raw["semantic_evidence"]),
+        f"'{column}' source_value_encoding semantic evidence must be a non-empty list of strings",
+    )
+    legacy = raw["legacy_tokens_rejected"]
+    _require(
+        isinstance(legacy, list) and all(isinstance(item, str) and item for item in legacy),
+        f"'{column}' source_value_encoding legacy token list must be strings",
+    )
+    counts = raw["observed_aggregate_counts"]
+    _require(isinstance(counts, dict), f"'{column}' observed aggregate counts must be an object")
+    _require(
+        all(isinstance(key, str) for key in counts) and all(_type_is_int(v) and v >= 0 for v in counts.values()),
+        f"'{column}' observed aggregate counts must be non-negative integers",
+    )
+    records = counts.get("records")
+    zeros = counts.get("0")
+    ones = counts.get("1")
+    _require(
+        _type_is_int(records) and _type_is_int(zeros) and _type_is_int(ones) and zeros + ones <= records,
+        f"'{column}' observed aggregate counts are inconsistent",
+    )
+    return SourceValueEncoding(
+        encoding_id=str(raw["encoding_id"]),
+        source_value_kind=str(raw["source_value_kind"]),
+        absent_source_value=int(raw["absent_source_value"]),
+        present_source_value=int(raw["present_source_value"]),
+        absent_model_code=int(raw["absent_model_code"]),
+        present_model_code=int(raw["present_model_code"]),
+        verification_status=str(raw["verification_status"]),
+        semantic_interpretation=str(raw["semantic_interpretation"]),
+        semantic_evidence=tuple(str(item) for item in raw["semantic_evidence"]),
+        semantic_uncertainty=str(raw["semantic_uncertainty"]),
+        legacy_tokens_rejected=tuple(str(item) for item in legacy),
+        observed_aggregate_counts={str(key): int(value) for key, value in counts.items()},
+    )
+
+
 def _build_feature(raw: Mapping[str, Any]) -> FeatureSpec:
     for field in REQUIRED_FEATURE_FIELDS:
         _require(field in raw, f"missing field '{field}'")
@@ -310,6 +490,14 @@ def _build_feature(raw: Mapping[str, Any]) -> FeatureSpec:
     _require(isinstance(raw["uncertainty"], str) and raw["uncertainty"], f"'{column}' uncertainty")
 
     vocabulary = raw["vocabulary"]
+    encoding_raw = raw.get("source_value_encoding")
+    _require(
+        not (vocabulary is not None and encoding_raw is not None),
+        f"'{column}' may not register both a text vocabulary and a numeric source encoding",
+    )
+    source_encoding = (
+        None if encoding_raw is None else _build_source_value_encoding(encoding_raw, column)
+    )
     if vocabulary is not None:
         _require(isinstance(vocabulary, dict) and vocabulary, f"'{column}' vocabulary")
         codes = [int(value) for value in vocabulary.values()]
@@ -328,7 +516,23 @@ def _build_feature(raw: Mapping[str, Any]) -> FeatureSpec:
                 f"'{column}' ordinal codes must be a contiguous zero- or one-based sequence",
             )
     if raw["role"] == "categorical":
-        _require(vocabulary is not None, f"categorical '{column}' requires a registered vocabulary")
+        _require(
+            vocabulary is not None or source_encoding is not None,
+            f"categorical '{column}' requires a registered vocabulary or a numeric source encoding",
+        )
+        _require(
+            source_encoding is None or raw["kind"] == "binary",
+            f"'{column}' numeric source encoding is only defined for binary columns",
+        )
+    else:
+        _require(
+            source_encoding is None,
+            f"'{column}' is numeric; a categorical source encoding may not be registered",
+        )
+    _require(
+        (source_encoding is None) == (column not in NUMERIC_BINARY_SOURCE_COLUMNS),
+        f"'{column}' numeric source encoding contradicts the reviewed column allowlist",
+    )
 
     plausible_range = _as_range(raw["plausible_range"], column)
     if raw["role"] == "numeric" and raw["admission"] == "ADMITTED_PRIMARY_PANEL":
@@ -363,6 +567,7 @@ def _build_feature(raw: Mapping[str, Any]) -> FeatureSpec:
         ),
         plausible_range=plausible_range,
         source_reported_typical_range=_as_range(raw["source_reported_typical_range"], column),
+        source_value_encoding=source_encoding,
     )
 
 
@@ -382,6 +587,43 @@ def load_feature_dictionary(path: Path = DICTIONARY_PATH) -> FeatureDictionary:
     _require(tuple(raw_features) == SOURCE_COLUMNS, "features must follow the registered source order")
     features = {column: _build_feature(payload) for column, payload in raw_features.items()}
     _require(len(features) == len(SOURCE_COLUMNS), "one entry per source column")
+
+    # Amendment A-1: the numeric-binary source encoding is a closed allowlist.
+    encoded_columns = tuple(
+        column for column, spec in features.items() if spec.source_value_encoding is not None
+    )
+    _require(
+        len(encoded_columns) == len(NUMERIC_BINARY_SOURCE_COLUMNS)
+        and set(encoded_columns) == set(NUMERIC_BINARY_SOURCE_COLUMNS),
+        "the numeric-binary source encoding allowlist does not match the reviewed six columns",
+    )
+    _require(
+        not (set(NUMERIC_BINARY_SOURCE_COLUMNS) & set(TEXT_CATEGORICAL_SOURCE_COLUMNS)),
+        "a column cannot be both numeric-binary and text-categorical in the source",
+    )
+    for column in NUMERIC_BINARY_SOURCE_COLUMNS:
+        _require(column in PRIMARY_PANEL_COLUMNS, f"'{column}' numeric source encoding outside the panel")
+        spec = features[column]
+        _require(spec.is_categorical, f"'{column}' numeric 0/1 source column must stay categorical (binary)")
+        _require(spec.kind == "binary", f"'{column}' numeric 0/1 source column must be binary")
+        _require(spec.codes == (0, 1), f"'{column}' numeric 0/1 source column must encode to 0/1")
+    for column in TEXT_CATEGORICAL_SOURCE_COLUMNS:
+        _require(column in PRIMARY_PANEL_COLUMNS, f"'{column}' text-categorical allowlist inconsistency")
+        spec = features[column]
+        _require(
+            spec.vocabulary is not None and spec.source_value_encoding is None,
+            f"'{column}' must keep its registered text vocabulary",
+        )
+    semantics = dict(NUMERIC_BINARY_SOURCE_SEMANTICS)
+    _require(
+        all(
+            int(features[column].source_value_encoding.absent_model_code) == 0
+            and int(features[column].source_value_encoding.present_model_code) == 1
+            for column in NUMERIC_BINARY_SOURCE_COLUMNS
+        )
+        and semantics == {0: "ABSENT_OR_FALSE", 1: "PRESENT_OR_TRUE"},
+        "numeric-binary source semantics changed",
+    )
 
     raw_panels = raw.get("panels")
     _require(isinstance(raw_panels, list) and raw_panels, "panels block")
@@ -466,6 +708,17 @@ def describe_panels(dictionary: FeatureDictionary = DEFAULT_DICTIONARY) -> dict[
         "executable_parameter_count": dictionary.encoded_parameter_count(),
         "numeric_columns": list(dictionary.numeric_columns()),
         "categorical_columns": list(dictionary.categorical_columns()),
+        "source_value_encoding": {
+            "register_id": NUMERIC_BINARY_SOURCE_ENCODING_ID,
+            "numeric_binary_source_columns": list(dictionary.numeric_binary_source_columns()),
+            "numeric_binary_semantics": {
+                str(code): meaning for code, meaning in NUMERIC_BINARY_SOURCE_SEMANTICS
+            },
+            "text_categorical_source_columns": list(TEXT_CATEGORICAL_SOURCE_COLUMNS),
+            "global_automatic_coercion": "FORBIDDEN",
+            "unidentified_numeric_cells_fail_closed": True,
+            "amendment": "M3A-AMENDMENT-A1 (docs/research/gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md)",
+        },
         "declared_not_registered": [
             "All-55-predictor panel",
             "UCI-45 name harmonisation or pooling",

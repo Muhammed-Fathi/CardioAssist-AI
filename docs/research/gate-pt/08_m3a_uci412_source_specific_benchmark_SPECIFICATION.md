@@ -7,6 +7,14 @@
 > - **Gate PT P-3:** **CLOSED** (requires supervisor sign-off) · **P-1:** PENDING · **P-5:** prohibited · **D-047 (Cleveland):** unchanged.
 > - **Code:** `research/uci412/` (new package) · **Tests:** `tests/uci412/` · **Output banner (real runs):** `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`
 > - **Target of the benchmark:** presence of angiographically referenced CAD in a source cohort — **not** future event risk, **not** a clinical prediction model, **not** a `MOCK_SYNTHETIC` replacement.
+> - **Amendment A-1 (2026-10-24, `M3A-AMENDMENT-A1`):** see
+>   [doc 10](10_m3a_uci412_source_encoding_AMENDMENT_A1.md). A human-executed, read-only, SHA-256-verified
+>   audit of all 303 records showed that **six** admitted predictors (`DM`, `HTN`, `Current Smoker`,
+>   `EX-Smoker`, `FH`, `Typical Chest Pain`) are delivered as **numeric `0`/`1`**, not as `Y`/`N` text.
+>   Those six now carry an explicit numeric-binary source encoding; the other six admitted categorical
+>   predictors keep their text vocabularies. The dictionary is **1.1.0**, the panel is **1.1.0**, and every
+>   hash in this document's earlier freeze is superseded. Nothing else in this specification moved, and no
+>   authorization follows from the amendment.
 
 **This document does not approve anything.** It records what was implemented, what was tested synthetically, what cannot be established from the available source documentation, and the exact decision a named human must make before the first real workbook is opened on the maintainer's own Windows machine.
 
@@ -85,7 +93,7 @@ The audited SHA-256 is an integrity cross-check, **not** a substitute for local 
 **Values**
 
 - numeric columns accept only numeric cells — text is never coerced (`"58"` fails);
-- categorical columns accept only registered tokens; unknown tokens, numeric cells in `Y`/`N` columns, and tokens with surrounding whitespace fail closed;
+- categorical columns accept only registered values: a registered text token, or — for the six columns registered by Amendment A-1 — an actual numeric `0`/`1`. Unknown tokens, numeric cells in text-`Y`/`N` columns, non-binary or non-integral numbers, booleans, non-finite cells, and tokens with surrounding whitespace all fail closed;
 - the UCI-45 missing markers `?`, `-9`, `-9.0` are rejected as wrong-source signals;
 - blanks in admitted columns become `NaN` and are **imputed inside training folds only**; a fully blank admitted column fails closed; a blank target fails closed;
 - values outside a wide **plausibility guard** (adult physiology, data-integrity ranges such as `Age ∈ [1, 120]`, `BP ∈ [40, 300]`, `PR ∈ [20, 250]`, `BMI ∈ [10, 80]`) fail closed; values outside the *source-reported typical* range are counted, not rejected;
@@ -103,28 +111,28 @@ The audited SHA-256 is an integrity cross-check, **not** a substitute for local 
 
 ## 5. Versioned feature schemas
 
-`research/uci412/schemas/uci412_feature_dictionary.v1.json` (schema `uci412_research_feature_dictionary` **v1.0.0**) plus the in-code allowlist in `feature_schema.py` and the frozen plan ([CODE]).
+`research/uci412/schemas/uci412_feature_dictionary.v1.json` (schema `uci412_research_feature_dictionary` **v1.1.0** after Amendment A-1; v1.0.0 was the pre-audit draft) plus the in-code allowlist in `feature_schema.py` and the frozen plan ([CODE]).
 
 Each of the 56 source columns carries: position, group, role, kind, clinical meaning, unit **and unit-evidence status**, source domain, availability at the decision moment, missing semantics, leakage risk, input owner, evidence, uncertainty, admission status, panel membership, exclusion reason, vocabulary, and plausibility guard. A JSON-only edit cannot admit a new predictor or flip a blocked panel to executable — the loader rejects it ([TEST]).
 
 ### 5.1 The Basic Clinical Input Panel (ordered, executable candidate)
 
-Panel `uci412_basic_clinical_v1` v1.0.0 — 16 columns, all recorded at clinical intake by history, examination, or vital-sign measurement:
+Panel `uci412_basic_clinical_v1` v1.1.0 (v1.0.0 before Amendment A-1; membership and order unchanged) — 16 columns, all recorded at clinical intake by history, examination, or vital-sign measurement:
 
 | # | Column | Role | Unit | Admission rationale |
 |---|---|---|---|---|
 | 1 | `Age` | numeric | years | demographic, measured at intake |
 | 2 | `Sex` | categorical | — | demographic |
 | 3 | `BMI` | numeric | kg/m² | anthropometric measurement |
-| 4 | `DM` | binary | — | medical history |
-| 5 | `HTN` | binary | — | medical history |
-| 6 | `Current Smoker` | binary | — | history |
-| 7 | `EX-Smoker` | binary | — | history |
-| 8 | `FH` | binary | — | family history |
+| 4 | `DM` | binary (**numeric `0`/`1` source**) | — | medical history |
+| 5 | `HTN` | binary (**numeric `0`/`1` source**) | — | medical history |
+| 6 | `Current Smoker` | binary (**numeric `0`/`1` source**) | — | history |
+| 7 | `EX-Smoker` | binary (**numeric `0`/`1` source**) | — | history |
+| 8 | `FH` | binary (**numeric `0`/`1` source**) | — | family history |
 | 9 | `DLP` | binary | — | history |
 | 10 | `BP` | numeric | mmHg (single-value systolic likely, **unverified**) | vital sign |
 | 11 | `PR` | numeric | beats/min (source notation "ppm", **unverified**) | vital sign |
-| 12 | `Typical Chest Pain` | binary | — | symptom characterisation |
+| 12 | `Typical Chest Pain` | binary (**numeric `0`/`1` source**) | — | symptom characterisation |
 | 13 | `Atypical` | binary | — | symptom characterisation |
 | 14 | `Nonanginal` | binary | — | symptom characterisation |
 | 15 | `Exertional CP` | binary | — | symptom characterisation |
@@ -157,7 +165,8 @@ Blocked panels are registered so a reviewer can see the exact candidate set, but
 
 ### 5.4 Vocabulary (fail-closed, recorded, never silently renamed)
 
-- binary: `Y`/`Yes` → 1, `N`/`No` → 0 (the observed raw spelling is counted per column in the run audit);
+- binary, **numerically encoded in the delivered workbook** (Amendment A-1, verified by the 2026-10-24 human read-only audit): `DM`, `HTN`, `Current Smoker`, `EX-Smoker`, `FH`, `Typical Chest Pain` — numeric `0` → 0 (absent/false), numeric `1` → 1 (present/true). Text is **not** coerced: `"0"`, `"1"`, `"Y"`, `"N"`, `"Yes"`, `"No"`, booleans, and any non-binary number fail closed. The direction is a provisional inference, not a published codebook (residual item S-9 in doc 10);
+- binary, text: `Y`/`Yes` → 1, `N`/`No` → 0 for `DLP`, `Atypical`, `Nonanginal`, `Exertional CP`, `Dyspnea` and for the non-admitted text columns (the observed raw spelling is counted per column in the run audit);
 - `Sex`: `Male` → 1, `Fmale`/`Female` → 0 (reference coding is arbitrary and documented);
 - ordinal (blocked panels only): `Function Class` 1–4, `VHD` `N`/`Mild`/`Moderate`/`Severe`;
 - anything else fails closed. The authoritative spellings remain **[GAP]** until a human inspects the local workbook; the adapter is deliberately strict so a mismatch stops the run instead of being silently approximated.
@@ -355,7 +364,7 @@ Until 1–8 hold, `preflight` and `run` fail closed and only `describe`/`dry-run
 | Item | Requested scope |
 |---|---|
 | Dataset | `DA-A1` only, exact file `data/raw/uci-412/Z-Alizadeh sani dataset.xlsx`, 303 rows |
-| Panel | `uci412_basic_clinical_v1` v1.0.0 (16 ordered columns) |
+| Panel | `uci412_basic_clinical_v1` v1.1.0 (16 ordered columns; v1.0.0 before Amendment A-1) |
 | Operations | read-only loading, internal fitting, internal nested CV, internal family comparison, internal negative control, internal aggregate report |
 | Families | prevalence baseline, L2 logistic regression, constrained random forest |
 | Runtime | local Windows, CPU only, `$0`, no cloud/CI/remote upload |
@@ -424,7 +433,7 @@ Expected outcomes: `preflight` prints `PREFLIGHT_PASS` with the code commit and 
 
 ## 16. Open questions for human review
 
-1. Exact source spellings and category tokens in the local workbook (headers, `Y`/`N` vs `Yes`/`No`, `Fmale`, `VHD`).
+1. Exact source spellings and category tokens in the local workbook (headers, `Fmale`, `VHD`, and the 43 non-admitted columns). **Partially resolved by Amendment A-1:** the twelve admitted categorical predictors were verified in the 2026-10-24 human read-only audit — six are numeric `0`/`1` and six are textual; the direction of the numeric coding remains provisional (S-9, doc 10).
 2. Whether `BP` is systolic-only and what `PR`'s source unit notation ("ppm") means in practice.
 3. Whether resting-ECG findings can be shown to precede angiography; if so, the panel amendment is a separate protocol version.
 4. Whether the expanded history/examination features have defensible definitions and coding.
