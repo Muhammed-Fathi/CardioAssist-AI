@@ -3,28 +3,22 @@
 The SHA-256 offsets reproduce the approved pack's synthetic, non-clinical
 semantics for arbitrary valid mock inputs. No fitting, SHAP/LIME computation,
 dataset access, prediction validity or clinical direction is implied.
+
+This module is reachable only through
+:class:`backend.app.inference.mock_synthetic.MockSyntheticProvider`, which is
+the single CAD inference provider the application can construct. It is not a
+provider itself and must not be called from runtime state directly.
 """
 
 from __future__ import annotations
 
 import copy
 import hashlib
-import json
 import math
 from typing import Any
 
+from .canonical import canonical_json
 from .contracts import ContractFiles
-
-
-def canonical_json(value: Any) -> str:
-    return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-    )
-
-
-def payload_hash(body: dict[str, Any]) -> str:
-    payload = {key: value for key, value in body.items() if key != "request_id"}
-    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
 
 
 def synthetic_offset(feature_id: str, value: Any) -> float:

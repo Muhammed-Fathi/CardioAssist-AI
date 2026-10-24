@@ -103,3 +103,86 @@ The implementation agent may **prepare synthetic-only tests and fail-closed loca
 Only after the explicit D-047 PR review keyword, maintainer merge, and locally signed, ignored, hash-bound authorization can the **human local operator** run approved internal experimental training on `DA-A2/processed.cleveland.data`. A successful PR/CI alone is not approval. Never set an artificial `synthetic=true` flag for real records to bypass the synthetic-only validator.
 
 Required experimental labels are **`INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`** on all reports/artifacts. Gate PT P-3 remains CLOSED for formal supervisor-approved research and any clinical performance/publication/use claim. No pooling, UCI-411, Statlog, other sites, wearables, identifiers or downstream clinical integration. Leave code PRs open for maintainer review and do not forge local authorization.
+
+
+## M1c — MAINTAINER-RATIFIED internal inference boundary & offline artifact admission (2026-10-24)
+
+**Status: AUTHORIZED — narrowly scoped engineering milestone only.** Recorded
+2026-10-24 from the explicit ratification of the human maintainer (repository
+owner), in PR #42. This section supersedes the previously *proposed* M1c
+amendment; it does not supersede, extend or reinterpret any earlier
+authorization.
+
+Authorized scope (closed list):
+
+1. The **`MOCK_SYNTHETIC`-only CAD inference provider boundary**
+   (`backend/app/inference/`): one typed internal interface, one constructible
+   implementation, a fail-closed placeholder for a future reviewed real
+   provider, and the registry that permits no other provider.
+2. The **offline `RESEARCH_ONLY` artifact admission validator**
+   (`backend/app/artifact_admission/`): a versioned descriptor, a reviewed
+   synthetic feature-order binding, calibration-integrity and explainability
+   checks, and a decision type that can only report `RESEARCH_ONLY` with
+   `approved_for_serving` false.
+3. **Synthetic** feature-order policy, calibration-integrity checks and the
+   associated regression tests.
+
+This approval does **NOT** authorize, and must never be cited as authorizing:
+
+- real model inference or any serving of a research artifact;
+- model fitting, tuning, calibration or training;
+- access to, download of, or use of patient datasets or any local experiment
+  output/manifest;
+- clinical deployment, patient-facing use, or any clinical/performance,
+  publication, novelty or external-validation claim;
+- genuine SHAP/LIME computation (none exists; the API returns mock SHAP-*shaped*
+  synthetic fixture offsets only);
+- any change to **P-1** (pending), **P-3** (closed), **P-5** (prohibited),
+  **D-046** (read-only audit), **D-047** (Cleveland-only internal exploratory),
+  or the approved `/v1` OpenAPI/schemas/fixtures.
+
+Binding conditions:
+
+- `MOCK_SYNTHETIC` remains the only provider reachable in application
+  execution. No environment variable, settings file, request field, endpoint or
+  dependency-injection hook may select another.
+- The admission validator stays offline: it is not imported by the running
+  application, cannot be reached over HTTP, and never deserializes an artifact.
+  Its synthetic order policy (`synthetic_fixture_input_order/v1`) is
+  mock-fixture scope only and is **not** a clinical feature dictionary and
+  **not** the five-feature D-047 Cleveland input order. An independently
+  reviewed research feature-binding mapping and a real artifact packaging and
+  provenance protocol remain future work requiring their own authorization.
+- No research-only artifact may be served, and no descriptor, checksum or model
+  file implies scientific, clinical or supervisor approval.
+- Track A CAD prediction and Track B wearable monitoring stay strictly
+  separated; wearable payloads never reach a CAD provider.
+
+Governance record: this authorization is recorded **here** only. It adds no
+decision id to `docs/DECISIONS.md` and changes no register entry. The historical
+**M1b.1 (2026-10-17)** and **M2a / D-046 read-only (2026-10-21)** sections above
+remain in force exactly as written.
+
+The older **D-047 / M2c proposal** section above is retained verbatim as a
+**historical snapshot** of the proposal as it was written on 2026-10-23; its own
+status line and "not effective until ratification" wording describe that earlier
+moment and are **not** a current-status statement. That limited internal
+exploratory authorization was subsequently **activated**: through the
+maintainer's `AUTHORIZE-D047-INTERNAL-CLEVELAND` review comment on PR #31, the
+merge of that PR (`434e49a`), and a separate locally signed, hash-bound,
+Git-ignored authorization manifest, after which the bounded Cleveland
+(`DA-A2`) internal exploratory experiment was executed by the human local
+operator under the required
+`INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED` label.
+
+That activation is exactly the pre-existing D-047 internal exploratory scope. It
+is not reopened, extended, reinterpreted or re-granted by this M1c section, and
+it authorizes nothing else: **Gate PT P-3 remains CLOSED**, no supervisor,
+ethics or institutional approval is claimed, the D-047 results stay internal
+exploratory evidence and never a deployable model, and **no new model fitting,
+artifact serving, patient-facing use, publication/novelty claim or clinical
+authorization is granted here**.
+
+This section authorizes no subsequent milestone; the next stage still requires
+its own explicit maintainer authorization and, for any real artifact,
+independent scientific review.

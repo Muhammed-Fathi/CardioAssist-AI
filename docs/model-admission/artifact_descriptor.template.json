@@ -1,0 +1,65 @@
+{
+  "descriptor_schema_version": "artifact_descriptor/v1",
+  "artifact": {
+    "artifact_id": "REPLACE_WITH_LOWERCASE_ARTIFACT_ID",
+    "artifact_version": "0.0.0",
+    "artifact_type": "joblib",
+    "artifact_ref": "REPLACE_WITH_RELATIVE_ARTIFACT_PATH.joblib",
+    "artifact_sha256": "REPLACE_WITH_64_HEX_SHA256",
+    "artifact_size_bytes": 0,
+    "preprocessing_ref": "REPLACE_WITH_RELATIVE_PREPROCESSING_PATH.json",
+    "preprocessing_sha256": "REPLACE_WITH_64_HEX_SHA256"
+  },
+  "model": {
+    "model_family": "REPLACE_WITH_REGISTERED_RESEARCH_FAMILY",
+    "preprocessing_version": "REPLACE_WITH_PREPROCESSING_VERSION",
+    "score_type": "uncalibrated_margin",
+    "calibration": {
+      "status": "not_assessed",
+      "representation": "none",
+      "calibration_ref": null,
+      "calibration_sha256": null,
+      "calibration_size_bytes": null
+    },
+    "explainability": {
+      "method": "tree_shap",
+      "capability": "mock_shap_shaped_fixture_only"
+    }
+  },
+  "feature_contract": {
+    "feature_schema_id": "mock_clinical_v1",
+    "feature_schema_sha256": "REPLACE_WITH_64_HEX_SHA256_OF_THE_SHARED_SCHEMA_FILE",
+    "order_policy_id": "synthetic_fixture_input_order/v1",
+    "features": [
+      {
+        "name": "REPLACE_WITH_FEATURE_NAME_FROM_THE_SHARED_SCHEMA",
+        "order": 0,
+        "value_type": "integer",
+        "unit": "REPLACE_WITH_UNIT_FROM_THE_SHARED_SCHEMA",
+        "required": true
+      }
+    ]
+  },
+  "target": {
+    "target_id": "REPLACE_WITH_REGISTERED_TARGET_ID",
+    "target_definition_sha256": "REPLACE_WITH_64_HEX_SHA256_OF_THE_REGISTERED_DEFINITION",
+    "prediction_timepoint": "REPLACE_WITH_DECLARED_TIMEPOINT_TOKEN",
+    "source_cohort": {
+      "cohort_id": "REPLACE_WITH_COHORT_ID",
+      "dataset_id": "REPLACE_WITH_DATASET_ID",
+      "pooled_cohorts": false
+    }
+  },
+  "provenance": {
+    "protocol_id": "REPLACE_WITH_PROTOCOL_ID",
+    "protocol_ref": "REPLACE_WITH_RELATIVE_PROTOCOL_PATH.md",
+    "protocol_sha256": "REPLACE_WITH_64_HEX_SHA256",
+    "experiment_id": "REPLACE_WITH_EXPERIMENT_ID",
+    "code_commit": "REPLACE_WITH_40_HEX_COMMIT",
+    "generated_at_utc": "1970-01-01T00:00:00Z"
+  },
+  "eligibility": {
+    "research_label": "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
+    "serving_status": "RESEARCH_ONLY"
+  }
+}
