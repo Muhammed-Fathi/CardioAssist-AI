@@ -17,8 +17,15 @@
 >   maintainer-supplied sanitized aggregate extraction of the same run (§4.1): full three-family
 >   performance table, repeat-level AUROC/Brier values, repeat-level calibration slopes and
 >   calibration-in-the-large intercepts with estimability statuses, and repeat-level bootstrap
->   statuses. **No bootstrap interval endpoints were supplied.** Gaps closed by this revision are
+>   statuses. **No bootstrap interval endpoints were supplied to the agent; this document makes
+>   no claim about whether any conditional bootstrap interval was computed in the protected
+>   local report (§4.5).** Gaps closed by this revision are
 >   itemized in §4.9; all other evidence boundaries are unchanged.
+> - **Revision 1.2 (2026-10-24, on PR #47):** editorial clarification only — the three-way
+>   confidence-interval distinction in §4.5 (conditional within-repeat bootstrap intervals,
+>   the four-repeat summary, and future clinical populations) is now applied consistently
+>   throughout, and the §4.7 Random Forest Brier rounding note is restated as a qualified
+>   possibility rather than a verified fact. No metric, conclusion, label or blocker changed.
 > - **No new milestone is created or approved by this document.** The next-gate proposal in §11 is a
 >   working proposal for human naming and decision only.
 
@@ -197,7 +204,7 @@ for traceability; it is not a comparison of performance and implies no equivalen
 | Selection rule | Inner-CV AUROC; logistic regression preferred if within 0.01 of best family | Identical rule (0.01 tolerance, logistic-regression simplicity preference) |
 | Decision threshold | Fixed 0.5, exploratory, never tuned on outer predictions | Fixed 0.5, exploratory, threshold tuning forbidden |
 | Negative control | 3 label shuffles (seeds `20262001`–`20262003`), one repeat each; smoke test, no p-value | 3 label shuffles (seeds `20262004`–`20262006`), one repeat each; AUROC ≥ 0.9 blocking alarm, ≥ 0.7 warning; smoke test, no p-value |
-| Uncertainty machinery in protocol | Repeat-level descriptive dispersion only; treating 4 × 303 rows as independent explicitly forbidden | Participant-level percentile bootstrap (500) **within one repeat**, conditional on fixed fold fits; pooled-repeat inference forbidden. All four repeat-level bootstrap statuses were supplied as `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` for each listed procedure (§4.5); **no bootstrap interval endpoints were supplied [GAP]** |
+| Uncertainty machinery in protocol | Repeat-level descriptive dispersion only; treating 4 × 303 rows as independent explicitly forbidden | Participant-level percentile bootstrap (500) **within one repeat**, conditional on fixed fold fits; pooled-repeat inference forbidden. All four repeat-level bootstrap statuses were supplied as `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` for each listed procedure (§4.5); **the endpoints of any such conditional interval were not supplied to the agent, and whether an interval was computed in the protected report is not verified here [GAP — endpoints only]** |
 | Execution environment | Maintainer-local Windows, CPU-only, $0; protected local outputs | Maintainer-local Windows, CPU-only, $0; protected local outputs |
 | Full-cohort model artifact | **None saved** **[C-DOC]** | **None saved** (`artifact_saved: false` in the frozen plan) **[FROZEN]** |
 | Report banner | `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED` | `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED` |
@@ -263,7 +270,10 @@ Primary registered estimand — repeated nested outer out-of-fold AUROC of the c
 inner-selected procedure: **0.8271 ± 0.0097** (mean ± population SD across the four dependent
 repeats) **[C-DOC]**. The `±` quantity is resampling dispersion across repeat-level scalars; it is
 **not** a standard error, confidence interval, or between-population variability estimate, and no
-CI, p-value or significance test exists for any row (doc 04 §4.6) **[C-DOC]**.
+CI, p-value or significance test is reported for any row in the committed Cleveland record
+(doc 04 §4.6) **[C-DOC]**. (The UCI-412 conditional within-repeat bootstrap is a different
+construction and is treated separately in §4.5; neither construction yields a valid inferential
+CI for a four-repeat summary or for future clinical populations.)
 
 | Metric (mean ± pop. SD, 4 repeats) **[C-DOC]** | Prevalence dummy | L2 logistic regression | Constrained random forest | Inner-selected procedure |
 |---|---:|---:|---:|---:|
@@ -429,9 +439,13 @@ in doc 04; supplied `± 0` values are written as `± 0.0000`):
   fixed before fitting and never selected from outer predictions. Only 87 negative records support
   the specificity estimates (§5.2).
 - The `±` values are **descriptive dispersion across four repeat-level scalars computed on the
-  same 303 records**. They are not standard errors, not confidence intervals, and not evidence
-  about variability across patients, sites or populations; no CI, p-value or significance test
-  exists for any row (the same constraint as doc 04 §4.6 for Cleveland).
+  same 303 records**. They are not standard errors and not confidence intervals, and they carry
+  no evidence about variability across patients, sites or populations. No valid inferential CI
+  for this four-repeat summary, and no p-value or significance test for any row, was supplied or
+  is claimed (the same constraint as doc 04 §4.6 for Cleveland). This statement is about the
+  four-repeat summary: it does not deny that the frozen procedure also defines conditional
+  within-repeat bootstrap intervals, whose endpoints — if computed in the protected report —
+  were not supplied to the agent (§4.5).
 - Per-family rows are predeclared supportive analyses, not an unbiased winner-selection test. Any
   numerical separation between the logistic-regression and random-forest rows is **descriptive
   only**: no model-comparison test was prespecified or performed, and no statistical-superiority
@@ -457,15 +471,37 @@ regression** (all rows above, both metrics) because it selected logistic regress
 outer fold **[MS-U412]**. All four repeats reuse the same 303 records; repeat-to-repeat
 differences reflect resampling/partition randomness only.
 
-**Bootstrap status (no intervals supplied).** For each listed procedure (logistic regression,
-constrained random forest, and — by the supplied identity — the inner-selected procedure), all
-four reported repeat-level bootstrap statuses were
-`ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` **[MS-U412]**. **No bootstrap interval endpoint was
-supplied for any repeat, metric or procedure, and none is reported, approximated or invented here
-[GAP].** The status records only that the frozen within-repeat participant-level bootstrap
-produced an estimate conditional on the fitted fold models; it excludes refitting variability and
-is not a confidence interval for future patients **[FROZEN]**. No standard error, confidence
-interval or p-value was supplied either **[GAP]**.
+**Bootstrap status and the three-way confidence-interval distinction.** For each listed
+procedure (logistic regression, constrained random forest, and — by the supplied identity — the
+inner-selected procedure), all four reported repeat-level bootstrap statuses were
+`ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` **[MS-U412]**. Three different interval statements
+must not be conflated:
+
+1. **Conditional within-repeat bootstrap intervals (potentially computed locally; endpoints not
+   supplied).** The frozen procedure defines a participant-level percentile bootstrap *within
+   each repeat*, conditional on that repeat's fitted fold models **[FROZEN]**. The supplied
+   statuses are consistent with that bootstrap estimation having run in the protected local
+   report, so conditional bootstrap intervals **may have been computed there**. The agent has
+   not seen the protected report: **no endpoint for any repeat, metric or procedure was supplied,
+   and the agent neither confirms nor denies that any specific interval exists in that report,
+   nor its width, coverage or contents [GAP — endpoints and local existence unverified].** No
+   endpoint is reported, approximated or invented here.
+2. **The four-repeat summary (no valid inferential CI available).** The headline
+   mean ± population SD across the four dependent repeats (§4.5 table) is descriptive
+   partition-level dispersion on the same 303 records. Because the repeats reuse the same
+   participants and no person-level inferential estimator for the repeat summary was
+   prespecified or supplied, **no valid inferential confidence interval for the four-repeat
+   summary is available in this record** — for UCI-412 or for Cleveland. The repeat SD must
+   never be repackaged as one.
+3. **Future clinical populations (no CI claimed under any construction).** Even if a conditional
+   interval from (1) were supplied, it would remain conditional on the fixed fold fits, would
+   exclude refitting/model-selection variability, and would describe resampling within this
+   historical cohort. It would **not** be a confidence interval for performance in future
+   patients, other sites, or any clinical population, and no such interval is claimed anywhere
+   in this synthesis.
+
+No standard error or p-value was supplied either **[GAP]**, and the bootstrap status in (1) must
+never be quoted as though an interval of type (2) or (3) had been reported.
 
 **Negative control:** maximum shuffled AUROC across the prespecified label permutations
 **0.5503**, reported by the maintainer as **nonblocking [MS-U412]**. Against the frozen protocol's
@@ -557,13 +593,17 @@ Using only the supplied aggregates **[MS-U412]** and the frozen plan **[FROZEN]*
 | 8 | LR AUROC mean / population SD from the 4 supplied repeats | 0.910725 → 0.9107 / 0.007143 → 0.0071 | 0.9107 ± 0.0071 | ✅ consistent |
 | 9 | LR Brier mean / population SD from the 4 supplied repeats | 0.099525 → 0.0995 / 0.004324 → 0.0043 | 0.0995 ± 0.0043 | ✅ consistent |
 | 10 | RF AUROC mean / population SD from the 4 supplied repeats | 0.897750 → 0.8978 / 0.002551 → 0.0026 | 0.8978 ± 0.0026 | ✅ consistent |
-| 11 | RF Brier mean from the 4 supplied (4-dp) repeats | 0.11565 from the rounded repeats, vs supplied 0.1156 | 0.1156 ± 0.0023 (SD recomputes to 0.0023 ✅) | ✅ consistent within one unit in the last decimal — the supplied aggregate was computed from unrounded values; recomputing from 4-dp repeats cannot reproduce the final digit exactly, and no discrepancy is inferred |
+| 11 | RF Brier mean from the 4 supplied (4-dp) repeats | 0.11565 from the rounded repeats, vs supplied 0.1156 | **0.1156** ± 0.0023 (supplied aggregate preserved; SD recomputes to 0.0023 ✅) | ◐ **precision-limited, not fully verifiable from the supplied values.** The recomputation differs by one unit in the last decimal. One *possible* explanation is that the supplied aggregate was computed from values held at greater precision than the 4-dp repeat values supplied to the agent; the agent cannot verify that, or distinguish it from any other rounding/aggregation pathway, from the rounded inputs alone. The supplied **0.1156** therefore stands as the authoritative **[MS-U412]** value, the recomputation is recorded only as a 4-dp sensitivity check, **no discrepancy is inferred**, and no conclusion in this document depends on the final digit |
 | 12 | Inner-selected identity | LR selected in 20/20 folds ⇒ inner-selected repeats, aggregates and calibration equal the LR values | identical rows in §4.5–4.6 | ✅ consistent with the frozen reuse rule (no second fit) |
 | 13 | Calibration means from the supplied repeats | LR slope 1.0891 (4/4), RF slope 1.5700 (3 estimable), LR CITL 0.0206, RF CITL 0.0020 | §4.6 table | ✅ consistent as **[AA]** arithmetic on rounded inputs; not run-supplied aggregates |
-| 14 | Bootstrap statuses vs interval supply | statuses `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` (4/4 per listed procedure) with **no endpoints** anywhere in the supplied extraction | §4.5 | ✅ internally consistent; the absence of endpoints is recorded as a gap, not filled |
+| 14 | Bootstrap statuses vs interval supply | statuses `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` (4/4 per listed procedure); **no endpoint appears anywhere in the supplied extraction** | §4.5 | ✅ internally consistent as a statement about the *supplied extraction*. It is **not** a claim that no conditional bootstrap interval was computed in the protected local report — the agent cannot verify that (§4.5, distinction 1); the unsupplied endpoints are recorded as a gap, not filled |
 
 **What these checks establish:** the supplied aggregates are arithmetically coherent with each
-other and with the frozen protocol's counts and thresholds. **What they do not establish:** that
+other and with the frozen protocol's counts and thresholds, at the precision of the supplied
+values. Check 11 marks the limit of that precision: a last-decimal recomputation difference that
+the rounded inputs cannot adjudicate, which is recorded as a qualified possibility and left with
+the supplied aggregate (**0.1156**) authoritative — it is not resolved in either direction here.
+**What they do not establish:** that
 the run occurred as reported, that the protected report matches these values or the quoted hash,
 or that the numbers are free of data-level or design-level bias. That verification remains with
 the maintainer and any human reviewer with protected local access (§0.2).
@@ -573,8 +613,10 @@ the maintainer and any human reviewer with protected local access (§0.2).
 Single source cohort; retrospective cross-sectional angiography-referenced presence, not
 future-event risk; no independent validation; repeated evaluation of the same 303 participants;
 the supplied dispersion is **repeat-level population SD across four dependent repeats only** —
-no standard error, confidence interval, p-value or bootstrap interval endpoint exists in the
-record (§4.5); calibration is descriptive-only with one non-estimable RF slope, unsupplied
+no standard error, p-value, or valid inferential confidence interval for the four-repeat summary
+was supplied, and the endpoints of any conditional within-repeat bootstrap interval (which may
+have been computed in the protected local report) were not supplied to the agent (§4.5's
+three-way distinction); calibration is descriptive-only with one non-estimable RF slope, unsupplied
 joint-fit intercepts and unsupplied reliability-bin values, so calibration quality is unresolved
 (§4.6); negative control is a three-shuffle smoke test without per-shuffle values; sample-size
 status `NOT_MET` / `NOT ASSESSED` (§5.2) with only 87 records in the minority (negative) class;
@@ -604,8 +646,8 @@ Revision 1.1 closed **only** the gaps that the additional maintainer-supplied ag
 
 | Gap | Why it still matters |
 |---|---|
-| Bootstrap **interval endpoints** (every repeat, metric and procedure) | The conditional bootstrap cannot be quoted, interpreted or compared without them |
-| Any standard error, confidence interval or p-value | No inferential statement of any kind is available for UCI-412 (or Cleveland) |
+| Bootstrap **interval endpoints** (every repeat, metric and procedure) — not supplied to the agent | Conditional within-repeat bootstrap intervals may have been computed in the protected local report (the supplied statuses are consistent with the bootstrap estimation having run), but the agent has not seen that report and can neither confirm nor deny any specific interval's existence or contents. Without endpoints the conditional bootstrap cannot be quoted, interpreted or compared |
+| Any standard error or p-value; any valid inferential CI for the four-repeat summary or for future clinical populations | No inferential statement of that kind is available for UCI-412 (or Cleveland). This is a statement about the repeat summary and about future populations (§4.5, distinctions 2–3); it does not deny that conditional within-repeat intervals of type (1) may exist locally |
 | Five-bin **reliability-curve values** | Calibration *shape* across the probability range is unreviewed |
 | **Joint-fit (free) calibration intercepts** | Only offset-only CITL intercepts were supplied; the two must not be conflated |
 | **Per-shuffle** negative-control AUROCs and their dispersion | Only the maximum (0.5503) is known; no null distribution can be characterized |
@@ -689,12 +731,16 @@ Why the two AUROC values cannot be compared even descriptively as performance:
    **not** case-mix/spectrum-independent; AP, Brier, sensitivity and specificity at 0.5 are
    additionally prevalence- and threshold-context-dependent. Identical procedures routinely show
    different AUROCs across spectra without either being "better".
-4. **No inferential uncertainty on either side.** Both benchmarks now report the same descriptive
+4. **No inferential uncertainty on either side.** Both benchmarks report the same descriptive
    quantity — population SD across four dependent repeats of the same 303 people — which is not a
-   standard error or confidence interval in either case. UCI-412 additionally carries
-   conditional-bootstrap *statuses* without supplied interval endpoints (§4.5), and Cleveland
-   carries none. Neither side therefore has an interval estimate, and two point quantities
-   without commensurable inferential statements cannot be ranked.
+   standard error or confidence interval in either case, and neither four-repeat summary has a
+   valid inferential CI in this record. UCI-412 additionally carries conditional-bootstrap
+   *statuses*; whether conditional within-repeat intervals were computed in the protected report
+   is unverified and their endpoints were not supplied (§4.5), while no bootstrap interval is
+   reported for Cleveland in doc 04. Even a supplied conditional interval would not be an
+   interval for the four-repeat summary or for future populations. Neither side therefore has a
+   usable inferential interval estimate for comparison, and two point quantities without
+   commensurable inferential statements cannot be ranked.
 5. **Selection-context difference.** Each AUROC is the estimate of a *selection procedure*
    (including the 0.01 simplicity rule) tuned within its own data. A cross-dataset ranking of two
    procedure-estimates, each optimistic/pessimistic in its own unknown way, has no estimand.
@@ -871,7 +917,7 @@ The four categories are kept strictly separate, per the synthesis mandate.
 | # | Observation | Label |
 |---|---|---|
 | O1 | Cleveland: n = 303 (139/164); frozen 5-field/8-parameter nested-CV procedure executed; selected-procedure AUROC 0.8271 ± 0.0097; LR 19/20 folds; negative-control mean 0.4882; calibration slopes estimable in 3/4 (LR), 3/4 (RF), 4/4 (selected) repeats | **[C-DOC]** |
-| O2 | UCI-412: n = 303 (216/87); frozen 16-column/16-parameter nested-CV procedure executed under Amendment A-1; full three-family table supplied (dummy AUROC 0.4913; LR 0.9107 ± 0.0071; RF 0.8978 ± 0.0026; inner-selected = LR, 20/20 folds) with per-repeat AUROC/Brier; calibration slopes estimable 4/4 (LR/inner-selected) and 3/4 (RF), CITL supplied per repeat; bootstrap statuses `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` 4/4 per listed procedure with **no interval endpoints**; max shuffled AUROC 0.5503 (nonblocking) | **[MS-U412]** |
+| O2 | UCI-412: n = 303 (216/87); frozen 16-column/16-parameter nested-CV procedure executed under Amendment A-1; full three-family table supplied (dummy AUROC 0.4913; LR 0.9107 ± 0.0071; RF 0.8978 ± 0.0026; inner-selected = LR, 20/20 folds) with per-repeat AUROC/Brier; calibration slopes estimable 4/4 (LR/inner-selected) and 3/4 (RF), CITL supplied per repeat; bootstrap statuses `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` 4/4 per listed procedure, **endpoints not supplied to the agent (local computation unverified, §4.5)**; max shuffled AUROC 0.5503 (nonblocking) | **[MS-U412]** |
 | O3 | Both procedures descriptively exceed their own prevalence references and show chance-consistent label-shuffle controls | **[C-DOC]/[MS-U412]** |
 | O4 | Both sample-size statuses are non-adequate on current evidence (Cleveland `NOT ASSESSED`, criteria infeasible at stated tolerances; UCI-412 `NOT_MET` 315, R² criteria `NOT ASSESSED`) | **[M2e]/[FROZEN]** |
 | O5 | UCI-411 and UCI-412 are the same 303 participants (303/303 aggregate correspondence; one discordance unresolved) | **[M2e]** |
@@ -883,9 +929,9 @@ The four categories are kept strictly separate, per the synthesis mandate.
 | # | Uncertainty | Consequence |
 |---|---|---|
 | U1 | Cleveland `± 0.0097` is dispersion across 4 dependent repeats of the same 303 people — not an SE or CI | No significance, ranking or "±" interval interpretation, even within Cleveland |
-| U2 | UCI-412 dispersion is now supplied, but it is the **same limited quantity** as Cleveland's: population SD across 4 dependent repeats of the same 303 people. The within-repeat bootstrap produced `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` statuses (4/4 per listed procedure) yet **no interval endpoint was supplied**, and no SE/CI/p-value exists | Partition-level stability is now described for AUROC/Brier, but no inferential interval exists on either dataset; the bootstrap status must never be quoted as if an interval had been reported, and conditional-on-fixed-folds estimation excludes refitting variability |
+| U2 | UCI-412 dispersion is now supplied, but it is the **same limited quantity** as Cleveland's: population SD across 4 dependent repeats of the same 303 people. The within-repeat bootstrap carries `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` statuses (4/4 per listed procedure); **no endpoint was supplied to the agent**, and whether conditional intervals were computed in the protected report is unverified. Separately, no SE, p-value, or valid inferential CI **for the four-repeat summary or for future clinical populations** is available on either dataset (§4.5, distinctions 1–3) | Partition-level stability is now described for AUROC/Brier, but neither dataset has a valid inferential interval for its repeat summary or for future populations. The bootstrap status must never be quoted as if such an interval had been reported, nor as proof that no conditional interval exists locally; conditional-on-fixed-folds estimation would in any case exclude refitting variability |
 | U3 | Cleveland calibration: 2/12 family-repeat slopes non-estimable, cause unidentified; reliability-bin values unreviewed; CITL is offset-only | Calibration quality unresolved; no recalibration need or sufficiency can be inferred |
-| U4 | UCI-412 calibration: per-repeat slopes/CITL now supplied (LR/inner-selected estimable 4/4, mean slope 1.0891; RF estimable 3/4, mean slope 1.5700, Repeat-2 slope `UNSTABLE_OR_NOT_ESTIMABLE` with unidentified cause); reliability-bin values and joint-fit intercepts still unsupplied; no interval on any diagnostic | Calibration quality remains unresolved — now reviewable as descriptive values, but a slope near or above any particular value is not a clinical calibration verdict, and calibration *shape* cannot be assessed without the reliability bins |
+| U4 | UCI-412 calibration: per-repeat slopes/CITL now supplied (LR/inner-selected estimable 4/4, mean slope 1.0891; RF estimable 3/4, mean slope 1.5700, Repeat-2 slope `UNSTABLE_OR_NOT_ESTIMABLE` with unidentified cause); reliability-bin values and joint-fit intercepts still unsupplied; no calibration-diagnostic interval was supplied (and no such interval is claimed for either dataset) | Calibration quality remains unresolved — now reviewable as descriptive values, but a slope near or above any particular value is not a clinical calibration verdict, and calibration *shape* cannot be assessed without the reliability bins |
 | U5 | Both negative controls are 3-shuffle smoke tests (Cleveland per-shuffle values and UCI-412 per-shuffle distribution unsupplied) | Chance-consistency is reassuring wiring evidence, never a leakage exclusion or a p-value |
 | U6 | Adequacy criteria are conditional on tolerances (S = 0.90, δ = 0.05, MAPE = 0.05) and on cohort event fractions that are not target-population prevalences | "Infeasible at n = 303" is a statement about the published criteria at stated tolerances, not a clinical-performance verdict (doc 05) |
 | U7 | AP/Brier/sensitivity/specificity are prevalence- and threshold-context-dependent; AUROC is spectrum-dependent | Cross-cohort juxtaposition of any secondary metric is even less interpretable than of AUROC (§6) |
@@ -924,7 +970,7 @@ The four categories are kept strictly separate, per the synthesis mandate.
 
 | Claimed | Not claimed |
 |---|---|
-| Two frozen internal exploratory benchmarks were executed, one per dataset, under `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`, with the within-dataset aggregates in §3.5–3.6 and §4.5–4.6 as labelled (descriptive calibration diagnostics included; no bootstrap interval endpoints exist in the record) | Any between-dataset comparison, ranking, difference, pooled estimate or meta-analytic combination |
+| Two frozen internal exploratory benchmarks were executed, one per dataset, under `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED`, with the within-dataset aggregates in §3.5–3.6 and §4.5–4.6 as labelled (descriptive calibration diagnostics included; bootstrap statuses supplied without endpoints — local interval computation unverified, and no valid inferential CI for any four-repeat summary or future population is claimed) | Any between-dataset comparison, ranking, difference, pooled estimate or meta-analytic combination |
 | The aggregates are coherent with the frozen protocols (§4.7; doc 04 §6 for Cleveland) | Independent agent verification of the protected UCI-412 report, its quoted SHA-256, the source workbook, or any patient-level artifact |
 | Sample-size adequacy is not established for either benchmark, on the stated published criteria | That either benchmark is "underpowered" as a clinical verdict, or adequate under any relaxed tolerance (no relaxation has been human-approved) |
 | Six named compatibility blockers (§7) currently prevent defining a between-dataset estimand | That the blockers are permanently insurmountable, or that any dataset is `READY`/`VALIDATED`/`APPROVED` for assessment |
@@ -1054,7 +1100,7 @@ doc 07 §3.4 already requires.
 | Claim group in this synthesis | Source |
 |---|---|
 | Cleveland design, counts, performance, calibration, limitations | [Doc 04](04_d047_first_internal_results_REVIEW_DRAFT.md) §§1–8 (primary documented source; maintainer-reported aggregates) **[C-DOC]**; frozen design [doc 02](02_d047_internal_exploratory_cleveland_PROTOCOL_PROPOSED.md) + `research/experiments/cleveland_d047_exploratory_plan.v0.1.json` **[FROZEN]** |
-| UCI-412 run identity, counts, performance, repeat-level values, calibration diagnostics, bootstrap statuses, negative control | Maintainer-supplied sanitized aggregate extractions (original supply plus the Revision 1.1 completion) for run `run-20261024T151846Z-4e3866dd` at commit `f859cf63efd31b7f88eaeeed69b5cc3606288727`, human-verified report SHA-256 `3c8524ea32aaa80a2412f3a977608c7e4eb3fdfe9883a7753f3149c662726545` **[MS-U412]** — not independently verified by the agent; no bootstrap interval endpoints were supplied |
+| UCI-412 run identity, counts, performance, repeat-level values, calibration diagnostics, bootstrap statuses, negative control | Maintainer-supplied sanitized aggregate extractions (original supply plus the Revision 1.1 completion) for run `run-20261024T151846Z-4e3866dd` at commit `f859cf63efd31b7f88eaeeed69b5cc3606288727`, human-verified report SHA-256 `3c8524ea32aaa80a2412f3a977608c7e4eb3fdfe9883a7753f3149c662726545` **[MS-U412]** — not independently verified by the agent; bootstrap interval endpoints were not supplied, and whether conditional intervals were computed in the protected report is unverified (§4.5) |
 | UCI-412 frozen design, panel, exclusions, thresholds, sample-size record | [Doc 08](08_m3a_uci412_source_specific_benchmark_SPECIFICATION.md) §§2–6, 10–11; [doc 09](09_m3a_uci412_internal_research_RATIFICATION_PACKET.md) §§3–5; [doc 10](10_m3a_uci412_source_encoding_AMENDMENT_A1.md) §§1–4 (S-9, frozen-parameter proof); `research/uci412/uci412_cad_research_plan.v0.1.json` (dictionary/panel 1.1.0) **[FROZEN]** |
 | Sample-size adequacy (Cleveland) and validation-sizing separation | [Doc 05](05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md) §§1, 6, 9–10 **[M2e]** (Riley et al., *BMJ* 2020, doi:10.1136/bmj.m441; Riley et al., *Stat Med* 2021, doi:10.1002/sim.9025, as cited there) |
 | Compatibility matrix, candidate dispositions, external-assessment prerequisites | [Doc 06](06_m2e2_dataset_compatibility_and_independent_assessment_READINESS_REVIEW_DRAFT.md) §§6–7, 9 **[M2e]**; Gate DA leakage/harmonization register (H-01) as carried there |
@@ -1079,8 +1125,12 @@ explicitly not an official dataset-owner codebook.
   AUROC/Brier/calibration values and bootstrap statuses), or derived by labelled arithmetic
   **[AA]** from those values (§4.7 checks 7–14). No value was fitted, simulated, imputed or
   reconstructed: in particular, no confusion matrix, bootstrap interval endpoint, standard error
-  or confidence interval was manufactured for either dataset, and the one last-decimal
-  recomputation difference (RF Brier, §4.7 check 11) is disclosed rather than silently aligned.
+  or confidence interval was manufactured for either dataset. The agent's silence on conditional
+  bootstrap intervals is a supply boundary only — endpoints were not supplied and local
+  computation is unverified — and is never a claim that no such interval was computed in the
+  protected report. The one last-decimal recomputation difference (RF Brier, §4.7 check 11) is
+  disclosed as a qualified, unverifiable-at-4-dp possibility with the supplied aggregate
+  (0.1156) preserved, rather than silently aligned or asserted as explained.
 - **PR handling:** this synthesis is submitted as one documentation-only pull request, left
   **OPEN and unmerged** for human scientific review. A merged or CI-green documentation PR is not
   scientific approval.
