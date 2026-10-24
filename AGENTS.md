@@ -225,3 +225,35 @@ single dataset **`DA-A1` UCI-412** (*Z-Alizadeh Sani*, 303 participants).
   maintainer to apply.
 
 This section authorizes no subsequent milestone and no real-data execution.
+
+### M3a activation preparation (2026-10-24) — PROPOSED; NOT AUTHORIZED
+
+**Status: PROPOSED; NOT AUTHORIZED; NOTHING ACTIVATED.** A documentation-only ratification
+packet, [doc 09](docs/research/gate-pt/09_m3a_uci412_internal_research_RATIFICATION_PACKET.md),
+prepares the single human governance act that D-048 and doc 08 leave open. It adds no
+decision id, changes no register entry, and modifies no gate, guard, blocker or status.
+
+- **Unchanged by this preparation:** doc 08, the registered plan
+  (`research/uci412/uci412_cad_research_plan.v0.1.json`), the feature dictionary
+  (`research/uci412/schemas/uci412_feature_dictionary.v1.json`), all of `research/uci412/**`,
+  `research/experiments/**`, the application code and `.github/**`. The 16-column basic
+  clinical panel, the three model families, the repeated nested-CV scheme and seeds, the fixed
+  0.5 exploratory threshold, the negative controls and every guard remain byte-identical.
+  D-048's proposal text in `docs/DECISIONS.md` is deliberately not edited: its own closing
+  clause requires a named human decision to change it.
+- **What the packet contains:** the frozen artifact hashes the human would bind; the frozen
+  scope restated for accept/reject; the residual source-feature semantics (S-1 … S-8) and the
+  sample-size limitations (`NOT_MET_AT_STATED_HALF_WIDTH`; R²-dependent criteria
+  `NOT ASSESSED`) as explicit blank human decisions; and the exact activation sequence —
+  verbatim `AUTHORIZE-M3A-UCI412-INTERNAL-RESEARCH` PR comment, human-approved merge, the
+  pre-existing D-046 `DA-A1` local read-only chain, protected provenance and licence snapshot,
+  the field-by-field local manifest at
+  `data/manifests/uci412_internal_research_authorization.local.json`, hash binding and the
+  Windows-local `preflight`, followed only then by `run`.
+- **Nothing is claimed or implied:** no signature, approval, ratification or activation; no
+  supervisor, ethics or institutional approval; **Gate PT P-3 remains CLOSED**, P-1 PENDING,
+  P-5 prohibited; D-046 stays read-only audit and D-047 stays Cleveland-only. No dataset was
+  accessed, no model was fitted, no performance number exists, and no patient-level output was
+  created, committed, or uploaded by this preparation.
+
+This addendum authorizes no subsequent milestone and no real-data execution.
