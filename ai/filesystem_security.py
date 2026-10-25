@@ -65,6 +65,25 @@ SID_BUILTIN_ADMINS: Final[str] = "S-1-5-32-544"
 SID_CREATOR_OWNER: Final[str] = "S-1-3-0"
 SID_BUILTIN_USERS: Final[str] = "S-1-5-32-545"
 
+# Documented 2-character SDDL access-rights tokens from Microsoft sddl.h
+# (MS-DTYP section 2.5.1.1; note icacls tokens like 'M', 'F', 'RX' are NOT SDDL)
+VALID_SDDL_RIGHTS_TOKENS: Final[frozenset[str]] = frozenset(
+    {
+        "GA",  # SDDL_GENERIC_ALL
+        "GR",  # SDDL_GENERIC_READ
+        "GW",  # SDDL_GENERIC_WRITE
+        "GX",  # SDDL_GENERIC_EXECUTE
+        "RC",  # SDDL_READ_CONTROL
+        "SD",  # SDDL_STANDARD_DELETE
+        "WD",  # SDDL_WRITE_DAC
+        "WO",  # SDDL_WRITE_OWNER
+        "FA",  # SDDL_FILE_ALL
+        "FR",  # SDDL_FILE_READ
+        "FW",  # SDDL_FILE_WRITE
+        "FX",  # SDDL_FILE_EXECUTE
+    }
+)
+
 # File/directory access mask bits (winnt.h)
 FILE_READ_DATA: Final[int] = 0x00000001
 FILE_WRITE_DATA: Final[int] = 0x00000002
@@ -649,8 +668,79 @@ def _win32_volume_supports_persistent_acls(path: Path) -> bool:
     return (int(fs_flags.value) & FILE_PERSISTENT_ACLS) != 0
 
 
+def validate_windows_sddl_dacl_string(sddl: str) -> None:
+    """Validate that an SDDL DACL string uses only documented ``sddl.h`` rights tokens."""
+    if not isinstance(sddl, str) or not sddl.startswith("D:"):
+        raise ValueError(f"Invalid SDDL DACL header in '{sddl}'.")
+    ace_Start = sddl.find("(")
+    if ace_Start < 0 or not sddl.endswith(")"):
+        raise ValueError(f"SDDL DACL string lacks ACE clauses: '{sddl}'.")
+
+    body = sddl[ace_Start:]
+    clauses = re.findall(r"\(([^()]+)\)", body)
+    if not clauses or "".join(f"({c})" for c in clauses) != body:
+        raise ValueError(f"Malformed ACE parentheses in SDDL '{sddl}'.")
+
+    for clause in clauses:
+        fields = clause.split(";")
+        if len(fields) != 6:
+            raise ValueError(
+                f"SDDL ACE clause '({clause})' must contain exactly 6 fields."
+            )
+        ace_type, _ace_flags, rights, _obj_guid, _inh_guid, account = fields
+        if ace_type not in ("A", "D") or not rights or not account:
+            raise ValueError(f"Invalid SDDL ACE type/rights/account in '({clause})'.")
+        if rights.lower().startswith("0x"):
+            int(rights, 16)
+            continue
+        if len(rights) % 2 != 0:
+            raise ValueError(
+                f"Undocumented SDDL rights string '{rights}' in '({clause})'."
+            )
+        tokens = [rights[i : i + 2] for i in range(0, len(rights), 2)]
+        unknown = [tok for tok in tokens if tok not in VALID_SDDL_RIGHTS_TOKENS]
+        if unknown:
+            raise ValueError(
+                f"Invalid SDDL access-rights token(s) {unknown} in '({clause})'."
+            )
+
+
+def build_windows_private_sddl(user_sid: str, *, is_directory: bool) -> str:
+    """Build protected user-private Windows NTFS SDDL (``D:PAI``)."""
+    inherit = "OICI" if is_directory else ""
+    sddl = (
+        f"D:PAI"
+        f"(A;{inherit};FA;;;{user_sid})"
+        f"(A;{inherit};FA;;;SY)"
+        f"(A;{inherit};FA;;;BA)"
+    )
+    validate_windows_sddl_dacl_string(sddl)
+    return sddl
+
+
+def build_windows_negative_test_sddl(user_sid: str, *, is_directory: bool) -> str:
+    """Build valid SDDL granting ``BUILTIN\\Users`` read access for negative tests.
+
+    Uses documented ``sddl.h`` tokens ``GR`` (``SDDL_GENERIC_READ``) for
+    directories and ``FR`` (``SDDL_FILE_READ``) for files.
+    """
+    inherit = "OICI" if is_directory else ""
+    extra_mask = "GR" if is_directory else "FR"
+    sddl = (
+        f"D:PAI"
+        f"(A;{inherit};FA;;;{user_sid})"
+        f"(A;{inherit};FA;;;SY)"
+        f"(A;{inherit};FA;;;BA)"
+        f"(A;{inherit};{extra_mask};;;{SID_BUILTIN_USERS})"
+    )
+    validate_windows_sddl_dacl_string(sddl)
+    return sddl
+
+
 def _win32_apply_sddl_dacl(path: Path, sddl: str) -> None:
     from ctypes import wintypes
+
+    validate_windows_sddl_dacl_string(sddl)
 
     api = _get_win32_api()
     kernel32 = api["kernel32"]
@@ -708,13 +798,7 @@ def _win32_set_private_dacl(path: Path, *, is_directory: bool) -> None:
     if not _win32_volume_supports_persistent_acls(path):
         raise OSError("Target Windows volume does not support persistent NTFS ACLs.")
     user_sid, _ = _win32_current_user_sid_and_admin()
-    inherit = "OICI" if is_directory else ""
-    sddl = (
-        f"D:PAI"
-        f"(A;{inherit};FA;;;{user_sid})"
-        f"(A;{inherit};FA;;;SY)"
-        f"(A;{inherit};FA;;;BA)"
-    )
+    sddl = build_windows_private_sddl(user_sid, is_directory=is_directory)
     _win32_apply_sddl_dacl(path, sddl)
 
 
@@ -939,24 +1023,17 @@ def write_new_private_file(path: Path, content: bytes) -> None:
 
 
 def loosen_access_for_negative_test(path: Path, *, is_directory: bool = False) -> None:
-    """Test-only helper that grants local ``Users`` / group read-or-write access.
+    """Test-only helper that intentionally weakens private isolation.
 
-    On POSIX, sets ``0o755``/``0o777`` (dir) or ``0o644`` (file).
+    On POSIX, sets ``0o775`` (directory) or ``0o644`` (file).
     On Windows NTFS, explicitly grants ``BUILTIN\\Users`` (``S-1-5-32-545``)
-    read (or modify on directories) in the DACL via ``SetNamedSecurityInfoW`` so
-    negative security tests exercise genuine NTFS ACL verification.
+    documented SDDL read rights (``GR`` on directories, ``FR`` on files) via
+    ``SetNamedSecurityInfoW`` so negative security tests exercise genuine NTFS
+    Security-Descriptor DACL verification.
     """
     if is_windows_runtime():
         user_sid, _ = _win32_current_user_sid_and_admin()
-        inherit = "OICI" if is_directory else ""
-        extra_mask = "M" if is_directory else "FR"
-        sddl = (
-            f"D:PAI"
-            f"(A;{inherit};FA;;;{user_sid})"
-            f"(A;{inherit};FA;;;SY)"
-            f"(A;{inherit};FA;;;BA)"
-            f"(A;{inherit};{extra_mask};;;{SID_BUILTIN_USERS})"
-        )
+        sddl = build_windows_negative_test_sddl(user_sid, is_directory=is_directory)
         _win32_apply_sddl_dacl(path, sddl)
     else:
         os.chmod(path, 0o775 if is_directory else 0o644)

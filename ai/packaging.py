@@ -841,7 +841,7 @@ def verify_trusted_local_bundle(
     root_acl = verify_access_control(
         resolved_trust_root,
         expect_directory=True,
-        strict_private=False,
+        strict_private=is_windows_runtime(),
     )
     if not root_acl.ok:
         if root_acl.reason_category == "owner":

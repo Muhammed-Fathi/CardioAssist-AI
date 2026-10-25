@@ -360,6 +360,15 @@ def run_end_to_end_platform_validation(
         finally:
             protect_private_directory(trusted_root)
 
+        assert verify_access_control(
+            trusted_root, expect_directory=True, strict_private=True
+        ).ok
+        verify_trusted_local_bundle(
+            bundle_dir,
+            trusted_local_root=trusted_root,
+            signing_key=signing_key,
+        )
+
         steps_passed.append("7_signing_key_and_artifact_access_control")
 
         # 8. External evaluation ledger: failure -> reload -> recovery -> duplicate rejection

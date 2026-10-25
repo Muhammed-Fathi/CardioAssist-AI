@@ -1827,6 +1827,31 @@ def test_windows_binary_sid_acl_and_dacl_policy_engine() -> None:
     )
     assert not denied_res.ok
 
+    # 8. SDDL rights token validation: documented sddl.h tokens ('FA', 'GR', 'FR')
+    #    succeed; icacls-only shorthands ('M', 'RX', 'F') fail closed before Win32 call
+    from ai.filesystem_security import (
+        build_windows_negative_test_sddl,
+        build_windows_private_sddl,
+        validate_windows_sddl_dacl_string,
+    )
+
+    dir_neg_sddl = build_windows_negative_test_sddl(user_sid, is_directory=True)
+    file_neg_sddl = build_windows_negative_test_sddl(user_sid, is_directory=False)
+    assert f"(A;OICI;GR;;;{SID_BUILTIN_USERS})" in dir_neg_sddl
+    assert f"(A;;FR;;;{SID_BUILTIN_USERS})" in file_neg_sddl
+    validate_windows_sddl_dacl_string(
+        build_windows_private_sddl(user_sid, is_directory=True)
+    )
+    validate_windows_sddl_dacl_string(
+        build_windows_private_sddl(user_sid, is_directory=False)
+    )
+    for invalid_token in ("M", "RX", "F"):
+        bad_sddl = (
+            f"D:PAI(A;OICI;FA;;;{user_sid})(A;OICI;{invalid_token};;;{SID_BUILTIN_USERS})"
+        )
+        with pytest.raises(ValueError, match="SDDL"):
+            validate_windows_sddl_dacl_string(bad_sddl)
+
 
 def test_windows_runtime_paths_reparse_points_and_no_fchmod_or_st_mode_reliance(
     tmp_path: Path,
@@ -2126,4 +2151,119 @@ def test_end_to_end_platform_validation_harness_cli(tmp_path: Path) -> None:
     report = run_end_to_end_platform_validation(tmp_path / "harness_work")
     assert report["status"] == "PASSED"
     assert len(report["steps_passed"]) == 8
+
+
+@pytest.mark.skipif(
+    __import__("os").name != "nt",
+    reason="Windows-only Win32 SDDL conversion and NTFS directory DACL regression test.",
+)
+def test_native_windows_sddl_conversion_weakened_directory_rejection_and_restoration(
+    tmp_path: Path,
+) -> None:
+    """Verify native Win32 SDDL conversion, weakened directory DACL rejection, and restoration."""
+    import ctypes
+    from ctypes import wintypes
+
+    from ai.filesystem_security import (
+        SDDL_REVISION_1,
+        SID_BUILTIN_USERS,
+        _get_win32_api,
+        _win32_current_user_sid_and_admin,
+        build_windows_negative_test_sddl,
+        loosen_access_for_negative_test,
+        protect_private_directory,
+        write_new_private_file,
+    )
+
+    user_sid, _ = _win32_current_user_sid_and_admin()
+    api = _get_win32_api()
+    kernel32 = api["kernel32"]
+    advapi32 = api["advapi32"]
+
+    # 1. Verify live Win32 ConvertStringSecurityDescriptorToSecurityDescriptorW succeeds
+    #    for both directory ('GR') and file ('FR') negative-test SDDL descriptors
+    for is_dir in (True, False):
+        sddl = build_windows_negative_test_sddl(user_sid, is_directory=is_dir)
+        sd_ptr = ctypes.c_void_p()
+        sd_size = wintypes.ULONG(0)
+        ok = bool(
+            advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                sddl,
+                SDDL_REVISION_1,
+                ctypes.byref(sd_ptr),
+                ctypes.byref(sd_size),
+            )
+        )
+        try:
+            assert ok is True, f"Win32 SDDL conversion failed for '{sddl}'"
+            assert bool(sd_ptr.value) is True
+        finally:
+            if sd_ptr.value:
+                kernel32.LocalFree(sd_ptr)
+
+    # 2. Verify weakened directory DACL is rejected fail-closed and cleanly restored
+    test_root = ensure_private_directory(tmp_path / "win_sddl_trusted_root")
+    probe_file = test_root / "synthetic_probe.bin"
+    write_new_private_file(probe_file, b"synthetic_probe_bytes")
+
+    records, labels = _generate_synthetic_uci45_cohort(60, seed=3131)
+    run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_LABS_PANEL,
+        model_id="synth_win_sddl_reg_v1",
+        development_cohort_id="synthetic_cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_TEST_CONFIG,
+    )
+    signing_key = b"W" * 32
+    bundle_dir = test_root / "signed_bundle"
+    package_research_bundle(run, bundle_dir, signing_key=signing_key)
+
+    loosen_access_for_negative_test(test_root, is_directory=True)
+    try:
+        weak_dir_check = verify_access_control(
+            test_root, expect_directory=True, strict_private=True
+        )
+        assert weak_dir_check.ok is False
+        assert weak_dir_check.reason_category == "permissions"
+        assert SID_BUILTIN_USERS in weak_dir_check.detail
+
+        with pytest.raises(BundleIntegrityError) as root_exc:
+            verify_trusted_local_bundle(
+                bundle_dir,
+                trusted_local_root=test_root,
+                signing_key=signing_key,
+            )
+        assert root_exc.value.code == "insecure_trusted_root_permissions"
+    finally:
+        protect_private_directory(test_root)
+
+    restored_dir_check = verify_access_control(
+        test_root, expect_directory=True, strict_private=True
+    )
+    assert restored_dir_check.ok is True
+    restored_desc = verify_trusted_local_bundle(
+        bundle_dir,
+        trusted_local_root=test_root,
+        signing_key=signing_key,
+    )
+    assert restored_desc.safe_for_pickle_deserialization is True
+
+    # 3. Verify weakened file DACL is rejected fail-closed and cleanly restored
+    loosen_access_for_negative_test(probe_file, is_directory=False)
+    try:
+        weak_file_check = verify_access_control(
+            probe_file, expect_directory=False, strict_private=True
+        )
+        assert weak_file_check.ok is False
+        assert weak_file_check.reason_category == "permissions"
+        assert SID_BUILTIN_USERS in weak_file_check.detail
+    finally:
+        protect_private_file(probe_file)
+
+    assert verify_access_control(
+        probe_file, expect_directory=False, strict_private=True
+    ).ok is True
+
 
