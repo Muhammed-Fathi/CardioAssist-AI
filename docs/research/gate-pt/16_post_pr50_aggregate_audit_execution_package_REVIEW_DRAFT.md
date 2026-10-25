@@ -177,12 +177,14 @@ git rev-parse HEAD
 # 2. Git-ignore and tracking posture for /data/
 & $python -m research.audit verify-ignore
 
-# 3. Dry-run preflight (no dataset is read).
-#    The four built-in commands accept --auth-manifest but deliberately default to the
-#    committed template; pass the local manifest explicitly or the preflight will
-#    report PENDING_HUMAN_ACCEPTANCE, which is what CI does on purpose.
+# 3. Dry-run preflight (no dataset is read; it only re-checks governance state).
+#    These commands default to the committed PENDING template, so pass the local
+#    manifest explicitly. With an authorized local manifest the statuses should read
+#    AUTHORIZED_FOR_READ_ONLY_AUDIT; with the template they read
+#    PENDING_HUMAN_ACCEPTANCE, which is the expected CI behaviour.
 & $python -m research.audit dry-run --auth-manifest "data/manifests/gate_da_authorization.local.json"
-& $python -m research.audit self-test --auth-manifest "data/manifests/gate_da_authorization.local.json"
+& $python -m research.audit dry-run --json-out data/reports/preflight_report.json --markdown-out data/reports/preflight_report.md
+& $python -m research.audit self-test
 
 # 4. The tool's own synthetic tests must pass in THIS environment first
 & $python -m pytest tests/audit -q -W error
