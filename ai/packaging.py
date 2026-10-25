@@ -4,11 +4,12 @@ controls, and trusted-local-origin pre-deserialization verification.
 Security, privacy & scientific invariants:
 1. **Atomic staging-directory commit & guaranteed failure cleanup:**
    :func:`package_research_bundle` writes all sibling files into a private
-   (``0700``) temporary staging directory next to ``bundle_dir``, sets ``0600``
-   permissions on every file (including ``model.joblib`` and
-   ``shap_background.json``), verifies the staged bundle, and commits via atomic
-   ``os.replace``. Any failure or interruption deletes the staging directory so
-   partial bundles never remain on disk.
+   temporary staging directory next to ``bundle_dir`` (POSIX ``0700`` / Windows
+   protected NTFS ``D:PAI`` user-only DACL), applies and verifies strict private
+   access controls on every file (POSIX ``0600`` / Windows NTFS user-only DACL,
+   including ``model.joblib`` and ``shap_background.json``), verifies the staged
+   bundle, and commits via atomic ``os.replace``. Any failure or interruption
+   deletes the staging directory so partial bundles never remain on disk.
 2. **SHA-256 integrity != producer authenticity:**
    :func:`verify_research_bundle` checks layout, governance flags, contract
    hashes, and file SHA-256 digests, returning
@@ -18,7 +19,9 @@ Security, privacy & scientific invariants:
    deserialization MUST pass :func:`verify_trusted_local_bundle`, which enforces:
    - containment inside an explicit user-owned ``trusted_local_root`` outside
      tracked Git paths,
-   - strict local user ownership and ``0600``/``0700`` permissions, and
+   - strict local user ownership and verified POSIX permissions (Linux/macOS) or
+     verified NTFS Security-Descriptor DACLs (Windows, never trusting
+     ``os.chmod`` or ``stat.st_mode`` bits), and
    - constant-time ``HMAC-SHA256`` verification against the local producer
      signing key BEFORE ``joblib.load`` is called.
 3. **Training-projection privacy (``shap_background.json``):**
@@ -49,13 +52,27 @@ import joblib
 
 from ai.errors import BundleIntegrityError
 from ai.explainability import METHOD_BY_MODEL_FAMILY, SHAP_BACKGROUND_SCHEMA_VERSION
+from ai.filesystem_security import (
+    SAFE_ARTIFACT_BASENAME_RE,
+    ensure_private_directory,
+    has_reparse_between,
+    is_reparse_or_symlink,
+    is_strictly_within_directory,
+    is_valid_artifact_basename,
+    is_windows_runtime,
+    paths_equal_platform,
+    protect_private_directory,
+    relative_posix_if_within_directory,
+    verify_access_control,
+    write_new_private_file,
+)
 from ai.panels import ResearchPanelContract, get_panel_contract
 from ai.training import TrainedResearchRun
 
 REPOSITORY_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
 BUNDLE_SCHEMA_VERSION: Final[str] = "cardioassist.ai.research_bundle/v1"
 ATTESTATION_SCHEME: Final[str] = "hmac-sha256-local-producer-v1"
-SAFE_BASENAME_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z0-9][a-z0-9._-]{1,63}$")
+SAFE_BASENAME_RE: Final[re.Pattern[str]] = SAFE_ARTIFACT_BASENAME_RE
 MAX_BUNDLE_FILE_BYTES: Final[int] = 64 * 1024 * 1024  # 64 MiB ceiling
 MIN_SIGNING_KEY_BYTES: Final[int] = 32
 
@@ -112,6 +129,14 @@ def _default_local_signing_key_path() -> Path:
     override = os.environ.get("CARDIOASSIST_LOCAL_SIGNING_KEY_PATH")
     if override:
         return Path(override)
+    if is_windows_runtime():
+        local_appdata = os.environ.get("LOCALAPPDATA", "").strip()
+        base = (
+            Path(local_appdata)
+            if local_appdata
+            else (Path.home() / "AppData" / "Local")
+        )
+        return base / "CardioAssistAI" / "local_bundle_hmac_v1.key"
     return Path.home() / ".cache" / "cardioassist_ai" / "local_bundle_hmac_v1.key"
 
 
@@ -125,48 +150,64 @@ def _validate_signing_key_bytes(key: bytes) -> bytes:
 
 
 def get_or_create_local_signing_key(key_path: Path | None = None) -> bytes:
-    """Load or atomically initialize a user-private (0600) local HMAC signing key."""
+    """Load or atomically initialize a user-private local HMAC signing key.
+
+    Enforces POSIX ``0600`` + UID ownership on Linux/macOS and verified NTFS
+    ``D:PAI`` user-only DACL isolation on Windows (never trusting ``os.chmod``
+    or CRT ``st_mode`` bits on Windows).
+    """
     path = Path(key_path) if key_path is not None else _default_local_signing_key_path()
-    if path.is_symlink():
+    if is_reparse_or_symlink(path):
         raise BundleIntegrityError(
             "symlink_signing_key_prohibited",
-            "Local signing key path must not be a symlink.",
+            "Local signing key path must not be a symlink, junction, or reparse point.",
         )
     _assert_not_in_unignored_repo_path(path, error_code="unignored_signing_key_prohibited")
 
     parent = path.parent
-    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    try:
-        os.chmod(parent, 0o700)
-    except OSError:
-        pass
+    if is_reparse_or_symlink(parent):
+        raise BundleIntegrityError(
+            "symlink_signing_key_prohibited",
+            "Local signing key parent directory must not be a symlink or junction.",
+        )
+    if not parent.exists():
+        try:
+            ensure_private_directory(parent)
+        except OSError as exc:
+            raise BundleIntegrityError(
+                "insecure_signing_key_permissions",
+                f"Failed to create private directory for local signing key: {exc}",
+            ) from exc
 
     if not path.exists():
         secret_bytes = secrets.token_bytes(32)
         try:
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            write_new_private_file(path, secret_bytes)
         except FileExistsError:
             pass
-        else:
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(secret_bytes)
-                handle.flush()
+        except OSError as exc:
+            raise BundleIntegrityError(
+                "insecure_signing_key_permissions",
+                f"Failed to initialize private local signing key: {exc}",
+            ) from exc
 
-    if path.is_symlink() or not path.is_file():
+    if is_reparse_or_symlink(path) or not path.is_file():
         raise BundleIntegrityError(
             "invalid_signing_key_file",
             "Local signing key must be a regular non-symlink file.",
         )
-    st = path.stat()
-    if hasattr(os, "getuid") and st.st_uid != os.getuid():
-        raise BundleIntegrityError(
-            "untrusted_signing_key_owner",
-            "Local signing key file is not owned by the current user.",
-        )
-    if (st.st_mode & 0o077) != 0:
+    key_acl = verify_access_control(
+        path, expect_directory=False, strict_private=True
+    )
+    if not key_acl.ok:
+        if key_acl.reason_category == "owner":
+            raise BundleIntegrityError(
+                "untrusted_signing_key_owner",
+                f"Local signing key file is not owned by a trusted local owner: {key_acl.detail}",
+            )
         raise BundleIntegrityError(
             "insecure_signing_key_permissions",
-            "Local signing key file must have strict 0600 user-only permissions.",
+            f"Local signing key file failed private access-control verification: {key_acl.detail}",
         )
     return _validate_signing_key_bytes(path.read_bytes())
 
@@ -188,13 +229,11 @@ def _compute_manifest_attestation_hmac(
 
 
 def _assert_not_in_unignored_repo_path(target: Path, *, error_code: str) -> None:
-    resolved = target.parent.resolve() / target.name
-    try:
-        rel = resolved.relative_to(REPOSITORY_ROOT.resolve())
-    except ValueError:
+    rel_posix = relative_posix_if_within_directory(target, REPOSITORY_ROOT)
+    if rel_posix is None:
         return
     probe = subprocess.run(
-        ["git", "check-ignore", "-q", "--", rel.as_posix()],
+        ["git", "check-ignore", "-q", "--", rel_posix],
         cwd=str(REPOSITORY_ROOT),
         check=False,
     )
@@ -206,7 +245,7 @@ def _assert_not_in_unignored_repo_path(target: Path, *, error_code: str) -> None
 
 
 def _ensure_safe_output_path(bundle_dir: Path) -> Path:
-    if bundle_dir.exists() or bundle_dir.is_symlink():
+    if bundle_dir.exists() or is_reparse_or_symlink(bundle_dir):
         raise BundleIntegrityError(
             "bundle_directory_already_exists",
             "Refusing to overwrite an existing artifact bundle directory.",
@@ -214,10 +253,23 @@ def _ensure_safe_output_path(bundle_dir: Path) -> Path:
     _assert_not_in_unignored_repo_path(
         bundle_dir, error_code="unignored_repository_path_prohibited"
     )
-    bundle_dir.parent.mkdir(parents=True, exist_ok=True)
-    resolved_parent = bundle_dir.parent.resolve()
+    parent = bundle_dir.parent
+    if is_reparse_or_symlink(parent):
+        raise BundleIntegrityError(
+            "bundle_symlink_prohibited",
+            "Bundle parent directory must not be a symlink, junction, or reparse point.",
+        )
+    if not parent.exists():
+        try:
+            ensure_private_directory(parent)
+        except OSError as exc:
+            raise BundleIntegrityError(
+                "insecure_bundle_permissions",
+                f"Failed to prepare private parent directory for bundle: {exc}",
+            ) from exc
+    resolved_parent = parent.resolve()
     target = resolved_parent / bundle_dir.name
-    if target.exists() or target.is_symlink():
+    if target.exists() or is_reparse_or_symlink(target):
         raise BundleIntegrityError(
             "bundle_directory_already_exists",
             "Refusing to overwrite an existing artifact bundle directory.",
@@ -250,11 +302,14 @@ def _assert_aggregate_only(summary: Mapping[str, Any]) -> None:
 
 
 def _write_atomic_private(path: Path, content: bytes) -> dict[str, Any]:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    os.fchmod(fd, 0o600)
-    with os.fdopen(fd, "wb") as handle:
-        handle.write(content)
-        handle.flush()
+    try:
+        write_new_private_file(path, content)
+    except OSError as exc:
+        raise BundleIntegrityError(
+            "private_artifact_write_or_acl_failed",
+            f"Failed to write and verify private bundle file '{path.name}': {exc}",
+            field=path.name,
+        ) from exc
     return {
         "sha256": _sha256(content),
         "size_bytes": len(content),
@@ -326,7 +381,21 @@ def package_research_bundle(
     )
     committed = False
     try:
-        os.chmod(staging_dir, 0o700)
+        try:
+            protect_private_directory(staging_dir)
+        except OSError as exc:
+            raise BundleIntegrityError(
+                "insecure_bundle_permissions",
+                f"Failed to lock down temporary staging directory: {exc}",
+            ) from exc
+        staging_acl = verify_access_control(
+            staging_dir, expect_directory=True, strict_private=True
+        )
+        if not staging_acl.ok:
+            raise BundleIntegrityError(
+                "insecure_bundle_permissions",
+                f"Temporary staging directory failed private access-control check: {staging_acl.detail}",
+            )
 
         model_payload = {
             "selected_model_family": trained_run.selected_model_family,
@@ -474,14 +543,21 @@ def package_research_bundle(
             signing_key=active_key,
         )
 
-        if target_dir.exists() or target_dir.is_symlink():
+        if target_dir.exists() or is_reparse_or_symlink(target_dir):
             raise BundleIntegrityError(
                 "bundle_directory_already_exists",
                 "Refusing to overwrite an existing artifact bundle directory.",
             )
         os.replace(staging_dir, target_dir)
-        os.chmod(target_dir, 0o700)
         committed = True
+        try:
+            protect_private_directory(target_dir)
+        except OSError as exc:
+            shutil.rmtree(target_dir, ignore_errors=True)
+            raise BundleIntegrityError(
+                "insecure_bundle_permissions",
+                f"Failed to verify private permissions on committed bundle directory: {exc}",
+            ) from exc
     finally:
         if not committed and staging_dir.exists():
             shutil.rmtree(staging_dir, ignore_errors=True)
@@ -494,17 +570,17 @@ def package_research_bundle(
 
 
 def _read_safe_regular_file(root: Path, filename: str) -> bytes:
-    if not SAFE_BASENAME_RE.match(filename):
+    if not is_valid_artifact_basename(filename):
         raise BundleIntegrityError(
             "unsafe_bundle_filename",
             f"Unsafe artifact filename '{filename}' rejected.",
             field=filename,
         )
     candidate = root / filename
-    if candidate.is_symlink():
+    if is_reparse_or_symlink(candidate):
         raise BundleIntegrityError(
             "bundle_symlink_prohibited",
-            f"Symlinked bundle member '{filename}' is prohibited.",
+            f"Symlinked or reparse-point bundle member '{filename}' is prohibited.",
             field=filename,
         )
     if not candidate.is_file():
@@ -514,7 +590,7 @@ def _read_safe_regular_file(root: Path, filename: str) -> bytes:
             field=filename,
         )
     resolved = candidate.resolve()
-    if resolved.parent != root.resolve():
+    if not paths_equal_platform(resolved.parent, root.resolve()):
         raise BundleIntegrityError(
             "bundle_path_traversal_detected",
             f"Bundle file '{filename}' escaped bundle directory.",
@@ -540,10 +616,10 @@ def verify_research_bundle(bundle_dir: Path) -> VerifiedBundleDescriptor:
     :func:`verify_trusted_local_bundle` before any pickle/joblib deserialization.
     """
     root = Path(bundle_dir)
-    if root.is_symlink() or not root.is_dir():
+    if is_reparse_or_symlink(root) or not root.is_dir():
         raise BundleIntegrityError(
             "invalid_bundle_directory",
-            "Bundle root must be an existing non-symlink directory.",
+            "Bundle root must be an existing non-symlink, non-reparse directory.",
         )
 
     present_entries = {entry.name for entry in root.iterdir()}
@@ -743,16 +819,18 @@ def verify_trusted_local_bundle(
     trusted_local_root: Path,
     signing_key: bytes | None = None,
 ) -> VerifiedBundleDescriptor:
-    """Enforce trusted-local-origin containment, POSIX ownership/permissions, and
-    HMAC-SHA256 producer authentication BEFORE ``joblib.load`` can be invoked.
+    """Enforce trusted-local-origin containment, platform-verified ownership &
+    access controls (POSIX mode/UID on Linux/macOS; Win32 NTFS Security-Descriptor
+    DACL inspection on Windows), and HMAC-SHA256 producer authentication BEFORE
+    ``joblib.load`` can be invoked.
     """
     verified = verify_research_bundle(bundle_dir)
 
     trust_root = Path(trusted_local_root)
-    if trust_root.is_symlink() or not trust_root.is_dir():
+    if is_reparse_or_symlink(trust_root) or not trust_root.is_dir():
         raise BundleIntegrityError(
             "invalid_trusted_local_root",
-            "trusted_local_root must be an existing non-symlink directory.",
+            "trusted_local_root must be an existing non-symlink, non-reparse directory.",
         )
     _assert_not_in_unignored_repo_path(
         trust_root, error_code="unignored_trusted_root_prohibited"
@@ -760,60 +838,74 @@ def verify_trusted_local_bundle(
     resolved_trust_root = trust_root.resolve()
     resolved_bundle = verified.bundle_dir
 
-    root_stat = resolved_trust_root.stat()
-    if hasattr(os, "getuid") and root_stat.st_uid != os.getuid():
-        raise BundleIntegrityError(
-            "untrusted_root_owner",
-            "trusted_local_root is not owned by the current local user.",
-        )
-    if (root_stat.st_mode & 0o022) != 0:
+    root_acl = verify_access_control(
+        resolved_trust_root,
+        expect_directory=True,
+        strict_private=False,
+    )
+    if not root_acl.ok:
+        if root_acl.reason_category == "owner":
+            raise BundleIntegrityError(
+                "untrusted_root_owner",
+                f"trusted_local_root is not owned by a trusted local owner: {root_acl.detail}",
+            )
         raise BundleIntegrityError(
             "insecure_trusted_root_permissions",
-            "trusted_local_root must not be group-writable or world-writable.",
+            f"trusted_local_root failed access-control verification: {root_acl.detail}",
         )
 
-    if (
-        resolved_bundle == resolved_trust_root
-        or not resolved_bundle.is_relative_to(resolved_trust_root)
-    ):
+    if not is_strictly_within_directory(resolved_bundle, resolved_trust_root):
         raise BundleIntegrityError(
             "untrusted_bundle_location",
             "Refusing to deserialize bundle outside trusted_local_root.",
+        )
+    if has_reparse_between(resolved_bundle, resolved_trust_root):
+        raise BundleIntegrityError(
+            "bundle_symlink_prohibited",
+            "Refusing to deserialize bundle reached across a symlink, junction, or reparse point.",
         )
     _assert_not_in_unignored_repo_path(
         resolved_bundle, error_code="unignored_repository_path_prohibited"
     )
 
-    bundle_stat = resolved_bundle.stat()
-    if hasattr(os, "getuid") and bundle_stat.st_uid != os.getuid():
-        raise BundleIntegrityError(
-            "untrusted_bundle_owner",
-            "Bundle directory is not owned by the current local user.",
-        )
-    if (bundle_stat.st_mode & 0o022) != 0:
+    bundle_acl = verify_access_control(
+        resolved_bundle,
+        expect_directory=True,
+        strict_private=is_windows_runtime(),
+    )
+    if not bundle_acl.ok:
+        if bundle_acl.reason_category == "owner":
+            raise BundleIntegrityError(
+                "untrusted_bundle_owner",
+                f"Bundle directory is not owned by a trusted local owner: {bundle_acl.detail}",
+            )
         raise BundleIntegrityError(
             "insecure_bundle_permissions",
-            "Bundle directory must not be group-writable or world-writable.",
+            f"Bundle directory failed access-control verification: {bundle_acl.detail}",
         )
 
     for fname in (MANIFEST_FILENAME, *REQUIRED_SIBLING_FILES):
-        fstat = (resolved_bundle / fname).stat()
-        if hasattr(os, "getuid") and fstat.st_uid != os.getuid():
-            raise BundleIntegrityError(
-                "untrusted_bundle_owner",
-                f"Bundle file '{fname}' is not owned by the current local user.",
-                field=fname,
+        is_sensitive = fname in SENSITIVE_PRIVATE_FILES
+        file_acl = verify_access_control(
+            resolved_bundle / fname,
+            expect_directory=False,
+            strict_private=is_sensitive or is_windows_runtime(),
+        )
+        if not file_acl.ok:
+            if file_acl.reason_category == "owner":
+                raise BundleIntegrityError(
+                    "untrusted_bundle_owner",
+                    f"Bundle file '{fname}' is not owned by a trusted local owner: {file_acl.detail}",
+                    field=fname,
+                )
+            err_code = (
+                "insecure_sensitive_artifact_permissions"
+                if is_sensitive
+                else "insecure_bundle_permissions"
             )
-        if (fstat.st_mode & 0o022) != 0:
             raise BundleIntegrityError(
-                "insecure_bundle_permissions",
-                f"Bundle file '{fname}' must not be group-writable or world-writable.",
-                field=fname,
-            )
-        if fname in SENSITIVE_PRIVATE_FILES and (fstat.st_mode & 0o077) != 0:
-            raise BundleIntegrityError(
-                "insecure_sensitive_artifact_permissions",
-                f"Sensitive bundle artifact '{fname}' must have strict 0600 permissions.",
+                err_code,
+                f"Bundle file '{fname}' failed private access-control verification: {file_acl.detail}",
                 field=fname,
             )
 

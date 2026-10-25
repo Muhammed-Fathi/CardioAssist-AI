@@ -52,6 +52,13 @@ from ai.explainability import (
     exact_coalition_shapley_oracle,
     explain_clinical_instance,
 )
+from ai.filesystem_security import (
+    AccessControlVerificationResult,
+    ensure_private_directory,
+    protect_private_directory,
+    protect_private_file,
+    verify_access_control,
+)
 from ai.inference import ResearchCadPredictor, ResearchPredictionResult
 from ai.packaging import (
     BUNDLE_SCHEMA_VERSION,
@@ -85,6 +92,7 @@ from ai.training import (
 )
 
 __all__ = [
+    "AccessControlVerificationResult",
     "AiPipelineError",
     "BUNDLE_SCHEMA_VERSION",
     "BundleIntegrityError",
@@ -116,6 +124,7 @@ __all__ = [
     "compute_fold_prediction_dispersion",
     "compute_instance_uncertainty",
     "compute_prevalence_shift_diagnostic",
+    "ensure_private_directory",
     "evaluate_comprehensive_metrics",
     "evaluate_locked_external_cohort",
     "exact_coalition_shapley_oracle",
@@ -123,10 +132,13 @@ __all__ = [
     "get_or_create_local_signing_key",
     "get_panel_contract",
     "package_research_bundle",
+    "protect_private_directory",
+    "protect_private_file",
     "safe_clipped_logit",
     "train_research_model",
     "validate_clinical_record",
     "validate_cohort_records",
+    "verify_access_control",
     "verify_research_bundle",
     "verify_trusted_local_bundle",
 ]

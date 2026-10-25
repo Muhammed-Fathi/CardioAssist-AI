@@ -39,17 +39,27 @@ from ai import (
     ResearchTrainingConfig,
     ShapBackgroundReference,
     TrainedResearchRun,
+    ensure_private_directory,
     evaluate_locked_external_cohort,
     exact_coalition_shapley_oracle,
     explain_clinical_instance,
+    get_or_create_local_signing_key,
     package_research_bundle,
+    protect_private_file,
     train_research_model,
     validate_clinical_record,
+    verify_access_control,
     verify_research_bundle,
     verify_trusted_local_bundle,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture
+def tmp_path(tmp_path: Path) -> Path:
+    """Ensure pytest temporary root has platform-verified private isolation (POSIX 0700 / NTFS D:PAI)."""
+    return ensure_private_directory(tmp_path)
 
 FAST_TEST_CONFIG = ResearchTrainingConfig(
     protocol_id="CAI-AI1-SYNTHETIC-TEST-V1",
@@ -1440,8 +1450,9 @@ def test_interrupted_packaging_cleanup_untrusted_bundle_rejection_and_shap_priva
     assert leftover_staging == []
 
     # 2. Build a legitimate signed bundle under key_a inside trusted_root
-    trusted_root = tmp_path / "trusted_store"
-    trusted_root.mkdir(mode=0o700)
+    from ai.filesystem_security import loosen_access_for_negative_test
+
+    trusted_root = ensure_private_directory(tmp_path / "trusted_store")
     key_a = b"A" * 32
     key_b = b"B" * 32
     good_bundle = trusted_root / "good_bundle"
@@ -1457,15 +1468,16 @@ def test_interrupted_packaging_cleanup_untrusted_bundle_rejection_and_shap_priva
     #    verify_research_bundle passes, MUST fail verify_trusted_local_bundle /
     #    from_verified_bundle BEFORE joblib.load ever executes _DeserializationCanary!
     _DeserializationCanary.triggered = False
-    forged_bundle = trusted_root / "forged_pickle_valid_sha256"
-    forged_bundle.mkdir(mode=0o700)
+    forged_bundle = ensure_private_directory(
+        trusted_root / "forged_pickle_valid_sha256"
+    )
     for item in good_bundle.iterdir():
         dst = forged_bundle / item.name
         dst.write_bytes(item.read_bytes())
-        os.chmod(dst, 0o600)
+        protect_private_file(dst)
 
     joblib.dump(_DeserializationCanary(), forged_bundle / "model.joblib", compress=3)
-    os.chmod(forged_bundle / "model.joblib", 0o600)
+    protect_private_file(forged_bundle / "model.joblib")
     evil_bytes = (forged_bundle / "model.joblib").read_bytes()
     forged_manifest = json.loads(
         (forged_bundle / "manifest.json").read_text(encoding="utf-8")
@@ -1478,7 +1490,7 @@ def test_interrupted_packaging_cleanup_untrusted_bundle_rejection_and_shap_priva
         json.dumps(forged_manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    os.chmod(forged_bundle / "manifest.json", 0o600)
+    protect_private_file(forged_bundle / "manifest.json")
 
     # SHA-256 check alone succeeds (proving why SHA-256 != authentication)
     unauth = verify_research_bundle(forged_bundle)
@@ -1500,16 +1512,17 @@ def test_interrupted_packaging_cleanup_untrusted_bundle_rejection_and_shap_priva
     assert exc_info.value.code == "untrusted_bundle_producer_signature"
 
     # 5. Bundle outside trusted_local_root fails closed
-    other_root = tmp_path / "other_trusted_root"
-    other_root.mkdir(mode=0o700)
+    other_root = ensure_private_directory(tmp_path / "other_trusted_root")
     with pytest.raises(BundleIntegrityError) as exc_info:
         ResearchCadPredictor.from_verified_bundle(
             good_bundle, trusted_local_root=other_root, signing_key=key_a
         )
     assert exc_info.value.code == "untrusted_bundle_location"
 
-    # 6. Permissive 0644 permissions on shap_background.json fail closed
-    os.chmod(good_bundle / "shap_background.json", 0o644)
+    # 6. Permissive access controls on shap_background.json fail closed (POSIX 0644 / NTFS Users FR)
+    loosen_access_for_negative_test(
+        good_bundle / "shap_background.json", is_directory=False
+    )
     try:
         with pytest.raises(BundleIntegrityError) as exc_info:
             verify_trusted_local_bundle(
@@ -1517,7 +1530,7 @@ def test_interrupted_packaging_cleanup_untrusted_bundle_rejection_and_shap_priva
             )
         assert exc_info.value.code == "insecure_sensitive_artifact_permissions"
     finally:
-        os.chmod(good_bundle / "shap_background.json", 0o600)
+        protect_private_file(good_bundle / "shap_background.json")
 
     # 7. Non-synthetic shap_background.json is blocked while Gate PT is closed
     with pytest.raises(ExplainabilityIntegrityError) as bg_exc:
@@ -1614,7 +1627,10 @@ def test_external_evaluation_primitive_single_shot_ledger_and_real_cohort_blocks
     assert (
         first_led["execution_semantics"] == "LOCAL_LEDGER_ENFORCED_SINGLE_EVALUATION"
     )
-    assert (ledger_file.stat().st_mode & 0o077) == 0
+    assert first_led["one_shot_ledger_receipt"]["status"] == "COMPLETED"
+    assert verify_access_control(
+        ledger_file, expect_directory=False, strict_private=True
+    ).ok
 
     with pytest.raises(CohortGovernanceError) as exc_dup:
         evaluate_locked_external_cohort(
@@ -1628,3 +1644,486 @@ def test_external_evaluation_primitive_single_shot_ledger_and_real_cohort_blocks
             n_bootstrap=40,
         )
     assert exc_dup.value.code == "one_shot_external_evaluation_already_consumed"
+
+
+# --------------------------------------------------------------------------- #
+# 8. Windows NTFS DACL engine, Windows runtime invariants & two-phase ledger
+# --------------------------------------------------------------------------- #
+
+
+def test_windows_binary_sid_acl_and_dacl_policy_engine() -> None:
+    """Verify MS-DTYP binary SID/ACL parsing and fail-closed NTFS DACL policy evaluation."""
+    from ai.filesystem_security import (
+        ACCESS_ALLOWED_ACE_TYPE,
+        ACCESS_DENIED_ACE_TYPE,
+        FILE_READ_DATA,
+        FILE_WRITE_DATA,
+        GENERIC_ALL_ACCESS,
+        INHERIT_ONLY_ACE_FLAG,
+        SID_BUILTIN_ADMINS,
+        SID_BUILTIN_USERS,
+        SID_CREATOR_OWNER,
+        SID_LOCAL_SYSTEM,
+        ParsedWindowsAce,
+        build_windows_acl_bytes,
+        build_windows_binary_sid,
+        evaluate_windows_dacl_policy,
+        parse_windows_acl_bytes,
+        parse_windows_binary_sid,
+    )
+
+    user_sid = "S-1-5-21-2489123456-987654321-1122334455-1001"
+    foreign_sid = "S-1-5-21-2489123456-987654321-1122334455-9999"
+    auth_users_sid = "S-1-5-11"
+    everyone_sid = "S-1-1-0"
+
+    for s in (
+        user_sid,
+        foreign_sid,
+        SID_LOCAL_SYSTEM,
+        SID_BUILTIN_ADMINS,
+        SID_BUILTIN_USERS,
+        SID_CREATOR_OWNER,
+        auth_users_sid,
+        everyone_sid,
+    ):
+        assert parse_windows_binary_sid(build_windows_binary_sid(s)) == s
+
+    private_aces = (
+        ParsedWindowsAce(ACCESS_ALLOWED_ACE_TYPE, 0, GENERIC_ALL_ACCESS, user_sid),
+        ParsedWindowsAce(
+            ACCESS_ALLOWED_ACE_TYPE, 0, GENERIC_ALL_ACCESS, SID_LOCAL_SYSTEM
+        ),
+        ParsedWindowsAce(
+            ACCESS_ALLOWED_ACE_TYPE, 0, GENERIC_ALL_ACCESS, SID_BUILTIN_ADMINS
+        ),
+        ParsedWindowsAce(
+            ACCESS_ALLOWED_ACE_TYPE,
+            INHERIT_ONLY_ACE_FLAG,
+            GENERIC_ALL_ACCESS,
+            SID_CREATOR_OWNER,
+        ),
+    )
+    roundtrip_aces = parse_windows_acl_bytes(build_windows_acl_bytes(private_aces))
+    assert roundtrip_aces == private_aces
+
+    # 1. Strict private NTFS DACL passes for normal user and elevated Administrator owner
+    ok_res = evaluate_windows_dacl_policy(
+        owner_sid=user_sid,
+        current_user_sid=user_sid,
+        caller_is_admin=False,
+        persistent_acls_supported=True,
+        dacl_present=True,
+        dacl_is_null=False,
+        aces=roundtrip_aces,
+        strict_private=True,
+    )
+    assert ok_res.ok is True
+
+    elevated_res = evaluate_windows_dacl_policy(
+        owner_sid=SID_BUILTIN_ADMINS,
+        current_user_sid=user_sid,
+        caller_is_admin=True,
+        persistent_acls_supported=True,
+        dacl_present=True,
+        dacl_is_null=False,
+        aces=roundtrip_aces,
+        strict_private=True,
+    )
+    assert elevated_res.ok is True
+
+    # 2. Foreign owner fails closed with 'owner' category
+    foreign_owner_res = evaluate_windows_dacl_policy(
+        owner_sid=foreign_sid,
+        current_user_sid=user_sid,
+        caller_is_admin=False,
+        persistent_acls_supported=True,
+        dacl_present=True,
+        dacl_is_null=False,
+        aces=roundtrip_aces,
+        strict_private=True,
+    )
+    assert not foreign_owner_res.ok and foreign_owner_res.reason_category == "owner"
+
+    # 3. Non-NTFS volume (FAT32/exFAT without persistent ACLs) fails closed
+    fat_res = evaluate_windows_dacl_policy(
+        owner_sid=user_sid,
+        current_user_sid=user_sid,
+        caller_is_admin=False,
+        persistent_acls_supported=False,
+        dacl_present=True,
+        dacl_is_null=False,
+        aces=roundtrip_aces,
+        strict_private=True,
+    )
+    assert not fat_res.ok and fat_res.reason_category == "permissions"
+
+    # 4. NULL or missing DACL fails closed
+    null_dacl_res = evaluate_windows_dacl_policy(
+        owner_sid=user_sid,
+        current_user_sid=user_sid,
+        caller_is_admin=False,
+        persistent_acls_supported=True,
+        dacl_present=True,
+        dacl_is_null=True,
+        aces=(),
+        strict_private=True,
+    )
+    assert not null_dacl_res.ok and null_dacl_res.reason_category == "permissions"
+
+    # 5. BUILTIN\Users or Everyone read access (even INHERIT_ONLY) fails strict_private
+    for bad_principal, flags in (
+        (SID_BUILTIN_USERS, 0),
+        (everyone_sid, 0),
+        (auth_users_sid, 0),
+        (SID_BUILTIN_USERS, INHERIT_ONLY_ACE_FLAG),
+    ):
+        leaky_aces = (*roundtrip_aces, ParsedWindowsAce(ACCESS_ALLOWED_ACE_TYPE, flags, FILE_READ_DATA, bad_principal))
+        leaky_res = evaluate_windows_dacl_policy(
+            owner_sid=user_sid,
+            current_user_sid=user_sid,
+            caller_is_admin=False,
+            persistent_acls_supported=True,
+            dacl_present=True,
+            dacl_is_null=False,
+            aces=leaky_aces,
+            strict_private=True,
+        )
+        assert not leaky_res.ok
+
+    # 6. Default unhardened secondary drive E:\ ACL (Authenticated Users Modify) fails trusted_local_root
+    e_drive_default_aces = (
+        *roundtrip_aces,
+        ParsedWindowsAce(
+            ACCESS_ALLOWED_ACE_TYPE, 0, FILE_READ_DATA | FILE_WRITE_DATA, auth_users_sid
+        ),
+    )
+    e_root_res = evaluate_windows_dacl_policy(
+        owner_sid=user_sid,
+        current_user_sid=user_sid,
+        caller_is_admin=False,
+        persistent_acls_supported=True,
+        dacl_present=True,
+        dacl_is_null=False,
+        aces=e_drive_default_aces,
+        strict_private=False,
+    )
+    assert not e_root_res.ok
+
+    # 7. Preceding ACCESS_DENIED_ACE blocking caller read fails closed
+    denied_aces = (
+        ParsedWindowsAce(ACCESS_DENIED_ACE_TYPE, 0, FILE_READ_DATA, user_sid),
+        *roundtrip_aces,
+    )
+    denied_res = evaluate_windows_dacl_policy(
+        owner_sid=user_sid,
+        current_user_sid=user_sid,
+        caller_is_admin=False,
+        persistent_acls_supported=True,
+        dacl_present=True,
+        dacl_is_null=False,
+        aces=denied_aces,
+        strict_private=True,
+    )
+    assert not denied_res.ok
+
+
+def test_windows_runtime_paths_reparse_points_and_no_fchmod_or_st_mode_reliance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove os.name == 'nt' flow never calls os.fchmod or trusts Unix st_mode bits."""
+    import os
+    import ai.filesystem_security as fs_sec
+    import ai.packaging as pkg_mod
+
+    # 1. Reserved Windows device names & unsafe basenames are blocked
+    for bad_name in ("con", "con.json", "nul.txt", "prn", "com1.bin", "lpt9.dat", "bad."):
+        assert fs_sec.is_valid_artifact_basename(bad_name) is False
+
+    # 2. Simulated NTFS junction / FILE_ATTRIBUTE_REPARSE_POINT is rejected
+    junc_dir = tmp_path / "simulated_ntfs_junction"
+    junc_dir.mkdir()
+    with monkeypatch.context() as mp:
+        mp.setattr(Path, "is_junction", lambda self: self == junc_dir, raising=False)
+        assert fs_sec.is_reparse_or_symlink(junc_dir) is True
+        with pytest.raises(BundleIntegrityError) as j_exc:
+            verify_research_bundle(junc_dir)
+        assert j_exc.value.code == "invalid_bundle_directory"
+
+    # 3. Simulate Windows runtime: os.name == "nt", NO os.fchmod attribute, and
+    #    files left at 0o666 / dirs at 0o777 (matching Windows CRT stat().st_mode!).
+    #    Key by (st_dev, st_ino) to model NTFS per-MFT-record Security Descriptors
+    #    persisting across atomic os.replace(staging_dir, target_dir) renames.
+    protected_inodes: dict[tuple[int, int], str] = {}
+    touched_paths: list[Path] = []
+
+    def _inode_key(path: Path) -> tuple[int, int]:
+        st = path.stat()
+        return (int(st.st_dev), int(st.st_ino))
+
+    def _fake_win32_set_private_dacl(path: Path, *, is_directory: bool) -> None:
+        # Leave POSIX mode permissive (0o666 / 0o777) to prove st_mode is NOT trusted!
+        os.chmod(path, 0o777 if is_directory else 0o666)
+        protected_inodes[_inode_key(path)] = "PRIVATE_D_PAI"
+        touched_paths.append(path)
+
+    def _fake_win32_verify_path_dacl(
+        path: Path, *, strict_private: bool
+    ) -> fs_sec.AccessControlVerificationResult:
+        state = protected_inodes.get(_inode_key(path))
+        if state == "PRIVATE_D_PAI":
+            return fs_sec.AccessControlVerificationResult(ok=True)
+        return fs_sec.AccessControlVerificationResult(
+            ok=False,
+            reason_category="permissions",
+            detail="Missing verified NTFS D:PAI ACL in simulated Windows check.",
+        )
+
+    records, labels = _generate_synthetic_uci45_cohort(64, seed=2121)
+    run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_LABS_PANEL,
+        model_id="synth_win_sim_v1",
+        development_cohort_id="synthetic_cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_TEST_CONFIG,
+    )
+
+    local_appdata_dir = tmp_path / "LocalAppDataSim"
+    win_root = tmp_path / "win_trusted_bundles"
+    win_root.mkdir()
+    protected_inodes[_inode_key(win_root)] = "PRIVATE_D_PAI"
+
+    with monkeypatch.context() as mp:
+        mp.setattr(fs_sec, "is_windows_runtime", lambda: True)
+        mp.setattr(pkg_mod, "is_windows_runtime", lambda: True)
+        mp.delattr(os, "fchmod", raising=False)
+        mp.delenv("CARDIOASSIST_LOCAL_SIGNING_KEY_PATH", raising=False)
+        mp.setenv("LOCALAPPDATA", str(local_appdata_dir))
+        mp.setattr(fs_sec, "_win32_set_private_dacl", _fake_win32_set_private_dacl)
+        mp.setattr(fs_sec, "_win32_verify_path_dacl", _fake_win32_verify_path_dacl)
+
+        default_key_path = pkg_mod._default_local_signing_key_path()
+        assert default_key_path == (
+            local_appdata_dir / "CardioAssistAI" / "local_bundle_hmac_v1.key"
+        )
+        key = get_or_create_local_signing_key()
+        assert len(key) == 32
+        # Even though st_mode is 0o666, Windows path succeeds ONLY because NTFS DACL verified!
+        assert (default_key_path.stat().st_mode & 0o077) != 0
+
+        win_bundle = win_root / "bundle_on_ntfs"
+        package_research_bundle(run, win_bundle)
+        predictor = ResearchCadPredictor.from_verified_bundle(
+            win_bundle, trusted_local_root=win_root
+        )
+        pred = predictor.predict_research_only(records[0])
+        assert 0.0 < pred.calibrated_research_score < 1.0
+
+        # The instant NTFS DACL isolation is absent (even if someone ran os.chmod(0o600)!),
+        # Windows verification MUST fail closed!
+        os.chmod(win_bundle / "model.joblib", 0o600)
+        protected_inodes.pop(_inode_key(win_bundle / "model.joblib"))
+        with pytest.raises(BundleIntegrityError) as acl_exc:
+            verify_trusted_local_bundle(win_bundle, trusted_local_root=win_root)
+        assert acl_exc.value.code == "insecure_sensitive_artifact_permissions"
+        protected_inodes[_inode_key(win_bundle / "model.joblib")] = "PRIVATE_D_PAI"
+
+        # Verify ExternalEvaluationLedger under simulated Windows runtime (no os.fchmod,
+        # st_mode == 0o666 ignored, NTFS DACL verified)
+        win_ledger_path = tmp_path / "win_ledgers" / "ntfs_ledger.json"
+        ext_records, ext_labels = _generate_synthetic_uci45_cohort(52, seed=2122)
+        led_res = evaluate_locked_external_cohort(
+            run,
+            ext_records,
+            ext_labels,
+            external_cohort_id="synthetic_hungary",
+            external_dataset_id="DA-A2:synthetic_hungary",
+            synthetic_data_confirmed=True,
+            one_shot_ledger_path=win_ledger_path,
+            n_bootstrap=30,
+        )
+        assert led_res["one_shot_ledger_receipt"]["status"] == "COMPLETED"
+        assert (win_ledger_path.stat().st_mode & 0o077) != 0
+
+        os.chmod(win_ledger_path, 0o600)
+        protected_inodes.pop(_inode_key(win_ledger_path))
+        with pytest.raises(CohortGovernanceError) as led_acl_exc:
+            ExternalEvaluationLedger(win_ledger_path).list_entries()
+        assert led_acl_exc.value.code == "insecure_ledger_permissions"
+        protected_inodes[_inode_key(win_ledger_path)] = "PRIVATE_D_PAI"
+
+    # Cleanup 0o666/0o777 test permissions inside tmp_path
+    for p in (*touched_paths, win_bundle):
+        if p.exists():
+            os.chmod(p, 0o700 if p.is_dir() else 0o600)
+    if win_bundle.exists():
+        for child in win_bundle.iterdir():
+            os.chmod(child, 0o600)
+
+
+def test_external_evaluation_ledger_two_phase_failure_recovery_and_concurrency(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify RESERVED/COMPLETED/FAILED semantics, safe recovery, and concurrent duplicate block."""
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    import ai.training as tr_mod
+
+    dev_records, dev_labels = _generate_synthetic_uci45_cohort(72, seed=2222)
+    ext_records, ext_labels = _generate_synthetic_uci45_cohort(60, seed=2323)
+
+    run_a = train_research_model(
+        dev_records,
+        dev_labels,
+        DA_A2_RESTING_LABS_PANEL,
+        model_id="synth_ledger_v2_model_a",
+        development_cohort_id="synthetic_cleveland",
+        development_dataset_id="DA-A2:cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_TEST_CONFIG,
+    )
+    run_b = train_research_model(
+        dev_records,
+        dev_labels,
+        DA_A2_RESTING_LABS_PANEL,
+        model_id="synth_ledger_v2_model_b",
+        development_cohort_id="synthetic_cleveland",
+        development_dataset_id="DA-A2:cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_TEST_CONFIG,
+    )
+
+    ledger_path = tmp_path / "two_phase_ledger.json"
+
+    # 1. Failure during evaluation marks entry FAILED (NEVER COMPLETED)
+    orig_eval_metrics = tr_mod.evaluate_comprehensive_metrics
+
+    def _boom_metrics(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise RuntimeError("Simulated mid-evaluation bootstrap crash")
+
+    with monkeypatch.context() as mp:
+        mp.setattr(tr_mod, "evaluate_comprehensive_metrics", _boom_metrics)
+        with pytest.raises(RuntimeError, match="Simulated mid-evaluation"):
+            evaluate_locked_external_cohort(
+                run_a,
+                ext_records,
+                ext_labels,
+                external_cohort_id="synthetic_hungary",
+                external_dataset_id="DA-A2:synthetic_hungary",
+                synthetic_data_confirmed=True,
+                one_shot_ledger_path=ledger_path,
+                n_bootstrap=30,
+            )
+
+    entries_1 = ExternalEvaluationLedger(ledger_path).list_entries()
+    assert len(entries_1) == 1
+    assert entries_1[0]["status"] == "FAILED"
+    assert entries_1[0]["completed_at_utc"] is None
+    assert entries_1[0]["failure_error_type"] == "RuntimeError"
+
+    # 2. Retry without recover_after_failure=True fails closed
+    with pytest.raises(CohortGovernanceError) as unrec_exc:
+        evaluate_locked_external_cohort(
+            run_a,
+            ext_records,
+            ext_labels,
+            external_cohort_id="synthetic_hungary",
+            external_dataset_id="DA-A2:synthetic_hungary",
+            synthetic_data_confirmed=True,
+            one_shot_ledger_path=ledger_path,
+            n_bootstrap=30,
+        )
+    assert unrec_exc.value.code == "prior_external_evaluation_failed_recovery_required"
+
+    # 3. Attempting recovery with a DIFFERENT model_id fails closed (anti-model-swapping!)
+    with pytest.raises(CohortGovernanceError) as swap_exc:
+        evaluate_locked_external_cohort(
+            run_b,
+            ext_records,
+            ext_labels,
+            external_cohort_id="synthetic_hungary",
+            external_dataset_id="DA-A2:synthetic_hungary",
+            synthetic_data_confirmed=True,
+            one_shot_ledger_path=ledger_path,
+            recover_after_failure=True,
+            n_bootstrap=30,
+        )
+    assert swap_exc.value.code == "recovery_model_provenance_mismatch"
+
+    # 4. Safe recovery with identical frozen run_a completes and preserves FAILED audit history
+    recovered_res = evaluate_locked_external_cohort(
+        run_a,
+        ext_records,
+        ext_labels,
+        external_cohort_id="synthetic_hungary",
+        external_dataset_id="DA-A2:synthetic_hungary",
+        synthetic_data_confirmed=True,
+        one_shot_ledger_path=ledger_path,
+        recover_after_failure=True,
+        n_bootstrap=30,
+    )
+    assert recovered_res["one_shot_ledger_receipt"]["status"] == "COMPLETED"
+    assert (
+        recovered_res["one_shot_ledger_receipt"]["recovered_from_reservation_id"]
+        == entries_1[0]["reservation_id"]
+    )
+    entries_2 = ExternalEvaluationLedger(ledger_path).list_entries()
+    assert [e["status"] for e in entries_2] == ["FAILED", "COMPLETED"]
+
+    # 5. Concurrent duplicate race: two threads call evaluate_locked_external_cohort simultaneously;
+    #    EXACTLY ONE succeeds and the contender fails closed!
+    race_ledger_path = tmp_path / "concurrent_race_ledger.json"
+    entered_metrics = threading.Event()
+    release_metrics = threading.Event()
+
+    def _gated_metrics(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        entered_metrics.set()
+        release_metrics.wait(timeout=5.0)
+        return orig_eval_metrics(*args, **kwargs)
+
+    def _worker() -> str:
+        try:
+            res = evaluate_locked_external_cohort(
+                run_a,
+                ext_records,
+                ext_labels,
+                external_cohort_id="synthetic_switzerland",
+                external_dataset_id="DA-A2:synthetic_switzerland",
+                synthetic_data_confirmed=True,
+                one_shot_ledger_path=race_ledger_path,
+                n_bootstrap=30,
+            )
+            return str(res["one_shot_ledger_receipt"]["status"])
+        except CohortGovernanceError as exc:
+            return exc.code
+
+    with monkeypatch.context() as mp:
+        mp.setattr(tr_mod, "evaluate_comprehensive_metrics", _gated_metrics)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            fut1 = pool.submit(_worker)
+            assert entered_metrics.wait(timeout=5.0)
+            # Launch contender while fut1 holds an active RESERVED entry in flight!
+            fut2 = pool.submit(_worker)
+            contender_outcome = fut2.result(timeout=5.0)
+            release_metrics.set()
+            winner_outcome = fut1.result(timeout=5.0)
+
+    assert winner_outcome == "COMPLETED"
+    assert contender_outcome == "external_evaluation_currently_reserved_in_flight"
+    final_race_entries = ExternalEvaluationLedger(race_ledger_path).list_entries()
+    assert len(final_race_entries) == 1
+    assert final_race_entries[0]["status"] == "COMPLETED"
+
+
+def test_end_to_end_platform_validation_harness_cli(tmp_path: Path) -> None:
+    """Execute the full 8-step maintainer validation harness inside CI."""
+    from ai.validation_harness import run_end_to_end_platform_validation
+
+    report = run_end_to_end_platform_validation(tmp_path / "harness_work")
+    assert report["status"] == "PASSED"
+    assert len(report["steps_passed"]) == 8
+

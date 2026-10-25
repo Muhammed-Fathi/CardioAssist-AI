@@ -28,15 +28,17 @@ Enforces CardioAssist-AI scientific and governance rules in code:
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
+import secrets
 import subprocess
-import tempfile
-from typing import Any, Final, Mapping, Sequence
+import time
+from typing import Any, Final, Iterator, Mapping, Sequence
 
 import numpy as np
 from sklearn.dummy import DummyClassifier
@@ -52,6 +54,14 @@ from ai.calibration import (
 )
 from ai.errors import CohortGovernanceError
 from ai.explainability import ShapBackgroundReference
+from ai.filesystem_security import (
+    ensure_private_directory,
+    is_reparse_or_symlink,
+    protect_private_file,
+    relative_posix_if_within_directory,
+    verify_access_control,
+    write_new_private_file,
+)
 from ai.panels import (
     ResearchPanelContract,
     validate_cohort_records,
@@ -60,7 +70,11 @@ from ai.preprocessing import FoldSafeClinicalPreprocessor
 from research.uci412.evaluation import choose_model_family
 
 REPOSITORY_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
-EXTERNAL_EVAL_LEDGER_SCHEMA: Final[str] = "cardioassist.ai.external_eval_ledger/v1"
+EXTERNAL_EVAL_LEDGER_SCHEMA: Final[str] = "cardioassist.ai.external_eval_ledger/v2"
+LEGACY_EXTERNAL_EVAL_LEDGER_SCHEMA: Final[str] = "cardioassist.ai.external_eval_ledger/v1"
+VALID_LEDGER_STATUSES: Final[frozenset[str]] = frozenset(
+    {"RESERVED", "COMPLETED", "FAILED"}
+)
 
 CANDIDATE_FAMILIES: Final[tuple[str, ...]] = (
     "l2_logistic_regression",
@@ -193,21 +207,20 @@ def _enforce_synthetic_cohort_identifier_guard(
         )
 
 
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _ensure_untracked_local_path(target_path: Path, *, purpose: str) -> Path:
-    if target_path.is_symlink():
+    if is_reparse_or_symlink(target_path) or is_reparse_or_symlink(target_path.parent):
         raise CohortGovernanceError(
             "symlink_ledger_prohibited",
-            f"Refusing to use symlinked path for {purpose}.",
+            f"Refusing to use symlinked or reparse-point path for {purpose}.",
         )
-    resolved_parent = target_path.parent.resolve()
-    resolved = resolved_parent / target_path.name
-    try:
-        rel = resolved.relative_to(REPOSITORY_ROOT.resolve())
-    except ValueError:
-        rel = None
-    if rel is not None:
+    rel_posix = relative_posix_if_within_directory(target_path, REPOSITORY_ROOT)
+    if rel_posix is not None:
         probe = subprocess.run(
-            ["git", "check-ignore", "-q", "--", rel.as_posix()],
+            ["git", "check-ignore", "-q", "--", rel_posix],
             cwd=str(REPOSITORY_ROOT),
             check=False,
         )
@@ -216,39 +229,128 @@ def _ensure_untracked_local_path(target_path: Path, *, purpose: str) -> Path:
                 "unignored_ledger_path_prohibited",
                 f"Refusing to write {purpose} inside a non-ignored repository path.",
             )
-    return resolved
+    return target_path.parent.resolve() / target_path.name
 
 
 class ExternalEvaluationLedger:
-    """Locally protected append-only registry enforcing single-shot external evaluation."""
+    """Locally protected append-only registry enforcing two-phase single-shot evaluation.
 
-    def __init__(self, ledger_path: Path) -> None:
+    Lifecycle protocol (``RESERVED`` -> ``COMPLETED`` | ``FAILED``):
+    1. Every mutation acquires an exclusive cross-platform lock file
+       (``<ledger>.lock`` via ``O_CREAT | O_EXCL``) so concurrent threads or
+       processes cannot race to consume the same cohort.
+    2. :meth:`reserve_evaluation` writes an auditable ``RESERVED`` entry BEFORE
+       running inference/bootstrap metrics. While a matching ``RESERVED`` entry
+       exists, any concurrent attempt fails closed with
+       ``external_evaluation_currently_reserved_in_flight``.
+    3. Only after evaluation finishes cleanly does :meth:`mark_completed`
+       atomically transition that reservation to ``COMPLETED`` (recording
+       ``result_summary_sha256``). Any future attempt against a ``COMPLETED``
+       cohort/protocol/model fails closed permanently with
+       ``one_shot_external_evaluation_already_consumed``.
+    4. If evaluation raises an exception, :meth:`mark_failed` atomically
+       transitions the reservation to ``FAILED`` (never representing a failed
+       run as completed). Retrying after ``FAILED`` requires explicit
+       ``recover_after_failure=True`` AND identical frozen model/preprocessor/
+       calibrator provenance hashes so failures cannot be abused to swap models.
+    """
+
+    def __init__(
+        self,
+        ledger_path: Path,
+        *,
+        lock_timeout_seconds: float = 5.0,
+    ) -> None:
         self._path = _ensure_untracked_local_path(
             Path(ledger_path), purpose="external evaluation ledger"
         )
+        self._lock_path = self._path.with_name(f"{self._path.name}.lock")
+        self._lock_timeout_seconds = max(0.0, float(lock_timeout_seconds))
 
     @property
     def path(self) -> Path:
         return self._path
 
-    def _load_entries(self) -> list[dict[str, Any]]:
-        if not self._path.exists():
-            return []
-        if self._path.is_symlink():
+    @property
+    def lock_path(self) -> Path:
+        return self._lock_path
+
+    @contextmanager
+    def _exclusive_lock(self) -> Iterator[None]:
+        parent = self._path.parent
+        if is_reparse_or_symlink(parent):
             raise CohortGovernanceError(
                 "symlink_ledger_prohibited",
-                "External evaluation ledger must not be a symlink.",
+                "External evaluation ledger parent directory must not be a symlink or junction.",
             )
-        st = self._path.stat()
-        if hasattr(os, "getuid") and st.st_uid != os.getuid():
+        if not parent.exists():
+            try:
+                ensure_private_directory(parent)
+            except OSError as exc:
+                raise CohortGovernanceError(
+                    "insecure_ledger_permissions",
+                    f"Failed to create private directory for external evaluation ledger: {exc}",
+                ) from exc
+
+        deadline = time.monotonic() + self._lock_timeout_seconds
+        acquired = False
+        while True:
+            if is_reparse_or_symlink(self._lock_path):
+                raise CohortGovernanceError(
+                    "symlink_ledger_prohibited",
+                    "External evaluation ledger lock file must not be a symlink or junction.",
+                )
+            lock_meta = (
+                json.dumps(
+                    {"pid": os.getpid(), "acquired_at_utc": _utc_now()},
+                    sort_keys=True,
+                )
+                + "\n"
+            ).encode("utf-8")
+            try:
+                write_new_private_file(self._lock_path, lock_meta)
+                acquired = True
+                break
+            except FileExistsError as exc:
+                if time.monotonic() >= deadline:
+                    raise CohortGovernanceError(
+                        "external_eval_ledger_lock_contention",
+                        f"Timed out waiting for exclusive lock on '{self._lock_path.name}'; "
+                        "another evaluation or uncleaned lock is active.",
+                    ) from exc
+                time.sleep(0.02)
+            except OSError as exc:
+                raise CohortGovernanceError(
+                    "insecure_ledger_permissions",
+                    f"Failed to acquire protected lock file for external evaluation ledger: {exc}",
+                ) from exc
+
+        try:
+            yield
+        finally:
+            if acquired:
+                self._lock_path.unlink(missing_ok=True)
+
+    def _load_entries_unlocked(self) -> list[dict[str, Any]]:
+        if not self._path.exists():
+            return []
+        if is_reparse_or_symlink(self._path):
             raise CohortGovernanceError(
-                "untrusted_ledger_owner",
-                "External evaluation ledger is not owned by the current local user.",
+                "symlink_ledger_prohibited",
+                "External evaluation ledger must not be a symlink, junction, or reparse point.",
             )
-        if (st.st_mode & 0o077) != 0:
+        acl = verify_access_control(
+            self._path, expect_directory=False, strict_private=True
+        )
+        if not acl.ok:
+            if acl.reason_category == "owner":
+                raise CohortGovernanceError(
+                    "untrusted_ledger_owner",
+                    f"External evaluation ledger is not owned by a trusted local owner: {acl.detail}",
+                )
             raise CohortGovernanceError(
                 "insecure_ledger_permissions",
-                "External evaluation ledger must have user-private (0600) permissions.",
+                f"External evaluation ledger failed private access-control verification: {acl.detail}",
             )
         try:
             payload = json.loads(self._path.read_text(encoding="utf-8"))
@@ -257,18 +359,88 @@ class ExternalEvaluationLedger:
                 "corrupted_external_eval_ledger",
                 "External evaluation ledger could not be parsed as valid JSON.",
             ) from exc
+
+        schema_ver = payload.get("schema_version") if isinstance(payload, Mapping) else None
         if (
             not isinstance(payload, Mapping)
-            or payload.get("schema_version") != EXTERNAL_EVAL_LEDGER_SCHEMA
+            or schema_ver
+            not in (EXTERNAL_EVAL_LEDGER_SCHEMA, LEGACY_EXTERNAL_EVAL_LEDGER_SCHEMA)
             or not isinstance(payload.get("entries"), list)
         ):
             raise CohortGovernanceError(
                 "invalid_external_eval_ledger_schema",
                 "External evaluation ledger has an invalid schema.",
             )
-        return list(payload["entries"])
 
-    def record_single_shot(
+        normalized_entries: list[dict[str, Any]] = []
+        for idx, raw_item in enumerate(payload["entries"]):
+            if not isinstance(raw_item, Mapping):
+                raise CohortGovernanceError(
+                    "invalid_external_eval_ledger_schema",
+                    f"Ledger entry #{idx} is not a JSON object.",
+                )
+            entry = dict(raw_item)
+            if (
+                schema_ver == LEGACY_EXTERNAL_EVAL_LEDGER_SCHEMA
+                and "status" not in entry
+            ):
+                # Legacy v1 entries lacked explicit status -> treat fail-closed as COMPLETED
+                entry["status"] = "COMPLETED"
+            status = str(entry.get("status", ""))
+            if status not in VALID_LEDGER_STATUSES:
+                raise CohortGovernanceError(
+                    "invalid_external_eval_ledger_schema",
+                    f"Ledger entry #{idx} has unrecognized status '{status}'.",
+                )
+            normalized_entries.append(entry)
+        return normalized_entries
+
+    def _write_entries_unlocked(self, entries: Sequence[Mapping[str, Any]]) -> None:
+        if is_reparse_or_symlink(self._path):
+            raise CohortGovernanceError(
+                "symlink_ledger_prohibited",
+                "Refusing to overwrite symlinked external evaluation ledger.",
+            )
+        doc = {
+            "schema_version": EXTERNAL_EVAL_LEDGER_SCHEMA,
+            "entries": [dict(item) for item in entries],
+        }
+        raw = (
+            json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=True, allow_nan=False)
+            + "\n"
+        ).encode("utf-8")
+
+        tmp_path = self._path.with_name(
+            f".{self._path.name}.{secrets.token_hex(8)}.tmp"
+        )
+        try:
+            write_new_private_file(tmp_path, raw)
+            os.replace(tmp_path, self._path)
+            protect_private_file(self._path)
+            post_acl = verify_access_control(
+                self._path, expect_directory=False, strict_private=True
+            )
+            if not post_acl.ok:
+                raise OSError(post_acl.detail)
+        except CohortGovernanceError:
+            tmp_path.unlink(missing_ok=True)
+            raise
+        except OSError as exc:
+            tmp_path.unlink(missing_ok=True)
+            raise CohortGovernanceError(
+                "insecure_ledger_permissions",
+                f"Failed to atomically persist and verify private evaluation ledger: {exc}",
+            ) from exc
+        except BaseException:
+            tmp_path.unlink(missing_ok=True)
+            raise
+
+    def list_entries(self) -> list[dict[str, Any]]:
+        """Verify access controls and return a snapshot of all recorded ledger entries."""
+        with self._exclusive_lock():
+            return [dict(item) for item in self._load_entries_unlocked()]
+
+    def reserve_evaluation(
         self,
         *,
         protocol_id: str,
@@ -279,60 +451,181 @@ class ExternalEvaluationLedger:
         preprocessor_sha256: str,
         calibrator_sha256: str,
         cohort_fingerprint_sha256: str,
+        recover_after_failure: bool = False,
     ) -> dict[str, Any]:
-        entries = self._load_entries()
+        """Atomically reserve single-shot evaluation before computing external metrics."""
         norm_cohort = external_cohort_id.strip().lower()
-        for existing in entries:
-            same_cohort = str(existing.get("external_cohort_id_norm")) == norm_cohort
-            if same_cohort and (
-                str(existing.get("protocol_id")) == protocol_id
-                or str(existing.get("model_id")) == model_id
-            ):
-                raise CohortGovernanceError(
-                    "one_shot_external_evaluation_already_consumed",
-                    f"One-shot external evaluation for cohort '{external_cohort_id}' has "
-                    f"already been consumed under protocol '{protocol_id}' / model '{model_id}'.",
-                    field="external_cohort_id",
+        with self._exclusive_lock():
+            entries = self._load_entries_unlocked()
+            matching = [
+                existing
+                for existing in entries
+                if str(existing.get("external_cohort_id_norm")) == norm_cohort
+                and (
+                    str(existing.get("protocol_id")) == protocol_id
+                    or str(existing.get("model_id")) == model_id
                 )
+            ]
 
-        new_entry = {
-            "recorded_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "protocol_id": protocol_id,
-            "model_id": model_id,
-            "model_version": model_version,
-            "external_cohort_id": external_cohort_id,
-            "external_cohort_id_norm": norm_cohort,
-            "external_dataset_id": external_dataset_id,
-            "preprocessor_sha256": preprocessor_sha256,
-            "calibrator_sha256": calibrator_sha256,
-            "cohort_fingerprint_sha256": cohort_fingerprint_sha256,
-        }
-        entries.append(new_entry)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        doc = {
-            "schema_version": EXTERNAL_EVAL_LEDGER_SCHEMA,
-            "entries": entries,
-        }
-        raw = (
-            json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=True, allow_nan=False)
-            + "\n"
-        ).encode("utf-8")
+            for existing in matching:
+                if existing.get("status") == "COMPLETED":
+                    raise CohortGovernanceError(
+                        "one_shot_external_evaluation_already_consumed",
+                        f"One-shot external evaluation for cohort '{external_cohort_id}' has "
+                        f"already been COMPLETED under protocol '{protocol_id}' / model '{model_id}'.",
+                        field="external_cohort_id",
+                    )
 
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=f".{self._path.name}.", dir=str(self._path.parent)
-        )
-        tmp_path = Path(tmp_name)
-        try:
-            os.fchmod(fd, 0o600)
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(raw)
-                handle.flush()
-            os.replace(tmp_path, self._path)
-        except BaseException:
-            tmp_path.unlink(missing_ok=True)
-            raise
+            for existing in matching:
+                if existing.get("status") == "RESERVED":
+                    raise CohortGovernanceError(
+                        "external_evaluation_currently_reserved_in_flight",
+                        f"External evaluation for cohort '{external_cohort_id}' currently holds "
+                        f"an active RESERVED entry (reservation_id={existing.get('reservation_id')}); "
+                        "concurrent duplicate consumption is prohibited.",
+                        field="external_cohort_id",
+                    )
 
-        return new_entry
+            recovered_from_id: str | None = None
+            failed_matches = [
+                item for item in matching if item.get("status") == "FAILED"
+            ]
+            if failed_matches:
+                if not recover_after_failure:
+                    last_failed = failed_matches[-1]
+                    raise CohortGovernanceError(
+                        "prior_external_evaluation_failed_recovery_required",
+                        f"Prior external evaluation for cohort '{external_cohort_id}' ended in "
+                        f"status='FAILED' (code={last_failed.get('failure_code')}); pass "
+                        "recover_after_failure=True with the identical frozen model to retry.",
+                        field="external_cohort_id",
+                    )
+                last_failed = failed_matches[-1]
+                if (
+                    str(last_failed.get("protocol_id")) != protocol_id
+                    or str(last_failed.get("model_id")) != model_id
+                    or str(last_failed.get("preprocessor_sha256")) != preprocessor_sha256
+                    or str(last_failed.get("calibrator_sha256")) != calibrator_sha256
+                ):
+                    raise CohortGovernanceError(
+                        "recovery_model_provenance_mismatch",
+                        "Failure recovery requires the exact same frozen protocol_id, model_id, "
+                        "preprocessor_sha256, and calibrator_sha256 as the failed attempt.",
+                        field="model_id",
+                    )
+                recovered_from_id = str(last_failed.get("reservation_id") or "") or None
+
+            reservation_entry: dict[str, Any] = {
+                "reservation_id": secrets.token_hex(16),
+                "status": "RESERVED",
+                "reserved_at_utc": _utc_now(),
+                "completed_at_utc": None,
+                "failed_at_utc": None,
+                "pid": os.getpid(),
+                "protocol_id": protocol_id,
+                "model_id": model_id,
+                "model_version": model_version,
+                "external_cohort_id": external_cohort_id,
+                "external_cohort_id_norm": norm_cohort,
+                "external_dataset_id": external_dataset_id,
+                "preprocessor_sha256": preprocessor_sha256,
+                "calibrator_sha256": calibrator_sha256,
+                "cohort_fingerprint_sha256": cohort_fingerprint_sha256,
+                "recovered_from_reservation_id": recovered_from_id,
+                "result_summary_sha256": None,
+                "failure_code": None,
+                "failure_error_type": None,
+            }
+            entries.append(reservation_entry)
+            self._write_entries_unlocked(entries)
+            return dict(reservation_entry)
+
+    def mark_completed(
+        self,
+        reservation_id: str,
+        *,
+        result_summary_sha256: str,
+    ) -> dict[str, Any]:
+        """Atomically transition an active ``RESERVED`` entry to ``COMPLETED``."""
+        if not result_summary_sha256 or len(result_summary_sha256) != 64:
+            raise CohortGovernanceError(
+                "invalid_ledger_completion_digest",
+                "Completed external evaluation ledger entry requires a 64-hex SHA-256 summary digest.",
+            )
+        with self._exclusive_lock():
+            entries = self._load_entries_unlocked()
+            for entry in entries:
+                if entry.get("reservation_id") == reservation_id:
+                    if entry.get("status") != "RESERVED":
+                        raise CohortGovernanceError(
+                            "invalid_ledger_state_transition",
+                            f"Cannot mark reservation '{reservation_id}' COMPLETED from status='{entry.get('status')}'.",
+                        )
+                    entry["status"] = "COMPLETED"
+                    entry["completed_at_utc"] = _utc_now()
+                    entry["result_summary_sha256"] = result_summary_sha256
+                    self._write_entries_unlocked(entries)
+                    return dict(entry)
+            raise CohortGovernanceError(
+                "unknown_ledger_reservation_id",
+                f"Reservation '{reservation_id}' was not found in external evaluation ledger.",
+            )
+
+    def mark_failed(
+        self,
+        reservation_id: str,
+        *,
+        failure_code: str,
+        failure_error_type: str,
+    ) -> dict[str, Any]:
+        """Atomically transition an active ``RESERVED`` entry to ``FAILED``."""
+        with self._exclusive_lock():
+            entries = self._load_entries_unlocked()
+            for entry in entries:
+                if entry.get("reservation_id") == reservation_id:
+                    if entry.get("status") != "RESERVED":
+                        raise CohortGovernanceError(
+                            "invalid_ledger_state_transition",
+                            f"Cannot mark reservation '{reservation_id}' FAILED from status='{entry.get('status')}'.",
+                        )
+                    entry["status"] = "FAILED"
+                    entry["failed_at_utc"] = _utc_now()
+                    entry["failure_code"] = str(failure_code)[:128]
+                    entry["failure_error_type"] = str(failure_error_type)[:128]
+                    self._write_entries_unlocked(entries)
+                    return dict(entry)
+            raise CohortGovernanceError(
+                "unknown_ledger_reservation_id",
+                f"Reservation '{reservation_id}' was not found in external evaluation ledger.",
+            )
+
+    def recover_abandoned_reservation(
+        self,
+        reservation_id: str,
+        *,
+        reason: str = "abandoned_process_recovery",
+    ) -> dict[str, Any]:
+        """Explicitly transition an orphaned ``RESERVED`` crash entry to ``FAILED``."""
+        with self._exclusive_lock():
+            entries = self._load_entries_unlocked()
+            for entry in entries:
+                if entry.get("reservation_id") == reservation_id:
+                    if entry.get("status") != "RESERVED":
+                        raise CohortGovernanceError(
+                            "invalid_ledger_state_transition",
+                            f"Reservation '{reservation_id}' has status='{entry.get('status')}', expected 'RESERVED'.",
+                        )
+                    entry["status"] = "FAILED"
+                    entry["failed_at_utc"] = _utc_now()
+                    entry["failure_code"] = "abandoned_reservation_recovered"
+                    entry["failure_error_type"] = "AbandonedReservationRecovery"
+                    entry["recovery_reason"] = str(reason)[:160]
+                    self._write_entries_unlocked(entries)
+                    return dict(entry)
+            raise CohortGovernanceError(
+                "unknown_ledger_reservation_id",
+                f"Reservation '{reservation_id}' was not found in external evaluation ledger.",
+            )
 
 
 def _build_estimator(
@@ -1023,6 +1316,7 @@ def evaluate_locked_external_cohort(
     external_dataset_id: str,
     synthetic_data_confirmed: bool = False,
     one_shot_ledger_path: Path | None = None,
+    recover_after_failure: bool = False,
     seed: int = 20261201,
     n_bootstrap: int = 250,
 ) -> dict[str, Any]:
@@ -1032,9 +1326,15 @@ def evaluate_locked_external_cohort(
     - Blocked for real patient data (including real Hungary and real AngioCAD)
       while Gate PT (``P-3``) and ``D-021`` remain unresolved.
     - When ``one_shot_ledger_path`` is supplied, :class:`ExternalEvaluationLedger`
-      records the evaluation in a locally protected (``0600``) untracked registry
-      and rejects any second evaluation against the same external cohort under the
-      same ``protocol_id`` or ``model_id``.
+      uses a two-phase atomic protocol (``RESERVED`` -> ``COMPLETED`` | ``FAILED``)
+      in a locally protected untracked registry:
+      1. Reserves the evaluation slot before running model/bootstrap metrics and
+         rejects concurrent in-flight duplicates.
+      2. Transitions to ``COMPLETED`` ONLY after all metrics finish cleanly.
+      3. Transitions to ``FAILED`` if an exception occurs, never silently
+         representing a failed run as completed. Retrying after ``FAILED``
+         requires ``recover_after_failure=True`` and identical frozen model/
+         preprocessor/calibrator provenance hashes.
     - When ``one_shot_ledger_path`` is ``None``, this function acts strictly as a
       **stateless frozen-model evaluation primitive** and does NOT prevent a caller
       from invoking it repeatedly across different candidate models.
@@ -1099,10 +1399,12 @@ def evaluate_locked_external_cohort(
         + np.ascontiguousarray(y_ext, dtype=np.int64).tobytes()
     ).hexdigest()
 
+    ledger: ExternalEvaluationLedger | None = None
+    reservation: dict[str, Any] | None = None
     ledger_receipt: dict[str, Any] | None = None
     if one_shot_ledger_path is not None:
         ledger = ExternalEvaluationLedger(one_shot_ledger_path)
-        ledger_receipt = ledger.record_single_shot(
+        reservation = ledger.reserve_evaluation(
             protocol_id=trained_run.protocol_id,
             model_id=trained_run.model_id,
             model_version=trained_run.model_version,
@@ -1111,34 +1413,66 @@ def evaluate_locked_external_cohort(
             preprocessor_sha256=trained_run.preprocessor.state_sha256,
             calibrator_sha256=trained_run.calibrator.state_sha256,
             cohort_fingerprint_sha256=cohort_digest,
+            recover_after_failure=recover_after_failure,
         )
 
-    # Apply frozen development preprocessor, estimator, and calibrator without modification
-    Z_ext = trained_run.preprocessor.transform(X_ext)
-    p_ext_raw, logits_ext = _positive_proba_and_optional_logit(
-        trained_run.selected_model_family, trained_run.estimator, Z_ext
-    )
-    p_ext_cal = trained_run.calibrator.calibrate(p_ext_raw, raw_logits=logits_ext)
+    try:
+        # Apply frozen development preprocessor, estimator, and calibrator without modification
+        Z_ext = trained_run.preprocessor.transform(X_ext)
+        p_ext_raw, logits_ext = _positive_proba_and_optional_logit(
+            trained_run.selected_model_family, trained_run.estimator, Z_ext
+        )
+        p_ext_cal = trained_run.calibrator.calibrate(p_ext_raw, raw_logits=logits_ext)
 
-    uncalibrated_metrics = evaluate_comprehensive_metrics(
-        y_ext,
-        p_ext_raw,
-        seed=seed,
-        n_bootstrap=n_bootstrap,
-        evaluation_scope="FROZEN_EXTERNAL_COHORT_UNCALIBRATED_RESEARCH_ONLY",
-    )
-    calibrated_metrics = evaluate_comprehensive_metrics(
-        y_ext,
-        p_ext_cal,
-        seed=seed + 100,
-        n_bootstrap=n_bootstrap,
-        evaluation_scope="FROZEN_EXTERNAL_COHORT_TRANSPORT_CALIBRATED_RESEARCH_ONLY",
-    )
-    shift_diag = compute_prevalence_shift_diagnostic(
-        development_prevalence=trained_run.calibrator.development_prevalence,
-        external_prevalence=float(np.mean(y_ext)),
-    )
-    complete_count = sum(1 for item in validated_ext if item.stage_complete)
+        uncalibrated_metrics = evaluate_comprehensive_metrics(
+            y_ext,
+            p_ext_raw,
+            seed=seed,
+            n_bootstrap=n_bootstrap,
+            evaluation_scope="FROZEN_EXTERNAL_COHORT_UNCALIBRATED_RESEARCH_ONLY",
+        )
+        calibrated_metrics = evaluate_comprehensive_metrics(
+            y_ext,
+            p_ext_cal,
+            seed=seed + 100,
+            n_bootstrap=n_bootstrap,
+            evaluation_scope="FROZEN_EXTERNAL_COHORT_TRANSPORT_CALIBRATED_RESEARCH_ONLY",
+        )
+        shift_diag = compute_prevalence_shift_diagnostic(
+            development_prevalence=trained_run.calibrator.development_prevalence,
+            external_prevalence=float(np.mean(y_ext)),
+        )
+        complete_count = sum(1 for item in validated_ext if item.stage_complete)
+
+        if ledger is not None and reservation is not None:
+            summary_digest = hashlib.sha256(
+                json.dumps(
+                    {
+                        "uncalibrated_transport_metrics": uncalibrated_metrics,
+                        "locked_transport_metrics": calibrated_metrics,
+                        "prevalence_shift_diagnostic": shift_diag,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            ledger_receipt = ledger.mark_completed(
+                str(reservation["reservation_id"]),
+                result_summary_sha256=summary_digest,
+            )
+    except BaseException as exc:
+        if ledger is not None and reservation is not None:
+            failure_code = str(
+                getattr(exc, "code", "external_evaluation_runtime_exception")
+            )
+            ledger.mark_failed(
+                str(reservation["reservation_id"]),
+                failure_code=failure_code,
+                failure_error_type=type(exc).__name__,
+            )
+        raise
 
     limitations = [
         "Frozen-model external transport assessment: the external cohort is not used inside this call to refit preprocessing, model weights, or calibration.",
