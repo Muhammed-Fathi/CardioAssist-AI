@@ -2,6 +2,7 @@
 
 **Prepared:** 2026-10-25 · **Base:** `main` at merge of PR #50 (`a92a04f`) · **Revision:** 1.0 · **Status:** capability-reuse assessment + local execution handoff for human review.
 **Not** a research protocol, **not** a dataset selection, **not** a training authorisation, **not** a supervisor, clinical or ethics approval, and **not** a result.
+**Tracking:** PR #51 (opened for review; deliberately left open — merging it would not authorise any run and does not change a gate).
 
 > **P-1 PENDING · Gate PT P-3 CLOSED (no supervisor sign-off exists) · P-5 NOT MADE — prohibited.**
 > D-046 remains **read-only local audit only**; D-047 remains Cleveland-only internal exploratory; D-048 / M3a remains a *proposed, unauthorized* UCI-412 internal benchmark. Nothing in this document authorises data access, acquisition, fitting, inference, pooling, external validation, transfer prediction or model-artefact creation, and none was performed. No frozen dictionary, research protocol, registered plan, experiment result or decision-register entry is modified. **No dataset file was opened, downloaded, re-audited or summarised for this document**; every count quoted here is a software-test count or an already-committed maintainer-reported aggregate.
@@ -268,13 +269,13 @@ Stop and report the exact error if **any** of the following occurs: authorizatio
 | Check | Result |
 |---|---|
 | `python -m pytest tests/audit -q -W error` (isolated venv with **only** `research/audit/requirements.txt`: openpyxl + pytest; Python 3.11.2) | **430 passed**, 0 failed, 0 warnings-as-errors |
-| `python -m pytest tests/experiments tests/audit -q -W error` (third-party suite the `synthetic-experiment-runner-validation` workflow runs) | **461 passed** |
+| `python -m pytest tests/experiments tests/audit -q -W error` (third-party suite the `synthetic-experiment-runner-validation` workflow runs) | **462 passed** |
 | `python -m pytest tests/uci412 -q -W error` (the `research/uci412` suite, unaffected by this change) | **374 passed** |
-| New tests, `tests/audit/test_uci412_source_semantics.py` | **26 passed** (13 pure arithmetic/schema, 12 guarded end-to-end/CLI, 1 fixture-shape) |
+| New tests, `tests/audit/test_uci412_source_semantics.py` | **26 passed** — 13 pure arithmetic/schema/render checks, 12 guarded end-to-end/CLI checks, 1 synthetic-fixture shape check |
 | Baseline before this change | 404 passed — no pre-existing test was modified or removed; `synthetic_fixtures.py` gained an optional keyword with unchanged default behaviour |
 | `python -m research.audit check-auth` / `verify-ignore` / `dry-run` / `self-test` | all exit 0 on the committed PENDING baseline manifest, as designed |
 | `python scripts/verify_sources.py` | all source SHA-256 match; supervisor classification intact (25 papers) |
-| Workflow `audit-toolchain-validation` | unchanged; runs `pytest tests/audit -q -W error` plus the four CLI checks on **Python 3.11 and 3.12**. It runs automatically on this PR — those two job results are the authoritative cross-version evidence |
+| Workflow `audit-toolchain-validation` | unchanged; runs `pytest tests/audit -q -W error` plus the four CLI checks on **Python 3.11 and 3.12**, and `synthetic-experiment-runner-validation` runs `pytest tests/experiments tests/audit` on the same two versions. Both run automatically on this PR; **read the two per-version job results in the PR's Checks tab — they are the authoritative cross-version evidence.** This sandbox could not retrieve them (the GitHub integration token has no Actions scope), so no cross-version result is claimed here |
 | Synthetic fixture provenance | no `data/` file, no row, no manifest and no report is committed; all fixtures live in a temporary directory |
 
 The tests specifically prove: cell classification never returns an unregistered token's text; a numeric cell in a text-registered column (and a numeric *string* in the numeric-registered column) is rejected rather than silently matched; the coverage partition always equals the row count and the cell-shape census accounts for every observed cell; both census totals equal the censused-record count; the descriptor distribution sums to it; a missing or unregistered cell removes the record from the census and is counted separately; a blank cell is reported as a missing cell and not as a vocabulary failure; the report schema rejects patient-row keys, non-`false` certification flags, a `true` documentation-authorization claim, unknown status triples and inconsistent census arithmetic; and every guard in §3.5 fires.
