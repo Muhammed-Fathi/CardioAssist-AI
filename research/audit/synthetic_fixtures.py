@@ -106,8 +106,15 @@ def materialize_synthetic_audit_suite(
     *,
     authorize_all: bool = True,
     authorized_datasets: Sequence[str] = ("DA-A1", "DA-A2", "DA-B1", "DA-B2"),
+    uci_412_rows_override: Sequence[Sequence[Any]] | None = None,
 ) -> dict[str, Any]:
-    """Create a complete synthetic dataset directory tree under base_dir for testing."""
+    """Create a complete synthetic dataset directory tree under base_dir for testing.
+
+    ``uci_412_rows_override`` replaces only the synthetic DA-A1 workbook rows, so a
+    caller can exercise a specific source-token layout (for example registered text
+    tokens) without changing any other synthetic fixture. Provenance is recorded
+    after the rows are written, so the override stays hash-consistent.
+    """
     repo_root = Path(__file__).resolve().parents[2]
     template_auth_path = repo_root / "research/audit/gate_da_authorization.json"
     auth_manifest = copy.deepcopy(load_authorization_manifest(template_auth_path))
@@ -141,7 +148,19 @@ def materialize_synthetic_audit_suite(
 
     # 1. DA-A1 (UCI-412)
     h_412 = get_uci_412_headers(include_bbb=True, include_arteries=False)
-    r_412 = build_synthetic_uci_412_rows(h_412, include_arteries=False)
+    r_412 = (
+        [list(row) for row in uci_412_rows_override]
+        if uci_412_rows_override is not None
+        else build_synthetic_uci_412_rows(h_412, include_arteries=False)
+    )
+    if not r_412:
+        raise ValueError("Synthetic DA-A1 workbook override must contain at least one record.")
+    for row in r_412:
+        if len(row) != len(h_412):
+            raise ValueError(
+                f"Synthetic DA-A1 override row width {len(row)} does not match the {len(h_412)} "
+                "synthetic headers."
+            )
     p_412 = base_dir / "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx"
     write_synthetic_xlsx(p_412, [("Sheet1", h_412, r_412)])
 
