@@ -145,7 +145,7 @@ Windows machine **only after** human maintainer approval of **D-046** (Gate DA).
 
 ---
 
-## 2. Implemented Audit Functions (1–12)
+## 2. Implemented Audit Functions (1–13)
 
 | # | Audit Function | Module / Function |
 |---|---|---|
@@ -161,6 +161,7 @@ Windows machine **only after** human maintainer approval of **D-046** (Gate DA).
 | 10 | Document UCI-45 (`>50%`) vs UCI-412 (`>=50%`) threshold wording (`H-01`) and the unresolved 50% boundary status (`UNVERIFIED` / `REQUIRES APPROVAL`) without inventing reconciliation evidence | `registry.py::TARGET_HARMONIZATION_SPEC` |
 | 11 | Generate metadata-only JSON and Markdown audit reports distinguishing `VERIFIED`, `SOURCE-REPORTED`, `UNVERIFIED`, and `REQUIRES APPROVAL` | `reporting.py::build_and_verify_reports`, `render_markdown_report` |
 | 12 | Keep patient-level inputs, cleaned copies, and intermediate derivatives out of GitHub and remote AI services via `git check-ignore`, `/data/` containment, locked output paths, read-only execution, strict metadata report schema validation, and secondary redaction guards | `git_safety.py`, `provenance.py`, `reporting.py::validate_strict_metadata_report_schema`, `reporting.py::verify_report_no_patient_rows` |
+| 13 | Record aggregate **registered-coding coverage** for the six UCI-412 text-binary columns and a **four-way chest-pain joint census**, and record the fixed *not-authorized* status of the archive's bundled documentation (counts and registered tokens only; unregistered token text is never emitted) | `uci412_source_semantics.py::build_registered_coding_coverage`, `build_chest_pain_joint_census`, `run_uci412_source_semantics_audit` |
 
 ---
 
@@ -285,3 +286,82 @@ failure. See [the Windows handoff](../../docs/research/gate-da/17_cross_site_fea
 - Real aggregate output is a local, human-reviewed research record. It must not
   be committed, pasted, or uploaded until the maintainer has privacy-reviewed it,
   and no report may be presented as an external-validation result.
+
+---
+
+## 5. Focused Read-Only UCI-412 Source-Semantics Audit (`uci412_source_semantics.py`)
+
+**Status:** IMPLEMENTED + SYNTHETIC-TESTED. No real-source result exists in Git,
+and this tool produces no model, metric, comparison, or clinical claim.
+
+The existing audit toolchain already validates the `DA-A1` workbook, its `Cath`
+target, its missingness and its duplicates. The `research/uci412` research adapter
+also counts tokens — but only inside a `D-048` internal-research run, which is
+`PROPOSED_NOT_AUTHORIZED` today. Neither provides an *audit-scoped* token census, a
+four-way chest-pain census, or a file-level registered-vocabulary coverage record.
+
+This module adds **only** those three diagnostics and reuses the existing
+authorization, provenance, byte-identity, parser, output-path and privacy controls
+(`audit_uci_412_or_411_workbook`, `ByteIdentityGuard`, `validate_provenance_manifest`,
+`validate_and_resolve_report_output_path`, `assert_exact_keys`,
+`verify_report_no_patient_rows`).
+
+### 5.1 What it reports (aggregate counts and registered tokens only)
+
+| # | Diagnostic | Notes |
+|---|---|---|
+| 1 | Registered coding coverage of the six text-binary columns (`Sex`, `DLP`, `Atypical`, `Nonanginal`, `Exertional CP`, `Dyspnea`) | Per column: registered token counts, missing cells, unregistered cells, distinct unregistered values, a fixed coverage status, and a **cell-shape census** (`text` / `integral_number` / `non_integral_number` / `boolean` / `other`). Matching is representation-aware, so a numeric `0` in a text-registered column is unregistered rather than a silent match. **Unregistered token text is counted but never emitted**, so a stray identifier-like value cannot reach a report. The file-level U-4 result distinguishes `CONSISTENT_WITH_PRIOR_CLAIM`, `CONSISTENT_WITH_PRIOR_VOCABULARY_BUT_MISSING_CELLS_OBSERVED` and `NOT_CONSISTENT_WITH_PRIOR_CLAIM` — a blank cell is not a vocabulary failure. |
+| 2 | Four-way chest-pain joint census (`Typical Chest Pain`, `Atypical`, `Nonanginal`, `Exertional CP`) | A **direction-free** registered-token census over the full registered-token product, a **registered-binary-code** census (16 semantic cells), and a `0–4` descriptor-count distribution. Records with a missing or unregistered cell leave the census and are counted separately. |
+| 3 | Bundled source documentation | A fixed, code-enforced `NOT_PERFORMED_NOT_AUTHORIZED_BY_D046` record: `DA-A1` authorizes exactly `Z-Alizadeh sani dataset.xlsx`; the archive documentation is a different file and would need its own explicit authorization. |
+
+The frozen dictionary (`research/uci412/schemas/uci412_feature_dictionary.v1.json`)
+is read **read-only**, must be a *committed and clean* repository file (a local or
+uncommitted vocabulary fails closed), and its SHA-256 is recorded in the report.
+**No dictionary, protocol, plan, registration or decision file is modified.**
+
+### 5.2 Authorization scope determination (D-046)
+
+**Determination: WITHIN the D-046 `DA-A1` read-only audit scope.** The run parses
+only the single authorized workbook, produces aggregate counts, and performs no
+fitting, feature selection, tuning, performance evaluation, calibration, or
+explanation. The tool requires: the local authorization manifest with `DA-A1`
+authorized and populated sign-off fields, `model_fitting_authorized = false`,
+`gate_pt_status = CLOSED_REQUIRES_SUPERVISOR_SIGNOFF_P3`, matching provenance
+hashes, and the explicit `--acknowledge-read-only-scope` flag. **The code does not
+grant permission:** if the maintainer judges any requested count to fall outside
+the recorded `DA-A1` purpose, the audit must not be run.
+
+### 5.3 Execution (maintainer Windows machine, after D-046 local setup)
+
+```powershell
+python -m research.audit.uci412_source_semantics `
+  --auth-manifest data/manifests/gate_da_authorization.local.json `
+  --provenance-manifest data/manifests/provenance_manifest.json `
+  --acknowledge-read-only-scope `
+  --json-out data/reports/uci-412-source-semantics.json `
+  --markdown-out data/reports/uci-412-source-semantics.md
+```
+
+Both output paths must resolve to `data/reports/<filename>`. The command fails
+closed on authorization, provenance hash, byte size, parsing, dictionary
+commitment, schema, output-path or privacy-scanner failure, and never prints a row
+value. See
+[the post-PR50 execution package](../../docs/research/gate-pt/16_post_pr50_aggregate_audit_execution_package_REVIEW_DRAFT.md).
+
+### 5.4 What must NOT be inferred
+
+- A token census is **not** a codebook: it records which registered tokens occur and
+  how often, not what the source owner meant by them.
+- Joint counts answer "do records carry more than one registered descriptor", not
+  what counts clinically as typical/atypical/non-anginal/exertional chest pain. They
+  are **not** an angina classification and must not be mapped to UCI-45 `cp` 1–4.
+- The descriptor-count distribution uses the dictionary's registered binary codes.
+  For the text columns that direction remains `SECONDARY_SOURCE_UNVERIFIED`; for
+  `Typical Chest Pain` the 0/1 representation is human-audited but the
+  `0 = absent / 1 = present` direction stays `PROVISIONAL`. The direction-free
+  evidence is the registered-token census.
+- Zero missing cells only means no cell matched the implemented missing-token rules;
+  it does not verify individual records, acquisition times, or label correctness.
+- Real output is a local, human-reviewed record. Do not commit, paste, or upload it
+  before the maintainer has privacy-reviewed it, and never present it as a model or
+  clinical result.
