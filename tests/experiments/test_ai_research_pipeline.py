@@ -30,12 +30,15 @@ from ai import (
     ClinicalInputValidationError,
     CohortGovernanceError,
     ExplainabilityIntegrityError,
+    ExternalEvaluationLedger,
+    FoldEnsembleMember,
     FoldSafeClinicalPreprocessor,
     OofLogisticCalibrator,
     PreprocessingContractError,
     ResearchCadPredictor,
     ResearchTrainingConfig,
     ShapBackgroundReference,
+    TrainedResearchRun,
     evaluate_locked_external_cohort,
     exact_coalition_shapley_oracle,
     explain_clinical_instance,
@@ -43,6 +46,7 @@ from ai import (
     train_research_model,
     validate_clinical_record,
     verify_research_bundle,
+    verify_trusted_local_bundle,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -477,7 +481,10 @@ def test_grouped_linear_shap_matches_exact_2_to_m_coalition_oracle_to_machine_pr
         computed_phi = np.array([a.shap_value for a in expl.attributions])
 
         assert expl.method == "linear_shap_interventional"
-        assert expl.scale == "log_odds"
+        assert expl.explained_quantity == "raw_model_log_odds"
+        assert expl.scale == "raw_log_odds"
+        assert expl.explains_calibrated_score_directly is False
+        assert expl.additive_on_calibrated_probability is False
         assert expl.synthetic_placeholder is False
         assert expl.sum_check_passed is True
         assert abs(expl.base_value - oracle_base) < 1e-12
@@ -680,10 +687,16 @@ def test_nonlinear_cohort_selects_random_forest_and_tree_shap(tmp_path: Path) ->
 
     bundle_dir = tmp_path / "rf_bundle"
     package_research_bundle(run, bundle_dir)
-    predictor = ResearchCadPredictor.from_verified_bundle(bundle_dir)
+    predictor = ResearchCadPredictor.from_verified_bundle(
+        bundle_dir, trusted_local_root=tmp_path
+    )
     result = predictor.predict_research_only(records[0])
     assert result.model_family == "constrained_random_forest"
     assert result.explanation.method == "tree_shap_interventional"
+    assert result.explanation.explained_quantity == "raw_model_score"
+    assert result.explanation.scale == "raw_model_probability"
+    assert result.explanation.explains_calibrated_score_directly is False
+    assert result.explanation.additive_on_calibrated_probability is False
     assert result.explanation.sum_check_passed is True
 
 
@@ -832,7 +845,9 @@ def test_end_to_end_uci412_clinical_plus_core_labs_bundle_and_research_inference
     assert verified.serving_eligibility == "RESEARCH_ONLY"
     assert verified.approved_for_serving is False
 
-    predictor = ResearchCadPredictor.from_verified_bundle(bundle_dir)
+    predictor = ResearchCadPredictor.from_verified_bundle(
+        bundle_dir, trusted_local_root=tmp_path
+    )
     # Record 0 has omitted optional WBC ("not_provided")
     res = predictor.predict_research_only(records[0])
     out = res.to_dict()
@@ -899,7 +914,9 @@ def test_bundle_tamper_symlink_overwrite_and_tracked_path_defenses(
         raw[0] ^= 0x01
         (corrupted_dir / target_file).write_bytes(bytes(raw))
         with pytest.raises(BundleIntegrityError) as exc_info:
-            ResearchCadPredictor.from_verified_bundle(corrupted_dir)
+            ResearchCadPredictor.from_verified_bundle(
+                corrupted_dir, trusted_local_root=tmp_path
+            )
         assert exc_info.value.code == "file_sha256_mismatch"
 
     # 4. Self-declared serving approval or pooled flag in manifest fails closed
@@ -995,3 +1012,619 @@ def test_ai_and_backend_packages_remain_strictly_decoupled() -> None:
                 assert not overlap, (
                     f"{path.relative_to(REPO_ROOT)} must not import {sorted(overlap)}"
                 )
+
+
+# --------------------------------------------------------------------------- #
+# 7. Mandatory scientific & security regression tests (PR #52 review pass)
+# --------------------------------------------------------------------------- #
+
+
+class _DeserializationCanary:
+    """Module-scope pickle canary proving untrusted joblib.load is never executed."""
+
+    triggered: bool = False
+
+    def __reduce__(self) -> tuple[Any, tuple[()]]:
+        return (_trigger_deserialization_canary, ())
+
+
+def _trigger_deserialization_canary() -> dict[str, str]:
+    _DeserializationCanary.triggered = True
+    raise RuntimeError("SECURITY VIOLATION: joblib.load executed on untrusted bundle!")
+
+
+def test_cross_fitted_calibration_excludes_evaluated_observations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove every evaluated test-fold observation is excluded from calibrator fitting."""
+    import hashlib
+    from sklearn.model_selection import StratifiedKFold
+    import ai.training as training_mod
+
+    records, labels = _generate_synthetic_uci45_cohort(84, seed=1313, nonlinear=False)
+    X = np.vstack(
+        [
+            validate_clinical_record(r, DA_A2_RESTING_LABS_PANEL).as_row_array()
+            for r in records
+        ]
+    )
+    y = np.asarray(labels, dtype=np.int64)
+
+    # 1. Spy on OofLogisticCalibrator.fit_from_oof during nested cross-fitting
+    observed_fit_calls: list[tuple[str, int, str]] = []
+    orig_fit = OofLogisticCalibrator.fit_from_oof
+
+    @classmethod  # type: ignore[misc]
+    def _spy_fit(
+        cls: type[OofLogisticCalibrator],
+        y_oof: np.ndarray,
+        p_oof_raw: np.ndarray,
+        **kwargs: Any,
+    ) -> OofLogisticCalibrator:
+        arr = np.asarray(y_oof, dtype=np.int64)
+        digest = hashlib.sha256(arr.tobytes()).hexdigest()
+        observed_fit_calls.append(
+            (str(kwargs.get("fit_scope")), int(arr.size), digest)
+        )
+        return orig_fit.__func__(cls, y_oof, p_oof_raw, **kwargs)  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(OofLogisticCalibrator, "fit_from_oof", _spy_fit)
+
+    run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_LABS_PANEL,
+        model_id="synth_cross_cal_proof",
+        development_cohort_id="synthetic_cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_TEST_CONFIG,
+    )
+
+    outer_splits = list(
+        StratifiedKFold(
+            n_splits=FAST_TEST_CONFIG.outer_folds,
+            shuffle=True,
+            random_state=FAST_TEST_CONFIG.repeat_seeds[0],
+        ).split(np.zeros(len(y)), y)
+    )
+    expected_train_digests = {
+        hashlib.sha256(np.asarray(y[tr_idx], dtype=np.int64).tobytes()).hexdigest()
+        for tr_idx, _ in outer_splits
+    }
+    inner_calls = [
+        c for c in observed_fit_calls if c[0] == "INNER_CV_FOLD_CONTAINED"
+    ]
+    assert len(inner_calls) == FAST_TEST_CONFIG.outer_folds * 3  # dummy + LR + RF per fold
+    for _, sample_count, y_digest in inner_calls:
+        assert sample_count < len(y)  # Strictly smaller than full cohort
+        assert y_digest in expected_train_digests  # Matches y[train_idx], zero test_idx rows
+
+    # 2. Direct perturbation invariance: drastically changing X[test_idx] on fold 1
+    #    leaves fold 1's fitted calibrator (intercept, slope) bitwise identical.
+    _, fold1_test_idx = outer_splits[0]
+    X_perturbed = X.copy()
+    X_perturbed[fold1_test_idx, 0] = 79.0  # Extreme age on test fold only
+    X_perturbed[fold1_test_idx, 3] = 195.0  # Extreme BP on test fold only
+    X_perturbed[fold1_test_idx, 5] = 380.0  # Extreme chol on test fold only
+
+    _, _, orig_fold_recs, _ = training_mod._run_single_nested_pass(
+        X,
+        y,
+        panel=DA_A2_RESTING_LABS_PANEL,
+        config=FAST_TEST_CONFIG,
+        repeat_seed=FAST_TEST_CONFIG.repeat_seeds[0],
+        retain_fold_models=False,
+        fit_cross_calibrators=True,
+    )
+    _, _, pert_fold_recs, _ = training_mod._run_single_nested_pass(
+        X_perturbed,
+        y,
+        panel=DA_A2_RESTING_LABS_PANEL,
+        config=FAST_TEST_CONFIG,
+        repeat_seed=FAST_TEST_CONFIG.repeat_seeds[0],
+        retain_fold_models=False,
+        fit_cross_calibrators=True,
+    )
+    assert (
+        orig_fold_recs[0]["fold_calibrator"] == pert_fold_recs[0]["fold_calibrator"]
+    )
+
+    # 3. Verify strict separation of the three internal evaluation blocks
+    ie = run.internal_evaluation
+    assert "calibrated_selected_oof_metrics" not in ie
+    assert ie["uncalibrated_nested_cv"]["post_hoc_calibration_applied"] is False
+    assert (
+        ie["cross_fitted_calibrated_nested_cv"][
+            "each_observation_excluded_from_model_and_calibrator_fit"
+        ]
+        is True
+    )
+    assert (
+        ie["cross_fitted_calibrated_nested_cv"][
+            "unbiased_within_cohort_calibrated_estimate"
+        ]
+        is True
+    )
+    apparent = ie["final_development_calibrator_apparent_diagnostic"]
+    assert apparent["apparent_in_calibrator_fit"] is True
+    assert apparent["unbiased_calibrated_performance_estimate"] is False
+
+
+def test_calibrated_log_odds_linear_shap_and_raw_tree_shap_score_alignment(
+    tmp_path: Path,
+) -> None:
+    """Verify exact calibrated-log-odds LinearSHAP math & honest raw-score TreeSHAP alignment."""
+    from scipy.special import expit
+
+    records, labels = _generate_synthetic_uci45_cohort(
+        72, seed=1414, nonlinear=False, missing_lab_rate=0.20
+    )
+    X = np.vstack(
+        [
+            validate_clinical_record(r, DA_A2_RESTING_LABS_PANEL).as_row_array()
+            for r in records
+        ]
+    )
+    y = np.asarray(labels, dtype=np.int64)
+    prep = FoldSafeClinicalPreprocessor.fit(X, DA_A2_RESTING_LABS_PANEL)
+    Z = prep.transform(X)
+    lr = LogisticRegression(C=5.0, solver="lbfgs", max_iter=1000, random_state=21).fit(
+        Z, y
+    )
+    # Amplify weights to also exercise extreme |raw_log_odds| > 15 without probability clipping
+    lr.coef_ = lr.coef_ * 4.5
+    raw_logits = lr.decision_function(Z)
+    raw_probs = np.asarray(expit(raw_logits), dtype=np.float64)
+    assert np.max(np.abs(raw_logits)) > 14.0
+
+    cal = OofLogisticCalibrator.fit_from_oof(
+        y,
+        raw_probs,
+        model_family="l2_logistic_regression",
+        raw_logits=raw_logits,
+    )
+    assert cal.input_link == "exact_raw_log_odds"
+
+    X_bg_raw = X[:12]
+    Z_bg = prep.transform(X_bg_raw)
+    bg_ref = ShapBackgroundReference(
+        panel_id=prep.panel_id,
+        panel_contract_sha256=prep.panel_contract_sha256,
+        encoded_feature_names=prep.encoded_feature_names,
+        background_matrix=Z_bg,
+    )
+
+    extreme_idx = int(np.argmax(np.abs(raw_logits)))
+    for row_idx in (0, 4, extreme_idx):
+        x_raw = X[row_idx]
+        z_row = Z[row_idx]
+        cal_expl = explain_clinical_instance(
+            model_family="l2_logistic_regression",
+            estimator=lr,
+            preprocessor=prep,
+            panel=DA_A2_RESTING_LABS_PANEL,
+            background=bg_ref,
+            z_row=z_row,
+            calibrator=cal,
+        )
+        oracle_base, oracle_target, oracle_phi = exact_coalition_shapley_oracle(
+            lambda Z_in: cal.transform_log_odds(lr.decision_function(Z_in)),
+            prep,
+            x_raw,
+            X_bg_raw,
+        )
+        phi_vec = np.array([a.shap_value for a in cal_expl.attributions])
+
+        assert cal_expl.explained_quantity == "calibrated_log_odds"
+        assert cal_expl.scale == "calibrated_log_odds"
+        assert cal_expl.explains_calibrated_score_directly is True
+        assert cal_expl.additive_on_calibrated_probability is False
+        assert cal_expl.linked_probability_quantity == "calibrated_research_score"
+        assert abs(cal_expl.base_value - oracle_base) < 1e-12
+        assert abs(cal_expl.target_prediction_on_scale - oracle_target) < 1e-12
+        assert np.max(np.abs(phi_vec - oracle_phi)) < 1e-12
+        expected_cal_prob = float(
+            cal.calibrate_from_log_odds(float(lr.decision_function(z_row.reshape(1, -1))[0]))
+        )
+        assert (
+            abs(float(expit(cal_expl.base_value + np.sum(phi_vec))) - expected_cal_prob)
+            < 1e-14
+        )
+
+    # Constant fallback calibrator (slope == 0.0) yields exact zero calibrated attributions
+    zero_cal = OofLogisticCalibrator(
+        model_family="l2_logistic_regression",
+        intercept=-0.35,
+        slope=0.0,
+        development_prevalence=0.42,
+        n_oof_samples=50,
+        oof_brier_before=0.24,
+        oof_brier_after=0.24,
+        status="IDENTITY_CONSTANT_FALLBACK",
+        input_link="exact_raw_log_odds",
+        fit_scope="FULL_DEVELOPMENT_OOF_FINAL",
+    )
+    const_expl = explain_clinical_instance(
+        model_family="l2_logistic_regression",
+        estimator=lr,
+        preprocessor=prep,
+        panel=DA_A2_RESTING_LABS_PANEL,
+        background=bg_ref,
+        z_row=Z[0],
+        calibrator=zero_cal,
+    )
+    assert const_expl.base_value == -0.35
+    assert const_expl.target_prediction_on_scale == -0.35
+    assert all(v == 0.0 for v in const_expl.attribution_map().values())
+
+    # End-to-end LR bundle prediction alignment check
+    lr_run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_LABS_PANEL,
+        model_id="synth_lr_aligned",
+        development_cohort_id="synthetic_cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_TEST_CONFIG,
+    )
+    assert lr_run.selected_model_family == "l2_logistic_regression"
+    lr_bundle = tmp_path / "lr_aligned_bundle"
+    package_research_bundle(lr_run, lr_bundle)
+    lr_pred = ResearchCadPredictor.from_verified_bundle(
+        lr_bundle, trusted_local_root=tmp_path
+    ).predict_research_only(records[0])
+    pred_dict = lr_pred.to_dict()["prediction"]
+    assert pred_dict["shap_explained_quantity"] == "calibrated_log_odds"
+    assert pred_dict["shap_mathematical_scale"] == "calibrated_log_odds"
+    assert pred_dict["shap_explains_calibrated_score_directly"] is True
+    assert pred_dict["shap_additive_on_calibrated_probability"] is False
+    assert abs(pred_dict["shap_target_value_on_scale"] - lr_pred.calibrated_log_odds) < 1e-12
+    assert (
+        abs(float(expit(lr_pred.calibrated_log_odds)) - lr_pred.calibrated_research_score)
+        < 1e-14
+    )
+
+    # Tree model with calibrator MUST NOT relabel raw-probability TreeSHAP as calibrated SHAP
+    rf = RandomForestClassifier(
+        n_estimators=15, max_depth=3, min_samples_leaf=3, random_state=9, n_jobs=1
+    ).fit(Z, y)
+    rf_cal = OofLogisticCalibrator.fit_from_oof(
+        y, rf.predict_proba(Z)[:, 1], model_family="constrained_random_forest"
+    )
+    rf_expl = explain_clinical_instance(
+        model_family="constrained_random_forest",
+        estimator=rf,
+        preprocessor=prep,
+        panel=DA_A2_RESTING_LABS_PANEL,
+        background=bg_ref,
+        z_row=Z[0],
+        calibrator=rf_cal,
+    )
+    assert rf_expl.explained_quantity == "raw_model_score"
+    assert rf_expl.scale == "raw_model_probability"
+    assert rf_expl.explains_calibrated_score_directly is False
+    assert rf_expl.additive_on_calibrated_probability is False
+    assert abs(rf_expl.target_prediction_on_scale - float(rf.predict_proba(Z[:1])[0, 1])) < 1e-12
+
+
+def test_fold_dispersion_uses_compatible_per_fold_calibrators_without_epistemic_claims(
+    tmp_path: Path,
+) -> None:
+    """Verify heterogeneous outer folds use each fold's own calibrator and honest semantics."""
+    records, labels = _generate_synthetic_uci45_cohort(84, seed=1515, nonlinear=False)
+    run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_LABS_PANEL,
+        model_id="synth_hetero_fold_test",
+        development_cohort_id="synthetic_cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_TEST_CONFIG,
+    )
+
+    # Construct a valid heterogeneous fold ensemble: fold 1 = LR, fold 2 = RF (each with its own calibrator)
+    X, y, _ = (
+        np.vstack(
+            [
+                validate_clinical_record(r, DA_A2_RESTING_LABS_PANEL).as_row_array()
+                for r in records
+            ]
+        ),
+        np.asarray(labels, dtype=np.int64),
+        None,
+    )
+    prep_rf = FoldSafeClinicalPreprocessor.fit(X[:60], DA_A2_RESTING_LABS_PANEL)
+    Z_rf = prep_rf.transform(X[:60])
+    rf_est = RandomForestClassifier(
+        n_estimators=15, max_depth=3, min_samples_leaf=4, random_state=31, n_jobs=1
+    ).fit(Z_rf, y[:60])
+    rf_cal = OofLogisticCalibrator.fit_from_oof(
+        y[:60],
+        rf_est.predict_proba(Z_rf)[:, 1],
+        model_family="constrained_random_forest",
+        fit_scope="INNER_CV_FOLD_CONTAINED",
+    )
+    hetero_run = TrainedResearchRun(
+        model_id=run.model_id,
+        model_version=run.model_version,
+        protocol_id=run.protocol_id,
+        panel=run.panel,
+        development_cohort_id=run.development_cohort_id,
+        development_dataset_id=run.development_dataset_id,
+        synthetic_only=True,
+        selected_model_family=run.selected_model_family,
+        selected_hyperparameters=run.selected_hyperparameters,
+        preprocessor=run.preprocessor,
+        estimator=run.estimator,
+        calibrator=run.calibrator,
+        shap_background=run.shap_background,
+        fold_ensemble=(
+            run.fold_ensemble[0],
+            FoldEnsembleMember(
+                fold_index=2,
+                model_family="constrained_random_forest",
+                preprocessor=prep_rf,
+                estimator=rf_est,
+                calibrator=rf_cal,
+            ),
+        ),
+        internal_evaluation=run.internal_evaluation,
+        negative_control=run.negative_control,
+    )
+
+    bundle_dir = tmp_path / "hetero_bundle"
+    package_research_bundle(hetero_run, bundle_dir)
+    predictor = ResearchCadPredictor.from_verified_bundle(
+        bundle_dir, trusted_local_root=tmp_path
+    )
+    res = predictor.predict_research_only(records[0])
+    unc = res.uncertainty
+
+    assert (
+        unc["uncertainty_semantics"]
+        == "DESCRIPTIVE_OUTER_FOLD_DISPERSION_NOT_VALIDATED_UNCERTAINTY"
+    )
+    assert unc["validated_epistemic_uncertainty"] is False
+    assert unc["validated_patient_specific_interval"] is False
+    assert unc["action_threshold_validated"] is False
+    assert "high_epistemic_spread_flag" not in unc
+    assert unc["homogeneous_model_family"] is False
+    assert unc["fold_model_families"] == [
+        run.fold_ensemble[0].model_family,
+        "constrained_random_forest",
+    ]
+    assert unc["each_fold_calibrated_by_own_training_fold_calibrator"] is True
+
+
+def test_interrupted_packaging_cleanup_untrusted_bundle_rejection_and_shap_privacy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify atomic staging cleanup, HMAC/origin boundary before joblib.load, and SHAP privacy."""
+    import hashlib
+    import os
+    import joblib
+    import ai.packaging as pkg_mod
+
+    records, labels = _generate_synthetic_uci45_cohort(72, seed=1616)
+    run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_LABS_PANEL,
+        model_id="synth_security_guard_v0",
+        development_cohort_id="synthetic_cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_TEST_CONFIG,
+    )
+
+    # 1. Interrupted packaging after partial file writes cleans up staging completely
+    interrupted_target = tmp_path / "interrupted_bundle"
+    orig_write = pkg_mod._write_atomic_private
+    call_counter = {"n": 0}
+
+    def _failing_write(path: Path, content: bytes) -> dict[str, Any]:
+        call_counter["n"] += 1
+        if call_counter["n"] == 4:
+            raise OSError("Simulated mid-packaging disk interruption")
+        return orig_write(path, content)
+
+    with monkeypatch.context() as mp:
+        mp.setattr(pkg_mod, "_write_atomic_private", _failing_write)
+        with pytest.raises(OSError, match="Simulated mid-packaging"):
+            package_research_bundle(run, interrupted_target)
+
+    assert not interrupted_target.exists()
+    leftover_staging = [
+        p.name for p in tmp_path.iterdir() if p.name.startswith(".staging_")
+    ]
+    assert leftover_staging == []
+
+    # 2. Build a legitimate signed bundle under key_a inside trusted_root
+    trusted_root = tmp_path / "trusted_store"
+    trusted_root.mkdir(mode=0o700)
+    key_a = b"A" * 32
+    key_b = b"B" * 32
+    good_bundle = trusted_root / "good_bundle"
+    package_research_bundle(run, good_bundle, signing_key=key_a)
+
+    # Plain verify_research_bundle checks SHA-256 only -> explicitly marks NOT safe for pickle
+    hash_only_desc = verify_research_bundle(good_bundle)
+    assert hash_only_desc.integrity_verified_only_not_authenticated is True
+    assert hash_only_desc.producer_authenticated is False
+    assert hash_only_desc.safe_for_pickle_deserialization is False
+
+    # 3. Forged malicious pickle WITH recomputed valid SHA-256 in manifest.json:
+    #    verify_research_bundle passes, MUST fail verify_trusted_local_bundle /
+    #    from_verified_bundle BEFORE joblib.load ever executes _DeserializationCanary!
+    _DeserializationCanary.triggered = False
+    forged_bundle = trusted_root / "forged_pickle_valid_sha256"
+    forged_bundle.mkdir(mode=0o700)
+    for item in good_bundle.iterdir():
+        dst = forged_bundle / item.name
+        dst.write_bytes(item.read_bytes())
+        os.chmod(dst, 0o600)
+
+    joblib.dump(_DeserializationCanary(), forged_bundle / "model.joblib", compress=3)
+    os.chmod(forged_bundle / "model.joblib", 0o600)
+    evil_bytes = (forged_bundle / "model.joblib").read_bytes()
+    forged_manifest = json.loads(
+        (forged_bundle / "manifest.json").read_text(encoding="utf-8")
+    )
+    forged_manifest["files"]["model.joblib"] = {
+        "sha256": hashlib.sha256(evil_bytes).hexdigest(),
+        "size_bytes": len(evil_bytes),
+    }
+    (forged_bundle / "manifest.json").write_text(
+        json.dumps(forged_manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    os.chmod(forged_bundle / "manifest.json", 0o600)
+
+    # SHA-256 check alone succeeds (proving why SHA-256 != authentication)
+    unauth = verify_research_bundle(forged_bundle)
+    assert unauth.safe_for_pickle_deserialization is False
+
+    # Deserialization boundary blocks it BEFORE joblib.load runs!
+    with pytest.raises(BundleIntegrityError) as exc_info:
+        ResearchCadPredictor.from_verified_bundle(
+            forged_bundle, trusted_local_root=trusted_root, signing_key=key_a
+        )
+    assert exc_info.value.code == "untrusted_bundle_producer_signature"
+    assert _DeserializationCanary.triggered is False
+
+    # 4. Wrong signing key fails closed
+    with pytest.raises(BundleIntegrityError) as exc_info:
+        ResearchCadPredictor.from_verified_bundle(
+            good_bundle, trusted_local_root=trusted_root, signing_key=key_b
+        )
+    assert exc_info.value.code == "untrusted_bundle_producer_signature"
+
+    # 5. Bundle outside trusted_local_root fails closed
+    other_root = tmp_path / "other_trusted_root"
+    other_root.mkdir(mode=0o700)
+    with pytest.raises(BundleIntegrityError) as exc_info:
+        ResearchCadPredictor.from_verified_bundle(
+            good_bundle, trusted_local_root=other_root, signing_key=key_a
+        )
+    assert exc_info.value.code == "untrusted_bundle_location"
+
+    # 6. Permissive 0644 permissions on shap_background.json fail closed
+    os.chmod(good_bundle / "shap_background.json", 0o644)
+    try:
+        with pytest.raises(BundleIntegrityError) as exc_info:
+            verify_trusted_local_bundle(
+                good_bundle, trusted_local_root=trusted_root, signing_key=key_a
+            )
+        assert exc_info.value.code == "insecure_sensitive_artifact_permissions"
+    finally:
+        os.chmod(good_bundle / "shap_background.json", 0o600)
+
+    # 7. Non-synthetic shap_background.json is blocked while Gate PT is closed
+    with pytest.raises(ExplainabilityIntegrityError) as bg_exc:
+        ShapBackgroundReference.from_training_encoded(
+            run.shap_background.background_matrix,
+            np.zeros(len(run.shap_background.background_matrix), dtype=np.int64),
+            run.preprocessor,
+            synthetic_only=False,
+        )
+    assert bg_exc.value.code == "real_patient_shap_background_blocked_gate_pt_closed"
+
+
+def test_external_evaluation_primitive_single_shot_ledger_and_real_cohort_blocks(
+    tmp_path: Path,
+) -> None:
+    """Verify stateless primitive semantics, single-shot ledger enforcement, and real cohort blocks."""
+    dev_records, dev_labels = _generate_synthetic_uci45_cohort(72, seed=1717)
+    ext_records, ext_labels = _generate_synthetic_uci45_cohort(60, seed=1818)
+
+    run = train_research_model(
+        dev_records,
+        dev_labels,
+        DA_A2_RESTING_LABS_PANEL,
+        model_id="synth_ledger_model_v0",
+        development_cohort_id="synthetic_cleveland",
+        development_dataset_id="DA-A2:cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_TEST_CONFIG,
+    )
+
+    # 1. Real Hungary and Real AngioCAD cohort IDs are hard-blocked under synthetic-only auth
+    with pytest.raises(CohortGovernanceError) as exc_h:
+        evaluate_locked_external_cohort(
+            run,
+            ext_records,
+            ext_labels,
+            external_cohort_id="hungary",
+            external_dataset_id="DA-A2:hungary",
+            synthetic_data_confirmed=True,
+            n_bootstrap=40,
+        )
+    assert exc_h.value.code == "real_hungary_blocked_pending_gate_pt"
+
+    with pytest.raises(CohortGovernanceError) as exc_a:
+        evaluate_locked_external_cohort(
+            run,
+            ext_records,
+            ext_labels,
+            external_cohort_id="angiocad_isfahan",
+            external_dataset_id="zenodo:15826856",
+            synthetic_data_confirmed=True,
+            n_bootstrap=40,
+        )
+    assert exc_a.value.code == "angiocad_blocked_pending_d021_and_gate_da"
+
+    # 2. Stateless call without ledger explicitly declares it is NOT one-shot enforced
+    stateless_res = evaluate_locked_external_cohort(
+        run,
+        ext_records,
+        ext_labels,
+        external_cohort_id="synthetic_hungary",
+        external_dataset_id="DA-A2:synthetic_hungary",
+        synthetic_data_confirmed=True,
+        n_bootstrap=40,
+    )
+    assert stateless_res["one_shot_enforced_by_ledger"] is False
+    assert (
+        stateless_res["execution_semantics"]
+        == "STATELESS_FROZEN_MODEL_EVALUATION_PRIMITIVE_NOT_ONE_SHOT_ENFORCED"
+    )
+    assert (
+        stateless_res["participant_independence_verification"]
+        == "DECLARED_COHORT_METADATA_GUARD_ONLY_NOT_PATIENT_LEVEL_PROOF"
+    )
+
+    # 3. Ledger inside tracked repo directory is prohibited
+    with pytest.raises(CohortGovernanceError) as exc_lp:
+        ExternalEvaluationLedger(REPO_ROOT / "ai" / "forbidden_ledger.json")
+    assert exc_lp.value.code == "unignored_ledger_path_prohibited"
+
+    # 4. Ledger-protected call enforces single-shot execution across repeated invocations
+    ledger_file = tmp_path / "protected_eval_ledger.json"
+    first_led = evaluate_locked_external_cohort(
+        run,
+        ext_records,
+        ext_labels,
+        external_cohort_id="synthetic_hungary",
+        external_dataset_id="DA-A2:synthetic_hungary",
+        synthetic_data_confirmed=True,
+        one_shot_ledger_path=ledger_file,
+        n_bootstrap=40,
+    )
+    assert first_led["one_shot_enforced_by_ledger"] is True
+    assert (
+        first_led["execution_semantics"] == "LOCAL_LEDGER_ENFORCED_SINGLE_EVALUATION"
+    )
+    assert (ledger_file.stat().st_mode & 0o077) == 0
+
+    with pytest.raises(CohortGovernanceError) as exc_dup:
+        evaluate_locked_external_cohort(
+            run,
+            ext_records,
+            ext_labels,
+            external_cohort_id="synthetic_hungary",
+            external_dataset_id="DA-A2:synthetic_hungary",
+            synthetic_data_confirmed=True,
+            one_shot_ledger_path=ledger_file,
+            n_bootstrap=40,
+        )
+    assert exc_dup.value.code == "one_shot_external_evaluation_already_consumed"

@@ -6,17 +6,22 @@ planned in ``docs/research/AI_FIRST_COMPLETION_STRATEGY.md``:
   (reusing ``research.intake`` and ``research.uci412.feature_schema``).
 - :mod:`ai.preprocessing` — fold-contained, lineage-preserving tabular
   preprocessing with deterministic JSON state export.
-- :mod:`ai.calibration` — leak-free out-of-fold logistic probability calibration,
-  bootstrap confidence intervals, prevalence-shift diagnostics, and fold-
-  ensemble epistemic uncertainty.
+- :mod:`ai.calibration` — monotone logistic probability calibration (cross-fitted
+  inner-OOF fold calibrators + development-OOF final calibrator), bootstrap CIs,
+  prevalence-shift diagnostics, and descriptive outer-fold dispersion.
 - :mod:`ai.explainability` — genuine, model-faithful Grouped Interventional
-  LinearSHAP and Grouped Interventional TreeSHAP with runtime efficiency checks.
-- :mod:`ai.training` — nested-CV selection, label-shuffle negative controls, and
-  locked independent-cohort external evaluation with anti-pooling guards.
-- :mod:`ai.packaging` — versioned ``RESEARCH_ONLY`` bundle packaging and byte-
-  level pre-deserialization SHA-256 verification.
-- :mod:`ai.inference` — offline ``ResearchCadPredictor`` returning score,
-  uncertainty, verified SHAP attributions, and explicit clinical limitations.
+  LinearSHAP (exact on both ``raw_log_odds`` and ``calibrated_log_odds``) and
+  Grouped Interventional TreeSHAP (exact on ``raw_model_probability``), plus
+  explicit training-derivative privacy metadata on ``shap_background.json``.
+- :mod:`ai.training` — nested-CV selection, cross-fitted calibration evaluation,
+  label-shuffle negative controls, frozen external-cohort evaluation primitive,
+  and locally protected ``ExternalEvaluationLedger`` single-shot enforcement.
+- :mod:`ai.packaging` — staging-directory atomic ``RESEARCH_ONLY`` bundle
+  packaging, SHA-256 integrity checks, and ``HMAC-SHA256`` + ``trusted_local_root``
+  authentication BEFORE any ``joblib.load``.
+- :mod:`ai.inference` — offline ``ResearchCadPredictor`` returning explicitly
+  separated raw/calibrated scores, descriptive fold dispersion, aligned SHAP
+  attributions, and mandatory non-clinical limitations.
 
 Never imported by ``backend/app/``; ``MOCK_SYNTHETIC`` remains the sole active
 FastAPI runtime provider while Gate PT (``P-3``) is closed.
@@ -25,9 +30,11 @@ from __future__ import annotations
 
 from ai.calibration import (
     OofLogisticCalibrator,
+    compute_fold_prediction_dispersion,
     compute_instance_uncertainty,
     compute_prevalence_shift_diagnostic,
     evaluate_comprehensive_metrics,
+    safe_clipped_logit,
 )
 from ai.errors import (
     AiPipelineError,
@@ -49,8 +56,10 @@ from ai.inference import ResearchCadPredictor, ResearchPredictionResult
 from ai.packaging import (
     BUNDLE_SCHEMA_VERSION,
     VerifiedBundleDescriptor,
+    get_or_create_local_signing_key,
     package_research_bundle,
     verify_research_bundle,
+    verify_trusted_local_bundle,
 )
 from ai.panels import (
     DA_A1_BASIC_CLINICAL_PANEL,
@@ -67,6 +76,8 @@ from ai.panels import (
 )
 from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
+    ExternalEvaluationLedger,
+    FoldEnsembleMember,
     ResearchTrainingConfig,
     TrainedResearchRun,
     evaluate_locked_external_cohort,
@@ -85,8 +96,10 @@ __all__ = [
     "DA_A2_RESTING_LABS_PANEL",
     "DA_A2_RESTING_PANEL",
     "ExplainabilityIntegrityError",
+    "ExternalEvaluationLedger",
     "FaithfulShapExplanation",
     "FeatureShapAttribution",
+    "FoldEnsembleMember",
     "FoldSafeClinicalPreprocessor",
     "OofLogisticCalibrator",
     "PanelFieldSpec",
@@ -100,16 +113,20 @@ __all__ = [
     "TrainedResearchRun",
     "ValidatedClinicalRecord",
     "VerifiedBundleDescriptor",
+    "compute_fold_prediction_dispersion",
     "compute_instance_uncertainty",
     "compute_prevalence_shift_diagnostic",
     "evaluate_comprehensive_metrics",
     "evaluate_locked_external_cohort",
     "exact_coalition_shapley_oracle",
     "explain_clinical_instance",
+    "get_or_create_local_signing_key",
     "get_panel_contract",
     "package_research_bundle",
+    "safe_clipped_logit",
     "train_research_model",
     "validate_clinical_record",
     "validate_cohort_records",
     "verify_research_bundle",
+    "verify_trusted_local_bundle",
 ]

@@ -1,14 +1,21 @@
-"""Out-of-fold probability calibration, comprehensive metrics, and uncertainty.
+"""Out-of-fold probability calibration, comprehensive metrics, and fold dispersion.
 
 Reuses :func:`research.uci412.evaluation.calculate_metrics` for core
 discrimination, confusion-matrix, and Cox calibration diagnostics, while adding:
 1. ``OofLogisticCalibrator`` — monotone logistic (Platt/Cox) post-hoc
-   recalibration fitted strictly on out-of-fold predictions (never in-sample),
-   serializable as a standalone byte-verified JSON artifact (``calibration.json``).
+   recalibration fitted on out-of-fold predictions (either inner-CV OOF within
+   each outer training fold for cross-fitted evaluation, or full-development OOF
+   for the packaged final calibrator), serializable as ``calibration.json``.
+   Supports exact affine transformation on ``raw_log_odds`` for linear logistic
+   models and clipped-logit transformation on bounded ``[0, 1]`` probabilities
+   for tree/baseline models.
 2. Full class-specific metrics (sensitivity, specificity, PPV, NPV, F1, log-loss,
    ECE) and stratified bootstrap 95% confidence intervals.
 3. Prevalence-shift prior-odds diagnostics for locked external cohort evaluation.
-4. Instance-level epistemic fold-ensemble dispersion and missing-stage warnings.
+4. Descriptive outer-fold prediction dispersion (using each outer fold's own
+   compatible training-fold calibrator) and missing-stage completeness metadata,
+   without claiming validated patient-specific epistemic uncertainty or clinical
+   action thresholds.
 """
 from __future__ import annotations
 
@@ -35,13 +42,33 @@ from research.uci412.evaluation import calculate_metrics as uci412_calculate_met
 CALIBRATION_SCHEMA_VERSION: Final[str] = "cardioassist.ai.calibration/v1"
 PROB_CLIP_EPS: Final[float] = 1e-6
 
+VALID_INPUT_LINKS: Final[frozenset[str]] = frozenset(
+    {
+        "exact_raw_log_odds",
+        "clipped_logit_of_raw_probability",
+    }
+)
+VALID_FIT_SCOPES: Final[frozenset[str]] = frozenset(
+    {
+        "INNER_CV_FOLD_CONTAINED",
+        "FULL_DEVELOPMENT_OOF_FINAL",
+    }
+)
 
-def _safe_logit(probabilities: np.ndarray) -> np.ndarray:
-    clipped = np.clip(np.asarray(probabilities, dtype=np.float64), PROB_CLIP_EPS, 1.0 - PROB_CLIP_EPS)
+
+def safe_clipped_logit(probabilities: np.ndarray | float) -> np.ndarray:
+    """Compute logit after clamping bounded [0, 1] probabilities away from {0, 1}."""
+    clipped = np.clip(
+        np.asarray(probabilities, dtype=np.float64),
+        PROB_CLIP_EPS,
+        1.0 - PROB_CLIP_EPS,
+    )
     return np.log(clipped) - np.log1p(-clipped)
 
 
-def _expected_calibration_error(y: np.ndarray, p: np.ndarray, *, n_bins: int = 10) -> float:
+def _expected_calibration_error(
+    y: np.ndarray, p: np.ndarray, *, n_bins: int = 10
+) -> float:
     edges = np.linspace(0.0, 1.0, n_bins + 1)
     total = float(y.size)
     ece = 0.0
@@ -104,7 +131,6 @@ def evaluate_comprehensive_metrics(
     f1 = float((2 * tp) / (2 * tp + fp + fn)) if (2 * tp + fp + fn) > 0 else 0.0
     clipped = np.clip(p, PROB_CLIP_EPS, 1.0 - PROB_CLIP_EPS)
 
-    # Stratified percentile bootstrap for key metrics
     rng = np.random.default_rng(int(seed))
     pos_idx = np.flatnonzero(y == 1)
     neg_idx = np.flatnonzero(y == 0)
@@ -174,7 +200,17 @@ def evaluate_comprehensive_metrics(
 
 @dataclass(frozen=True, slots=True)
 class OofLogisticCalibrator:
-    """Monotone out-of-fold Platt/Cox logistic probability calibrator."""
+    """Monotone out-of-fold Platt/Cox logistic probability calibrator.
+
+    When ``input_link == 'exact_raw_log_odds'`` (used for ``l2_logistic_regression``),
+    the calibrator maps unclipped raw log-odds ``eta_raw`` via the exact affine
+    function ``eta_cal = intercept + slope * eta_raw`` and ``p_cal = expit(eta_cal)``,
+    preserving exact Shapley linearity on ``calibrated_log_odds``.
+
+    When ``input_link == 'clipped_logit_of_raw_probability'`` (used for tree and
+    dummy models whose leaves may emit exact ``0.0`` or ``1.0``), probabilities are
+    clamped to ``[1e-6, 1 - 1e-6]`` prior to ``logit``.
+    """
 
     model_family: str
     intercept: float
@@ -184,6 +220,8 @@ class OofLogisticCalibrator:
     oof_brier_before: float
     oof_brier_after: float
     status: str  # "FITTED_OOF_MONOTONE_LOGISTIC" | "IDENTITY_CONSTANT_FALLBACK"
+    input_link: str = "clipped_logit_of_raw_probability"
+    fit_scope: str = "FULL_DEVELOPMENT_OOF_FINAL"
 
     @classmethod
     def fit_from_oof(
@@ -192,8 +230,15 @@ class OofLogisticCalibrator:
         p_oof_raw: np.ndarray,
         *,
         model_family: str,
+        raw_logits: np.ndarray | None = None,
+        fit_scope: str = "FULL_DEVELOPMENT_OOF_FINAL",
         l2_anchor: float = 1e-3,
     ) -> "OofLogisticCalibrator":
+        if fit_scope not in VALID_FIT_SCOPES:
+            raise CalibrationIntegrityError(
+                "invalid_calibration_fit_scope",
+                f"Unsupported calibration fit_scope '{fit_scope}'.",
+            )
         y = np.asarray(y_oof, dtype=np.float64)
         p = np.asarray(p_oof_raw, dtype=np.float64)
         if y.ndim != 1 or y.shape != p.shape or y.size < 8:
@@ -212,9 +257,25 @@ class OofLogisticCalibrator:
                 "Out-of-fold calibration requires both target classes.",
             )
 
+        if raw_logits is not None:
+            logits = np.asarray(raw_logits, dtype=np.float64)
+            if logits.shape != p.shape or not np.isfinite(logits).all():
+                raise CalibrationIntegrityError(
+                    "invalid_oof_raw_logits",
+                    "Provided raw_logits must be finite and aligned with p_oof_raw.",
+                )
+            if not np.allclose(expit(logits), p, atol=1e-9):
+                raise CalibrationIntegrityError(
+                    "inconsistent_oof_raw_logits",
+                    "Provided raw_logits do not match p_oof_raw under expit.",
+                )
+            input_link = "exact_raw_log_odds"
+        else:
+            logits = safe_clipped_logit(p)
+            input_link = "clipped_logit_of_raw_probability"
+
         brier_before = float(brier_score_loss(y.astype(np.int64), p))
         dev_prev = float(np.mean(y))
-        logits = _safe_logit(p)
 
         if float(np.ptp(logits)) <= 1e-8 or model_family == "prevalence_dummy":
             prior_logit = float(np.log(dev_prev / (1.0 - dev_prev)))
@@ -228,6 +289,8 @@ class OofLogisticCalibrator:
                 oof_brier_before=brier_before,
                 oof_brier_after=float(brier_score_loss(y.astype(np.int64), p_after)),
                 status="IDENTITY_CONSTANT_FALLBACK",
+                input_link=input_link,
+                fit_scope=fit_scope,
             )
 
         def objective(params: np.ndarray) -> tuple[float, np.ndarray]:
@@ -261,30 +324,90 @@ class OofLogisticCalibrator:
             oof_brier_before=brier_before,
             oof_brier_after=brier_after,
             status="FITTED_OOF_MONOTONE_LOGISTIC",
+            input_link=input_link,
+            fit_scope=fit_scope,
         )
 
-    def calibrate(self, raw_probabilities: np.ndarray | float) -> np.ndarray:
+    def transform_log_odds(self, raw_logits: np.ndarray | float) -> np.ndarray:
+        """Apply exact affine calibration map ``intercept + slope * raw_logits``."""
+        arr = np.asarray(raw_logits, dtype=np.float64)
+        if not np.isfinite(arr).all():
+            raise CalibrationIntegrityError(
+                "invalid_raw_logit",
+                "Raw log-odds passed to calibrator must be finite.",
+            )
+        return np.asarray(self.intercept + self.slope * arr, dtype=np.float64)
+
+    def calibrate_from_log_odds(self, raw_logits: np.ndarray | float) -> np.ndarray:
+        """Map exact raw log-odds directly to calibrated probabilities via ``expit``."""
+        if self.input_link != "exact_raw_log_odds":
+            raise CalibrationIntegrityError(
+                "calibrator_not_exact_log_odds_link",
+                "calibrate_from_log_odds requires a calibrator fitted on exact_raw_log_odds.",
+            )
+        return np.asarray(expit(self.transform_log_odds(raw_logits)), dtype=np.float64)
+
+    def calibrated_log_odds(
+        self,
+        raw_probabilities: np.ndarray | float,
+        *,
+        raw_logits: np.ndarray | float | None = None,
+    ) -> np.ndarray:
+        """Return calibrated log-odds matching this calibrator's ``input_link``."""
         arr = np.asarray(raw_probabilities, dtype=np.float64)
         if not np.isfinite(arr).all() or np.any((arr < 0.0) | (arr > 1.0)):
             raise CalibrationIntegrityError(
                 "invalid_raw_probability",
                 "Raw model score passed to calibrator must lie in [0, 1].",
             )
-        logits = _safe_logit(arr)
-        return np.asarray(expit(self.intercept + self.slope * logits), dtype=np.float64)
+        if self.input_link == "exact_raw_log_odds":
+            if raw_logits is None:
+                raise CalibrationIntegrityError(
+                    "missing_exact_raw_logits",
+                    "Calibrator with input_link='exact_raw_log_odds' requires raw_logits so "
+                    "clamped probability inversion never introduces truncation error.",
+                )
+            logits_arr = np.asarray(raw_logits, dtype=np.float64)
+            if logits_arr.shape != arr.shape or not np.isfinite(logits_arr).all():
+                raise CalibrationIntegrityError(
+                    "invalid_raw_logit",
+                    "Provided raw_logits must be finite and shape-aligned with raw_probabilities.",
+                )
+            if not np.allclose(expit(logits_arr), arr, atol=1e-9):
+                raise CalibrationIntegrityError(
+                    "inconsistent_raw_logits",
+                    "Provided raw_logits do not match raw_probabilities under expit.",
+                )
+            return self.transform_log_odds(logits_arr)
+
+        return self.transform_log_odds(safe_clipped_logit(arr))
+
+    def calibrate(
+        self,
+        raw_probabilities: np.ndarray | float,
+        *,
+        raw_logits: np.ndarray | float | None = None,
+    ) -> np.ndarray:
+        """Map raw model outputs to calibrated probabilities in ``(0, 1)``."""
+        return np.asarray(
+            expit(self.calibrated_log_odds(raw_probabilities, raw_logits=raw_logits)),
+            dtype=np.float64,
+        )
 
     def to_json_dict(self) -> dict[str, Any]:
         return {
             "schema_version": CALIBRATION_SCHEMA_VERSION,
             "method": "oof_monotone_platt_logistic",
             "model_family": self.model_family,
+            "input_link": self.input_link,
+            "fit_scope": self.fit_scope,
             "status": self.status,
             "intercept": self.intercept,
             "slope": self.slope,
             "development_prevalence": self.development_prevalence,
             "n_oof_samples": self.n_oof_samples,
-            "oof_brier_before": self.oof_brier_before,
-            "oof_brier_after": self.oof_brier_after,
+            "oof_brier_before_apparent_on_fit_oof": self.oof_brier_before,
+            "oof_brier_after_apparent_on_fit_oof": self.oof_brier_after,
             "fitted_strictly_out_of_fold": True,
         }
 
@@ -316,24 +439,42 @@ class OofLogisticCalibrator:
         slope = float(payload["slope"])
         intercept = float(payload["intercept"])
         prev = float(payload["development_prevalence"])
+        input_link = str(payload.get("input_link", "clipped_logit_of_raw_probability"))
+        fit_scope = str(payload.get("fit_scope", "FULL_DEVELOPMENT_OOF_FINAL"))
         if (
             not (math.isfinite(slope) and math.isfinite(intercept) and math.isfinite(prev))
             or slope < 0.0
             or not (0.0 < prev < 1.0)
+            or input_link not in VALID_INPUT_LINKS
+            or fit_scope not in VALID_FIT_SCOPES
         ):
             raise CalibrationIntegrityError(
                 "invalid_calibration_parameters",
-                "Calibrator parameters violate monotonicity or prevalence bounds.",
+                "Calibrator parameters violate monotonicity, link, scope, or prevalence bounds.",
             )
+        brier_before = float(
+            payload.get(
+                "oof_brier_before_apparent_on_fit_oof",
+                payload.get("oof_brier_before", 0.0),
+            )
+        )
+        brier_after = float(
+            payload.get(
+                "oof_brier_after_apparent_on_fit_oof",
+                payload.get("oof_brier_after", 0.0),
+            )
+        )
         return cls(
             model_family=str(payload["model_family"]),
             intercept=intercept,
             slope=slope,
             development_prevalence=prev,
             n_oof_samples=int(payload["n_oof_samples"]),
-            oof_brier_before=float(payload["oof_brier_before"]),
-            oof_brier_after=float(payload["oof_brier_after"]),
+            oof_brier_before=brier_before,
+            oof_brier_after=brier_after,
             status=str(payload["status"]),
+            input_link=input_link,
+            fit_scope=fit_scope,
         )
 
 
@@ -343,8 +484,12 @@ def compute_prevalence_shift_diagnostic(
     external_prevalence: float,
 ) -> dict[str, Any]:
     """Quantify prior-odds log-odds shift between development and external cohorts."""
-    dev_clamped = min(max(float(development_prevalence), PROB_CLIP_EPS), 1.0 - PROB_CLIP_EPS)
-    ext_clamped = min(max(float(external_prevalence), PROB_CLIP_EPS), 1.0 - PROB_CLIP_EPS)
+    dev_clamped = min(
+        max(float(development_prevalence), PROB_CLIP_EPS), 1.0 - PROB_CLIP_EPS
+    )
+    ext_clamped = min(
+        max(float(external_prevalence), PROB_CLIP_EPS), 1.0 - PROB_CLIP_EPS
+    )
     prior_log_odds_shift = float(
         (math.log(ext_clamped / (1.0 - ext_clamped)))
         - (math.log(dev_clamped / (1.0 - dev_clamped)))
@@ -352,7 +497,9 @@ def compute_prevalence_shift_diagnostic(
     return {
         "development_prevalence": float(development_prevalence),
         "external_prevalence": float(external_prevalence),
-        "absolute_prevalence_difference": float(external_prevalence - development_prevalence),
+        "absolute_prevalence_difference": float(
+            external_prevalence - development_prevalence
+        ),
         "theoretical_prior_log_odds_shift": prior_log_odds_shift,
         "external_recalibration_applied_to_primary_metrics": False,
         "note": (
@@ -362,56 +509,103 @@ def compute_prevalence_shift_diagnostic(
     }
 
 
-def compute_instance_uncertainty(
-    fold_calibrated_scores: Sequence[float],
+def _summarize_1d_scores(scores: np.ndarray) -> dict[str, float]:
+    q75, q25 = np.percentile(scores, [75.0, 25.0])
+    return {
+        "mean": float(np.mean(scores)),
+        "std": float(np.std(scores, ddof=0)),
+        "min": float(np.min(scores)),
+        "max": float(np.max(scores)),
+        "range": float(np.max(scores) - np.min(scores)),
+        "iqr": float(q75 - q25),
+    }
+
+
+def compute_fold_prediction_dispersion(
+    fold_raw_scores: Sequence[float],
+    fold_compatible_calibrated_scores: Sequence[float],
     *,
+    fold_model_families: Sequence[str],
     missing_fields_with_reason: Sequence[tuple[str, str]],
     total_fields: int,
     development_prevalence: float,
 ) -> dict[str, Any]:
-    """Summarize epistemic fold-ensemble dispersion and missing-stage caveats."""
-    scores = np.asarray(list(fold_calibrated_scores), dtype=np.float64)
-    if scores.size == 0 or not np.isfinite(scores).all():
+    """Summarize descriptive outer-fold model dispersion and input completeness.
+
+    Scientific contract:
+    - Each outer-fold model's raw score is calibrated ONLY by that same outer
+      fold's inner-OOF-fitted calibrator (never applying a final-family calibrator
+      across heterogeneous fold model families).
+    - Results are explicitly labeled as descriptive outer-fold model dispersion
+      across overlapping CV partitions—NOT validated epistemic uncertainty, NOT a
+      patient-specific coverage interval, and WITHOUT any unvalidated action or
+      uncertainty cutoff.
+    """
+    raw_arr = np.asarray(list(fold_raw_scores), dtype=np.float64)
+    cal_arr = np.asarray(list(fold_compatible_calibrated_scores), dtype=np.float64)
+    fams = [str(f) for f in fold_model_families]
+
+    if (
+        raw_arr.size == 0
+        or raw_arr.shape != cal_arr.shape
+        or len(fams) != raw_arr.size
+        or not np.isfinite(raw_arr).all()
+        or not np.isfinite(cal_arr).all()
+        or np.any((raw_arr < 0.0) | (raw_arr > 1.0))
+        or np.any((cal_arr < 0.0) | (cal_arr > 1.0))
+    ):
         raise CalibrationIntegrityError(
-            "invalid_fold_ensemble_scores",
-            "Fold-ensemble uncertainty requires >= 1 finite fold score.",
+            "invalid_fold_dispersion_inputs",
+            "Outer-fold dispersion requires >= 1 aligned finite raw/calibrated scores in [0, 1].",
         )
+
     missing_names = [name for name, _ in missing_fields_with_reason]
     present_count = total_fields - len(missing_names)
     completeness = float(present_count / total_fields) if total_fields > 0 else 1.0
-    spread_range = float(np.max(scores) - np.min(scores))
-    std_val = float(np.std(scores, ddof=0))
-    q75, q25 = np.percentile(scores, [75.0, 25.0])
+    homogeneous = len(set(fams)) == 1
 
-    warnings: list[str] = [
+    limitations: list[str] = [
+        "Descriptive dispersion across outer-fold models trained on overlapping CV partitions; "
+        "NOT a validated epistemic uncertainty estimate, posterior credible interval, or patient-specific coverage guarantee.",
         f"Calibrated against a development cohort with {development_prevalence:.1%} CAD prevalence; "
-        "probabilities do NOT transfer without recalibration to lower-prevalence outpatient settings."
+        "scores do NOT transfer without recalibration to lower-prevalence outpatient populations.",
+        "No clinical action threshold or uncertainty cutoff has been validated (Gate P-4 pending).",
     ]
-    if missing_names:
-        warnings.append(
-            f"{len(missing_names)} optional stage field(s) ({', '.join(missing_names)}) were absent "
-            "and imputed using training-fold statistics; prediction uncertainty is elevated."
+    if not homogeneous:
+        limitations.append(
+            "Outer folds selected heterogeneous model families; each fold score uses its own "
+            "fold-fitted preprocessor and fold-compatible inner-OOF calibrator, so spread reflects "
+            "combined split + family selection variability."
         )
-    if spread_range >= 0.15:
-        warnings.append(
-            f"Outer-fold ensemble score spread is wide ({spread_range:.3f}), indicating material "
-            "epistemic sensitivity across training partitions."
+    if missing_names:
+        limitations.append(
+            f"{len(missing_names)} optional stage field(s) ({', '.join(missing_names)}) were absent "
+            "and imputed from training-fold statistics."
         )
 
     return {
-        "fold_ensemble_count": int(scores.size),
-        "fold_score_mean": float(np.mean(scores)),
-        "fold_score_std": std_val,
-        "fold_score_min": float(np.min(scores)),
-        "fold_score_max": float(np.max(scores)),
-        "fold_score_iqr": float(q75 - q25),
-        "present_feature_count": int(present_count),
-        "total_panel_features": int(total_fields),
-        "stage_completeness_fraction": completeness,
-        "missing_optional_features": [
-            {"field": name, "reason": reason}
-            for name, reason in missing_fields_with_reason
-        ],
-        "high_epistemic_spread_flag": bool(spread_range >= 0.15),
-        "warnings": warnings,
+        "uncertainty_semantics": "DESCRIPTIVE_OUTER_FOLD_DISPERSION_NOT_VALIDATED_UNCERTAINTY",
+        "validated_epistemic_uncertainty": False,
+        "validated_patient_specific_interval": False,
+        "action_threshold_validated": False,
+        "fold_ensemble_count": int(raw_arr.size),
+        "fold_model_families": fams,
+        "homogeneous_model_family": homogeneous,
+        "each_fold_calibrated_by_own_training_fold_calibrator": True,
+        "fold_raw_score_dispersion": _summarize_1d_scores(raw_arr),
+        "fold_calibrated_score_dispersion": _summarize_1d_scores(cal_arr),
+        "input_completeness": {
+            "present_feature_count": int(present_count),
+            "total_panel_features": int(total_fields),
+            "stage_completeness_fraction": completeness,
+            "missing_optional_features": [
+                {"field": name, "reason": reason}
+                for name, reason in missing_fields_with_reason
+            ],
+        },
+        "limitations": limitations,
     }
+
+
+# Backwards-compatible alias preserving explicit descriptive-dispersion semantics
+compute_instance_uncertainty = compute_fold_prediction_dispersion

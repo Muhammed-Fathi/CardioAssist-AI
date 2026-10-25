@@ -1,28 +1,35 @@
 """Genuine, model-faithful Grouped Interventional SHAP engine for Track A research.
 
-Why model-faithful method dispatch is mandatory here:
-- Across D-047 (Cleveland, 19/20 outer folds) and M3a (UCI-412, 20/20 outer
-  folds), ``l2_logistic_regression`` is the empirically selected model family,
-  while ``constrained_random_forest`` is the primary nonlinear comparator.
-- Reporting ``tree_shap`` for a linear logistic model—or hash-derived mock
-  offsets—is scientifically unfaithful.
+Score & scale alignment contract:
+- Every explanation explicitly declares ``explained_quantity``, ``scale``,
+  ``explains_calibrated_score_directly``, and
+  ``additive_on_calibrated_probability`` (which is ``False`` for both log-odds
+  LinearSHAP and raw-probability TreeSHAP so raw or log-odds attributions are
+  NEVER misdescribed as additive decompositions of calibrated probability).
+- For ``l2_logistic_regression``:
+  - When paired with an ``exact_raw_log_odds`` ``OofLogisticCalibrator``
+    (``eta_cal = a + b * eta_raw``), Interventional LinearSHAP is derived in
+    exact closed form on ``calibrated_log_odds`` via Shapley linearity:
+    ``phi_0_cal = a + b * phi_0_raw`` and ``phi_j_cal = b * phi_j_raw``.
+    Thus ``phi_0_cal + sum_j phi_j_cal(x) == logit(calibrated_research_score)``
+    and ``expit(phi_0_cal + sum_j phi_j_cal(x)) == calibrated_research_score``
+    to machine precision, while remaining additive in *log-odds*, not probability.
+  - When called without a calibrator, Interventional LinearSHAP explains
+    ``raw_model_log_odds`` (``logit(raw_model_score)``).
+- For ``constrained_random_forest``:
+  - Exact polynomial-time Grouped Interventional TreeSHAP explains
+    ``raw_model_score`` on ``raw_model_probability`` scale ONLY. Because
+    post-hoc logistic calibration is nonlinear across averaged tree probabilities,
+    raw-probability TreeSHAP is NEVER relabeled as calibrated-probability SHAP.
+- For ``prevalence_dummy``:
+  - Constant predictor with identically zero attributions on ``raw_model_score``.
 
-Implemented exact coalition Shapley algorithms over grouped clinical features
-(each raw clinical/lab variable owns all of its encoded one-hot and missingness-
-indicator columns via ``preprocessor.feature_slices``):
-1. ``linear_shap_interventional`` (scale: ``log_odds``) for
-   ``l2_logistic_regression``: exact interventional Shapley value on the linear
-   predictor ``logit(p)``.
-2. ``tree_shap_interventional`` (scale: ``raw_model_probability``) for
-   ``constrained_random_forest``: exact polynomial-time Interventional TreeSHAP
-   (Lundberg et al., Nature Machine Intelligence, 2020) generalized to multi-
-   column grouped clinical features, casting split evaluations to ``float32`` to
-   match ``sklearn.tree._tree.Tree`` bit-for-bit.
-3. ``constant_baseline_zero_shap`` (scale: ``raw_model_probability``) for
-   ``prevalence_dummy``: exact zero attributions for a constant predictor.
-
-Every explanation executes a fail-closed runtime efficiency (additivity) check:
-``base_value + sum(attributions) == target_prediction_on_scale`` within ``1e-9``.
+Privacy contract for ``ShapBackgroundReference``:
+- ``shap_background.json`` stores encoded training-cohort feature rows, which can
+  be inverted back to raw clinical feature values using ``preprocessing.json``
+  statistics. Whenever real patient data are involved, ``shap_background.json``
+  is a sensitive patient-data derivative that must never be committed, uploaded,
+  shared publicly, or loaded while Gate PT (``P-3``) is closed.
 """
 from __future__ import annotations
 
@@ -33,11 +40,13 @@ import math
 from typing import Any, Callable, Final, Mapping, Sequence
 
 import numpy as np
+from scipy.special import expit
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 
+from ai.calibration import OofLogisticCalibrator
 from ai.errors import ExplainabilityIntegrityError
 from ai.panels import ResearchPanelContract
 from ai.preprocessing import FoldSafeClinicalPreprocessor
@@ -54,12 +63,30 @@ METHOD_BY_MODEL_FAMILY: Final[Mapping[str, str]] = {
 
 @dataclass(frozen=True, slots=True)
 class ShapBackgroundReference:
-    """Serialized encoded background distribution for interventional Shapley values."""
+    """Serialized encoded background distribution for interventional Shapley values.
+
+    Security & privacy note:
+    ``background_matrix`` holds encoded training rows (z-scored continuous columns
+    and reference-coded categorical/missingness indicators). Combined with
+    ``preprocessing.json`` means and standard deviations, these rows are
+    invertible to individual training feature profiles. Real-patient backgrounds
+    are classified as ``SENSITIVE_REAL_PATIENT_DERIVED_RESTRICTED_LOCAL_ONLY``
+    and blocked while Gate PT (``P-3``) is closed.
+    """
 
     panel_id: str
     panel_contract_sha256: str
     encoded_feature_names: tuple[str, ...]
     background_matrix: np.ndarray  # shape (N_bg, P), float64
+    synthetic_only: bool = True
+
+    @property
+    def sensitivity_classification(self) -> str:
+        return (
+            "SYNTHETIC_NON_PATIENT_DERIVATIVE"
+            if self.synthetic_only
+            else "SENSITIVE_REAL_PATIENT_DERIVED_RESTRICTED_LOCAL_ONLY"
+        )
 
     @classmethod
     def from_training_encoded(
@@ -70,7 +97,13 @@ class ShapBackgroundReference:
         *,
         max_samples: int = 64,
         seed: int = 20261025,
+        synthetic_only: bool = True,
     ) -> "ShapBackgroundReference":
+        if not synthetic_only:
+            raise ExplainabilityIntegrityError(
+                "real_patient_shap_background_blocked_gate_pt_closed",
+                "Gate PT (P-3) remains closed; persisting real-patient SHAP background rows is blocked.",
+            )
         Z = np.asarray(Z_train, dtype=np.float64)
         y = np.asarray(y_train, dtype=np.int64)
         if Z.ndim != 2 or Z.shape[1] != preprocessor.n_encoded_features:
@@ -90,7 +123,9 @@ class ShapBackgroundReference:
             rng = np.random.default_rng(seed)
             pos_idx = np.flatnonzero(y == 1)
             neg_idx = np.flatnonzero(y == 0)
-            n_pos = max(1, min(len(pos_idx), round(max_samples * len(pos_idx) / len(y))))
+            n_pos = max(
+                1, min(len(pos_idx), round(max_samples * len(pos_idx) / len(y)))
+            )
             n_neg = max(1, min(len(neg_idx), max_samples - n_pos))
             chosen_pos = rng.choice(pos_idx, size=n_pos, replace=False)
             chosen_neg = rng.choice(neg_idx, size=n_neg, replace=False)
@@ -102,6 +137,7 @@ class ShapBackgroundReference:
             panel_contract_sha256=preprocessor.panel_contract_sha256,
             encoded_feature_names=preprocessor.encoded_feature_names,
             background_matrix=selected,
+            synthetic_only=bool(synthetic_only),
         )
 
     def to_json_dict(self) -> dict[str, Any]:
@@ -111,6 +147,14 @@ class ShapBackgroundReference:
             "panel_contract_sha256": self.panel_contract_sha256,
             "n_background_rows": int(self.background_matrix.shape[0]),
             "encoded_feature_names": list(self.encoded_feature_names),
+            "privacy": {
+                "synthetic_only": bool(self.synthetic_only),
+                "contains_encoded_training_projections": True,
+                "reconstructible_with_preprocessor_stats": True,
+                "sensitivity_classification": self.sensitivity_classification,
+                "commit_or_public_upload_prohibited": True,
+                "untrusted_loading_prohibited": True,
+            },
             "background_matrix": [
                 [float(v) for v in row] for row in self.background_matrix.tolist()
             ],
@@ -138,6 +182,7 @@ class ShapBackgroundReference:
         payload: Mapping[str, Any],
         *,
         preprocessor: FoldSafeClinicalPreprocessor,
+        require_synthetic: bool = True,
     ) -> "ShapBackgroundReference":
         if not isinstance(payload, Mapping) or (
             payload.get("schema_version") != SHAP_BACKGROUND_SCHEMA_VERSION
@@ -156,6 +201,25 @@ class ShapBackgroundReference:
                 "background_contract_mismatch",
                 "SHAP background reference does not match fitted preprocessor.",
             )
+        privacy = payload.get("privacy")
+        if (
+            not isinstance(privacy, Mapping)
+            or privacy.get("contains_encoded_training_projections") is not True
+            or privacy.get("reconstructible_with_preprocessor_stats") is not True
+            or privacy.get("commit_or_public_upload_prohibited") is not True
+            or not isinstance(privacy.get("synthetic_only"), bool)
+        ):
+            raise ExplainabilityIntegrityError(
+                "missing_background_privacy_declaration",
+                "SHAP background JSON lacks mandatory training-projection privacy declarations.",
+            )
+        synthetic_only = bool(privacy["synthetic_only"])
+        if require_synthetic and not synthetic_only:
+            raise ExplainabilityIntegrityError(
+                "real_patient_shap_background_blocked_gate_pt_closed",
+                "Refusing to load non-synthetic patient-derived SHAP background while Gate PT is closed.",
+            )
+
         matrix = np.asarray(payload.get("background_matrix", []), dtype=np.float64)
         if (
             matrix.ndim != 2
@@ -172,6 +236,7 @@ class ShapBackgroundReference:
             panel_contract_sha256=preprocessor.panel_contract_sha256,
             encoded_feature_names=preprocessor.encoded_feature_names,
             background_matrix=matrix,
+            synthetic_only=synthetic_only,
         )
 
 
@@ -195,11 +260,17 @@ class FeatureShapAttribution:
 
 @dataclass(frozen=True, slots=True)
 class FaithfulShapExplanation:
-    """Verified additive model-specific Shapley explanation."""
+    """Verified additive model-specific Shapley explanation with explicit target alignment."""
 
     method: str
     model_family: str
-    scale: str
+    explained_quantity: str  # "calibrated_log_odds" | "raw_model_log_odds" | "raw_model_score"
+    scale: str  # "calibrated_log_odds" | "raw_log_odds" | "raw_model_probability"
+    explains_calibrated_score_directly: bool
+    additive_on_calibrated_probability: bool
+    linked_probability_quantity: str  # "calibrated_research_score" | "raw_model_score"
+    linked_probability_value: float
+    score_alignment_note: str
     faithful_to_model_family: bool
     synthetic_placeholder: bool
     background_sample_count: int
@@ -216,7 +287,13 @@ class FaithfulShapExplanation:
         return {
             "method": self.method,
             "model_family": self.model_family,
+            "explained_quantity": self.explained_quantity,
             "scale": self.scale,
+            "explains_calibrated_score_directly": self.explains_calibrated_score_directly,
+            "additive_on_calibrated_probability": self.additive_on_calibrated_probability,
+            "linked_probability_quantity": self.linked_probability_quantity,
+            "linked_probability_value": self.linked_probability_value,
+            "score_alignment_note": self.score_alignment_note,
             "faithful_to_model_family": self.faithful_to_model_family,
             "synthetic_placeholder": self.synthetic_placeholder,
             "background_sample_count": self.background_sample_count,
@@ -236,7 +313,6 @@ class _LeafPathSpec:
     """Single root-to-leaf path grouped by owning raw clinical feature."""
 
     leaf_value: float
-    # Tuple of (raw_feature_idx, tuple_of_(encoded_col_idx, threshold_f64, go_left_bool))
     grouped_conditions: tuple[tuple[int, tuple[tuple[int, float, bool], ...]], ...]
 
 
@@ -278,7 +354,9 @@ def _extract_tree_leaf_paths(
             grouped = tuple(
                 (raw_idx, tuple(conds)) for raw_idx, conds in by_raw.items()
             )
-            paths.append(_LeafPathSpec(leaf_value=weighted_val, grouped_conditions=grouped))
+            paths.append(
+                _LeafPathSpec(leaf_value=weighted_val, grouped_conditions=grouped)
+            )
             return
 
         col_idx = int(features[node_id])
@@ -331,8 +409,7 @@ def _compute_grouped_interventional_tree_shap(
 
     # Match scikit-learn's Cython _tree.pyx split semantics bit-for-bit:
     # inputs are cast to C float (float32) and then promoted to C double (float64)
-    # when compared against double node.threshold (avoiding NumPy 1.x downcasting
-    # of float64 scalar thresholds when compared against float32 arrays).
+    # when compared against double node.threshold.
     z_f32 = np.asarray(z_row, dtype=np.float32).astype(np.float64)
     Z_bg_f32 = np.asarray(Z_bg, dtype=np.float32).astype(np.float64)
     n_bg = Z_bg_f32.shape[0]
@@ -355,7 +432,7 @@ def _compute_grouped_interventional_tree_shap(
             continue
 
         alive_mask = np.ones(n_bg, dtype=bool)
-        p_candidates: list[tuple[int, np.ndarray]] = []  # (raw_idx, bg_fails_mask)
+        p_candidates: list[tuple[int, np.ndarray]] = []
         n_fixed_indices: list[int] = []
         dead = False
 
@@ -390,24 +467,20 @@ def _compute_grouped_interventional_tree_shap(
 
         q = len(n_fixed_indices)
         if not p_candidates:
-            # p == 0 on all surviving background points; q > 0 since grouped_conditions != ()
             w_neg = neg_table[0, q] * path.leaf_value * (alive_idx.size / n_bg)
             for raw_idx in n_fixed_indices:
                 phi_accum[raw_idx] += w_neg
             continue
 
-        # Build (len(p_candidates), len(alive_idx)) indicator of (a_j=1, b_j=0)
         in_p_matrix = np.vstack([bg_fails[alive_idx] for _, bg_fails in p_candidates])
-        p_counts = np.sum(in_p_matrix, axis=0)  # shape (len(alive_idx),)
+        p_counts = np.sum(in_p_matrix, axis=0)
 
-        # Positive contributions for j in P_leaf (requires p_counts >= 1, guaranteed where in_p_matrix is True)
         pos_weights_per_bg = pos_table[p_counts, q] * (path.leaf_value / n_bg)
         for cand_pos, (raw_idx, _) in enumerate(p_candidates):
             active = in_p_matrix[cand_pos]
             if active.any():
                 phi_accum[raw_idx] += float(np.sum(pos_weights_per_bg[active]))
 
-        # Negative contributions for j in N_fixed (requires q >= 1)
         if q > 0:
             neg_weight_sum = float(np.sum(neg_table[p_counts, q])) * (
                 path.leaf_value / n_bg
@@ -415,8 +488,9 @@ def _compute_grouped_interventional_tree_shap(
             for raw_idx in n_fixed_indices:
                 phi_accum[raw_idx] += neg_weight_sum
 
-    base_val = float(np.mean(estimator.predict_proba(Z_bg)[:, 1]))
-    target_val = float(estimator.predict_proba(z_row.reshape(1, -1))[0, 1])
+    pos_idx = list(estimator.classes_).index(1)
+    base_val = float(np.mean(estimator.predict_proba(Z_bg)[:, pos_idx]))
+    target_val = float(estimator.predict_proba(z_row.reshape(1, -1))[0, pos_idx])
     return base_val, target_val, phi_accum
 
 
@@ -428,9 +502,10 @@ def explain_clinical_instance(
     panel: ResearchPanelContract,
     background: ShapBackgroundReference,
     z_row: np.ndarray,
+    calibrator: OofLogisticCalibrator | None = None,
     missing_feature_names: frozenset[str] = frozenset(),
 ) -> FaithfulShapExplanation:
-    """Compute and verify a faithful Shapley explanation for one encoded instance."""
+    """Compute and verify a faithful Shapley explanation with explicit score/scale alignment."""
     if model_family not in METHOD_BY_MODEL_FAMILY:
         raise ExplainabilityIntegrityError(
             "unsupported_model_family_for_shap",
@@ -455,17 +530,59 @@ def explain_clinical_instance(
         coef = np.asarray(estimator.coef_, dtype=np.float64).ravel()
         intercept = float(np.asarray(estimator.intercept_, dtype=np.float64).ravel()[0])
         bg_mean = np.mean(Z_bg, axis=0)
-        base_value = float(intercept + np.dot(coef, bg_mean))
-        target_value = float(estimator.decision_function(z.reshape(1, -1))[0])
+        raw_base = float(intercept + np.dot(coef, bg_mean))
+        raw_target_logit = float(estimator.decision_function(z.reshape(1, -1))[0])
         diff = z - bg_mean
-        phi = np.array(
+        raw_phi = np.array(
             [
-                float(np.dot(coef[list(ft.slice_indices)], diff[list(ft.slice_indices)]))
+                float(
+                    np.dot(
+                        coef[list(ft.slice_indices)], diff[list(ft.slice_indices)]
+                    )
+                )
                 for ft in preprocessor.field_transforms
             ],
             dtype=np.float64,
         )
-        scale = "log_odds"
+
+        if calibrator is not None:
+            if (
+                calibrator.model_family != "l2_logistic_regression"
+                or calibrator.input_link != "exact_raw_log_odds"
+            ):
+                raise ExplainabilityIntegrityError(
+                    "incompatible_calibrator_for_calibrated_linear_shap",
+                    "Calibrated-log-odds LinearSHAP requires an l2_logistic_regression "
+                    "calibrator fitted with input_link='exact_raw_log_odds'.",
+                )
+            base_value = float(calibrator.intercept + calibrator.slope * raw_base)
+            target_value = float(calibrator.transform_log_odds(raw_target_logit))
+            phi = np.asarray(calibrator.slope * raw_phi, dtype=np.float64)
+            explained_quantity = "calibrated_log_odds"
+            scale = "calibrated_log_odds"
+            explains_calibrated_score_directly = True
+            linked_probability_quantity = "calibrated_research_score"
+            linked_probability_value = float(expit(target_value))
+            score_alignment_note = (
+                "Exact Interventional LinearSHAP on calibrated_log_odds = intercept + slope * raw_log_odds; "
+                "base_value + sum(attributions) == logit(calibrated_research_score) and "
+                "expit(base_value + sum(attributions)) == calibrated_research_score. "
+                "Attributions are additive in calibrated log-odds, NOT additive in probability units."
+            )
+        else:
+            base_value = raw_base
+            target_value = raw_target_logit
+            phi = raw_phi
+            explained_quantity = "raw_model_log_odds"
+            scale = "raw_log_odds"
+            explains_calibrated_score_directly = False
+            linked_probability_quantity = "raw_model_score"
+            linked_probability_value = float(expit(raw_target_logit))
+            score_alignment_note = (
+                "Exact Interventional LinearSHAP on uncalibrated raw_model_log_odds; "
+                "base_value + sum(attributions) == logit(raw_model_score). Does NOT include "
+                "post-hoc probability calibration and is NOT additive on calibrated_research_score."
+            )
     elif model_family == "constrained_random_forest":
         if not isinstance(estimator, RandomForestClassifier):
             raise ExplainabilityIntegrityError(
@@ -475,17 +592,35 @@ def explain_clinical_instance(
         base_value, target_value, phi = _compute_grouped_interventional_tree_shap(
             estimator, z, Z_bg, preprocessor
         )
+        explained_quantity = "raw_model_score"
         scale = "raw_model_probability"
+        explains_calibrated_score_directly = False
+        linked_probability_quantity = "raw_model_score"
+        linked_probability_value = float(target_value)
+        score_alignment_note = (
+            "Exact Interventional TreeSHAP on uncalibrated raw_model_score (mean tree probability); "
+            "base_value + sum(attributions) == raw_model_score. Post-hoc logistic calibration is "
+            "nonlinear across averaged trees, so these attributions do NOT sum to calibrated_research_score."
+        )
     else:  # prevalence_dummy
         if not isinstance(estimator, DummyClassifier):
             raise ExplainabilityIntegrityError(
                 "estimator_family_mismatch",
                 "Expected fitted DummyClassifier for 'prevalence_dummy'.",
             )
-        base_value = float(np.mean(estimator.predict_proba(Z_bg)[:, 1]))
-        target_value = float(estimator.predict_proba(z.reshape(1, -1))[0, 1])
+        pos_idx = list(estimator.classes_).index(1)
+        base_value = float(np.mean(estimator.predict_proba(Z_bg)[:, pos_idx]))
+        target_value = float(estimator.predict_proba(z.reshape(1, -1))[0, pos_idx])
         phi = np.zeros(preprocessor.n_raw_features, dtype=np.float64)
+        explained_quantity = "raw_model_score"
         scale = "raw_model_probability"
+        explains_calibrated_score_directly = False
+        linked_probability_quantity = "raw_model_score"
+        linked_probability_value = float(target_value)
+        score_alignment_note = (
+            "Constant prevalence baseline on raw_model_score; all feature attributions are zero "
+            "and are NOT additive decompositions of post-hoc calibrated probability."
+        )
 
     reconstructed = float(base_value + np.sum(phi))
     discrepancy = abs(reconstructed - target_value)
@@ -499,7 +634,9 @@ def explain_clinical_instance(
         FeatureShapAttribution(
             feature_name=spec.name,
             clinical_meaning=spec.clinical_meaning,
-            status="missing_imputed" if spec.name in missing_feature_names else "present",
+            status=(
+                "missing_imputed" if spec.name in missing_feature_names else "present"
+            ),
             shap_value=float(phi[idx]),
         )
         for idx, spec in enumerate(panel.fields)
@@ -508,7 +645,13 @@ def explain_clinical_instance(
     return FaithfulShapExplanation(
         method=method,
         model_family=model_family,
+        explained_quantity=explained_quantity,
         scale=scale,
+        explains_calibrated_score_directly=explains_calibrated_score_directly,
+        additive_on_calibrated_probability=False,
+        linked_probability_quantity=linked_probability_quantity,
+        linked_probability_value=linked_probability_value,
+        score_alignment_note=score_alignment_note,
         faithful_to_model_family=True,
         synthetic_placeholder=False,
         background_sample_count=int(Z_bg.shape[0]),
@@ -529,15 +672,17 @@ def exact_coalition_shapley_oracle(
     """Ground-truth 2^M coalition Shapley enumeration in raw clinical feature space.
 
     Used by automated mathematical verification tests (for M <= 10) to prove
-    that both ``linear_shap_interventional`` and ``tree_shap_interventional``
-    match the exact Shapley value definition over grouped clinical features
-    (including multi-column one-hot categories and missingness indicators).
+    that ``linear_shap_interventional`` (both uncalibrated and calibrated-log-odds)
+    and ``tree_shap_interventional`` match the exact Shapley value definition over
+    grouped clinical features.
     """
     x_row = np.asarray(x_raw_row, dtype=np.float64).ravel()
     X_bg = np.asarray(X_bg_raw, dtype=np.float64)
     m = x_row.shape[0]
     if m > 10:
-        raise ValueError("Exact 2^M coalition oracle is restricted to M <= 10 features.")
+        raise ValueError(
+            "Exact 2^M coalition oracle is restricted to M <= 10 features."
+        )
 
     coalition_values = np.zeros(1 << m, dtype=np.float64)
     for mask in range(1 << m):
