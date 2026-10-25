@@ -823,6 +823,20 @@ def _assert_str_list(value: Any, *, context: str) -> None:
         raise ValueError(f"Strict report schema violation at '{context}': expected list[str].")
 
 
+def _iter_key_paths(payload: Any, prefix: str = "") -> list[tuple[str, Any]]:
+    """Flatten a nested report into ``(dotted.path, value)`` pairs for invariant checks."""
+    pairs: list[tuple[str, Any]] = []
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            pairs.extend(_iter_key_paths(value, f"{prefix}.{key}" if prefix else str(key)))
+    elif isinstance(payload, list):
+        for index, value in enumerate(payload):
+            pairs.extend(_iter_key_paths(value, f"{prefix}[{index}]"))
+    else:
+        pairs.append((prefix, payload))
+    return pairs
+
+
 def _validate_coverage_columns(payload: Any, *, context: str) -> None:
     if not isinstance(payload, dict) or list(payload.keys()) != list(AUDITED_COLUMNS):
         raise ValueError(
@@ -1432,8 +1446,39 @@ def validate_uci412_source_semantics_report_schema(report: Mapping[str, Any]) ->
         )
     if summary["chest_pain_census_record_count"] != census["census_record_count"]:
         raise ValueError("Strict report schema violation: census record count mismatch.")
+    if summary["records_with_two_or_more_registered_descriptors"] != census[
+        "records_with_two_or_more_registered_descriptors"
+    ]:
+        raise ValueError(
+            "Strict report schema violation: multi-descriptor record count mismatch."
+        )
+    if summary["text_binary_columns_with_unregistered_tokens"] != [
+        column
+        for column in TEXT_BINARY_COLUMNS
+        if coverage["columns"][column]["unregistered_cell_count"] > 0
+    ]:
+        raise ValueError(
+            "Strict report schema violation: unregistered-token column list disagrees with "
+            "the per-column coverage counts."
+        )
+    if summary["bundled_documentation_status"] != documentation["status"]:
+        raise ValueError(
+            "Strict report schema violation: documentation status mismatch between sections."
+        )
+    if summary["human_review_required_before_any_scientific_use"] is not True:
+        raise ValueError(
+            "Strict report schema violation: the report must require human review."
+        )
     if summary["scientific_claim_made"] is not False:
         raise ValueError("Strict report schema violation: no scientific claim may be made.")
+
+    # Every evidence-status marker in the report must be the fixed verified label;
+    # a status is never a free-text field that could smuggle a claim into the file.
+    for path, value in _iter_key_paths(report):
+        if path.split(".")[-1] == "evidence_status" and value != EVIDENCE_VERIFIED:
+            raise ValueError(
+                f"Strict report schema violation: '{path}' must be {EVIDENCE_VERIFIED}."
+            )
 
 
 # ---------------------------------------------------------------------------

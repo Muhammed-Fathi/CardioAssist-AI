@@ -554,6 +554,48 @@ def test_schema_rejects_patient_rows_scope_claims_and_status_tampering() -> None
     with pytest.raises(SCHEMA_ERRORS):
         validate_uci412_source_semantics_report_schema(tampered)
 
+    # The summary must never disagree with the sections it summarises.
+    tampered = copy.deepcopy(report)
+    tampered["audit_summary"]["records_with_two_or_more_registered_descriptors"] = 99
+    with pytest.raises(SCHEMA_ERRORS):
+        validate_uci412_source_semantics_report_schema(tampered)
+
+    tampered = copy.deepcopy(report)
+    assert report["audit_summary"]["text_binary_columns_with_unregistered_tokens"] == []
+    tampered["audit_summary"]["text_binary_columns_with_unregistered_tokens"] = ["Sex"]
+    with pytest.raises(SCHEMA_ERRORS):
+        validate_uci412_source_semantics_report_schema(tampered)
+
+    tampered = copy.deepcopy(report)
+    tampered["audit_summary"]["bundled_documentation_status"] = "INSPECTED_AND_CLEARED"
+    with pytest.raises(SCHEMA_ERRORS):
+        validate_uci412_source_semantics_report_schema(tampered)
+
+    tampered = copy.deepcopy(report)
+    tampered["audit_summary"]["human_review_required_before_any_scientific_use"] = False
+    with pytest.raises(SCHEMA_ERRORS):
+        validate_uci412_source_semantics_report_schema(tampered)
+
+    # Never a free-text evidence status anywhere in the document.
+    tampered = copy.deepcopy(report)
+    tampered["scope_and_evidence_boundary"]["evidence_status"] = "EVIDENCE_CONFIRMED_BY_AUDIT"
+    with pytest.raises(SCHEMA_ERRORS):
+        validate_uci412_source_semantics_report_schema(tampered)
+
+    # A cell-shape census must account for every observed cell.
+    tampered = copy.deepcopy(report)
+    tampered["source_semantics"]["registered_coding_coverage"]["columns"]["DLP"][
+        "source_cell_shape_counts"
+   ] = {
+        "text": 0,
+        "integral_number": 0,
+        "non_integral_number": 0,
+        "boolean": 0,
+        "other": 0,
+    }
+    with pytest.raises(SCHEMA_ERRORS):
+        validate_uci412_source_semantics_report_schema(tampered)
+
 
 def test_report_marks_real_mode_as_completed_but_pending_human_review() -> None:
     report = _minimal_report(is_synthetic=False)
