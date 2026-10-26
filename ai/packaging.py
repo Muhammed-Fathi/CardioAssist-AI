@@ -100,6 +100,11 @@ SENSITIVE_PRIVATE_FILES: Final[frozenset[str]] = frozenset(
     }
 )
 
+BUNDLE_QUARANTINE_MARKER_FILENAME: Final[str] = "QUARANTINED_DO_NOT_TRUST.json"
+BUNDLE_QUARANTINE_SCHEMA_VERSION: Final[str] = "cardioassist.ai.bundle_quarantine/v1"
+BUNDLE_ACCEPTANCE_MARKER_FILENAME: Final[str] = "POST_RUN_ACCEPTANCE.json"
+BUNDLE_ACCEPTANCE_SCHEMA_VERSION: Final[str] = "cardioassist.ai.bundle_acceptance/v1"
+
 FORBIDDEN_SUMMARY_KEYS: Final[frozenset[str]] = frozenset(
     {
         "patient_rows",
@@ -299,6 +304,153 @@ def _assert_aggregate_only(summary: Mapping[str, Any]) -> None:
             "non_finite_summary_value",
             "Evaluation summary contains non-JSON or non-finite values.",
         ) from exc
+
+
+def write_bundle_quarantine_marker(
+    bundle_dir: Path,
+    *,
+    reason_code: str,
+    detail: str,
+) -> Path:
+    """Record a tamper-evident quarantine marker inside an unaccepted bundle directory.
+
+    Called only after a post-run source-integrity or custody check has failed.
+    Nothing is deleted or overwritten: every previously written artifact is
+    preserved for audit, and an existing marker is never replaced (the first
+    recorded failure is the most informative). Both
+    :func:`verify_research_bundle` and :func:`verify_trusted_local_bundle`
+    refuse any bundle directory containing this marker, so a quarantined
+    bundle can never be mistakenly accepted as trusted for later loading.
+
+    ``reason_code``/``detail`` must be aggregate-only (no patient values).
+    """
+    root = Path(bundle_dir)
+    if is_reparse_or_symlink(root) or not root.is_dir():
+        raise BundleIntegrityError(
+            "invalid_bundle_directory",
+            "Quarantine marker target must be an existing non-symlink directory.",
+        )
+    marker_path = root / BUNDLE_QUARANTINE_MARKER_FILENAME
+    if marker_path.exists() or is_reparse_or_symlink(marker_path):
+        return marker_path
+    payload = {
+        "marker": BUNDLE_QUARANTINE_MARKER_FILENAME,
+        "bundle_quarantine_version": BUNDLE_QUARANTINE_SCHEMA_VERSION,
+        "quarantined": True,
+        "accepted_for_loading": False,
+        "reason_code": str(reason_code),
+        "detail": str(detail),
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "instruction": (
+            "QUARANTINED / NOT ACCEPTED. Do not load, share, use, or delete "
+            "this directory. Preserve it for human audit."
+        ),
+    }
+    content = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    _write_atomic_private(marker_path, content)
+    return marker_path
+
+
+def write_bundle_acceptance_marker(
+    bundle_dir: Path,
+    *,
+    expected_source_sha256: str,
+    accepted_by: str,
+    detail: str,
+) -> Path:
+    """Record post-run acceptance inside a real-provenance bundle directory.
+
+    Inverted trust: a real-provenance (non-synthetic) bundle becomes loadable
+    ONLY when this marker exists and binds the manifest's authorized source
+    SHA-256. The guarded wrapper writes it after the post-run source
+    byte-identity AND trusted-local custody checks both pass; synthetic test
+    simulations mirror that step. Nothing is deleted or overwritten, and an
+    existing marker is never replaced. Both :func:`verify_research_bundle`
+    and :func:`verify_trusted_local_bundle` refuse a real-provenance bundle
+    without a valid marker, so a marker-write failure fails closed (the
+    bundle stays unloadable) instead of leaving a signed bundle loadable.
+
+    ``expected_source_sha256``/``accepted_by``/``detail`` must be
+    aggregate-only (no patient values). Write errors propagate to the caller
+    and must fail the run (never be swallowed): the bundle remains
+    unloadable without the marker.
+    """
+    root = Path(bundle_dir)
+    if is_reparse_or_symlink(root) or not root.is_dir():
+        raise BundleIntegrityError(
+            "invalid_bundle_directory",
+            "Acceptance marker target must be an existing non-symlink directory.",
+        )
+    marker_path = root / BUNDLE_ACCEPTANCE_MARKER_FILENAME
+    if marker_path.exists() or is_reparse_or_symlink(marker_path):
+        return marker_path
+    payload = {
+        "marker": BUNDLE_ACCEPTANCE_MARKER_FILENAME,
+        "bundle_acceptance_version": BUNDLE_ACCEPTANCE_SCHEMA_VERSION,
+        "accepted_for_loading": True,
+        "bundle_dir_name": root.name,
+        "expected_source_sha256": str(expected_source_sha256).strip().lower(),
+        "accepted_by": str(accepted_by),
+        "detail": str(detail),
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "instruction": (
+            "Post-run source and custody checks passed. Load only through the "
+            "trusted-local verification path; preserve this directory for audit."
+        ),
+    }
+    content = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    _write_atomic_private(marker_path, content)
+    return marker_path
+
+
+def _bundle_requires_post_run_acceptance(manifest: Mapping[str, Any]) -> bool:
+    """Real-provenance bundles require post-run acceptance; synthetic ones do not."""
+    auth_doc = manifest.get("research_authorization")
+    if isinstance(auth_doc, Mapping):
+        return True
+    eligibility = manifest.get("eligibility", {})
+    return (
+        isinstance(eligibility, Mapping)
+        and eligibility.get("execution_mode") == "INTERNAL_EXPLORATORY_RESEARCH"
+    )
+
+
+def _verify_post_run_acceptance(root: Path, manifest: Mapping[str, Any]) -> None:
+    """Enforce the inverted-trust acceptance gate for real-provenance bundles."""
+    marker_path = root / BUNDLE_ACCEPTANCE_MARKER_FILENAME
+    if is_reparse_or_symlink(marker_path) or not marker_path.is_file():
+        raise BundleIntegrityError(
+            "bundle_post_run_acceptance_missing",
+            "Real-provenance bundle lacks post-run acceptance: post-run source "
+            "and custody checks were never recorded as passed. Refusing to "
+            "load. Preserve the directory for audit.",
+        )
+    try:
+        marker = json.loads(marker_path.read_bytes().decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        raise BundleIntegrityError(
+            "bundle_post_run_acceptance_mismatch",
+            "Post-run acceptance marker is not valid UTF-8 JSON; refusing to load.",
+        ) from exc
+    auth_doc = manifest.get("research_authorization")
+    expected_sha = (
+        str(auth_doc.get("expected_source_sha256", "")).strip().lower()
+        if isinstance(auth_doc, Mapping)
+        else ""
+    )
+    if (
+        not isinstance(marker, Mapping)
+        or marker.get("marker") != BUNDLE_ACCEPTANCE_MARKER_FILENAME
+        or marker.get("accepted_for_loading") is not True
+        or marker.get("bundle_dir_name") != root.name
+        or not expected_sha
+        or str(marker.get("expected_source_sha256", "")).strip().lower() != expected_sha
+    ):
+        raise BundleIntegrityError(
+            "bundle_post_run_acceptance_mismatch",
+            "Post-run acceptance marker does not bind this bundle and source; "
+            "refusing to load. Preserve the directory for audit.",
+        )
 
 
 def _write_atomic_private(path: Path, content: bytes) -> dict[str, Any]:
@@ -565,6 +717,7 @@ def package_research_bundle(
 
         model_payload = {
             "selected_model_family": trained_run.selected_model_family,
+            "execution_profile": trained_run.execution_profile,
             "estimator": trained_run.estimator,
             "fold_ensemble": [
                 {
@@ -639,6 +792,7 @@ def package_research_bundle(
                 "model_version": trained_run.model_version,
                 "protocol_id": trained_run.protocol_id,
                 "selected_model_family": trained_run.selected_model_family,
+                "execution_profile": trained_run.execution_profile,
                 "selected_hyperparameters": dict(trained_run.selected_hyperparameters),
                 "calibration_status": "calibrated_out_of_fold_logistic",
                 "explainability": {
@@ -706,11 +860,14 @@ def package_research_bundle(
         ).encode("utf-8")
         _write_atomic_private(staging_dir / MANIFEST_FILENAME, manifest_bytes)
 
-        # Validate complete staged bundle BEFORE exposing target_dir
+        # Validate complete staged bundle BEFORE exposing target_dir.
+        # Pre-acceptance: post-run acceptance is recorded by the wrapper after
+        # the post-run checks, so packaging self-verification must not require it.
         verify_trusted_local_bundle(
             staging_dir,
             trusted_local_root=target_dir.parent,
             signing_key=active_key,
+            _require_post_run_acceptance=False,
         )
 
         if target_dir.exists() or is_reparse_or_symlink(target_dir):
@@ -736,6 +893,7 @@ def package_research_bundle(
         target_dir,
         trusted_local_root=target_dir.parent,
         signing_key=active_key,
+        _require_post_run_acceptance=False,
     )
 
 
@@ -778,6 +936,8 @@ def _read_safe_regular_file(root: Path, filename: str) -> bytes:
 
 def verify_research_bundle(
     bundle_dir: Path,
+    *,
+    _require_post_run_acceptance: bool = True,
 ) -> VerifiedBundleDescriptor:
     """Verify structural layout, governance flags, privacy metadata, and SHA-256 digests.
 
@@ -786,6 +946,10 @@ def verify_research_bundle(
     It does NOT authenticate an untrusted bundle producer and does NOT authorize
     calling ``joblib.load`` on ``model.joblib``. Call
     :func:`verify_trusted_local_bundle` before any pickle/joblib deserialization.
+
+    Real-provenance bundles additionally require a valid post-run acceptance
+    marker (``_require_post_run_acceptance`` disables that gate for
+    pre-acceptance self-verification during packaging only).
     """
     root = Path(bundle_dir)
     if is_reparse_or_symlink(root) or not root.is_dir():
@@ -794,9 +958,24 @@ def verify_research_bundle(
             "Bundle root must be an existing non-symlink, non-reparse directory.",
         )
 
+    # Quarantine takes precedence over every other check: a bundle rejected by
+    # a post-run integrity/custody gate must never load, even though its
+    # previously written HMAC attestation may still verify.
+    if (root / BUNDLE_QUARANTINE_MARKER_FILENAME).exists():
+        raise BundleIntegrityError(
+            "bundle_quarantined_not_accepted",
+            "Bundle is QUARANTINED / NOT ACCEPTED by a post-run integrity or "
+            "custody gate; refusing to load. Preserve the directory for audit.",
+        )
+
     present_entries = {entry.name for entry in root.iterdir()}
     expected_entries = {MANIFEST_FILENAME, *REQUIRED_SIBLING_FILES}
-    if present_entries != expected_entries:
+    # The post-run acceptance marker is the only permitted extra entry: it is
+    # written after packaging commits, so it cannot be part of the signed set.
+    if present_entries not in (
+        expected_entries,
+        expected_entries | {BUNDLE_ACCEPTANCE_MARKER_FILENAME},
+    ):
         raise BundleIntegrityError(
             "unexpected_bundle_directory_contents",
             "Bundle directory contains missing or unexpected files.",
@@ -859,6 +1038,11 @@ def verify_research_bundle(
             "Gate PT (P-3) remains closed; non-synthetic patient-derived bundles are rejected unless authorized.",
             field="eligibility.synthetic_only",
         )
+
+    # Inverted trust for real-provenance bundles: post-run success must have
+    # been recorded before the bundle becomes loadable.
+    if _require_post_run_acceptance and _bundle_requires_post_run_acceptance(manifest):
+        _verify_post_run_acceptance(root, manifest)
 
     priv_sec = manifest.get("privacy_and_security", {})
     if (
@@ -1012,13 +1196,29 @@ def verify_trusted_local_bundle(
     *,
     trusted_local_root: Path,
     signing_key: bytes | None = None,
+    _require_post_run_acceptance: bool = True,
 ) -> VerifiedBundleDescriptor:
     """Enforce trusted-local-origin containment, platform-verified ownership &
     access controls (POSIX mode/UID on Linux/macOS; Win32 NTFS Security-Descriptor
     DACL inspection on Windows), and HMAC-SHA256 producer authentication BEFORE
     ``joblib.load`` can be invoked.
+
+    Real-provenance bundles additionally require a valid post-run acceptance
+    marker (``_require_post_run_acceptance`` disables that gate for
+    pre-acceptance custody verification only).
     """
-    verified = verify_research_bundle(bundle_dir)
+    # Explicit quarantine fast path (also enforced inside
+    # verify_research_bundle below): a post-run failure marker must refuse
+    # trusted loading before any ACL, digest, or HMAC inspection.
+    if (Path(bundle_dir) / BUNDLE_QUARANTINE_MARKER_FILENAME).exists():
+        raise BundleIntegrityError(
+            "bundle_quarantined_not_accepted",
+            "Bundle is QUARANTINED / NOT ACCEPTED by a post-run integrity or "
+            "custody gate; refusing trusted loading. Preserve it for audit.",
+        )
+    verified = verify_research_bundle(
+        bundle_dir, _require_post_run_acceptance=_require_post_run_acceptance
+    )
 
     trust_root = Path(trusted_local_root)
     if is_reparse_or_symlink(trust_root) or not trust_root.is_dir():

@@ -50,10 +50,13 @@ from ai.errors import (
     PreprocessingContractError,
 )
 from ai.execution import (
+    GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
     DatasetAdapterIntegrityError,
     ExecutionAuthorizationError,
+    GuardedClevelandExecutionProof,
     ResearchAuthorizationContext,
     execute_authorized_research_run,
+    execute_guarded_cleveland_d047_run,
     load_cleveland_source_records,
     load_uci412_source_records,
     parse_and_validate_research_authorization,
@@ -74,12 +77,16 @@ from ai.filesystem_security import (
 )
 from ai.inference import ResearchCadPredictor, ResearchPredictionResult
 from ai.packaging import (
+    BUNDLE_ACCEPTANCE_MARKER_FILENAME,
+    BUNDLE_QUARANTINE_MARKER_FILENAME,
     BUNDLE_SCHEMA_VERSION,
     VerifiedBundleDescriptor,
     get_or_create_local_signing_key,
     package_research_bundle,
     verify_research_bundle,
     verify_trusted_local_bundle,
+    write_bundle_acceptance_marker,
+    write_bundle_quarantine_marker,
 )
 from ai.panels import (
     DA_A1_BASIC_CLINICAL_PANEL,
@@ -96,10 +103,17 @@ from ai.panels import (
 )
 from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
+    CLEVELAND_D047_RF_SPACE_VERSION,
+    CLEVELAND_D047_RF_SPACE_WIDTH,
+    EXECUTION_PROFILE_AI1_GENERIC_V1,
+    EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
     ExternalEvaluationLedger,
     FoldEnsembleMember,
     ResearchTrainingConfig,
     TrainedResearchRun,
+    derive_cleveland_d047_inner_seed,
+    derive_cleveland_d047_model_seed,
+    derive_cleveland_d047_negative_control_outer_seed,
     evaluate_locked_external_cohort,
     train_research_model,
 )
@@ -107,16 +121,22 @@ from ai.training import (
 __all__ = [
     "AccessControlVerificationResult",
     "AiPipelineError",
+    "BUNDLE_ACCEPTANCE_MARKER_FILENAME",
+    "BUNDLE_QUARANTINE_MARKER_FILENAME",
     "BUNDLE_SCHEMA_VERSION",
     "BundleIntegrityError",
     "CalibrationIntegrityError",
     "ClinicalInputValidationError",
+    "CLEVELAND_D047_RF_SPACE_VERSION",
+    "CLEVELAND_D047_RF_SPACE_WIDTH",
     "CohortGovernanceError",
     "DA_A1_BASIC_CLINICAL_PANEL",
     "DA_A1_CLINICAL_CORE_LABS_PANEL",
     "DA_A2_RESTING_LABS_PANEL",
     "DA_A2_RESTING_PANEL",
     "DatasetAdapterIntegrityError",
+    "EXECUTION_PROFILE_AI1_GENERIC_V1",
+    "EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1",
     "ExecutionAuthorizationError",
     "ExplainabilityIntegrityError",
     "ExternalEvaluationLedger",
@@ -124,6 +144,8 @@ __all__ = [
     "FeatureShapAttribution",
     "FoldEnsembleMember",
     "FoldSafeClinicalPreprocessor",
+    "GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION",
+    "GuardedClevelandExecutionProof",
     "OofLogisticCalibrator",
     "PanelFieldSpec",
     "PreprocessingContractError",
@@ -140,11 +162,15 @@ __all__ = [
     "compute_fold_prediction_dispersion",
     "compute_instance_uncertainty",
     "compute_prevalence_shift_diagnostic",
+    "derive_cleveland_d047_inner_seed",
+    "derive_cleveland_d047_model_seed",
+    "derive_cleveland_d047_negative_control_outer_seed",
     "ensure_private_directory",
     "evaluate_comprehensive_metrics",
     "evaluate_locked_external_cohort",
     "exact_coalition_shapley_oracle",
     "execute_authorized_research_run",
+    "execute_guarded_cleveland_d047_run",
     "explain_clinical_instance",
     "get_or_create_local_signing_key",
     "get_panel_contract",
@@ -161,4 +187,6 @@ __all__ = [
     "verify_access_control",
     "verify_research_bundle",
     "verify_trusted_local_bundle",
+    "write_bundle_acceptance_marker",
+    "write_bundle_quarantine_marker",
 ]

@@ -20,9 +20,11 @@ Operating Principles & Safeguards:
    allow_authorized_real_data). Real model packaging and SHAP background generation
    strictly require an authentic, internally validated :class:`AuthorizedExecutionContext`.
 4. Frozen Model Configuration Binding:
-   Model hyperparameters, nested-CV folds (outer 4, inner 3), repeat seeds, candidate
-   families, simplicity tolerances, and negative controls are bound strictly to the
-   frozen registered research plans. Arbitrary custom configurations are rejected.
+   Model hyperparameters, nested-CV folds, repeat seeds, candidate
+   families, simplicity tolerances, negative controls, and the executable
+   methodology profile (solver, iteration limit, seed derivations) are bound
+   strictly to the frozen registered research plans. Arbitrary custom
+   configurations are rejected.
 5. Windows Local Execution & Private Artifact Storage:
    Real runs execute only in local workstation environments (enforcing Win32 NTFS DACLs
    on Windows or private 0700/0600 POSIX permissions) and store artifacts strictly in
@@ -38,7 +40,7 @@ from __future__ import annotations
 import dataclasses
 
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import io
@@ -47,9 +49,12 @@ import math
 import os
 from pathlib import Path, PurePosixPath
 import re
+import secrets
 import shutil
 import stat
 import subprocess
+import threading
+import time
 from typing import Any, Final, Mapping, Sequence
 
 import numpy as np
@@ -80,6 +85,8 @@ from ai.packaging import (
     get_or_create_local_signing_key,
     package_research_bundle,
     verify_trusted_local_bundle,
+    write_bundle_acceptance_marker,
+    write_bundle_quarantine_marker,
     VerifiedBundleDescriptor,
 )
 from ai.panels import (
@@ -96,6 +103,8 @@ from ai.panels import (
 )
 from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
+    EXECUTION_PROFILE_AI1_GENERIC_V1,
+    EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
     ResearchTrainingConfig,
     TrainedResearchRun,
     _execute_shared_training_pipeline,
@@ -127,8 +136,12 @@ from research.experiments.data_adapter import (
     sha256_bytes as cleveland_sha256_bytes,
 )
 from research.experiments.safety import (
+    D047_AUTH_RELATIVE_PATH as CLEVELAND_D047_MANIFEST_RELATIVE_PATH,
     OUTPUT_ROOT_RELATIVE_PATH as CLEVELAND_OUTPUT_ROOT_RELATIVE_PATH,
+    PreflightContext as ClevelandPreflightContext,
+    run_preflight as cleveland_run_preflight,
     validate_d047_authorization,
+    verify_source_still_unchanged as cleveland_verify_source_still_unchanged,
     enforce_local_windows_runtime as cleveland_enforce_local_windows_runtime,
 )
 from research.uci412.adapter import (
@@ -502,7 +515,17 @@ def validate_operation_scope_amendment(
 
 
 def get_approved_training_config(dataset_id: str) -> ResearchTrainingConfig:
-    """Return the frozen, approved ResearchTrainingConfig corresponding to the ratified research protocol."""
+    """Return the frozen, approved ResearchTrainingConfig corresponding to the ratified research protocol.
+
+    - Cleveland (``DA-A2``) selects the frozen D-047 execution profile
+      (``liblinear``/``max_iter=2000`` logistic, registered D-047 seed
+      derivations, registered negative-control split seeds). The profile field
+      is bound by :func:`assert_training_config_approved` dataclass equality,
+      and a dedicated regression test verifies the profile actually controls
+      estimator construction and observed CV seeds (not just static values).
+    - UCI-412 (``DA-A1``) explicitly retains the generic AI-1 profile so this
+      Cleveland-only correction leaves UCI-412 methodology unchanged.
+    """
     if dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
         return ResearchTrainingConfig(
             protocol_id="CAI-D047-CLEVELAND-EXPLORATORY-V1",
@@ -517,6 +540,7 @@ def get_approved_training_config(dataset_id: str) -> ResearchTrainingConfig:
             rf_min_samples_leaf=CLEVELAND_DEFAULT_CONFIG.rf_min_samples_leaf,
             rf_n_estimators=CLEVELAND_DEFAULT_CONFIG.rf_n_estimators,
             exploratory_threshold=CLEVELAND_DEFAULT_CONFIG.threshold,
+            execution_profile=EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
         )
     elif dataset_id == TRACK_A_UCI412_SOURCE_ID:
         return ResearchTrainingConfig(
@@ -532,6 +556,7 @@ def get_approved_training_config(dataset_id: str) -> ResearchTrainingConfig:
             rf_min_samples_leaf=UCI412_DEFAULT_CONFIG.rf_min_samples_leaf,
             rf_n_estimators=UCI412_DEFAULT_CONFIG.rf_n_estimators,
             exploratory_threshold=UCI412_DEFAULT_CONFIG.threshold,
+            execution_profile=EXECUTION_PROFILE_AI1_GENERIC_V1,
         )
     else:
         raise ExecutionAuthorizationError("unsupported_dataset_id", f"No approved training protocol for dataset '{dataset_id}'.")
@@ -545,7 +570,11 @@ def assert_training_config_approved(
 
     Enforces mandatory dataclass equality across every field (CV folds, repeat seeds,
     negative control seeds, shuffle_max_allowed_auroc, bootstrap_resamples,
-    shap_max_background_samples, exploratory_threshold, hyperparameter grids, etc.).
+    shap_max_background_samples, exploratory_threshold, hyperparameter grids,
+    execution_profile, etc.). The execution profile selects the executable
+    methodology (solver, iteration limit, seed derivations); static equality is
+    necessary but a dedicated regression test separately verifies the profile
+    actually controls estimator construction and observed CV behavior.
     """
     approved = get_approved_training_config(dataset_id)
     if training_config is None:
@@ -954,7 +983,17 @@ def load_cleveland_source_records(
     panel: ResearchPanelContract,
     config: Any = CLEVELAND_DEFAULT_CONFIG,
 ) -> tuple[list[dict[str, Any]], list[int], ClevelandDataset]:
-    """Load Cleveland processed.cleveland.data via read-only adapter and map to panel records."""
+    """Load Cleveland processed.cleveland.data via read-only adapter and map to panel records.
+
+    The locally audited five-field Cleveland panel (``age``, ``sex``, ``cp``,
+    ``trestbps``, ``restecg``) is complete: the registered D-047 plan forbids
+    inventing unrecorded missingness reasons (``missing_reason_columns`` is
+    ``FORBIDDEN_NOT_RECORDED_IN_UCI45``). If the parsed panel matrix contains
+    any ``?``-derived missing value, this loader fails closed *before*
+    inventing a ``not_measured`` reason or fitting, so an unexpected source
+    ``?`` can never be silently relabeled with a fabricated reason. The human
+    data custodian must review the source deviation instead.
+    """
     if panel.panel_id == "da_a2_resting_labs_v1":
         raise DatasetAdapterIntegrityError(
             "extended_panel_blocked_before_fitting",
@@ -970,6 +1009,23 @@ def load_cleveland_source_records(
     )
     dataset = _parse_processed_cleveland_bytes(source_snapshot.content, config=config)
 
+    # Fail closed on unexpected panel missingness instead of inventing reasons.
+    # Aggregate-only diagnostics (column names + counts); no patient values.
+    nan_mask = np.isnan(np.asarray(dataset.X, dtype=np.float64))
+    if bool(nan_mask.any()):
+        affected: list[str] = []
+        for col_idx, col_name in enumerate(dataset.feature_names):
+            n_missing = int(nan_mask[:, col_idx].sum())
+            if n_missing:
+                affected.append(f"{col_name}:{n_missing}")
+        raise DatasetAdapterIntegrityError(
+            "unexpected_cleveland_missingness_requires_review",
+            "Parsed Cleveland five-field panel contains unexpected missing ('?') values in "
+            f"{'; '.join(affected)}; the audited D-047 panel is complete and the plan "
+            "forbids inventing missingness reasons. Refusing to fabricate 'not_measured' "
+            "reasons or fit. Human custodian review of the source deviation is required.",
+        )
+
     records: list[dict[str, Any]] = []
     labels: list[int] = [int(val) for val in dataset.y]
 
@@ -980,9 +1036,12 @@ def load_cleveland_source_records(
 
         for j, col_name in enumerate(dataset.feature_names):
             val = float(dataset.X[i, j])
-            if math.isnan(val):
-                row_feat[col_name] = None
-                missing_reasons[col_name] = "not_measured"
+            if math.isnan(val):  # Defensive: unreachable after the fail-closed check above.
+                raise DatasetAdapterIntegrityError(
+                    "unexpected_cleveland_missingness_requires_review",
+                    "Encountered an unexpected missing panel value after completeness screening; "
+                    "refusing to invent a missingness reason.",
+                )
             else:
                 f_spec = panel.field_map[col_name]
                 if f_spec.role == "categorical":
@@ -1078,6 +1137,7 @@ def execute_authorized_research_run(
     training_config: ResearchTrainingConfig | None = None,
     signing_key: bytes | None = None,
     current_git_commit: str | None = None,
+    guarded_cleveland_proof: GuardedClevelandExecutionProof | None = None,
 ) -> tuple[TrainedResearchRun, VerifiedBundleDescriptor]:
     """Execute authorized real-data research training and atomic bundle packaging.
 
@@ -1092,6 +1152,14 @@ def execute_authorized_research_run(
     8. Writes outputs only to explicitly authorized private, Git-ignored paths.
     9. Generates aggregate-only evaluation report and signed private model bundle.
     10. Reuses AI-1 training pipeline directly without divergent reimplementations.
+
+    Cleveland (``DA-A2``) additionally requires ``guarded_cleveland_proof``:
+    a proof minted by :func:`execute_guarded_cleveland_d047_run` after full
+    D-047 preflight and the authorization-only checks. Direct Cleveland
+    invocation without a bound proof fails closed before manifest
+    authorization, source access, or fitting, so production Cleveland runs
+    cannot silently bypass the wrapper. The UCI-412 (``DA-A1``) path never
+    requires or inspects this proof and is unchanged.
     """
     if panel_id not in REGISTERED_PANELS:
         raise ClinicalInputValidationError("unregistered_panel", f"Panel '{panel_id}' is not registered.")
@@ -1109,6 +1177,18 @@ def execute_authorized_research_run(
         cleveland_enforce_local_windows_runtime(repo_root=repo_root)
     else:
         uci412_enforce_local_windows_runtime(repo_root=repo_root)
+
+    # 0b. Enforce the guarded Cleveland execution boundary BEFORE manifest
+    # authorization, source access, or fitting. UCI-412 is unaffected.
+    if panel.dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
+        _require_guarded_cleveland_proof(
+            guarded_cleveland_proof,
+            source_path=source_path,
+            manifest_path=manifest_path,
+            output_bundle_dir=output_bundle_dir,
+            repo_root=repo_root,
+            current_git_commit=current_git_commit,
+        )
 
     # 1. Authorize manifest through established governance validators
     auth = parse_and_validate_research_authorization(
@@ -1230,3 +1310,726 @@ def execute_authorized_research_run(
     )
 
     return trained_run, verified_descriptor
+
+
+# --------------------------------------------------------------------------- #
+# Guarded Cleveland D-047 execution boundary (AI-3.2 review hardening)
+# --------------------------------------------------------------------------- #
+
+@dataclass(frozen=True, slots=True)
+class GuardedClevelandExecutionProof:
+    """Proof that a Cleveland execution was authorized by the guarded wrapper.
+
+    :func:`execute_authorized_research_run` requires this proof for every
+    Cleveland (``DA-A2``) invocation and verifies, before any manifest
+    authorization, source-byte access, or fitting, that the proof was issued
+    by the wrapper in this process (single-use process-local token) and binds
+    the exact source, manifest, output, repository, and revision of the call.
+    A direct call without a wrapper-issued proof fails closed -- including a
+    manually constructed proof whose bindings match -- so the production
+    Cleveland path cannot silently bypass the wrapper's full D-047 preflight,
+    activation-revision binding, and post-run source/custody re-verification.
+
+    Only :func:`execute_guarded_cleveland_d047_run` mints production proofs
+    (via :func:`_issue_guarded_cleveland_proof`, after preflight and the
+    authorization-only checks pass). Synthetic tests that exercise the inner
+    function directly must mint an explicit test proof through the shared
+    isolated-simulation helper (via :func:`_issue_test_guarded_cleveland_proof`);
+    silent direct invocation is prohibited. The UCI-412 (``DA-A1``) path never
+    requires or inspects this proof.
+    """
+
+    source_path_resolved: str
+    manifest_path_resolved: str
+    output_bundle_dir_resolved: str
+    repo_root_resolved: str
+    current_git_commit: str  # Lowercase 40-hex, or "" when the caller binds no revision.
+    proof_token: str = field(default="", repr=False, compare=True)
+
+
+_GUARDED_PROOF_TOKEN_TTL_SECONDS: Final[int] = 3600
+_GUARDED_PROOF_TOKENS: dict[str, dict[str, Any]] = {}
+_GUARDED_PROOF_TOKENS_LOCK = threading.Lock()
+
+
+def _purge_expired_guarded_proof_tokens_locked() -> None:
+    now = time.time()
+    expired = [
+        token
+        for token, record in _GUARDED_PROOF_TOKENS.items()
+        if now - float(record["issued_at"]) > _GUARDED_PROOF_TOKEN_TTL_SECONDS
+    ]
+    for token in expired:
+        del _GUARDED_PROOF_TOKENS[token]
+
+
+def _register_guarded_proof_token() -> str:
+    """Register a wrapper-issued single-use token for one proof (process-local)."""
+    token = secrets.token_urlsafe(32)
+    with _GUARDED_PROOF_TOKENS_LOCK:
+        _purge_expired_guarded_proof_tokens_locked()
+        _GUARDED_PROOF_TOKENS[token] = {
+            "issued_at": time.time(),
+            "consumed": False,
+        }
+    return token
+
+
+def _consume_guarded_proof_token(token: str) -> None:
+    """Consume a wrapper-issued token exactly once; fail closed otherwise.
+
+    Raises :class:`ExecutionAuthorizationError` with
+    ``unguarded_cleveland_execution_blocked`` for tokens never issued by this
+    process (including manually constructed proofs) and with
+    ``guarded_proof_token_reused`` for replayed tokens. Reads no source bytes
+    and performs no fitting.
+    """
+    with _GUARDED_PROOF_TOKENS_LOCK:
+        _purge_expired_guarded_proof_tokens_locked()
+        record = _GUARDED_PROOF_TOKENS.get(token) if token else None
+        if record is None:
+            raise ExecutionAuthorizationError(
+                "unguarded_cleveland_execution_blocked",
+                "Cleveland (DA-A2) proof was not issued by the guarded wrapper "
+                "in this process: full D-047 preflight, activation-revision "
+                "binding, and post-run source/custody re-verification would be "
+                "bypassed. Use execute_guarded_cleveland_d047_run. No source "
+                "parsing or fitting was performed.",
+            )
+        if bool(record["consumed"]):
+            raise ExecutionAuthorizationError(
+                "guarded_proof_token_reused",
+                "Guarded Cleveland proof token was already consumed by a prior "
+                "execution; a proof authorizes exactly one run. No source "
+                "parsing or fitting was performed.",
+            )
+        record["consumed"] = True
+
+
+def _issue_guarded_cleveland_proof(
+    *,
+    source_path: Path,
+    manifest_path: Path,
+    output_bundle_dir: Path,
+    repo_root: Path,
+    current_git_commit: str,
+) -> GuardedClevelandExecutionProof:
+    """Mint a guarded-execution proof for one exact wrapper-authorized run."""
+    try:
+        proof = GuardedClevelandExecutionProof(
+            source_path_resolved=str(Path(source_path).resolve()),
+            manifest_path_resolved=str(Path(manifest_path).resolve()),
+            output_bundle_dir_resolved=str(Path(output_bundle_dir).resolve()),
+            repo_root_resolved=str(Path(repo_root).resolve()),
+            current_git_commit=str(current_git_commit).strip().lower(),
+        )
+    except OSError as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_proof_binding_unresolvable",
+            "Guarded wrapper could not resolve execution paths for proof binding.",
+        ) from exc
+    return dataclasses.replace(proof, proof_token=_register_guarded_proof_token())
+
+
+def _issue_test_guarded_cleveland_proof(
+    *,
+    source_path: Path,
+    manifest_path: Path,
+    output_bundle_dir: Path,
+    repo_root: Path,
+    current_git_commit: str | None,
+) -> GuardedClevelandExecutionProof:
+    """Test-only issuer for the shared isolated-simulation helper.
+
+    Registers a process-local single-use token exactly like the production
+    wrapper. Never called outside synthetic tests.
+    """
+    return _issue_guarded_cleveland_proof(
+        source_path=source_path,
+        manifest_path=manifest_path,
+        output_bundle_dir=output_bundle_dir,
+        repo_root=repo_root,
+        current_git_commit=current_git_commit or "",
+    )
+
+
+def _require_guarded_cleveland_proof(
+    proof: GuardedClevelandExecutionProof | None,
+    *,
+    source_path: Path,
+    manifest_path: Path,
+    output_bundle_dir: Path,
+    repo_root: Path,
+    current_git_commit: str | None,
+) -> None:
+    """Enforce the guarded Cleveland boundary before authorization or source access.
+
+    Raises :class:`ExecutionAuthorizationError` when the proof is absent,
+    not wrapper-issued in this process, already consumed, malformed, or bound
+    to different execution parameters. Reads no source bytes and performs no
+    fitting.
+    """
+    if not isinstance(proof, GuardedClevelandExecutionProof):
+        raise ExecutionAuthorizationError(
+            "unguarded_cleveland_execution_blocked",
+            "Direct Cleveland (DA-A2) execution without a guarded-wrapper proof "
+            "is prohibited: full D-047 preflight, activation-revision binding, "
+            "and post-run source/custody re-verification would be bypassed. Use "
+            "execute_guarded_cleveland_d047_run. No source parsing or fitting "
+            "was performed.",
+        )
+    _consume_guarded_proof_token(proof.proof_token)
+    try:
+        resolved = {
+            "source": Path(source_path).resolve(),
+            "manifest": Path(manifest_path).resolve(),
+            "output": Path(output_bundle_dir).resolve(),
+            "repo": Path(repo_root).resolve(),
+        }
+    except OSError as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_proof_binding_unresolvable",
+            "Could not resolve execution paths for guarded-proof verification.",
+        ) from exc
+    expected = {
+        "source": Path(proof.source_path_resolved),
+        "manifest": Path(proof.manifest_path_resolved),
+        "output": Path(proof.output_bundle_dir_resolved),
+        "repo": Path(proof.repo_root_resolved),
+    }
+    for key in ("source", "manifest", "output", "repo"):
+        if not paths_equal_platform(resolved[key], expected[key]):
+            raise ExecutionAuthorizationError(
+                "guarded_proof_binding_mismatch",
+                f"Guarded Cleveland proof is bound to a different {key} path; "
+                "a proof cannot be reused across executions. No source parsing "
+                "or fitting was performed.",
+                field=key,
+            )
+    if current_git_commit is not None and (
+        str(current_git_commit).strip().lower() != proof.current_git_commit
+    ):
+        raise ExecutionAuthorizationError(
+            "guarded_proof_binding_mismatch",
+            "Guarded Cleveland proof is bound to a different code revision; "
+            "no source parsing or fitting was performed.",
+            field="current_git_commit",
+        )
+
+
+def _quarantine_cleveland_bundle(
+    output_bundle_dir: Path,
+    *,
+    reason_code: str,
+    detail: str,
+) -> Path | None:
+    """Best-effort quarantine marker; never masks the original failure.
+
+    Returns the marker path on success, else ``None``. Nothing is deleted:
+    previously written artifacts are preserved for human audit. A ``None``
+    return no longer leaves a loadable bundle: real-provenance bundles are
+    unloadable without post-run acceptance (inverted trust), which is never
+    written on this path. Callers surface a ``None`` return in the raised
+    failure message so the missing audit record is visible.
+    """
+    try:
+        return write_bundle_quarantine_marker(
+            Path(output_bundle_dir), reason_code=reason_code, detail=detail
+        )
+    except Exception:
+        return None
+
+
+# --------------------------------------------------------------------------- #
+# Guarded Cleveland D-047 execution wrapper (AI-3.2, Phase 3)
+# --------------------------------------------------------------------------- #
+
+def _enforce_cleveland_activation_revision_binding(
+    *,
+    manifest_path: Path,
+    effective_commit: str,
+    repo_root: Path,
+) -> None:
+    """Enforce Cleveland activation-revision consistency before any fitting.
+
+    Binds the executing checkout to the reviewed activation revision using
+    only independently resolved evidence; a manifest-supplied SHA or the
+    operator-confirmation string is never treated as ratification:
+
+    - The local manifest's ``operation_scope_amendment`` must carry the
+      compensating field ``activation_merge_commit_sha`` (valid 40-hex).
+      Missing or malformed evidence fails closed: the required trusted
+      activation evidence is unavailable.
+    - The actual HEAD is resolved independently via ``git rev-parse`` (never
+      taken from the manifest or the caller) and must equal both the
+      activation SHA and the preflight-verified HEAD; tracked files must be
+      clean.
+    - The trusted governance merge ``G`` is read from the ratified registry
+      record (already field-validated by the authorization-only check, never
+      from manifest claims alone) and must be an ancestor of HEAD.
+    - ``git diff --name-only G..HEAD`` must contain exactly
+      ``ai/execution.py`` (the registry-only activation constraint).
+
+    These checks prove local consistency only. Independent ratification --
+    the exact owner comment on the governance PR, merged state, full ``G``
+    and ``A`` verified on GitHub, and human review confirming the diff
+    changes only the registry entry -- remains external human work that code
+    cannot perform. See the wrapper docstring audit table.
+    """
+    manifest = _read_json_no_dups(Path(manifest_path))
+    amendment = manifest.get("operation_scope_amendment")
+    if not isinstance(amendment, Mapping):
+        raise ExecutionAuthorizationError(
+            "activation_merge_evidence_missing",
+            "No operation_scope_amendment mapping in the authorization manifest; "
+            "required trusted activation evidence is unavailable.",
+            field="operation_scope_amendment",
+        )
+    activation_sha = str(amendment.get("activation_merge_commit_sha", "")).strip().lower()
+    if not GIT_SHA_RE.fullmatch(activation_sha):
+        raise ExecutionAuthorizationError(
+            "activation_merge_evidence_missing",
+            "The manifest amendment lacks a valid 'activation_merge_commit_sha' "
+            "40-hex field; required trusted activation evidence is unavailable.",
+            field="operation_scope_amendment.activation_merge_commit_sha",
+        )
+
+    head_proc = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    actual_head = head_proc.stdout.strip().lower() if head_proc.returncode == 0 else ""
+    if not GIT_SHA_RE.fullmatch(actual_head):
+        raise ExecutionAuthorizationError(
+            "activation_git_evidence_unavailable",
+            "Could not independently resolve the executing HEAD via git; "
+            "refusing to bind the activation revision.",
+        )
+    if actual_head != activation_sha or actual_head != str(effective_commit).strip().lower():
+        raise ExecutionAuthorizationError(
+            "activation_revision_mismatch",
+            "Independently resolved HEAD does not equal both the declared "
+            "activation merge and the preflight-verified HEAD; refusing to execute.",
+        )
+
+    status_proc = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if status_proc.returncode != 0 or status_proc.stdout.strip():
+        raise ExecutionAuthorizationError(
+            "activation_worktree_not_clean",
+            "Tracked worktree files are not clean at the activation revision; "
+            "refusing to execute.",
+        )
+
+    amendment_id = str(amendment.get("amendment_id", "")).strip()
+    trusted_record = RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS.get(amendment_id)
+    if not isinstance(trusted_record, Mapping):
+        raise ExecutionAuthorizationError(
+            "activation_trusted_evidence_missing",
+            "No trusted ratification record backs this amendment; required "
+            "trusted activation evidence is unavailable.",
+            field="operation_scope_amendment.amendment_id",
+        )
+    trusted_g = str(trusted_record.get("governance_merge_commit_sha", "")).strip().lower()
+    if not GIT_SHA_RE.fullmatch(trusted_g):
+        raise ExecutionAuthorizationError(
+            "activation_trusted_evidence_missing",
+            "The trusted ratification record lacks a valid governance merge SHA.",
+            field="operation_scope_amendment.governance_merge_commit_sha",
+        )
+    ancestor_proc = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", trusted_g, actual_head],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if ancestor_proc.returncode != 0:
+        raise ExecutionAuthorizationError(
+            "activation_governance_ancestry_failed",
+            "Trusted governance merge is not an ancestor of the executing HEAD.",
+            field="operation_scope_amendment.governance_merge_commit_sha",
+        )
+
+    diff_proc = subprocess.run(
+        ["git", "diff", "--name-only", trusted_g, actual_head, "--"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if diff_proc.returncode != 0:
+        raise ExecutionAuthorizationError(
+            "activation_git_evidence_unavailable",
+            "Could not inspect the governance-to-activation diff via git.",
+        )
+    changed = sorted(
+        line.strip().replace("\\", "/")
+        for line in diff_proc.stdout.splitlines()
+        if line.strip()
+    )
+    if changed != ["ai/execution.py"]:
+        raise ExecutionAuthorizationError(
+            "activation_diff_not_registry_only",
+            "Governance-to-activation diff is not confined to the trusted "
+            "registry entry in ai/execution.py; refusing to execute.",
+        )
+
+
+GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID: Final[str] = "da_a2_resting_v1"
+GUARDED_CLEVELAND_D047_ALLOWED_DATASET_ID: Final[str] = TRACK_B_CLEVELAND_SOURCE_ID
+GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION: Final[str] = (
+    "I_CONFIRM_AUTHORIZED_CLEVELAND_D047_EXECUTION"
+)
+
+
+def execute_guarded_cleveland_d047_run(
+    *,
+    source_path: Path,
+    manifest_path: Path,
+    panel_id: str,
+    output_bundle_dir: Path,
+    repo_root: Path = REPOSITORY_ROOT,
+    training_config: ResearchTrainingConfig | None = None,
+    signing_key: bytes | None = None,
+    current_git_commit: str | None = None,
+    operator_confirmation: str | None = None,
+) -> tuple[TrainedResearchRun, VerifiedBundleDescriptor]:
+    """Execute one guarded Cleveland D-047 run with full preflight and post-run custody checks.
+
+    This is the ONLY supported entry point for a future human-authorized
+    Cleveland pilot. It is engineering readiness only: with the production
+    :data:`RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS` registry empty, every real
+    invocation fails closed before fitting. No registry entry, manifest
+    signature, or human approval is created, populated, or claimed here.
+
+    Fail-closed sequence (no automatic retry at any stage):
+    1. Require the exact permitted panel (``da_a2_resting_v1``), frozen
+       configuration (``training_config`` must be ``None`` so the frozen D-047
+       profile is used), and the exact local operator confirmation string.
+    2. Run the complete D-047 :func:`run_preflight` FIRST, before any
+       source-row parsing. This enforces interactive Windows-local runtime,
+       clean Git worktree, D-047 manifest validity, D-046 read-only
+       provenance, license snapshot, and source byte identity. The returned
+       :class:`PreflightContext` is preserved for post-run re-verification.
+    3. Bind the caller's ``manifest_path``/``source_path`` to the exact
+       canonical preflight paths (no substitution), and bind the caller's
+       ``current_git_commit`` (when supplied) to the actual preflight HEAD.
+    4. Perform an authorization-only operational-scope check (no fitting, no
+       source-row parsing) via :func:`parse_and_validate_research_authorization`
+       and require BOTH ``persistent_model_packaging`` and
+       ``patient_level_shap_background`` authorizations. An empty or
+       non-matching trusted registry fails closed here.
+    5. Enforce activation-revision consistency via
+       :func:`_enforce_cleveland_activation_revision_binding`: the manifest
+       amendment must carry ``activation_merge_commit_sha``; the independently
+       git-resolved HEAD must equal it and the preflight HEAD with a clean
+       tracked worktree; trusted ``G`` must be an ancestor of HEAD; and the
+       ``G..HEAD`` diff must contain exactly ``ai/execution.py``. Missing
+       trusted activation evidence fails closed.
+    6. Require a new, non-existent output bundle directory under the approved
+       ``data/experiments`` root.
+    7. Mint a :class:`GuardedClevelandExecutionProof` bound to this exact run
+       and call :func:`execute_authorized_research_run` exactly once with the
+       frozen configuration, the preflight-verified HEAD, and the proof. Any
+       exception after fitting starts propagates without retry.
+    8. BEFORE accepting any output, re-verify unchanged source bytes via
+       :func:`verify_source_still_unchanged` with the preserved preflight
+       context. A mismatch writes a quarantine marker into the output
+       directory (nothing is deleted) and the output is raised as
+       QUARANTINED / NOT ACCEPTED, never returned. No post-run acceptance
+       marker is written, so the bundle stays unloadable.
+    9. Verify private artifact custody and trusted-bundle integrity via the
+       existing trusted-local ACL/HMAC path
+       (:func:`verify_trusted_local_bundle`, pre-acceptance mode) before
+       accepting. A custody or integrity failure writes a quarantine marker
+       (nothing is deleted), records no acceptance, and the output is raised
+       as QUARANTINED / NOT ACCEPTED.
+    10. Record post-run acceptance via
+        :func:`write_bundle_acceptance_marker`, binding the authorized source
+        SHA-256. The bundle becomes loadable ONLY through this marker; a
+        write failure fails closed with
+        ``guarded_wrapper_acceptance_marker_failed`` (bundle unloadable,
+        nothing deleted, no retry).
+    11. Re-verify under the production loading gate (acceptance required)
+        and return the resulting descriptor.
+
+    Governance/activation audit -- what code enforces vs. external human checks
+    (per the AI-3.1 activation handoff; ``G`` = governance merge, ``A`` =
+    activation merge). A manifest-supplied SHA, a merged PR, CI, or the
+    operator-confirmation string is never treated as ratification:
+
+    - Exact ``RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION`` owner comment, comment
+      timestamp, governance PR number/merged state, and full ``G``/``A``
+      verified on GitHub: HUMAN ONLY. Code cannot inspect GitHub.
+    - Amendment document / protocol / plan bytes at ``G`` matching the
+      handoff hashes: HUMAN ONLY. Code separately enforces that the local
+      manifest matches the actual on-disk protocol/plan bytes at runtime.
+    - Section 4.1 correction merged and protocol/plan unchanged: HUMAN review
+      (plus synthetic regression suites, which code runs but humans judge).
+    - Activation PR changes only the registry entry (content review): HUMAN
+      ONLY. Code additionally enforces the local ``G..HEAD`` diff contains
+      exactly ``ai/execution.py`` (consistency, not review).
+    - Clean checkout at ``A`` with HEAD exactly ``A``: CODE ENFORCED
+      (independent ``git rev-parse`` + clean-tracked-tree check; step 5).
+    - ``G`` ancestor of ``A``: CODE ENFORCED (``git merge-base``; step 5).
+    - ``approved_code_revision == G`` and amendment field-for-field match
+      against the trusted record: CODE ENFORCED (step 4).
+    - Local ``activation_merge_commit_sha == A`` with signature date after
+      approvals: CODE ENFORCED for presence/format/HEAD binding (step 5);
+      HUMAN ATTESTED for the values themselves.
+    - Section 8 evidence rows (preflight PASS, source byte identity,
+      Windows custody, environment, synthetic suites, authorization-only
+      check, final operator check): CODE ENFORCED where executable here
+      (steps 2/4/5/6/8/9/10/11); the remainder (GitHub verification, human
+      attestation, local environment recording) is HUMAN ONLY.
+    """
+    # 1. Exact permitted cohort/panel, frozen config, explicit human confirmation.
+    if panel_id != GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_panel_rejected",
+            f"Guarded Cleveland D-047 wrapper permits only panel "
+            f"'{GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID}'; got '{panel_id}'.",
+            field="panel_id",
+        )
+    if training_config is not None:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_frozen_config_required",
+            "Guarded Cleveland D-047 wrapper requires training_config=None so the "
+            "frozen D-047 execution profile is used; custom configurations are prohibited.",
+            field="training_config",
+        )
+    if operator_confirmation != GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_operator_confirmation_required",
+            "Guarded Cleveland D-047 wrapper requires the exact local operator "
+            "confirmation string; refusing to execute without explicit human confirmation.",
+            field="operator_confirmation",
+        )
+
+    # 2. Complete D-047 preflight BEFORE any source-row parsing. This is the
+    # first substantive call: nothing above reads source bytes.
+    preflight: ClevelandPreflightContext = cleveland_run_preflight(repo_root=repo_root)
+    if preflight.authorization.get("expected_source_sha256") is None:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_preflight_context_incomplete",
+            "D-047 preflight did not return a source integrity context; refusing to execute.",
+        )
+
+    # 3. Bind caller paths and revision to the preflight-verified canonical values.
+    try:
+        canonical_manifest = (
+            preflight.repo_root / Path(*CLEVELAND_D047_MANIFEST_RELATIVE_PATH.parts)
+        ).resolve()
+        supplied_manifest = Path(manifest_path).resolve()
+    except OSError as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_manifest_path_unresolvable",
+            "Guarded wrapper could not resolve the authorization manifest path.",
+            field="manifest_path",
+        ) from exc
+    if not paths_equal_platform(supplied_manifest, canonical_manifest):
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_manifest_path_mismatch",
+            "Authorization manifest path does not resolve to the canonical D-047 "
+            "manifest bound by preflight; refusing to execute.",
+            field="manifest_path",
+        )
+    try:
+        supplied_source = Path(source_path).resolve()
+        canonical_source = Path(preflight.source_path).resolve()
+    except OSError as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_source_path_unresolvable",
+            "Guarded wrapper could not resolve the source path.",
+            field="source_path",
+        ) from exc
+    if not paths_equal_platform(supplied_source, canonical_source):
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_source_path_mismatch",
+            "Source path does not resolve to the canonical preflight-verified "
+            "Cleveland source; refusing to execute.",
+            field="source_path",
+        )
+    effective_commit = preflight.current_git_commit
+    if current_git_commit is not None and str(current_git_commit).strip().lower() != effective_commit.lower():
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_revision_mismatch",
+            "Supplied current_git_commit does not match the actual preflight-verified "
+            "clean HEAD; refusing to execute.",
+            field="current_git_commit",
+        )
+
+    # 4. Authorization-only operational-scope check: no fitting, no source-row
+    # parsing. Requires BOTH packaging and patient-SHAP authorizations from the
+    # independently verified trusted registry (empty in production → fail-closed).
+    auth_only = parse_and_validate_research_authorization(
+        Path(manifest_path),
+        expected_dataset_id=GUARDED_CLEVELAND_D047_ALLOWED_DATASET_ID,
+        expected_panel_id=GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID,
+        repo_root=preflight.repo_root,
+        current_git_commit=effective_commit,
+    )
+    if auth_only.dataset_id != GUARDED_CLEVELAND_D047_ALLOWED_DATASET_ID:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_dataset_rejected",
+            f"Guarded wrapper permits only dataset '{GUARDED_CLEVELAND_D047_ALLOWED_DATASET_ID}'.",
+            field="dataset_id",
+        )
+    if (
+        auth_only.expected_source_sha256.lower()
+        != str(preflight.source_sha256).lower()
+    ):
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_source_binding_mismatch",
+            "Authorization manifest source SHA-256 does not match the "
+            "preflight-verified source bytes; refusing to execute.",
+            field="expected_source_sha256",
+        )
+    if not (
+        bool(auth_only.model_packaging_authorized)
+        and bool(auth_only.patient_shap_authorized)
+    ):
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_operational_authorization_missing",
+            "Guarded wrapper requires BOTH persistent_model_packaging AND "
+            "patient_level_shap_background authorizations from a separately "
+            "ratified operational amendment; the trusted registry does not "
+            "authorize this execution.",
+        )
+
+    # 5. Activation-revision consistency BEFORE any fitting. Fails closed when
+    # the required trusted activation evidence is unavailable.
+    _enforce_cleveland_activation_revision_binding(
+        manifest_path=Path(manifest_path),
+        effective_commit=effective_commit,
+        repo_root=preflight.repo_root,
+    )
+
+    # 6. New, non-existent output directory (execute_* re-checks containment).
+    if Path(output_bundle_dir).exists() or Path(output_bundle_dir).is_symlink():
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_output_must_be_new",
+            "Guarded wrapper requires a new, non-existent output bundle directory; "
+            "refusing to overwrite.",
+            field="output_bundle_dir",
+        )
+
+    # 7. Single guarded execution with the frozen config, verified HEAD, and
+    # a proof bound to this exact run. No try/except retry: any exception
+    # after fitting starts propagates and the caller must NOT automatically
+    # retry.
+    proof = _issue_guarded_cleveland_proof(
+        source_path=Path(source_path),
+        manifest_path=Path(manifest_path),
+        output_bundle_dir=Path(output_bundle_dir),
+        repo_root=preflight.repo_root,
+        current_git_commit=effective_commit,
+    )
+    trained_run, bundle_descriptor = execute_authorized_research_run(
+        source_path=Path(source_path),
+        manifest_path=Path(manifest_path),
+        panel_id=GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID,
+        output_bundle_dir=Path(output_bundle_dir),
+        repo_root=preflight.repo_root,
+        training_config=None,
+        signing_key=signing_key,
+        current_git_commit=effective_commit,
+        guarded_cleveland_proof=proof,
+    )
+
+    # 8. Re-verify unchanged source bytes BEFORE accepting any output.
+    # Failure quarantines (nothing is deleted). The bundle is unloadable
+    # regardless: no post-run acceptance marker is written on this path, and
+    # real-provenance bundles require one (inverted trust).
+    try:
+        cleveland_verify_source_still_unchanged(preflight)
+    except Exception as exc:
+        quarantine_marker = _quarantine_cleveland_bundle(
+            Path(output_bundle_dir),
+            reason_code="guarded_wrapper_source_changed_quarantined",
+            detail="Post-execution Cleveland source byte-identity check failed.",
+        )
+        marker_note = (
+            ""
+            if quarantine_marker is not None
+            else " (WARNING: quarantine marker write also failed; the bundle "
+            "remains unloadable because no post-run acceptance was recorded.)"
+        )
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_source_changed_quarantined",
+            "Post-execution source byte-identity check failed; output bundle is "
+            "QUARANTINED / NOT ACCEPTED and must not be loaded, shared, or used. "
+            f"The directory is preserved for audit. No automatic retry is permitted.{marker_note}",
+        ) from exc
+
+    # 9. Verify private artifact custody and trusted-bundle integrity BEFORE
+    # accepting. Uses the same signing key (or the default local key when None).
+    # Pre-acceptance: the acceptance marker cannot exist yet (step 10 writes
+    # it), so this check must not require it. Failure quarantines (nothing is
+    # deleted) and the bundle stays unloadable (no acceptance recorded).
+    try:
+        verify_trusted_local_bundle(
+            Path(output_bundle_dir),
+            trusted_local_root=Path(output_bundle_dir).parent,
+            signing_key=signing_key,
+            _require_post_run_acceptance=False,
+        )
+    except Exception as exc:
+        quarantine_marker = _quarantine_cleveland_bundle(
+            Path(output_bundle_dir),
+            reason_code="guarded_wrapper_bundle_custody_failed_quarantined",
+            detail="Post-execution trusted-local bundle verification failed.",
+        )
+        marker_note = (
+            ""
+            if quarantine_marker is not None
+            else " (WARNING: quarantine marker write also failed; the bundle "
+            "remains unloadable because no post-run acceptance was recorded.)"
+        )
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_bundle_custody_failed_quarantined",
+            "Post-execution trusted-local bundle verification failed; output is "
+            "QUARANTINED / NOT ACCEPTED. The directory is preserved for audit. "
+            f"No automatic retry is permitted.{marker_note}",
+        ) from exc
+
+    # 10. Record post-run acceptance (source AND custody checks both passed).
+    # The bundle becomes loadable ONLY through this marker. A write failure
+    # fails closed with a dedicated code: the bundle stays unloadable,
+    # nothing is deleted, and no automatic retry is permitted.
+    try:
+        write_bundle_acceptance_marker(
+            Path(output_bundle_dir),
+            expected_source_sha256=auth_only.expected_source_sha256,
+            accepted_by="execute_guarded_cleveland_d047_run",
+            detail=(
+                "Post-run Cleveland source byte-identity and trusted-local "
+                "bundle custody checks passed."
+            ),
+        )
+    except Exception as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_acceptance_marker_failed",
+            "Post-execution acceptance marker could not be written; output "
+            "bundle is NOT ACCEPTED and unloadable. The directory is preserved "
+            "for audit. No automatic retry is permitted.",
+        ) from exc
+
+    # 11. Final acceptance-required verification: the returned descriptor is
+    # only issued when the bundle loads under the production loading gate.
+    reverified = verify_trusted_local_bundle(
+        Path(output_bundle_dir),
+        trusted_local_root=Path(output_bundle_dir).parent,
+        signing_key=signing_key,
+    )
+
+    return trained_run, reverified
