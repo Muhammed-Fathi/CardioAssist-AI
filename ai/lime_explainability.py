@@ -169,17 +169,23 @@ HARD_MIN_EFFECTIVE_SAMPLES: Final[float] = 3.0
 LIME_INTERPRETATION_DISCLAIMER: Final[str] = (
     "LIME weights are weighted local-linear surrogate coefficients for "
     "'field keeps the explained instance's value' versus 'field takes a "
-    "background-sampled reference value'. They are NOT Shapley values, do NOT "
-    "decompose the prediction exactly, are NOT additive in probability units, "
-    "and may differ from exact SHAP attributions in magnitude and sign. They "
-    "describe model sensitivity in a local perturbation neighborhood—never "
-    "causality, never clinical risk, and never clinical advice."
+    "reference value from the decoded training background'. Under the default "
+    "fixed_background_reference scheme that reference is a single fixed "
+    "decoded-background vector (numeric median, categorical mode) reused by "
+    "every perturbation row; under the optional sampled_background_marginals "
+    "scheme each field instead draws its reference from the background "
+    "marginals per perturbation row. Neither scheme samples a real patient "
+    "record. LIME weights are NOT Shapley values, do NOT decompose the "
+    "prediction exactly, are NOT additive in probability units, and may "
+    "differ from exact SHAP attributions in magnitude and sign. They describe "
+    "model sensitivity in a local perturbation neighborhood—never causality, "
+    "never clinical risk, and never clinical advice."
 )
 
 MANDATORY_LIME_LIMITATIONS: Final[tuple[str, ...]] = (
     "LIME is a local weighted-linear approximation of the declared model output; it is not an exact Shapley decomposition and carries no efficiency/local-accuracy guarantee.",
     "Surrogate weights are conditional on the perturbation sampling scheme, kernel width, ridge penalty and random seed; the reported fidelity and seed-stability diagnostics quantify but never eliminate this sensitivity.",
-    "Reference values are drawn independently per clinical field from decoded training-background marginals, so inter-feature correlations of the development cohort are not preserved (a documented distributional approximation, not a real patient record).",
+    "Reference values are decoded-background summaries: the fixed_background_reference scheme reuses one decoded reference vector per field (numeric background median, modal registered categorical code) for every perturbation row, while the optional sampled_background_marginals scheme draws each field's reference independently from the background marginals per row. Neither preserves inter-feature correlations of the development cohort, and no perturbation row is a reconstructed real patient record (a documented distributional approximation).",
     "Feature weights describe local model sensitivity only and must never be presented as causal effects, individual CAD risk, or clinical advice.",
     "RESEARCH_ONLY output: not approved for clinical diagnosis, triage, treatment, or patient self-assessment.",
 )
@@ -1460,7 +1466,7 @@ class FeatureLimeAttribution:
             ),
             "interpretation": (
                 "Weighted local-linear surrogate coefficient on "
-                f"'{self.feature_name}' switching from a background-sampled "
+                f"'{self.feature_name}' switching from a decoded-background "
                 "reference value to the explained instance's value; NOT a "
                 "Shapley value and NOT causal or clinical advice."
             ),
