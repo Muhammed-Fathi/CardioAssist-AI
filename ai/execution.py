@@ -35,6 +35,8 @@ Operating Principles & Safeguards:
 """
 from __future__ import annotations
 
+import dataclasses
+
 import csv
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -273,33 +275,27 @@ def assert_training_config_approved(
     dataset_id: str,
     training_config: ResearchTrainingConfig | None,
 ) -> ResearchTrainingConfig:
-    """Verify that training_config exactly matches the frozen approved protocol without deviation."""
+    """Verify that training_config exactly matches the frozen approved protocol without deviation.
+
+    Enforces mandatory dataclass equality across every field (CV folds, repeat seeds,
+    negative control seeds, shuffle_max_allowed_auroc, bootstrap_resamples,
+    shap_max_background_samples, exploratory_threshold, hyperparameter grids, etc.).
+    """
     approved = get_approved_training_config(dataset_id)
     if training_config is None:
         return approved
 
-    # Compare all fields critical to protocol fidelity
+    # Compare every field in ResearchTrainingConfig dataclass
     mismatches = []
-    if training_config.protocol_id != approved.protocol_id:
-        mismatches.append(f"protocol_id ({training_config.protocol_id} != {approved.protocol_id})")
-    if training_config.outer_folds != approved.outer_folds:
-        mismatches.append(f"outer_folds ({training_config.outer_folds} != {approved.outer_folds})")
-    if training_config.inner_folds != approved.inner_folds:
-        mismatches.append(f"inner_folds ({training_config.inner_folds} != {approved.inner_folds})")
-    if tuple(training_config.repeat_seeds) != tuple(approved.repeat_seeds):
-        mismatches.append("repeat_seeds")
-    if tuple(training_config.shuffle_control_seeds) != tuple(approved.shuffle_control_seeds):
-        mismatches.append("shuffle_control_seeds")
-    if tuple(training_config.lr_c_grid) != tuple(approved.lr_c_grid):
-        mismatches.append("lr_c_grid")
-    if tuple(training_config.rf_max_depths) != tuple(approved.rf_max_depths):
-        mismatches.append("rf_max_depths")
-    if tuple(training_config.rf_min_samples_leaf) != tuple(approved.rf_min_samples_leaf):
-        mismatches.append("rf_min_samples_leaf")
-    if training_config.rf_n_estimators != approved.rf_n_estimators:
-        mismatches.append("rf_n_estimators")
-    if training_config.auc_simplicity_tolerance != approved.auc_simplicity_tolerance:
-        mismatches.append("auc_simplicity_tolerance")
+    for f in dataclasses.fields(ResearchTrainingConfig):
+        val_test = getattr(training_config, f.name)
+        val_approved = getattr(approved, f.name)
+        if isinstance(val_test, (list, tuple)) or isinstance(val_approved, (list, tuple)):
+            if tuple(val_test) != tuple(val_approved):
+                mismatches.append(f"{f.name} ({val_test} != {val_approved})")
+        else:
+            if val_test != val_approved:
+                mismatches.append(f"{f.name} ({val_test} != {val_approved})")
 
     if mismatches:
         raise ExecutionAuthorizationError(
@@ -473,8 +469,32 @@ def parse_and_validate_research_authorization(
         row_count = int(manifest.get("authorized_source_row_count", 0))
 
         pinned_commit = str(manifest.get("pinned_protocol_git_commit_sha", "")).lower()
+        allowed_ops = tuple(manifest.get("allowed_operations_if_approved", ()))
+        forbidden_ops = tuple(manifest.get("forbidden_operations", ()))
+        out_root = str(manifest.get("protected_outputs_relative_root", "data/experiments"))
+
+        # Explicit check of whether persistent model packaging and SHAP background are authorized
+        packaging_auth = bool(manifest.get("model_packaging_authorized", False)) or ("artifact_packaging" in allowed_ops)
+        shap_auth = bool(manifest.get("patient_shap_authorized", False)) or ("patient_level_shap" in allowed_ops)
+
         token = generate_execution_verification_token(
-            "D-047", dataset_id, panel_id, exp_type, pinned_commit, source_sha
+            decision_id="D-047",
+            dataset_id=dataset_id,
+            panel_id=panel_id,
+            experiment_type=exp_type,
+            source_rel_path=source_rel,
+            source_sha256=source_sha,
+            row_count=row_count,
+            pinned_commit=pinned_commit,
+            protocol_sha=proto_sha,
+            plan_sha=plan_sha,
+            dictionary_sha=None,
+            signer=signer,
+            signed_at=signed_at,
+            attestation=attestation,
+            allowed_operations=allowed_ops,
+            forbidden_operations=forbidden_ops,
+            protected_output_root=out_root,
         )
         return AuthorizedExecutionContext(
             governance_decision_id="D-047",
@@ -491,8 +511,13 @@ def parse_and_validate_research_authorization(
             protocol_sha256=proto_sha,
             plan_sha256=plan_sha,
             dictionary_sha256=None,
+            allowed_operations=allowed_ops,
+            forbidden_operations=forbidden_ops,
+            protected_output_root=out_root,
             governance_details=gov_details,
             verification_token=token,
+            model_packaging_authorized=packaging_auth,
+            patient_shap_authorized=shap_auth,
         )
 
     elif dataset_id == TRACK_A_UCI412_SOURCE_ID:
@@ -556,11 +581,35 @@ def parse_and_validate_research_authorization(
         row_count = int(manifest.get("authorized_source_row_count", 0))
 
         pinned_commit = str(manifest.get("pinned_protocol_commit_sha", "")).lower()
+        allowed_ops = tuple(manifest.get("allowed_operations_if_approved", ()))
+        forbidden_ops = tuple(manifest.get("forbidden_operations", ()))
+        out_root = str(manifest.get("protected_outputs_relative_root", "data/uci412-experiments"))
+
+        # Explicit check of whether persistent model packaging and SHAP background are authorized
+        packaging_auth = bool(manifest.get("model_packaging_authorized", False)) or ("artifact_packaging" in allowed_ops)
+        shap_auth = bool(manifest.get("patient_shap_authorized", False)) or ("patient_level_shap" in allowed_ops)
+
         token = generate_execution_verification_token(
-            "D-048", dataset_id, panel_id, exp_type, pinned_commit, source_sha
+            decision_id="M3A-UCI412-INTERNAL-RESEARCH-PROPOSAL",
+            dataset_id=dataset_id,
+            panel_id=panel_id,
+            experiment_type=exp_type,
+            source_rel_path=source_rel,
+            source_sha256=source_sha,
+            row_count=row_count,
+            pinned_commit=pinned_commit,
+            protocol_sha=prop_sha,
+            plan_sha=plan_sha,
+            dictionary_sha=dict_sha,
+            signer=signer,
+            signed_at=signed_at,
+            attestation=attestation,
+            allowed_operations=allowed_ops,
+            forbidden_operations=forbidden_ops,
+            protected_output_root=out_root,
         )
         return AuthorizedExecutionContext(
-            governance_decision_id="D-048",
+            governance_decision_id="M3A-UCI412-INTERNAL-RESEARCH-PROPOSAL",
             dataset_id=dataset_id,
             panel_id=panel_id,
             experiment_type=exp_type,
@@ -574,8 +623,13 @@ def parse_and_validate_research_authorization(
             protocol_sha256=prop_sha,
             plan_sha256=plan_sha,
             dictionary_sha256=dict_sha,
+            allowed_operations=allowed_ops,
+            forbidden_operations=forbidden_ops,
+            protected_output_root=out_root,
             governance_details=gov_details,
             verification_token=token,
+            model_packaging_authorized=packaging_auth,
+            patient_shap_authorized=shap_auth,
         )
 
     raise ExecutionAuthorizationError("unsupported_dataset_id", f"Dataset '{dataset_id}' has no established governance validator.")

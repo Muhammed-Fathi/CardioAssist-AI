@@ -342,16 +342,46 @@ _INTERNAL_EXEC_SECRET: bytes = secrets.token_bytes(32)
 
 
 def generate_execution_verification_token(
+    *,
     decision_id: str,
     dataset_id: str,
     panel_id: str,
     experiment_type: str,
+    source_rel_path: str,
+    source_sha256: str,
+    row_count: int,
     pinned_commit: str,
-    source_sha: str,
+    protocol_sha: str,
+    plan_sha: str,
+    dictionary_sha: str | None,
+    signer: str,
+    signed_at: str,
+    attestation: str,
+    allowed_operations: tuple[str, ...],
+    forbidden_operations: tuple[str, ...],
+    protected_output_root: str,
 ) -> str:
-    """Issue a cryptographically verifiable token for an execution context validated through governance."""
-    msg = f"{decision_id}:{dataset_id}:{panel_id}:{experiment_type}:{pinned_commit.lower()}:{source_sha.lower()}".encode("utf-8")
-    return hmac.new(_INTERNAL_EXEC_SECRET, msg, hashlib.sha256).hexdigest()
+    """Issue a cryptographically verifiable token binding all governance decision, source, and scope parameters."""
+    payload = json.dumps({
+        "decision_id": decision_id,
+        "dataset_id": dataset_id,
+        "panel_id": panel_id,
+        "experiment_type": experiment_type,
+        "source_rel_path": source_rel_path,
+        "source_sha256": source_sha256.lower(),
+        "row_count": row_count,
+        "pinned_commit": pinned_commit.lower(),
+        "protocol_sha": protocol_sha.lower(),
+        "plan_sha": plan_sha.lower(),
+        "dictionary_sha": dictionary_sha.lower() if dictionary_sha else None,
+        "signer": signer,
+        "signed_at": signed_at,
+        "attestation": attestation,
+        "allowed_operations": sorted(allowed_operations),
+        "forbidden_operations": sorted(forbidden_operations),
+        "protected_output_root": protected_output_root,
+    }, sort_keys=True)
+    return hmac.new(_INTERNAL_EXEC_SECRET, payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -362,6 +392,10 @@ class AuthorizedExecutionContext:
     created only when established governance validators have ratified the run.
     Arbitrary caller-instantiated contexts without an authentic internal token
     fail closed.
+
+    Note: The internal token authenticates that governance validation succeeded
+    within this execution process; it is NOT independent evidence of human scientific
+    approval, which is established exclusively by the ratified PR merge and signed attestation.
     """
     governance_decision_id: str
     dataset_id: str
@@ -377,20 +411,36 @@ class AuthorizedExecutionContext:
     protocol_sha256: str
     plan_sha256: str
     dictionary_sha256: str | None
+    allowed_operations: tuple[str, ...]
+    forbidden_operations: tuple[str, ...]
+    protected_output_root: str
     governance_details: Mapping[str, Any]
     verification_token: str = ""
+    model_packaging_authorized: bool = False
+    patient_shap_authorized: bool = False
 
     def verify_authenticity(self) -> bool:
-        """Verify that this context was issued through established governance validation."""
+        """Verify that this context was issued through established governance validation with matching scope."""
         if not self.verification_token:
             return False
         expected = generate_execution_verification_token(
-            self.governance_decision_id,
-            self.dataset_id,
-            self.panel_id,
-            self.experiment_type,
-            self.pinned_commit_sha,
-            self.expected_source_sha256,
+            decision_id=self.governance_decision_id,
+            dataset_id=self.dataset_id,
+            panel_id=self.panel_id,
+            experiment_type=self.experiment_type,
+            source_rel_path=self.source_relative_path,
+            source_sha256=self.expected_source_sha256,
+            row_count=self.expected_source_row_count,
+            pinned_commit=self.pinned_commit_sha,
+            protocol_sha=self.protocol_sha256,
+            plan_sha=self.plan_sha256,
+            dictionary_sha=self.dictionary_sha256,
+            signer=self.authorized_by,
+            signed_at=self.authorized_date,
+            attestation=self.signature_attestation,
+            allowed_operations=self.allowed_operations,
+            forbidden_operations=self.forbidden_operations,
+            protected_output_root=self.protected_output_root,
         )
         return hmac.compare_digest(expected, self.verification_token)
 
@@ -410,6 +460,11 @@ class AuthorizedExecutionContext:
             "protocol_sha256": self.protocol_sha256,
             "plan_sha256": self.plan_sha256,
             "dictionary_sha256": self.dictionary_sha256,
+            "allowed_operations": list(self.allowed_operations),
+            "forbidden_operations": list(self.forbidden_operations),
+            "protected_output_root": self.protected_output_root,
+            "model_packaging_authorized": self.model_packaging_authorized,
+            "patient_shap_authorized": self.patient_shap_authorized,
         }
 
 
@@ -436,6 +491,12 @@ def package_research_bundle(
                 "unauthorized_or_forged_context",
                 "AuthorizedExecutionContext failed cryptographic governance token verification; "
                 "arbitrary caller-instantiated contexts are rejected.",
+            )
+        if not authorization_context.model_packaging_authorized:
+            raise BundleIntegrityError(
+                "model_packaging_operation_not_authorized",
+                f"Governance decision '{authorization_context.governance_decision_id}' does not explicitly authorize "
+                "persistent real-data model packaging without a separately ratified protocol amendment.",
             )
         if authorization_context.experiment_type != "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED":
             raise BundleIntegrityError(
@@ -776,7 +837,7 @@ def verify_research_bundle(
         proto_sha = auth_doc.get("protocol_sha256")
         plan_sha = auth_doc.get("plan_sha256")
         if (
-            gov_id in ("D-047", "D-048")
+            gov_id in ("D-047", "D-048", "M3A-UCI412-INTERNAL-RESEARCH-PROPOSAL")
             and exp_type == "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
             and isinstance(signer, str) and len(signer.strip()) > 0
             and isinstance(sig_attest, str) and "CLOSED" in sig_attest

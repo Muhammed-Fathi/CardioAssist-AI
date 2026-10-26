@@ -107,12 +107,13 @@ class ShapBackgroundReference:
                 and getattr(authorization_context, "experiment_type") == "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
                 and hasattr(authorization_context, "verify_authenticity")
                 and bool(authorization_context.verify_authenticity())
+                and getattr(authorization_context, "patient_shap_authorized", False) is True
             )
             if not is_valid_auth:
                 raise ExplainabilityIntegrityError(
                     "real_patient_shap_background_blocked_gate_pt_closed",
                     "Gate PT (P-3) remains closed; persisting real-patient SHAP background rows "
-                    "requires an authentic AuthorizedExecutionContext verified through established governance.",
+                    "requires an authentic AuthorizedExecutionContext explicitly authorizing patient SHAP backgrounds.",
                 )
         Z = np.asarray(Z_train, dtype=np.float64)
         y = np.asarray(y_train, dtype=np.int64)
