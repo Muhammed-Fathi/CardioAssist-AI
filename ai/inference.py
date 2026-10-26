@@ -23,7 +23,7 @@ import json
 import math
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Final, Mapping
+from typing import Any, Callable, Final, Mapping, Sequence
 
 import joblib
 import numpy as np
@@ -40,6 +40,18 @@ from ai.explainability import (
     FaithfulShapExplanation,
     ShapBackgroundReference,
     explain_clinical_instance,
+)
+from ai.lime_explainability import (
+    DEFAULT_LIME_STABILITY_SEEDS,
+    FaithfulLimeExplanation,
+    LimeConfig,
+    LimeStabilityReport,
+    assert_comparable_explanation_scales,
+    explain_clinical_instance_lime_certified,
+)
+from ai.lime_quality import (
+    LimeQualityPolicy,
+    require_acceptable_lime_quality,
 )
 from ai.packaging import (
     CALIBRATION_FILENAME,
@@ -72,6 +84,14 @@ MANDATORY_LIMITATIONS: Final[tuple[str, ...]] = (
     "Track B wearable/monitoring observations are not valid predictors for this model and are rejected.",
 )
 
+LIME_PREDICTION_LIMITATION: Final[str] = (
+    "LIME weights are local weighted-linear surrogate approximations of the declared "
+    "model output, NOT exact Shapley values: they satisfy no efficiency/local-accuracy "
+    "guarantee, may differ from SHAP in magnitude and sign, and are never causal or "
+    "clinical claims. Every LIME payload carries an explicit quality status; when it "
+    "is not ACCEPTABLE_LOCAL_APPROXIMATION the weights must not be relied upon at all."
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ResearchPredictionResult:
@@ -93,6 +113,9 @@ class ResearchPredictionResult:
     explanation: FaithfulShapExplanation
     verified_artifact_hashes: Mapping[str, str]
     limitations: tuple[str, ...]
+    lime_explanation: FaithfulLimeExplanation | None = None
+    lime_comparability: Mapping[str, Any] | None = None
+    lime_stability: LimeStabilityReport | None = None
 
     @property
     def serving_eligibility(self) -> str:
@@ -138,9 +161,30 @@ class ResearchPredictionResult:
                 "exploratory_threshold": self.exploratory_threshold,
                 "exploratory_threshold_clinically_validated": False,
                 "exploratory_above_threshold_flag": self.exploratory_above_threshold_flag,
+                "lime_quality_status": (
+                    None
+                    if self.lime_explanation is None
+                    else self.lime_explanation.quality_status
+                ),
+                "lime_reliable_for_interpretation": (
+                    None
+                    if self.lime_explanation is None
+                    else self.lime_explanation.is_reliable_for_interpretation
+                ),
             },
             "uncertainty": dict(self.uncertainty),
             "explanation": self.explanation.to_dict(),
+            "lime_explanation": (
+                None if self.lime_explanation is None else self.lime_explanation.to_dict()
+            ),
+            "lime_stability": (
+                None if self.lime_stability is None else self.lime_stability.to_dict()
+            ),
+            "explanation_comparability": (
+                None
+                if self.lime_comparability is None
+                else dict(self.lime_comparability)
+            ),
             "governance": {
                 "serving_eligibility": self.serving_eligibility,
                 "approved_for_serving": self.approved_for_serving,
@@ -257,6 +301,26 @@ class ResearchCadPredictor:
     @property
     def model_family(self) -> str:
         return str(self._descriptor.manifest["model"]["selected_model_family"])
+
+    def _lime_estimator_input_builder(self) -> Callable[[np.ndarray], np.ndarray]:
+        """Return the exact estimator-input builder used for projected LIME.
+
+        This is the same :func:`ai.training._estimator_input_matrix` mapping used
+        for scoring and SHAP, so LIME perturbation rows are always fed to the
+        estimator through the identical frozen input space.
+        """
+
+        def _builder(raw_rows: np.ndarray) -> np.ndarray:
+            encoded = self._preprocessor.transform(raw_rows)
+            return _estimator_input_matrix(
+                self.model_family,
+                self._preprocessor,
+                raw_rows,
+                encoded,
+                self.execution_profile,
+            )
+
+        return _builder
 
     @classmethod
     def from_verified_bundle(
@@ -375,8 +439,27 @@ class ResearchCadPredictor:
         payload: Mapping[str, Any],
         *,
         exploratory_threshold: float = 0.5,
+        lime_config: LimeConfig | None = None,
+        lime_target: str = "auto",
+        lime_stability_seeds: Sequence[int] | None = DEFAULT_LIME_STABILITY_SEEDS,
+        lime_quality_policy: LimeQualityPolicy | None = None,
+        lime_require_acceptable_quality: bool = False,
     ) -> ResearchPredictionResult:
-        """Validate clinical/lab record and compute aligned score, dispersion & SHAP."""
+        """Validate clinical/lab record and compute aligned score, dispersion & SHAP.
+
+        When ``lime_config`` is supplied a genuine tabular LIME explanation is
+        computed on the same declared model-output scale as the SHAP explanation
+        and attached to the result together with a machine-readable quality
+        verdict. Any scale mismatch between the two methods fails closed rather
+        than returning incomparable attributions.
+
+        ``lime_stability_seeds`` (default: three registered seeds) is assessed
+        independently of fidelity so the attached verdict can reach
+        ``ACCEPTABLE_LOCAL_APPROXIMATION``; pass ``None`` to skip it, which
+        leaves the verdict at ``UNVERIFIED_STABILITY`` at best. Set
+        ``lime_require_acceptable_quality=True`` to fail closed instead of
+        returning a diagnostic-only explanation.
+        """
         is_real = bool(isinstance(payload, Mapping) and payload.get("synthetic") is False)
         validated = validate_clinical_record(
             payload, self.panel, require_synthetic=not is_real
@@ -490,7 +573,85 @@ class ResearchCadPredictor:
                     "Raw-probability SHAP target does not match raw_model_score.",
                 )
 
+        lime_explanation: FaithfulLimeExplanation | None = None
+        lime_comparability: Mapping[str, Any] | None = None
+        lime_stability: LimeStabilityReport | None = None
+        if lime_config is not None:
+            lime_builder = None
+            lime_mapping = None
+            if (
+                self.execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+                and self.model_family == "constrained_random_forest"
+            ):
+                lime_builder = self._lime_estimator_input_builder()
+                lime_mapping = _d047_rf_column_to_raw_feature(self._preprocessor)
+            lime_explanation, lime_stability = (
+                explain_clinical_instance_lime_certified(
+                    stability_seeds=lime_stability_seeds,
+                    quality_policy=lime_quality_policy,
+                    model_family=self.model_family,
+                    estimator=self._estimator,
+                    preprocessor=self._preprocessor,
+                    panel=self.panel,
+                    background=self._shap_background,
+                    x_raw_row=x_row,
+                    z_row=z_row,
+                    calibrator=self._calibrator,
+                    target=lime_target,
+                    config=lime_config,
+                    estimator_input_builder=lime_builder,
+                    projected_column_to_raw_feature=lime_mapping,
+                    missing_feature_names=missing_set,
+                )
+            )
+            # Never compare explanations that target different score scales.
+            lime_comparability = MappingProxyType(
+                dict(
+                    assert_comparable_explanation_scales(
+                        explanation, lime_explanation
+                    )
+                )
+            )
+            if lime_explanation.explained_quantity == "calibrated_log_odds":
+                expected_lime_target = cal_log_odds
+            elif lime_explanation.explained_quantity == "raw_model_score":
+                expected_lime_target = raw_score
+            elif lime_explanation.explained_quantity == "raw_model_log_odds":
+                expected_lime_target = raw_log_odds
+            else:  # pragma: no cover - defensive, registry is closed
+                raise ExplainabilityIntegrityError(
+                    "lime_target_misaligned",
+                    "LIME declared an unregistered explained quantity.",
+                )
+            if (
+                not math.isfinite(lime_explanation.model_prediction_at_instance)
+                or abs(
+                    lime_explanation.model_prediction_at_instance
+                    - expected_lime_target
+                )
+                > ADDITIVITY_TOLERANCE
+            ):
+                raise ExplainabilityIntegrityError(
+                    "lime_target_misaligned",
+                    "LIME target value does not match the prediction quantity on "
+                    "its declared scale.",
+                )
+            if lime_require_acceptable_quality:
+                require_acceptable_lime_quality(lime_explanation)
+
         dynamic_limitations = list(MANDATORY_LIMITATIONS)
+        if lime_explanation is not None:
+            dynamic_limitations.append(LIME_PREDICTION_LIMITATION)
+            dynamic_limitations.append(
+                "LIME quality verdict: "
+                f"{lime_explanation.quality_status}"
+                + (
+                    " (weights are NOT reliable for interpretation; diagnostic "
+                    "inspection only)."
+                    if not lime_explanation.is_reliable_for_interpretation
+                    else " (local approximation only)."
+                )
+            )
         if not validated.stage_complete:
             missing_desc = ", ".join(
                 f"{name} ({reason})"
@@ -522,4 +683,7 @@ class ResearchCadPredictor:
             explanation=explanation,
             verified_artifact_hashes=self._descriptor.verified_files,
             limitations=tuple(dynamic_limitations),
+            lime_explanation=lime_explanation,
+            lime_comparability=lime_comparability,
+            lime_stability=lime_stability,
         )
