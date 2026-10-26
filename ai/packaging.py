@@ -338,6 +338,44 @@ class VerifiedBundleDescriptor:
     safe_for_pickle_deserialization: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class AuthorizedExecutionContext:
+    """Narrowly scoped, internally validated execution context for authorized research runs."""
+    governance_decision_id: str
+    dataset_id: str
+    panel_id: str
+    experiment_type: str
+    source_relative_path: str
+    expected_source_sha256: str
+    expected_source_row_count: int
+    authorized_by: str
+    authorized_date: str
+    signature_attestation: str
+    pinned_commit_sha: str
+    protocol_sha256: str
+    plan_sha256: str
+    dictionary_sha256: str | None
+    governance_details: Mapping[str, Any]
+
+    def to_manifest_dict(self) -> dict[str, Any]:
+        return {
+            "governance_decision_id": self.governance_decision_id,
+            "dataset_id": self.dataset_id,
+            "panel_id": self.panel_id,
+            "experiment_type": self.experiment_type,
+            "source_relative_path": self.source_relative_path,
+            "expected_source_sha256": self.expected_source_sha256,
+            "expected_source_row_count": self.expected_source_row_count,
+            "authorized_by": self.authorized_by,
+            "authorized_date": self.authorized_date,
+            "signature_attestation": self.signature_attestation,
+            "pinned_commit_sha": self.pinned_commit_sha,
+            "protocol_sha256": self.protocol_sha256,
+            "plan_sha256": self.plan_sha256,
+            "dictionary_sha256": self.dictionary_sha256,
+        }
+
+
 def package_research_bundle(
     trained_run: TrainedResearchRun,
     bundle_dir: Path,
@@ -345,16 +383,32 @@ def package_research_bundle(
     external_evaluation: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
     signing_key: bytes | None = None,
-    authorized_real_data: bool = False,
-    authorization_context: Mapping[str, Any] | None = None,
+    authorization_context: AuthorizedExecutionContext | None = None,
 ) -> VerifiedBundleDescriptor:
     """Stage, sign, verify, and atomically commit a RESEARCH_ONLY model bundle."""
-    if (not trained_run.synthetic_only or not trained_run.shap_background.synthetic_only) and not authorized_real_data:
-        raise BundleIntegrityError(
-            "real_patient_artifact_packaging_blocked_gate_pt_closed",
-            "Gate PT (P-3) remains closed; packaging real-patient model or SHAP background "
-            "artifacts is prohibited unless authorized under local internal research protocol.",
-        )
+    is_real = not trained_run.synthetic_only or not trained_run.shap_background.synthetic_only
+    if is_real:
+        if authorization_context is None or not isinstance(authorization_context, AuthorizedExecutionContext):
+            raise BundleIntegrityError(
+                "real_patient_artifact_packaging_blocked_gate_pt_closed",
+                "Gate PT (P-3) remains closed; packaging real-patient model or SHAP background "
+                "artifacts requires an explicit, verified AuthorizedExecutionContext.",
+            )
+        if authorization_context.experiment_type != "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED":
+            raise BundleIntegrityError(
+                "invalid_authorization_experiment_type",
+                "Authorized research packaging requires experiment_type 'INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED'.",
+            )
+        if authorization_context.dataset_id != trained_run.panel.dataset_id:
+            raise BundleIntegrityError(
+                "dataset_authorization_mismatch",
+                "Authorization dataset does not match trained run panel dataset.",
+            )
+        if authorization_context.panel_id != trained_run.panel.panel_id:
+            raise BundleIntegrityError(
+                "panel_authorization_mismatch",
+                "Authorization panel does not match trained run panel.",
+            )
 
     target_dir = _ensure_safe_output_path(Path(bundle_dir))
     active_key = (
@@ -501,7 +555,7 @@ def package_research_bundle(
                 "pooled_cohorts": False,
             },
             "research_authorization": (
-                dict(authorization_context) if authorization_context is not None else None
+                authorization_context.to_manifest_dict() if authorization_context is not None else None
             ),
             "eligibility": {
                 "serving_eligibility": "RESEARCH_ONLY",
@@ -547,7 +601,6 @@ def package_research_bundle(
             staging_dir,
             trusted_local_root=target_dir.parent,
             signing_key=active_key,
-            allow_authorized_real_data=authorized_real_data,
         )
 
         if target_dir.exists() or is_reparse_or_symlink(target_dir):
@@ -573,7 +626,6 @@ def package_research_bundle(
         target_dir,
         trusted_local_root=target_dir.parent,
         signing_key=active_key,
-        allow_authorized_real_data=authorized_real_data,
     )
 
 
@@ -616,8 +668,6 @@ def _read_safe_regular_file(root: Path, filename: str) -> bytes:
 
 def verify_research_bundle(
     bundle_dir: Path,
-    *,
-    allow_authorized_real_data: bool = False,
 ) -> VerifiedBundleDescriptor:
     """Verify structural layout, governance flags, privacy metadata, and SHA-256 digests.
 
@@ -671,15 +721,27 @@ def verify_research_bundle(
             "Bundle manifest makes an unauthorized serving or clinical-use claim.",
             field="eligibility",
         )
-    # Check if this bundle has a verified research_authorization context
-    has_valid_auth = (
-        allow_authorized_real_data
-        or (
-            manifest.get("research_authorization") is not None
-            and isinstance(manifest.get("research_authorization"), Mapping)
-            and manifest.get("research_authorization", {}).get("experiment_type") == "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
-        )
-    )
+    # A non-synthetic bundle must have an authentic, internally complete research_authorization record
+    auth_doc = manifest.get("research_authorization")
+    has_valid_auth = False
+    if auth_doc is not None and isinstance(auth_doc, Mapping):
+        gov_id = auth_doc.get("governance_decision_id")
+        exp_type = auth_doc.get("experiment_type")
+        signer = auth_doc.get("authorized_by")
+        sig_attest = auth_doc.get("signature_attestation")
+        pinned_commit = auth_doc.get("pinned_commit_sha")
+        proto_sha = auth_doc.get("protocol_sha256")
+        plan_sha = auth_doc.get("plan_sha256")
+        if (
+            gov_id in ("D-047", "D-048")
+            and exp_type == "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+            and isinstance(signer, str) and len(signer.strip()) > 0
+            and isinstance(sig_attest, str) and "CLOSED" in sig_attest
+            and isinstance(pinned_commit, str) and len(pinned_commit) == 40
+            and isinstance(proto_sha, str) and len(proto_sha) == 64
+            and isinstance(plan_sha, str) and len(plan_sha) == 64
+        ):
+            has_valid_auth = True
 
     if eligibility.get("synthetic_only") is not True and not has_valid_auth:
         raise BundleIntegrityError(
@@ -840,14 +902,13 @@ def verify_trusted_local_bundle(
     *,
     trusted_local_root: Path,
     signing_key: bytes | None = None,
-    allow_authorized_real_data: bool = False,
 ) -> VerifiedBundleDescriptor:
     """Enforce trusted-local-origin containment, platform-verified ownership &
     access controls (POSIX mode/UID on Linux/macOS; Win32 NTFS Security-Descriptor
     DACL inspection on Windows), and HMAC-SHA256 producer authentication BEFORE
     ``joblib.load`` can be invoked.
     """
-    verified = verify_research_bundle(bundle_dir, allow_authorized_real_data=allow_authorized_real_data)
+    verified = verify_research_bundle(bundle_dir)
 
     trust_root = Path(trusted_local_root)
     if is_reparse_or_symlink(trust_root) or not trust_root.is_dir():

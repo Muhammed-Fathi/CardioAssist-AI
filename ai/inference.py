@@ -246,7 +246,7 @@ class ResearchCadPredictor:
             bg_json,
             preprocessor=preprocessor,
             require_synthetic=True,
-            authorized_real_data=is_authorized_real,
+            is_authorized_research_bundle=is_authorized_real,
         )
 
         container = joblib.load(root / MODEL_FILENAME)

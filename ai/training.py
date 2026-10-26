@@ -1014,6 +1014,7 @@ def _execute_shared_training_pipeline(
     dev_dataset: str,
     config: ResearchTrainingConfig,
     synthetic_only: bool = True,
+    authorization_context: Any = None,
 ) -> TrainedResearchRun:
     """Execute shared fold-contained nested CV, calibration, negative control, and refit."""
     # 1. Repeated nested-CV internal evaluation (BOTH uncalibrated AND cross-fitted calibrated)
@@ -1211,7 +1212,7 @@ def _execute_shared_training_pipeline(
         max_samples=config.shap_max_background_samples,
         seed=full_cv_seed + 4242,
         synthetic_only=synthetic_only,
-        authorized_real_data=(not synthetic_only),
+        authorization_context=authorization_context,
     )
 
     uncal_selected_aucs = [

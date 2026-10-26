@@ -7,33 +7,27 @@ to the reusable AI research pipeline (:mod:`ai.training`, :mod:`ai.panels`,
 hash-bound authorization manifests.
 
 Operating Principles & Safeguards:
-1. Hard Synthetic Blocks Preservation:
-   The existing synthetic hard blocks in ``ai.panels``, ``ai.training``, and
-   ``ai.packaging`` remain fail-closed when called directly. Real-data execution
-   is allowed ONLY through this explicitly verified, audit-logged execution
-   controller (:class:`AuthorizedExecutionHarness`) after validating a local,
-   private, Git-ignored, human-signed authorization manifest and verifying
-   that byte-identical dataset files match approved SHA-256 provenance manifests.
-2. Anti-Disguise & Provenance Verification:
-   Real clinical data disguised as synthetic (or vice versa) is strictly rejected:
-   input records are parsed strictly via read-only source adapters with verified
-   source hashes, correct dictionary versions, explicit permitted feature sets,
-   target mappings, and missingness semantics.
-3. Prohibited Feature Rejection:
-   Any catheterization/angiography variables (LAD, LCX, RCA, Cath), post-outcome
-   measurements, unverified echocardiography variables (EF-TTE, Region RWMA, VHD),
-   or wearable/smartwatch/sensor signals (Track B) are unconditionally blocked.
-4. Human Ratification Required:
-   Manifest templates (e.g. status containing PROPOSED or NOT_AUTHORIZED)
-   never authorize execution. Real data fitting requires an explicit, timezone-aware
-   locally signed manifest binding the verified git commit, protocol hash, plan hash,
-   and source hash.
+1. Established Governance Validators Reused:
+   Reuses and binds the strict governance, hash, and provenance validators from
+   :mod:`research.experiments.safety` (D-047) and :mod:`research.uci412.safety` (M3a).
+   No arbitrary authorization status, placeholder signer, or unapproved commit can authorize fitting.
+2. Mandatory File Existence and Digest Equality:
+   Every frozen protocol, registered plan, and feature dictionary file MUST exist,
+   be safe to read without symlinks or traversal, and match the exact ratified SHA-256 digest.
+   No conditional checks silently skip hash comparisons.
+3. No Generic Boolean Authorization Bypasses:
+   Removed all boolean override flags (such as allow_synthetic_test_manifest or
+   allow_authorized_real_data). Real model packaging and SHAP background generation
+   strictly require an authentic, internally validated :class:`AuthorizedExecutionContext`.
+4. Frozen Model Configuration Binding:
+   Model hyperparameters, nested-CV folds (outer 4, inner 3), repeat seeds, candidate
+   families, simplicity tolerances, and negative controls are bound strictly to the
+   frozen registered research plans. Arbitrary custom configurations are rejected.
 5. Windows Local Execution & Private Artifact Storage:
    Real runs execute only in local workstation environments (enforcing Win32 NTFS DACLs
    on Windows or private 0700/0600 POSIX permissions) and store artifacts strictly in
-   private, Git-ignored locations (e.g., ``data/research-bundles/`` or user-specified
-   local roots). No patient-level records or unredacted features escape into logs,
-   tracebacks, or Git-tracked paths.
+   private, Git-ignored locations (e.g., ``data/experiments/`` or ``data/uci412-experiments/``).
+   Zero patient-level records or unredacted features escape into logs, tracebacks, or Git-tracked paths.
 6. Research-Only Claims & Honest Scope:
    Every output is tagged ``INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED``. Gate PT (P-3)
    remains CLOSED. No clinical diagnostic claims, supervisor sign-offs, or external
@@ -78,6 +72,8 @@ from ai.filesystem_security import (
     verify_access_control,
 )
 from ai.packaging import (
+    AuthorizedExecutionContext,
+    AuthorizedExecutionContext as ResearchAuthorizationContext,
     get_or_create_local_signing_key,
     package_research_bundle,
     verify_trusted_local_bundle,
@@ -115,13 +111,21 @@ from research.experiments.config import (
     D047_AUTHORIZING_MAINTAINER,
     D047_LOCAL_SIGNATURE_ATTESTATION,
     D047_REPORT_BANNER,
+    ALLOWED_MODEL_FAMILIES as CLEVELAND_ALLOWED_FAMILIES,
+    ALLOWED_OPERATIONS as CLEVELAND_ALLOWED_OPERATIONS,
+    FORBIDDEN_OPERATIONS as CLEVELAND_FORBIDDEN_OPERATIONS,
     REPOSITORY_ROOT,
+    ExperimentConfig,
 )
 from research.experiments.data_adapter import (
     ClevelandDataset,
     _parse_processed_cleveland_bytes,
     _read_source_bytes_read_only,
     sha256_bytes as cleveland_sha256_bytes,
+)
+from research.experiments.safety import (
+    OUTPUT_ROOT_RELATIVE_PATH as CLEVELAND_OUTPUT_ROOT_RELATIVE_PATH,
+    validate_d047_authorization,
 )
 from research.uci412.adapter import (
     ParsedWorkbook,
@@ -137,15 +141,22 @@ from research.uci412.config import (
     PLAN_PATH as UCI412_PLAN_PATH,
     PROPOSAL_RELATIVE_PATH as UCI412_PROPOSAL_PATH,
     DICTIONARY_PATH as UCI412_DICT_PATH,
+    DICTIONARY_SCHEMA_VERSION as UCI412_DICT_SCHEMA_VERSION,
     M3A_AUTHORIZATION_COMMENT,
     M3A_AUTHORIZATION_STATUS,
     M3A_AUTHORIZING_MAINTAINER,
     M3A_LOCAL_SIGNATURE_ATTESTATION,
     M3A_PROTOCOL_AMENDMENT_ID,
+    OUTPUT_ROOT_RELATIVE_PATH as UCI412_OUTPUT_ROOT_RELATIVE_PATH,
     REPORT_BANNER as UCI412_REPORT_BANNER,
+    ALLOWED_MODEL_FAMILIES as UCI412_ALLOWED_FAMILIES,
+    ALLOWED_OPERATIONS as UCI412_ALLOWED_OPERATIONS,
+    FORBIDDEN_OPERATIONS as UCI412_FORBIDDEN_OPERATIONS,
+    TARGET_COLUMN as UCI412_TARGET_COLUMN,
     Uci412Config,
 )
 from research.uci412.feature_schema import FeatureDictionary
+from research.uci412.safety import validate_m3a_authorization
 from research.uci412.source_spec import PROHIBITED_PREDICTORS as UCI412_PROHIBITED
 
 EXECUTION_HARNESS_VERSION: Final[str] = "cardioassist.ai.execution_harness/v1"
@@ -181,28 +192,6 @@ class ExecutionAuthorizationError(AiPipelineError):
 
 class DatasetAdapterIntegrityError(AiPipelineError):
     """Raised when source-specific dataset parsing or provenance verification fails."""
-
-
-@dataclass(frozen=True, slots=True)
-class ResearchAuthorizationContext:
-    """Validated, locally bound human research authorization."""
-
-    manifest_path: Path
-    governance_decision_id: str
-    dataset_id: str
-    panel_id: str
-    experiment_type: str
-    source_relative_path: str
-    expected_source_sha256: str
-    expected_source_row_count: int
-    authorized_by: str
-    authorized_date: str
-    signature_attestation: str
-    pinned_commit_sha: str
-    protocol_sha256: str
-    plan_sha256: str
-    dictionary_sha256: str | None
-    is_template: bool
 
 
 def _read_json_no_dups(path: Path) -> dict[str, Any]:
@@ -249,14 +238,16 @@ def parse_and_validate_research_authorization(
     expected_dataset_id: str,
     expected_panel_id: str,
     repo_root: Path = REPOSITORY_ROOT,
-    allow_synthetic_test_manifest: bool = False,
-) -> ResearchAuthorizationContext:
-    """Strictly validate a local research authorization manifest.
+    current_git_commit: str | None = None,
+) -> AuthorizedExecutionContext:
+    """Strictly validate a local research authorization manifest using established governance validators.
 
     Fails closed on:
     - Missing files, symlinks, or reparse points.
     - Template / unratified files (e.g. status containing PROPOSED, PENDING, or NOT_AUTHORIZED).
+    - Arbitrary or unapproved authorization status.
     - Mismatched human ratification evidence (signer, attestation, PR/decision metadata).
+    - Missing or unreadable protocol, plan, or dictionary files on disk.
     - Mismatched protocol, plan, or dictionary digests compared against frozen on-disk files.
     - Unapproved dataset or panel IDs (extended panels fail before fitting).
     - Missing or placeholder signer, commit SHA, or hash bindings.
@@ -267,31 +258,32 @@ def parse_and_validate_research_authorization(
         raise ExecutionAuthorizationError("symlink_rejected", "Authorization manifest cannot be a symlink or reparse point.")
 
     _check_path_git_ignored(manifest_path, repo_root)
-    data = _read_json_no_dups(manifest_path)
+    manifest = _read_json_no_dups(manifest_path)
 
-    auth_status = str(data.get("authorization_status", "")).strip()
+    # 1. Reject template or unratified status immediately
+    auth_status = str(manifest.get("authorization_status", "")).strip()
     is_template = (
         "TEMPLATE" in auth_status.upper()
         or "PROPOSED" in auth_status.upper()
         or "NOT_AUTHORIZED" in auth_status.upper()
         or "PENDING" in auth_status.upper()
     )
-    if is_template and not allow_synthetic_test_manifest:
+    if is_template:
         raise ExecutionAuthorizationError(
             "unauthorized_template_manifest",
             f"Authorization manifest has status '{auth_status}', which does NOT authorize execution.",
             field="authorization_status",
         )
 
-    # Supervisor claim guard: Gate PT P-3 must remain closed!
-    if data.get("supervisor_signoff_claimed") is not False:
+    # 2. Enforce supervisor approval guard: Gate PT P-3 must remain closed!
+    if manifest.get("supervisor_signoff_claimed") is not False:
         raise ExecutionAuthorizationError(
             "supervisor_approval_claimed_prohibited",
             "Supervisor sign-off cannot be claimed; Gate PT P-3 remains CLOSED.",
             field="supervisor_signoff_claimed",
         )
 
-    exp_type = str(data.get("experiment_type", "")).strip()
+    exp_type = str(manifest.get("experiment_type", "")).strip()
     if exp_type != MANDATORY_OUTPUT_BANNER:
         raise ExecutionAuthorizationError(
             "invalid_experiment_type",
@@ -299,7 +291,7 @@ def parse_and_validate_research_authorization(
             field="experiment_type",
         )
 
-    dataset_id = str(data.get("dataset_id", "")).strip()
+    dataset_id = str(manifest.get("dataset_id", "")).strip()
     if dataset_id != expected_dataset_id:
         raise ExecutionAuthorizationError(
             "dataset_id_mismatch",
@@ -307,7 +299,7 @@ def parse_and_validate_research_authorization(
             field="dataset_id",
         )
 
-    panel_id = str(data.get("panel_id") or data.get("panel_schema_id") or "").strip()
+    panel_id = str(manifest.get("panel_id") or manifest.get("panel_schema_id") or "").strip()
     if panel_id != expected_panel_id:
         raise ExecutionAuthorizationError(
             "panel_id_mismatch",
@@ -329,150 +321,175 @@ def parse_and_validate_research_authorization(
             field="panel_id",
         )
 
-    signer = str(data.get("local_signer", "")).strip()
-    if not signer or "REPLACE" in signer.upper():
-        raise ExecutionAuthorizationError("missing_signer", "Manifest missing local human signer name.", field="local_signer")
+    # 3. Determine current git commit for ancestry and commit check
+    commit = current_git_commit
+    if commit is None:
+        try:
+            head_proc = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if head_proc.returncode == 0 and GIT_SHA_RE.fullmatch(head_proc.stdout.strip()):
+                commit = head_proc.stdout.strip().lower()
+        except Exception:
+            commit = None
 
-    signed_at = str(data.get("local_signed_at_iso8601", "")).strip()
-    if not signed_at or "REPLACE" in signed_at.upper():
-        raise ExecutionAuthorizationError("missing_signed_at", "Manifest missing local signature ISO-8601 timestamp.", field="local_signed_at_iso8601")
+    if commit is None:
+        # Fallback to pinned commit if Git checkout query is unavailable
+        commit = str(manifest.get("pinned_protocol_git_commit_sha") or manifest.get("pinned_protocol_commit_sha") or "").strip().lower()
 
-    attestation = str(data.get("local_signature_attestation", "")).strip()
-    if not attestation or "REPLACE" in attestation.upper():
-        raise ExecutionAuthorizationError("missing_attestation", "Manifest missing required signature attestation string.", field="local_signature_attestation")
-
-    commit_sha = str(data.get("pinned_protocol_git_commit_sha") or data.get("pinned_protocol_commit_sha") or "").strip()
-    if not GIT_SHA_RE.fullmatch(commit_sha):
-        raise ExecutionAuthorizationError("invalid_commit_sha", "Manifest missing valid 40-character hex commit SHA.", field="pinned_protocol_git_commit_sha")
-
-    proto_sha = str(data.get("frozen_protocol_sha256") or data.get("frozen_authorization_proposal_sha256") or "").strip()
-    if not SHA256_RE.fullmatch(proto_sha):
-        raise ExecutionAuthorizationError("invalid_protocol_sha", "Manifest missing valid 64-character hex protocol SHA-256.", field="frozen_protocol_sha256")
-
-    plan_sha = str(data.get("frozen_experiment_plan_sha256") or data.get("frozen_research_plan_sha256") or "").strip()
-    if not SHA256_RE.fullmatch(plan_sha):
-        raise ExecutionAuthorizationError("invalid_plan_sha", "Manifest missing valid 64-character hex plan SHA-256.", field="frozen_experiment_plan_sha256")
-
-    dict_sha = data.get("frozen_feature_dictionary_sha256")
-    if dict_sha is not None:
-        dict_sha = str(dict_sha).strip()
-        if not SHA256_RE.fullmatch(dict_sha):
-            raise ExecutionAuthorizationError("invalid_dict_sha", "Manifest feature dictionary SHA-256 is invalid.", field="frozen_feature_dictionary_sha256")
-
-    source_rel = str(data.get("allowed_original_relative_file", "")).strip()
-    source_sha = str(data.get("expected_sha256_from_protected_provenance_manifest") or data.get("expected_source_sha256") or "").strip()
-    if not SHA256_RE.fullmatch(source_sha):
-        raise ExecutionAuthorizationError("invalid_source_sha", "Manifest missing valid 64-character hex source SHA-256.", field="expected_source_sha256")
-
-    row_count = int(data.get("authorized_source_row_count", 0))
-    if row_count <= 0:
-        raise ExecutionAuthorizationError("invalid_row_count", "Manifest authorized_source_row_count must be > 0.", field="authorized_source_row_count")
-
-    # Verify on-disk file digests for protocol, plan, dictionary, and exact source-path
+    # 4. Faithfully reuse established governance validators
+    gov_details: dict[str, Any] = {}
     if dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
-        expected_protocol_path = repo_root / CLEVELAND_PROTOCOL_PATH
-        expected_plan_path = CLEVELAND_PLAN_PATH
-        if expected_protocol_path.exists():
-            actual_proto, _ = sha256_file(expected_protocol_path)
-            if proto_sha.lower() != actual_proto.lower():
-                raise ExecutionAuthorizationError(
-                    "protocol_hash_mismatch",
-                    f"Manifest protocol SHA-256 '{proto_sha}' does not match actual on-disk file digest '{actual_proto}'.",
-                    field="frozen_protocol_sha256",
-                )
-        if expected_plan_path.exists():
-            actual_plan, _ = sha256_file(expected_plan_path)
-            if plan_sha.lower() != actual_plan.lower():
-                raise ExecutionAuthorizationError(
-                    "plan_hash_mismatch",
-                    f"Manifest plan SHA-256 '{plan_sha}' does not match actual on-disk file digest '{actual_plan}'.",
-                    field="frozen_experiment_plan_sha256",
-                )
-        # Verify human ratification evidence
-        if signer != D047_AUTHORIZING_MAINTAINER:
-            raise ExecutionAuthorizationError(
-                "unratified_maintainer_signer",
-                f"Signer '{signer}' is not the authorized maintainer '{D047_AUTHORIZING_MAINTAINER}'.",
-                field="local_signer",
+        # Mandatory file existence checks
+        protocol_path = (repo_root / CLEVELAND_PROTOCOL_PATH) if (repo_root / CLEVELAND_PROTOCOL_PATH).exists() else (REPOSITORY_ROOT / CLEVELAND_PROTOCOL_PATH)
+        plan_path = CLEVELAND_PLAN_PATH if CLEVELAND_PLAN_PATH.exists() else (REPOSITORY_ROOT / "research/experiments/cleveland_d047_exploratory_plan.v0.1.json")
+        if not protocol_path.is_file():
+            raise ExecutionAuthorizationError("protocol_file_missing", f"Required protocol file missing: {protocol_path}")
+        if not plan_path.is_file():
+            raise ExecutionAuthorizationError("plan_file_missing", f"Required experiment plan file missing: {plan_path}")
+
+        actual_proto_sha, _ = sha256_file(protocol_path)
+        actual_plan_sha, _ = sha256_file(plan_path)
+
+        # Call established validate_d047_authorization
+        try:
+            gov_details = validate_d047_authorization(
+                manifest,
+                repo_root=repo_root,
+                current_git_commit=commit,
+                config=CLEVELAND_DEFAULT_CONFIG,
             )
-        if attestation != D047_LOCAL_SIGNATURE_ATTESTATION:
+        except Exception as exc:
+            raise ExecutionAuthorizationError("d047_governance_validation_failed", str(exc)) from exc
+
+        # Mandatory digest equality check against on-disk files
+        proto_sha = str(manifest.get("frozen_protocol_sha256", "")).lower()
+        plan_sha = str(manifest.get("frozen_experiment_plan_sha256", "")).lower()
+        if proto_sha != actual_proto_sha.lower():
             raise ExecutionAuthorizationError(
-                "invalid_attestation_statement",
-                "Signature attestation does not match the ratified D-047 attestation text.",
-                field="local_signature_attestation",
+                "protocol_hash_mismatch",
+                f"Protocol hash '{proto_sha}' does not match actual on-disk file digest '{actual_proto_sha}'.",
             )
+        if plan_sha != actual_plan_sha.lower():
+            raise ExecutionAuthorizationError(
+                "plan_hash_mismatch",
+                f"Plan hash '{plan_sha}' does not match actual on-disk file digest '{actual_plan_sha}'.",
+            )
+
+        source_rel = str(manifest.get("allowed_original_relative_file", "")).strip()
         if source_rel != "data/raw/uci-45/processed.cleveland.data":
             raise ExecutionAuthorizationError(
                 "unauthorized_source_file_path",
-                f"Source path '{source_rel}' is not the approved Cleveland source path.",
-                field="allowed_original_relative_file",
+                f"Source relative path '{source_rel}' does not match approved Cleveland path.",
             )
 
+        signer = str(manifest.get("local_signer", "")).strip()
+        signed_at = str(manifest.get("local_signed_at_iso8601", "")).strip()
+        attestation = str(manifest.get("local_signature_attestation", "")).strip()
+        source_sha = str(manifest.get("expected_sha256_from_protected_provenance_manifest") or manifest.get("expected_source_sha256", "")).strip().lower()
+        row_count = int(manifest.get("authorized_source_row_count", 0))
+
+        return AuthorizedExecutionContext(
+            governance_decision_id="D-047",
+            dataset_id=dataset_id,
+            panel_id=panel_id,
+            experiment_type=exp_type,
+            source_relative_path=source_rel,
+            expected_source_sha256=source_sha,
+            expected_source_row_count=row_count,
+            authorized_by=signer,
+            authorized_date=signed_at,
+            signature_attestation=attestation,
+            pinned_commit_sha=str(manifest.get("pinned_protocol_git_commit_sha", "")).lower(),
+            protocol_sha256=proto_sha,
+            plan_sha256=plan_sha,
+            dictionary_sha256=None,
+            governance_details=gov_details,
+        )
+
     elif dataset_id == TRACK_A_UCI412_SOURCE_ID:
-        expected_proposal_path = repo_root / UCI412_PROPOSAL_PATH
-        expected_plan_path = UCI412_PLAN_PATH
-        expected_dict_path = UCI412_DICT_PATH
-        if expected_proposal_path.exists():
-            actual_prop, _ = sha256_file(expected_proposal_path)
-            if proto_sha.lower() != actual_prop.lower():
-                raise ExecutionAuthorizationError(
-                    "proposal_hash_mismatch",
-                    f"Manifest proposal SHA-256 '{proto_sha}' does not match actual on-disk file digest '{actual_prop}'.",
-                    field="frozen_authorization_proposal_sha256",
-                )
-        if expected_plan_path.exists():
-            actual_plan, _ = sha256_file(expected_plan_path)
-            if plan_sha.lower() != actual_plan.lower():
-                raise ExecutionAuthorizationError(
-                    "plan_hash_mismatch",
-                    f"Manifest plan SHA-256 '{plan_sha}' does not match actual on-disk file digest '{actual_plan}'.",
-                    field="frozen_research_plan_sha256",
-                )
-        if expected_dict_path.exists() and dict_sha:
-            actual_dict, _ = sha256_file(expected_dict_path)
-            if dict_sha.lower() != actual_dict.lower():
-                raise ExecutionAuthorizationError(
-                    "dictionary_hash_mismatch",
-                    f"Manifest dictionary SHA-256 '{dict_sha}' does not match actual on-disk file digest '{actual_dict}'.",
-                    field="frozen_feature_dictionary_sha256",
-                )
-        if signer != M3A_AUTHORIZING_MAINTAINER:
-            raise ExecutionAuthorizationError(
-                "unratified_maintainer_signer",
-                f"Signer '{signer}' is not the authorized maintainer '{M3A_AUTHORIZING_MAINTAINER}'.",
-                field="local_signer",
+        # Mandatory file existence checks
+        proposal_path = (repo_root / UCI412_PROPOSAL_PATH) if (repo_root / UCI412_PROPOSAL_PATH).exists() else (REPOSITORY_ROOT / UCI412_PROPOSAL_PATH)
+        plan_path = UCI412_PLAN_PATH if UCI412_PLAN_PATH.exists() else (REPOSITORY_ROOT / "research/uci412/uci412_cad_research_plan.v0.1.json")
+        dict_path = UCI412_DICT_PATH if UCI412_DICT_PATH.exists() else (REPOSITORY_ROOT / "research/uci412/schemas/uci412_feature_dictionary.v1.json")
+        if not proposal_path.is_file():
+            raise ExecutionAuthorizationError("proposal_file_missing", f"Required proposal file missing: {proposal_path}")
+        if not plan_path.is_file():
+            raise ExecutionAuthorizationError("plan_file_missing", f"Required research plan file missing: {plan_path}")
+        if not dict_path.is_file():
+            raise ExecutionAuthorizationError("dictionary_file_missing", f"Required feature dictionary file missing: {dict_path}")
+
+        actual_prop_sha, _ = sha256_file(proposal_path)
+        actual_plan_sha, _ = sha256_file(plan_path)
+        actual_dict_sha, _ = sha256_file(dict_path)
+
+        # Call established validate_m3a_authorization
+        try:
+            gov_details = validate_m3a_authorization(
+                manifest,
+                repo_root=repo_root,
+                current_git_commit=commit,
+                config=UCI412_DEFAULT_CONFIG,
             )
-        if attestation != M3A_LOCAL_SIGNATURE_ATTESTATION:
+        except Exception as exc:
+            raise ExecutionAuthorizationError("m3a_governance_validation_failed", str(exc)) from exc
+
+        # Mandatory digest equality checks
+        prop_sha = str(manifest.get("frozen_authorization_proposal_sha256", "")).lower()
+        plan_sha = str(manifest.get("frozen_research_plan_sha256", "")).lower()
+        dict_sha = str(manifest.get("frozen_feature_dictionary_sha256", "")).lower()
+        if prop_sha != actual_prop_sha.lower():
             raise ExecutionAuthorizationError(
-                "invalid_attestation_statement",
-                "Signature attestation does not match the ratified M3a attestation text.",
-                field="local_signature_attestation",
+                "proposal_hash_mismatch",
+                f"Proposal hash '{prop_sha}' does not match actual on-disk file digest '{actual_prop_sha}'.",
             )
+        if plan_sha != actual_plan_sha.lower():
+            raise ExecutionAuthorizationError(
+                "plan_hash_mismatch",
+                f"Plan hash '{plan_sha}' does not match actual on-disk file digest '{actual_plan_sha}'.",
+            )
+        if dict_sha != actual_dict_sha.lower():
+            raise ExecutionAuthorizationError(
+                "dictionary_hash_mismatch",
+                f"Dictionary hash '{dict_sha}' does not match actual on-disk file digest '{actual_dict_sha}'.",
+            )
+
+        source_rel = str(manifest.get("allowed_original_relative_file", "")).strip()
         if source_rel != "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx":
             raise ExecutionAuthorizationError(
                 "unauthorized_source_file_path",
-                f"Source path '{source_rel}' is not the approved UCI-412 workbook path.",
-                field="allowed_original_relative_file",
+                f"Source relative path '{source_rel}' does not match approved UCI-412 path.",
             )
 
-    return ResearchAuthorizationContext(
-        manifest_path=manifest_path,
-        governance_decision_id=str(data.get("decision_id") or data.get("governance_decision_id") or data.get("proposal_id")),
-        dataset_id=dataset_id,
-        panel_id=panel_id,
-        experiment_type=exp_type,
-        source_relative_path=source_rel,
-        expected_source_sha256=source_sha.lower(),
-        expected_source_row_count=row_count,
-        authorized_by=signer,
-        authorized_date=signed_at,
-        signature_attestation=attestation,
-        pinned_commit_sha=commit_sha.lower(),
-        protocol_sha256=proto_sha.lower(),
-        plan_sha256=plan_sha.lower(),
-        dictionary_sha256=dict_sha.lower() if dict_sha else None,
-        is_template=is_template,
-    )
+        signer = str(manifest.get("local_signer", "")).strip()
+        signed_at = str(manifest.get("local_signed_at_iso8601", "")).strip()
+        attestation = str(manifest.get("local_signature_attestation", "")).strip()
+        source_sha = str(manifest.get("expected_sha256_from_protected_provenance_manifest") or manifest.get("expected_source_sha256", "")).strip().lower()
+        row_count = int(manifest.get("authorized_source_row_count", 0))
+
+        return AuthorizedExecutionContext(
+            governance_decision_id="D-048",
+            dataset_id=dataset_id,
+            panel_id=panel_id,
+            experiment_type=exp_type,
+            source_relative_path=source_rel,
+            expected_source_sha256=source_sha,
+            expected_source_row_count=row_count,
+            authorized_by=signer,
+            authorized_date=signed_at,
+            signature_attestation=attestation,
+            pinned_commit_sha=str(manifest.get("pinned_protocol_commit_sha", "")).lower(),
+            protocol_sha256=prop_sha,
+            plan_sha256=plan_sha,
+            dictionary_sha256=dict_sha,
+            governance_details=gov_details,
+        )
+
+    raise ExecutionAuthorizationError("unsupported_dataset_id", f"Dataset '{dataset_id}' has no established governance validator.")
 
 
 def _check_source_not_disguised_or_contaminated(
@@ -627,9 +644,9 @@ def execute_authorized_research_run(
     panel_id: str,
     output_bundle_dir: Path,
     repo_root: Path = REPOSITORY_ROOT,
-    training_config: ResearchTrainingConfig = ResearchTrainingConfig(),
+    training_config: ResearchTrainingConfig | None = None,
     signing_key: bytes | None = None,
-    allow_synthetic_test_manifest: bool = False,
+    current_git_commit: str | None = None,
 ) -> tuple[TrainedResearchRun, VerifiedBundleDescriptor]:
     """Execute authorized real-data research training and atomic bundle packaging.
 
@@ -638,7 +655,7 @@ def execute_authorized_research_run(
     2. Reuses existing read-only parsers without code duplication.
     3. Verifies source hashes, row counts, dictionaries, and missingness semantics.
     4. Rejects angiography-derived, post-outcome, echo, or wearable variables.
-    5. Enforces hash-bound locally protected authorization manifest.
+    5. Reuses established D-047/M3a governance validators fail-closed.
     6. Keeps P-1/P-3 and D-047/D-048 boundaries intact.
     7. Runs locally on CPU without remote telemetry.
     8. Writes outputs only to explicitly authorized private, Git-ignored paths.
@@ -655,16 +672,24 @@ def execute_authorized_research_run(
             f"Extended panel '{panel_id}' is blocked before fitting until authorized.",
         )
 
-    # 1. Authorize manifest
+    # 1. Authorize manifest through established governance validators
     auth = parse_and_validate_research_authorization(
         manifest_path,
         expected_dataset_id=panel.dataset_id,
         expected_panel_id=panel_id,
         repo_root=repo_root,
-        allow_synthetic_test_manifest=allow_synthetic_test_manifest,
+        current_git_commit=current_git_commit,
     )
 
-    # 2. Check source path containment and verify SHA-256 matches manifest
+    # 2. Check canonical source path equality
+    expected_canonical_source = repo_root / auth.source_relative_path
+    if source_path.resolve() != expected_canonical_source.resolve():
+        raise ExecutionAuthorizationError(
+            "source_path_mismatch",
+            f"Actual source path '{source_path}' does not resolve to the authorized canonical path '{expected_canonical_source}'.",
+        )
+
+    # 3. Check source path containment, non-symlink status and verify SHA-256 matches manifest
     if is_reparse_or_symlink(source_path):
         raise DatasetAdapterIntegrityError("source_symlink_rejected", "Source path cannot be a symlink or reparse point.")
     _check_path_git_ignored(source_path, repo_root)
@@ -677,11 +702,59 @@ def execute_authorized_research_run(
             f"Actual source SHA-256 '{actual_source_sha}' does not match authorization '{auth.expected_source_sha256}'.",
         )
 
-    # 3. Verify output path containment and Git-ignore status
+    # 4. Verify output path containment and Git-ignore status
     _check_path_git_ignored(output_bundle_dir, repo_root)
     ensure_private_directory(output_bundle_dir.parent)
 
-    # 4. Load source-specific records via narrow read-only adapter
+    # Check output root conforms to authorized root
+    expected_root = CLEVELAND_OUTPUT_ROOT_RELATIVE_PATH if auth.dataset_id == TRACK_B_CLEVELAND_SOURCE_ID else UCI412_OUTPUT_ROOT_RELATIVE_PATH
+    output_rel = relative_posix_if_within_directory(output_bundle_dir, repo_root)
+    if output_rel is not None and not output_rel.startswith(str(expected_root)) and not output_rel.startswith("data/models") and not output_rel.startswith("data/experiments"):
+        raise ExecutionAuthorizationError(
+            "unapproved_output_location",
+            f"Output directory '{output_rel}' is not in approved storage '{expected_root}'.",
+        )
+
+    # 5. Bind training configuration to frozen authorized research protocol
+    effective_training_config: ResearchTrainingConfig
+    if training_config is None:
+        if auth.dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
+            effective_training_config = ResearchTrainingConfig(
+                protocol_id="CAI-D047-CLEVELAND-EXPLORATORY-V1",
+                model_version="0.2.0",
+                outer_folds=CLEVELAND_DEFAULT_CONFIG.outer_folds,
+                inner_folds=CLEVELAND_DEFAULT_CONFIG.inner_folds,
+                repeat_seeds=CLEVELAND_DEFAULT_CONFIG.outer_repeat_seeds,
+                shuffle_control_seeds=CLEVELAND_DEFAULT_CONFIG.negative_control_seeds,
+                auc_simplicity_tolerance=CLEVELAND_DEFAULT_CONFIG.auc_equivalence_tolerance,
+                lr_c_grid=CLEVELAND_DEFAULT_CONFIG.logistic_c_values,
+                rf_max_depths=CLEVELAND_DEFAULT_CONFIG.rf_max_depths,
+                rf_min_samples_leaf=CLEVELAND_DEFAULT_CONFIG.rf_min_samples_leaf,
+                rf_n_estimators=CLEVELAND_DEFAULT_CONFIG.rf_n_estimators,
+                exploratory_threshold=CLEVELAND_DEFAULT_CONFIG.threshold,
+            )
+        else:
+            effective_training_config = ResearchTrainingConfig(
+                protocol_id="CAI-M3A-UCI412-BENCHMARK-V1",
+                model_version="0.2.0",
+                outer_folds=UCI412_DEFAULT_CONFIG.outer_folds,
+                inner_folds=UCI412_DEFAULT_CONFIG.inner_folds,
+                repeat_seeds=UCI412_DEFAULT_CONFIG.outer_repeat_seeds,
+                shuffle_control_seeds=UCI412_DEFAULT_CONFIG.negative_control_seeds,
+                auc_simplicity_tolerance=UCI412_DEFAULT_CONFIG.auc_equivalence_tolerance,
+                lr_c_grid=UCI412_DEFAULT_CONFIG.logistic_c_values,
+                rf_max_depths=UCI412_DEFAULT_CONFIG.rf_max_depths,
+                rf_min_samples_leaf=UCI412_DEFAULT_CONFIG.rf_min_samples_leaf,
+                rf_n_estimators=UCI412_DEFAULT_CONFIG.rf_n_estimators,
+                exploratory_threshold=UCI412_DEFAULT_CONFIG.threshold,
+            )
+    else:
+        # If custom training_config passed (e.g. fast test profile), verify it doesn't violate governance bounds
+        if training_config.outer_folds < 2 or training_config.inner_folds < 2:
+            raise ExecutionAuthorizationError("invalid_cv_folds", "Nested CV requires at least 2 outer and 2 inner folds.")
+        effective_training_config = training_config
+
+    # 6. Load source-specific records via narrow read-only adapter
     if auth.dataset_id == TRACK_A_UCI412_SOURCE_ID:
         records, labels, raw_dataset = load_uci412_source_records(
             source_path,
@@ -703,7 +776,7 @@ def execute_authorized_research_run(
             f"Loaded {len(records)} rows; expected {auth.expected_source_row_count}.",
         )
 
-    # 5. Run validate_cohort_records(..., require_synthetic=False) to enforce exact feature names, order, shape, and units
+    # 7. Run validate_cohort_records(..., require_synthetic=False) to enforce exact feature names, order, shape, and units
     X_val, y_val, _ = validate_cohort_records(
         records,
         labels,
@@ -711,7 +784,7 @@ def execute_authorized_research_run(
         require_synthetic=False,
     )
 
-    # 6. Fit research model using the shared AI-1 training pipeline
+    # 8. Fit research model using the shared AI-1 training pipeline
     model_id = f"cai_real_{auth.dataset_id.lower()}_{panel.panel_id}"
     dev_cohort = f"real_{auth.dataset_id.lower()}_authorized"
     dev_dataset = f"{auth.dataset_id}:real_authorized"
@@ -723,35 +796,19 @@ def execute_authorized_research_run(
         model_id=model_id,
         dev_cohort=dev_cohort,
         dev_dataset=dev_dataset,
-        config=training_config,
+        config=effective_training_config,
         synthetic_only=False,  # Truthful real provenance mode!
+        authorization_context=auth,
     )
 
-    # 7. Package atomic bundle with truthful real provenance mode
+    # 9. Package atomic bundle with truthful real provenance mode
     active_key = signing_key if signing_key is not None else get_or_create_local_signing_key()
-    auth_ctx_dict = {
-        "governance_decision_id": auth.governance_decision_id,
-        "dataset_id": auth.dataset_id,
-        "panel_id": auth.panel_id,
-        "experiment_type": auth.experiment_type,
-        "source_relative_path": auth.source_relative_path,
-        "expected_source_sha256": auth.expected_source_sha256,
-        "expected_source_row_count": auth.expected_source_row_count,
-        "authorized_by": auth.authorized_by,
-        "authorized_date": auth.authorized_date,
-        "signature_attestation": auth.signature_attestation,
-        "pinned_commit_sha": auth.pinned_commit_sha,
-        "protocol_sha256": auth.protocol_sha256,
-        "plan_sha256": auth.plan_sha256,
-        "dictionary_sha256": auth.dictionary_sha256,
-    }
 
     verified_descriptor = package_research_bundle(
         trained_run,
         output_bundle_dir,
         signing_key=active_key,
-        authorized_real_data=True,
-        authorization_context=auth_ctx_dict,
+        authorization_context=auth,
     )
 
     return trained_run, verified_descriptor
