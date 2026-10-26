@@ -180,7 +180,13 @@ def isolated_research_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> t
 
 
 def _create_synthetic_cleveland_file(path: Path) -> str:
-    """Create a synthetically valid processed Cleveland CSV file without mandatory history NaNs."""
+    """Create a synthetically valid processed Cleveland CSV file with a complete five-field panel.
+
+    The AI-pipeline Cleveland loader requires a complete audited panel (no '?'
+    in age/sex/cp/trestbps/restecg) and fails closed instead of inventing
+    missingness reasons. Research-pipeline fixtures that exercise imputation
+    use ``make_synthetic_source_bytes`` directly and are unaffected.
+    """
     source_bytes = make_synthetic_source_bytes()
     lines = source_bytes.decode("ascii").splitlines()
     clean_lines = []
@@ -190,6 +196,8 @@ def _create_synthetic_cleveland_file(path: Path) -> str:
             if parts[0] == "?": parts[0] = "55"
             if parts[1] == "?": parts[1] = "1"
             if parts[2] == "?": parts[2] = "3"
+            if parts[3] == "?": parts[3] = "130"
+            if parts[6] == "?": parts[6] = "0"
         clean_lines.append(",".join(parts))
     clean_bytes = ("\n".join(clean_lines) + "\n").encode("ascii")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -227,41 +235,71 @@ def _execute_isolated_test_simulation(
     Bypasses OS-level Windows-only checks via pytest monkeypatching strictly
     within temporary isolated synthetic test repositories. Never used or exposed
     in production modules.
+
+    For Cleveland simulations this helper mints an EXPLICIT test-only
+    guarded-execution proof bound to the exact simulation paths, satisfying
+    the production boundary that prohibits silent direct Cleveland
+    invocation. UCI-412 simulations pass no proof (the UCI-412 path neither
+    requires nor inspects one). On success the helper records post-run
+    acceptance for real-provenance bundles, mirroring the guarded wrapper
+    (inverted trust: no acceptance, no loading).
     """
+    from collections.abc import Mapping
+
     from ai import execution
+    from ai.execution import _issue_test_guarded_cleveland_proof
+    from ai.packaging import write_bundle_acceptance_marker
+
+    test_proof = None
+    if panel_id == "da_a2_resting_v1":
+        test_proof = _issue_test_guarded_cleveland_proof(
+            source_path=Path(source_path),
+            manifest_path=Path(manifest_path),
+            output_bundle_dir=Path(output_bundle_dir),
+            repo_root=Path(repo_root),
+            current_git_commit=current_git_commit,
+        )
+
+    def _run_once():  # type: ignore[no-untyped-def]
+        return execute_authorized_research_run(
+            source_path=source_path,
+            manifest_path=manifest_path,
+            panel_id=panel_id,
+            output_bundle_dir=output_bundle_dir,
+            repo_root=repo_root,
+            training_config=training_config,
+            signing_key=signing_key,
+            current_git_commit=current_git_commit,
+            guarded_cleveland_proof=test_proof,
+        )
+
     if monkeypatch is not None:
         monkeypatch.setattr(execution, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None)
         monkeypatch.setattr(execution, "uci412_enforce_local_windows_runtime", lambda **kwargs: None)
+        result = _run_once()
     else:
         orig_clev = execution.cleveland_enforce_local_windows_runtime
         orig_uci = execution.uci412_enforce_local_windows_runtime
         execution.cleveland_enforce_local_windows_runtime = lambda **kwargs: None
         execution.uci412_enforce_local_windows_runtime = lambda **kwargs: None
         try:
-            return execute_authorized_research_run(
-                source_path=source_path,
-                manifest_path=manifest_path,
-                panel_id=panel_id,
-                output_bundle_dir=output_bundle_dir,
-                repo_root=repo_root,
-                training_config=training_config,
-                signing_key=signing_key,
-                current_git_commit=current_git_commit,
-            )
+            result = _run_once()
         finally:
             execution.cleveland_enforce_local_windows_runtime = orig_clev
             execution.uci412_enforce_local_windows_runtime = orig_uci
 
-    return execute_authorized_research_run(
-        source_path=source_path,
-        manifest_path=manifest_path,
-        panel_id=panel_id,
-        output_bundle_dir=output_bundle_dir,
-        repo_root=repo_root,
-        training_config=training_config,
-        signing_key=signing_key,
-        current_git_commit=current_git_commit,
-    )
+    # Mirror the guarded wrapper's post-run acceptance: a real-provenance
+    # bundle becomes loadable only once post-run success is recorded.
+    _trained_run, descriptor = result
+    auth_doc = descriptor.manifest.get("research_authorization")
+    if isinstance(auth_doc, Mapping) and auth_doc.get("expected_source_sha256"):
+        write_bundle_acceptance_marker(
+            Path(output_bundle_dir),
+            expected_source_sha256=str(auth_doc["expected_source_sha256"]),
+            accepted_by="isolated_test_simulation",
+            detail="Synthetic isolated simulation completed; mirrors wrapper post-run acceptance.",
+        )
+    return result
 
 
 def _create_valid_auth_manifest(

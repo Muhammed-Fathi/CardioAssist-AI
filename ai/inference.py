@@ -51,7 +51,15 @@ from ai.packaging import (
 )
 from ai.panels import ResearchPanelContract, validate_clinical_record
 from ai.preprocessing import FoldSafeClinicalPreprocessor
-from ai.training import FoldEnsembleMember
+from ai.training import (
+    CLEVELAND_D047_RF_SPACE_WIDTH,
+    EXECUTION_PROFILE_AI1_GENERIC_V1,
+    EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
+    FoldEnsembleMember,
+    _d047_project_background_to_rf_space,
+    _d047_rf_column_to_raw_feature,
+    _estimator_input_matrix,
+)
 
 MANDATORY_LIMITATIONS: Final[tuple[str, ...]] = (
     "RESEARCH_ONLY output: not approved for clinical diagnosis, triage, treatment, or patient self-assessment.",
@@ -163,6 +171,49 @@ def _raw_prob_and_optional_logit_single(
     return p_raw, None
 
 
+_KNOWN_EXECUTION_PROFILES: Final[tuple[str, ...]] = (
+    EXECUTION_PROFILE_AI1_GENERIC_V1,
+    EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
+)
+
+
+def _validated_execution_profile(manifest_model: Mapping[str, Any], container: Mapping[str, Any]) -> str:
+    profile = manifest_model.get("execution_profile")
+    if profile not in _KNOWN_EXECUTION_PROFILES or container.get("execution_profile") != profile:
+        raise BundleIntegrityError(
+            "execution_profile_container_mismatch",
+            "Execution profile differs across manifest and model container, or is unknown.",
+        )
+    return str(profile)
+
+
+def _expected_estimator_width(
+    family: str, preprocessor: FoldSafeClinicalPreprocessor, execution_profile: str
+) -> int:
+    if (
+        execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+        and family == "constrained_random_forest"
+    ):
+        return CLEVELAND_D047_RF_SPACE_WIDTH
+    return preprocessor.n_encoded_features
+
+
+def _validate_estimator_fitted_width(
+    estimator: Any,
+    family: str,
+    preprocessor: FoldSafeClinicalPreprocessor,
+    execution_profile: str,
+) -> None:
+    expected = _expected_estimator_width(family, preprocessor, execution_profile)
+    fitted = int(getattr(estimator, "n_features_in_", -1))
+    if fitted != expected:
+        raise BundleIntegrityError(
+            "estimator_fitted_width_mismatch",
+            "Fitted estimator width does not match the declared execution "
+            "profile and model family.",
+        )
+
+
 class ResearchCadPredictor:
     """Offline RESEARCH_ONLY predictor loaded exclusively from a trusted local bundle."""
 
@@ -194,6 +245,10 @@ class ResearchCadPredictor:
     @property
     def model_version(self) -> str:
         return str(self._descriptor.manifest["model"]["model_version"])
+
+    @property
+    def execution_profile(self) -> str:
+        return str(self._descriptor.manifest["model"]["execution_profile"])
 
     @property
     def protocol_id(self) -> str:
@@ -264,6 +319,12 @@ class ResearchCadPredictor:
                 "model_family_container_mismatch",
                 "Model family differs across manifest, model container, and calibrator.",
             )
+        declared_profile = _validated_execution_profile(
+            verified.manifest["model"], container
+        )
+        _validate_estimator_fitted_width(
+            container["estimator"], declared_family, preprocessor, declared_profile
+        )
 
         fold_members: list[FoldEnsembleMember] = []
         for entry in container.get("fold_ensemble", ()):
@@ -282,6 +343,9 @@ class ResearchCadPredictor:
                     "fold_calibrator_family_mismatch",
                     "Outer-fold calibrator model_family does not match outer-fold estimator family.",
                 )
+            _validate_estimator_fitted_width(
+                entry["estimator"], member_family, member_prep, declared_profile
+            )
             fold_members.append(
                 FoldEnsembleMember(
                     fold_index=int(entry["fold_index"]),
@@ -319,9 +383,16 @@ class ResearchCadPredictor:
         )
         x_row = validated.as_row_array()
         z_row = self._preprocessor.transform(x_row)[0]
+        e_row = _estimator_input_matrix(
+            self.model_family,
+            self._preprocessor,
+            x_row,
+            z_row.reshape(1, -1),
+            self.execution_profile,
+        )[0]
 
         raw_score, exact_raw_logit = _raw_prob_and_optional_logit_single(
-            self.model_family, self._estimator, z_row
+            self.model_family, self._estimator, e_row
         )
         raw_log_odds = (
             exact_raw_logit
@@ -340,8 +411,15 @@ class ResearchCadPredictor:
         fold_families: list[str] = []
         for member in self._fold_ensemble:
             z_fold = member.preprocessor.transform(x_row)[0]
+            e_fold = _estimator_input_matrix(
+                member.model_family,
+                member.preprocessor,
+                x_row,
+                z_fold.reshape(1, -1),
+                self.execution_profile,
+            )[0]
             p_fold_raw, fold_logit = _raw_prob_and_optional_logit_single(
-                member.model_family, member.estimator, z_fold
+                member.model_family, member.estimator, e_fold
             )
             p_fold_cal = float(
                 member.calibrator.calibrate(p_fold_raw, raw_logits=fold_logit)
@@ -362,6 +440,20 @@ class ResearchCadPredictor:
         missing_set = frozenset(
             name for name, _ in validated.missing_fields_with_reason
         )
+        explanation_kwargs: dict[str, Any] = {}
+        if (
+            self.execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+            and self.model_family == "constrained_random_forest"
+        ):
+            explanation_kwargs = {
+                "projected_z_row": e_row,
+                "projected_background": _d047_project_background_to_rf_space(
+                    self._preprocessor, self._shap_background.background_matrix
+                ),
+                "projected_column_to_raw_feature": _d047_rf_column_to_raw_feature(
+                    self._preprocessor
+                ),
+            }
         explanation = explain_clinical_instance(
             model_family=self.model_family,
             estimator=self._estimator,
@@ -371,6 +463,7 @@ class ResearchCadPredictor:
             z_row=z_row,
             calibrator=self._calibrator,
             missing_feature_names=missing_set,
+            **explanation_kwargs,
         )
 
         # Fail-closed alignment check between prediction quantities and explanation target

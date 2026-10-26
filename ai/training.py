@@ -81,6 +81,238 @@ CANDIDATE_FAMILIES: Final[tuple[str, ...]] = (
     "constrained_random_forest",
 )
 
+# Frozen execution profiles for the shared AI training pipeline.
+#
+# - ``AI1_GENERIC_V1`` preserves the original AI-1 synthetic behavior exactly
+#   (``lbfgs``/``max_iter=1000`` logistic, per-family inner seeds, ``+17``
+#   negative-control offset). It is the default for all synthetic-only
+#   development and for UCI-412, which this Cleveland-only correction must not
+#   alter.
+# - ``CLEVELAND_D047_FROZEN_V1`` restores the already authorized D-047
+#   Cleveland methodology for the Cleveland-only real-data path
+#   (``liblinear``/``max_iter=2000`` logistic, registered D-047 seed
+#   derivations, registered negative-control split seeds). It must only be
+#   selected through the frozen Cleveland approved configuration in
+#   :mod:`ai.execution`; no caller may invent a third profile.
+EXECUTION_PROFILE_AI1_GENERIC_V1: Final[str] = "AI1_GENERIC_V1"
+EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1: Final[str] = "CLEVELAND_D047_FROZEN_V1"
+ALLOWED_EXECUTION_PROFILES: Final[frozenset[str]] = frozenset(
+    {EXECUTION_PROFILE_AI1_GENERIC_V1, EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1}
+)
+
+# Frozen D-047 Cleveland seed-derivation constants. These values are bound to
+# the registered plan (``research/experiments/cleveland_d047_exploratory_plan.v0.1.json``)
+# and the original ``research.experiments.evaluation`` implementation:
+#   inner_cv_seed = outer_repeat_seed + 97 + 1009 * outer_fold_number_1_based
+#   model_seed = (outer_repeat_seed + 100003 + 101 * outer_fold_number_1_based
+#                 + family_offset) mod (2**32 - 1)
+#   label_shuffle_outer_seed = the corresponding label_shuffle_seed (no offset)
+# A dedicated regression test asserts these constants match
+# ``CLEVELAND_DEFAULT_CONFIG`` and the committed plan on every run.
+CLEVELAND_D047_INNER_SEED_OFFSET: Final[int] = 97
+CLEVELAND_D047_INNER_FOLD_MULTIPLIER: Final[int] = 1009
+CLEVELAND_D047_MODEL_SEED_OFFSET: Final[int] = 100003
+CLEVELAND_D047_MODEL_FOLD_MULTIPLIER: Final[int] = 101
+CLEVELAND_D047_LR_FAMILY_OFFSET: Final[int] = 11
+CLEVELAND_D047_RF_FAMILY_OFFSET: Final[int] = 23
+CLEVELAND_D047_MODEL_SEED_MODULUS: Final[int] = 2**32 - 1
+CLEVELAND_D047_LR_SOLVER: Final[str] = "liblinear"
+CLEVELAND_D047_LR_MAX_ITER: Final[int] = 2000
+
+# D-047 preprocessing lineage vs the original fold-local D-047 implementation
+# (``research.experiments.models._preprocessor``; read-only reference, never
+# modified). Both preprocessors are fitted per training fold (fold-local; no
+# leakage-structure difference).
+#
+# Under ``CLEVELAND_D047_FROZEN_V1`` the constrained forest fits and predicts
+# on the exact original 8-column space (raw median-imputed numerics in panel
+# order, then drop-first one-hots in panel order), built fold-safely from the
+# fitted AI preprocessor statistics by :func:`_d047_original_rf_matrix`. The
+# persisted preprocessor artifact keeps the full 10-column lineage (shared
+# with inference/SHAP), while the forest input space is recorded via the
+# persisted ``execution_profile`` and enforced at load time. Same-seed
+# comparisons against the original D-047 pipeline live in
+# ``test_d047_rf_matches_original_pipeline_same_seed``. The 10-column
+# unadapted encoding is retained for the logistic family (verified
+# rank-identical with ~1ulp score differences on complete data) and for every
+# generic-profile path. Bit-for-bit reproduction of earlier real-data D-047 performance is
+# explicitly NOT claimed; the claim is same-input/same-seed/same-procedure
+# equivalence on synthetic fixtures.
+# The D-047 primary estimate (``uncalibrated_nested_cv``) is always reported
+# from pure uncalibrated out-of-fold scores and kept separate from the added
+# cross-fitted calibration, full-development refit, and SHAP analyses.
+CLEVELAND_D047_RF_SPACE_VERSION: Final[str] = "d047_rf_original_space_v1"
+CLEVELAND_D047_RF_SPACE_WIDTH: Final[int] = 8
+CLEVELAND_D047_RF_SPACE_LAYOUT: Final[tuple[tuple[str, str, bool], ...]] = (
+    ("age", "numeric", True),
+    ("sex", "categorical", True),
+    ("cp", "categorical", True),
+    ("trestbps", "numeric", False),
+    ("restecg", "categorical", False),
+)
+CLEVELAND_D047_RF_SPACE_CATEGORY_CODES: Final[tuple[tuple[str, tuple[int, ...]], ...]] = (
+    ("sex", (0, 1)),
+    ("cp", (1, 2, 3, 4)),
+    ("restecg", (0, 1, 2)),
+)
+
+
+def _validate_d047_rf_space_layout(preprocessor: FoldSafeClinicalPreprocessor) -> None:
+    """Fail closed unless the fitted preprocessor describes the registered D-047 5-field layout."""
+    actual = tuple(
+        (ft.name, ft.role, bool(ft.required)) for ft in preprocessor.field_transforms
+    )
+    if actual != CLEVELAND_D047_RF_SPACE_LAYOUT:
+        raise CohortGovernanceError(
+            "d047_rf_space_layout_mismatch",
+            "D-047 forest feature-space adaptation requires the registered "
+            "five-field Cleveland layout (age/sex/cp/trestbps/restecg); "
+            "refusing to project an unexpected preprocessor.",
+        )
+    for name, codes in CLEVELAND_D047_RF_SPACE_CATEGORY_CODES:
+        ft = preprocessor.field_transforms[preprocessor.raw_feature_names.index(name)]
+        if tuple(ft.categorical_codes or ()) != tuple(codes):
+            raise CohortGovernanceError(
+                "d047_rf_space_layout_mismatch",
+                f"D-047 forest feature-space adaptation requires registered "
+                f"category codes for '{name}'; refusing to project.",
+            )
+
+
+def _d047_original_rf_matrix(
+    preprocessor: FoldSafeClinicalPreprocessor, X_raw: np.ndarray
+) -> np.ndarray:
+    """Build the exact original 8-column D-047 forest input space, fold-safely.
+
+    Column order matches the original ``ColumnTransformer`` exactly: raw
+    median-imputed numerics in panel order (age, trestbps), then drop-first
+    one-hots in panel order (sex, cp, restecg). All preprocessor guards
+    (required-missing rejection, unknown-code rejection) are enforced by
+    transforming first; only fitted training-fold statistics are used.
+    """
+    _validate_d047_rf_space_layout(preprocessor)
+    arr = np.asarray(X_raw, dtype=np.float64)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    Z = preprocessor.transform(arr)
+    raw_index = {name: idx for idx, name in enumerate(preprocessor.raw_feature_names)}
+    parts: list[np.ndarray] = []
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role != "numeric":
+            continue
+        ft = preprocessor.field_transforms[raw_index[name]]
+        col = arr[:, raw_index[name]]
+        if bool(np.isnan(col).any()):
+            if ft.required:
+                # Defensive: preprocessor.transform above already rejects
+                # required-missing values; never silently impute them here.
+                raise CohortGovernanceError(
+                    "d047_rf_space_required_missing",
+                    f"Required D-047 predictor '{name}' is missing; refusing to impute.",
+                )
+            assert ft.impute_median is not None
+            col = np.where(np.isnan(col), ft.impute_median, col)
+        parts.append(col.reshape(-1, 1))
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role != "categorical":
+            continue
+        ft = preprocessor.field_transforms[raw_index[name]]
+        n_one_hot = len(ft.categorical_codes or ()) - 1
+        parts.append(Z[:, list(ft.slice_indices[:n_one_hot])])
+    R = np.concatenate(parts, axis=1)
+    if R.shape[1] != CLEVELAND_D047_RF_SPACE_WIDTH:
+        raise CohortGovernanceError(
+            "d047_rf_space_width_mismatch",
+            "D-047 forest feature-space adaptation produced an unexpected width.",
+        )
+    return R
+
+
+def _d047_rf_column_to_raw_feature(
+    preprocessor: FoldSafeClinicalPreprocessor,
+) -> tuple[int, ...]:
+    """Map each original-space forest column to its raw panel feature index."""
+    _validate_d047_rf_space_layout(preprocessor)
+    raw_index = {name: idx for idx, name in enumerate(preprocessor.raw_feature_names)}
+    mapping: list[int] = []
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role == "numeric":
+            mapping.append(raw_index[name])
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role == "categorical":
+            ft = preprocessor.field_transforms[raw_index[name]]
+            mapping.extend([raw_index[name]] * (len(ft.categorical_codes or ()) - 1))
+    if len(mapping) != CLEVELAND_D047_RF_SPACE_WIDTH:
+        raise CohortGovernanceError(
+            "d047_rf_space_width_mismatch",
+            "D-047 forest column mapping has unexpected width.",
+        )
+    return tuple(mapping)
+
+
+def _d047_project_background_to_rf_space(
+    preprocessor: FoldSafeClinicalPreprocessor, Z_bg: np.ndarray
+) -> np.ndarray:
+    """Project stored full-encoding background rows into the original 8-column forest space.
+
+    One-hot columns transfer exactly; numeric columns are recovered by
+    inverting the fitted z-score (exact up to ~1ulp floating-point
+    rounding). Used only for SHAP background evaluation, never for model
+    fitting or scoring.
+    """
+    _validate_d047_rf_space_layout(preprocessor)
+    bg = np.asarray(Z_bg, dtype=np.float64)
+    if bg.ndim != 2 or bg.shape[1] != preprocessor.n_encoded_features:
+        raise CohortGovernanceError(
+            "d047_rf_space_background_mismatch",
+            "Background width does not match the fitted preprocessor encoding.",
+        )
+    raw_index = {name: idx for idx, name in enumerate(preprocessor.raw_feature_names)}
+    ai_col_of = {col_name: idx for idx, col_name in enumerate(preprocessor.encoded_feature_names)}
+    parts: list[np.ndarray] = []
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role != "numeric":
+            continue
+        ft = preprocessor.field_transforms[raw_index[name]]
+        assert ft.scale_mean is not None and ft.scale_std is not None
+        z_col = bg[:, ai_col_of[f"{name}__zscore"]]
+        parts.append((z_col * ft.scale_std + ft.scale_mean).reshape(-1, 1))
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role != "categorical":
+            continue
+        ft = preprocessor.field_transforms[raw_index[name]]
+        n_one_hot = len(ft.categorical_codes or ()) - 1
+        parts.append(bg[:, list(ft.slice_indices[:n_one_hot])])
+    R_bg = np.concatenate(parts, axis=1)
+    if R_bg.shape[1] != CLEVELAND_D047_RF_SPACE_WIDTH:
+        raise CohortGovernanceError(
+            "d047_rf_space_width_mismatch",
+            "Projected background has unexpected width.",
+        )
+    return R_bg
+
+
+def _estimator_input_matrix(
+    family: str,
+    preprocessor: FoldSafeClinicalPreprocessor,
+    X_raw: np.ndarray,
+    Z_encoded: np.ndarray,
+    execution_profile: str,
+) -> np.ndarray:
+    """Return the encoded matrix a family estimator must fit/predict on.
+
+    Under ``CLEVELAND_D047_FROZEN_V1`` the constrained forest uses the exact
+    original 8-column space; every other (profile, family) pair uses the full
+    preprocessor encoding unchanged.
+    """
+    if (
+        execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+        and family == "constrained_random_forest"
+    ):
+        return _d047_original_rf_matrix(preprocessor, X_raw)
+    return np.asarray(Z_encoded, dtype=np.float64)
+
+
 PROHIBITED_COHORT_TOKENS: Final[tuple[str, ...]] = (
     "pooled",
     "merged",
@@ -130,6 +362,67 @@ class ResearchTrainingConfig:
     bootstrap_resamples: int = 250
     shap_max_background_samples: int = 64
     exploratory_threshold: float = 0.5
+    execution_profile: str = "AI1_GENERIC_V1"
+
+    def __post_init__(self) -> None:
+        if self.execution_profile not in ALLOWED_EXECUTION_PROFILES:
+            raise ValueError(
+                f"Unsupported execution_profile '{self.execution_profile}'. "
+                f"Allowed profiles: {sorted(ALLOWED_EXECUTION_PROFILES)}. "
+                "No ad-hoc methodology amendment is permitted."
+            )
+
+
+def derive_cleveland_d047_inner_seed(outer_repeat_seed: int, outer_fold_number_1_based: int) -> int:
+    """Return the frozen D-047 inner-CV split seed for one outer fold.
+
+    Mirrors ``research.experiments.evaluation.derive_inner_seed`` exactly:
+    ``outer_repeat_seed + 97 + 1009 * outer_fold_number_1_based``. The seed is
+    shared across both model families within the fold so family comparison uses
+    identical inner splits.
+    """
+    if outer_fold_number_1_based <= 0:
+        raise ValueError("Outer fold numbers are one-based.")
+    return int(
+        int(outer_repeat_seed)
+        + CLEVELAND_D047_INNER_SEED_OFFSET
+        + CLEVELAND_D047_INNER_FOLD_MULTIPLIER * int(outer_fold_number_1_based)
+    )
+
+
+def derive_cleveland_d047_model_seed(
+    outer_repeat_seed: int, outer_fold_number_1_based: int, family: str
+) -> int:
+    """Return the frozen D-047 estimator-fitting seed for one family and fold.
+
+    Mirrors ``research.experiments.evaluation.derive_model_seed`` exactly,
+    including the ``mod (2**32 - 1)`` reduction and the registered family
+    offsets (LR 11, RF 23).
+    """
+    if outer_fold_number_1_based <= 0:
+        raise ValueError("Outer fold numbers are one-based.")
+    if family == "l2_logistic_regression":
+        family_offset = CLEVELAND_D047_LR_FAMILY_OFFSET
+    elif family == "constrained_random_forest":
+        family_offset = CLEVELAND_D047_RF_FAMILY_OFFSET
+    else:
+        raise ValueError("Only the registered model families have D-047 fit seeds.")
+    seed = (
+        int(outer_repeat_seed)
+        + CLEVELAND_D047_MODEL_SEED_OFFSET
+        + CLEVELAND_D047_MODEL_FOLD_MULTIPLIER * int(outer_fold_number_1_based)
+        + family_offset
+    )
+    return int(seed % CLEVELAND_D047_MODEL_SEED_MODULUS)
+
+
+def derive_cleveland_d047_negative_control_outer_seed(shuffle_seed: int) -> int:
+    """Return the registered D-047 negative-control outer seed (identity).
+
+    The registered plan specifies ``label_shuffle_outer_seed`` as "the
+    corresponding label_shuffle_seed" with no numeric offset.
+    """
+    return int(shuffle_seed)
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,6 +456,7 @@ class TrainedResearchRun:
     fold_ensemble: tuple[FoldEnsembleMember, ...]
     internal_evaluation: Mapping[str, Any]
     negative_control: Mapping[str, Any]
+    execution_profile: str = EXECUTION_PROFILE_AI1_GENERIC_V1
 
 
 def _validate_cohort_provenance_token(token: str, *, field_name: str) -> str:
@@ -634,8 +928,31 @@ def _build_estimator(
     *,
     seed: int,
     rf_n_estimators: int,
+    execution_profile: str = EXECUTION_PROFILE_AI1_GENERIC_V1,
 ) -> Any:
+    """Construct one candidate estimator for the selected execution profile.
+
+    - ``AI1_GENERIC_V1`` preserves the original AI-1 behavior exactly
+      (``lbfgs``/``max_iter=1000`` logistic). Used for synthetic development
+      and UCI-412.
+    - ``CLEVELAND_D047_FROZEN_V1`` restores the frozen D-047 Cleveland
+      methodology (``liblinear``/``max_iter=2000`` logistic,
+      explicit ``class_weight=None``). Used only for the Cleveland path.
+    """
+    if execution_profile not in ALLOWED_EXECUTION_PROFILES:
+        raise ValueError(
+            f"Unsupported execution_profile '{execution_profile}' for estimator construction."
+        )
     if family == "l2_logistic_regression":
+        if execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1:
+            return LogisticRegression(
+                penalty="l2",
+                C=float(params["C"]),
+                solver=CLEVELAND_D047_LR_SOLVER,
+                max_iter=CLEVELAND_D047_LR_MAX_ITER,
+                class_weight=None,
+                random_state=int(seed),
+            )
         return LogisticRegression(
             penalty="l2",
             C=float(params["C"]),
@@ -649,6 +966,7 @@ def _build_estimator(
             max_depth=int(params["max_depth"]),
             min_samples_leaf=int(params["min_samples_leaf"]),
             max_features="sqrt",
+            class_weight=None,
             random_state=int(seed),
             n_jobs=1,
         )
@@ -694,8 +1012,19 @@ def _select_best_params_and_inner_oof(
     panel: ResearchPanelContract,
     config: ResearchTrainingConfig,
     inner_seed: int,
+    model_seed_for_inner_fits: int | None = None,
 ) -> tuple[dict[str, Any], float, np.ndarray, np.ndarray | None]:
-    """Select hyperparameters strictly inside X_outer_train and retain inner-CV OOF scores."""
+    """Select hyperparameters strictly inside X_outer_train and retain inner-CV OOF scores.
+
+    Inner fitting seeds:
+    - ``AI1_GENERIC_V1`` (or when no D-047 model seed is supplied, e.g. the
+      added full-development selection which has no D-047 counterpart): vary
+      per candidate/split as ``inner_seed + 100*cand_idx + split_idx + 1``.
+    - ``CLEVELAND_D047_FROZEN_V1`` with an explicit ``model_seed_for_inner_fits``:
+      every inner fit for this family/fold uses that single frozen D-047 model
+      seed, mirroring the original ``GridSearchCV`` wiring where all inner fits
+      share one estimator ``random_state`` per family and outer fold.
+    """
     splitter = StratifiedKFold(
         n_splits=config.inner_folds,
         shuffle=True,
@@ -713,6 +1042,11 @@ def _select_best_params_and_inner_oof(
         else None
     )
 
+    use_frozen_d047_inner_fit_seed = (
+        config.execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+        and model_seed_for_inner_fits is not None
+    )
+
     for cand_idx, params in enumerate(grid):
         fold_aucs: list[float] = []
         cand_oof_probs = np.zeros(len(y_outer_train), dtype=np.float64)
@@ -725,14 +1059,26 @@ def _select_best_params_and_inner_oof(
             prep = FoldSafeClinicalPreprocessor.fit(X_outer_train[tr_idx], panel)
             Z_tr = prep.transform(X_outer_train[tr_idx])
             Z_val = prep.transform(X_outer_train[val_idx])
+            if use_frozen_d047_inner_fit_seed:
+                assert model_seed_for_inner_fits is not None
+                inner_fit_seed = int(model_seed_for_inner_fits)
+            else:
+                inner_fit_seed = int(inner_seed + 100 * cand_idx + split_idx + 1)
             est = _build_estimator(
                 family,
                 params,
-                seed=inner_seed + 100 * cand_idx + split_idx + 1,
+                seed=inner_fit_seed,
                 rf_n_estimators=config.rf_n_estimators,
+                execution_profile=config.execution_profile,
             )
-            est.fit(Z_tr, y_outer_train[tr_idx])
-            p_val, logits_val = _positive_proba_and_optional_logit(family, est, Z_val)
+            E_tr = _estimator_input_matrix(
+                family, prep, X_outer_train[tr_idx], Z_tr, config.execution_profile
+            )
+            E_val = _estimator_input_matrix(
+                family, prep, X_outer_train[val_idx], Z_val, config.execution_profile
+            )
+            est.fit(E_tr, y_outer_train[tr_idx])
+            p_val, logits_val = _positive_proba_and_optional_logit(family, est, E_val)
             cand_oof_probs[val_idx] = p_val
             if cand_oof_logits is not None and logits_val is not None:
                 cand_oof_logits[val_idx] = logits_val
@@ -792,7 +1138,18 @@ def _run_single_nested_pass(
       model fitting, AND ``fold_calibrator`` fitting see ONLY ``train_idx``.
     - Every observation in ``test_idx`` is 100% excluded from fitting both its
       prediction model and its calibrator.
+
+    Seed derivations are selected by ``config.execution_profile``:
+    - ``AI1_GENERIC_V1`` preserves the original per-family inner seeds
+      (``repeat_seed + 1000*fold + 10*fam_offset``) and outer-fit seeds
+      (``repeat_seed + 5000*fold + fam_offset``).
+    - ``CLEVELAND_D047_FROZEN_V1`` restores the frozen D-047 derivations: one
+      shared inner seed per fold (``outer + 97 + 1009*fold``) and per-family
+      model seeds (``outer + 100003 + 101*fold + family_offset`` with LR 11 /
+      RF 23, ``mod 2**32-1``). All inner fits for a family/fold share that
+      model seed, and both families share the same inner splits.
     """
+    is_d047 = config.execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
     outer_splitter = StratifiedKFold(
         n_splits=config.outer_folds,
         shuffle=True,
@@ -823,8 +1180,22 @@ def _run_single_nested_pass(
         Z_tr = outer_prep.transform(X_tr)
         Z_te = outer_prep.transform(X_te)
 
+        if is_d047:
+            d047_inner_seed = derive_cleveland_d047_inner_seed(repeat_seed, fold_idx)
+            d047_model_seeds = {
+                fam: derive_cleveland_d047_model_seed(repeat_seed, fold_idx, fam)
+                for fam in CANDIDATE_FAMILIES
+            }
+        else:
+            d047_inner_seed = -1
+            d047_model_seeds = {}
+
         dummy = _build_estimator(
-            "prevalence_dummy", {}, seed=repeat_seed, rf_n_estimators=1
+            "prevalence_dummy",
+            {},
+            seed=repeat_seed,
+            rf_n_estimators=1,
+            execution_profile=config.execution_profile,
         )
         dummy.fit(Z_tr, y_tr)
         p_dummy_te, _ = _positive_proba_and_optional_logit(
@@ -833,10 +1204,13 @@ def _run_single_nested_pass(
         uncalibrated_oof["prevalence_dummy"][test_idx] = p_dummy_te
 
         if fit_cross_calibrators:
+            dummy_inner_seed = (
+                d047_inner_seed if is_d047 else repeat_seed + 1000 * fold_idx + 1
+            )
             dummy_inner_oof = _compute_dummy_inner_oof(
                 y_tr,
                 inner_folds=config.inner_folds,
-                inner_seed=repeat_seed + 1000 * fold_idx + 1,
+                inner_seed=dummy_inner_seed,
             )
             dummy_cal = OofLogisticCalibrator.fit_from_oof(
                 y_tr,
@@ -854,6 +1228,14 @@ def _run_single_nested_pass(
         calibrators_by_fam: dict[str, OofLogisticCalibrator] = {}
 
         for fam_offset, family in enumerate(CANDIDATE_FAMILIES, start=1):
+            if is_d047:
+                fam_inner_seed = d047_inner_seed
+                fam_model_seed_for_inner = d047_model_seeds[family]
+                fam_outer_fit_seed = d047_model_seeds[family]
+            else:
+                fam_inner_seed = repeat_seed + 1000 * fold_idx + 10 * fam_offset
+                fam_model_seed_for_inner = None
+                fam_outer_fit_seed = repeat_seed + 5000 * fold_idx + fam_offset
             (
                 best_params,
                 best_inner_auc,
@@ -865,19 +1247,23 @@ def _run_single_nested_pass(
                 family=family,
                 panel=panel,
                 config=config,
-                inner_seed=repeat_seed + 1000 * fold_idx + 10 * fam_offset,
+                inner_seed=fam_inner_seed,
+                model_seed_for_inner_fits=fam_model_seed_for_inner,
             )
             inner_aucs[family] = best_inner_auc
             best_params_by_fam[family] = best_params
             est = _build_estimator(
                 family,
                 best_params,
-                seed=repeat_seed + 5000 * fold_idx + fam_offset,
+                seed=fam_outer_fit_seed,
                 rf_n_estimators=config.rf_n_estimators,
+                execution_profile=config.execution_profile,
             )
-            est.fit(Z_tr, y_tr)
+            E_tr = _estimator_input_matrix(family, outer_prep, X_tr, Z_tr, config.execution_profile)
+            E_te = _estimator_input_matrix(family, outer_prep, X_te, Z_te, config.execution_profile)
+            est.fit(E_tr, y_tr)
             fitted_by_fam[family] = est
-            p_te, logits_te = _positive_proba_and_optional_logit(family, est, Z_te)
+            p_te, logits_te = _positive_proba_and_optional_logit(family, est, E_te)
             uncalibrated_oof[family][test_idx] = p_te
 
             if fit_cross_calibrators:
@@ -905,10 +1291,20 @@ def _run_single_nested_pass(
             "outer_fold": fold_idx,
             "n_train": int(len(train_idx)),
             "n_test": int(len(test_idx)),
+            "execution_profile": config.execution_profile,
             "inner_cv_roc_auc": dict(inner_aucs),
             "selected_family": chosen_family,
             "selected_hyperparameters": dict(best_params_by_fam[chosen_family]),
         }
+        if is_d047:
+            fold_rec["inner_seed"] = int(d047_inner_seed)
+            fold_rec["model_seed_by_family"] = {
+                fam: int(seed) for fam, seed in d047_model_seeds.items()
+            }
+            fold_rec["estimator_input_space_by_family"] = {
+                "l2_logistic_regression": "ai_full_encoding",
+                "constrained_random_forest": CLEVELAND_D047_RF_SPACE_VERSION,
+            }
         if fit_cross_calibrators:
             chosen_cal = calibrators_by_fam[chosen_family]
             calibrated_oof["inner_selected_procedure"][test_idx] = calibrated_oof[
@@ -1082,16 +1478,30 @@ def _execute_shared_training_pipeline(
         )
 
     # 2. Label-shuffle negative control (must not show spurious signal / leakage)
+    #    Outer split seeds are profile-selected: AI1_GENERIC_V1 uses the
+    #    historical ``shuffle_seed + 17`` offset; CLEVELAND_D047_FROZEN_V1
+    #    restores the registered D-047 identity (outer seed == shuffle seed).
+    is_d047_profile = (
+        config.execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+    )
     shuffle_aucs: list[float] = []
+    shuffle_outer_seeds: list[int] = []
     for shuf_seed in config.shuffle_control_seeds:
         rng = np.random.default_rng(int(shuf_seed))
         y_perm = rng.permutation(y)
+        if is_d047_profile:
+            shuffle_outer_seed = derive_cleveland_d047_negative_control_outer_seed(
+                int(shuf_seed)
+            )
+        else:
+            shuffle_outer_seed = int(shuf_seed) + 17
+        shuffle_outer_seeds.append(int(shuffle_outer_seed))
         perm_uncal_oof, _, _, _ = _run_single_nested_pass(
             X,
             y_perm,
             panel=panel,
             config=config,
-            repeat_seed=int(shuf_seed) + 17,
+            repeat_seed=int(shuffle_outer_seed),
             retain_fold_models=False,
             fit_cross_calibrators=False,
         )
@@ -1107,7 +1517,9 @@ def _execute_shared_training_pipeline(
         )
 
     negative_control = {
+        "execution_profile": config.execution_profile,
         "shuffle_seeds": [int(s) for s in config.shuffle_control_seeds],
+        "outer_repeat_seed_by_shuffle": list(shuffle_outer_seeds),
         "permuted_selected_roc_aucs": shuffle_aucs,
         "max_permuted_roc_auc": max_shuffle_auc,
         "ceiling": float(config.shuffle_max_allowed_auroc),
@@ -1157,10 +1569,19 @@ def _execute_shared_training_pipeline(
             selected_params,
             seed=full_cv_seed + 1000 * fold_idx,
             rf_n_estimators=config.rf_n_estimators,
+            execution_profile=config.execution_profile,
         )
-        est_k.fit(prep_k.transform(X[tr_idx]), y[tr_idx])
+        Z_k_tr = prep_k.transform(X[tr_idx])
+        Z_k_val = prep_k.transform(X[val_idx])
+        E_k_tr = _estimator_input_matrix(
+            selected_family, prep_k, X[tr_idx], Z_k_tr, config.execution_profile
+        )
+        E_k_val = _estimator_input_matrix(
+            selected_family, prep_k, X[val_idx], Z_k_val, config.execution_profile
+        )
+        est_k.fit(E_k_tr, y[tr_idx])
         p_val, logits_val = _positive_proba_and_optional_logit(
-            selected_family, est_k, prep_k.transform(X[val_idx])
+            selected_family, est_k, E_k_val
         )
         oof_for_cal[val_idx] = p_val
         if oof_logits_for_cal is not None and logits_val is not None:
@@ -1196,6 +1617,10 @@ def _execute_shared_training_pipeline(
     }
 
     # 4. Final refit on development cohort + deterministic SHAP background
+    #    The refit/calibration/SHAP block is an AI-2 addition beyond the frozen
+    #    D-047 nested evaluation; its estimator still follows the selected
+    #    execution profile (liblinear/2000 for Cleveland D-047) and its
+    #    evaluation is reported separately as an apparent diagnostic.
     final_preprocessor = FoldSafeClinicalPreprocessor.fit(X, panel)
     Z_full = final_preprocessor.transform(X)
     final_estimator = _build_estimator(
@@ -1203,8 +1628,12 @@ def _execute_shared_training_pipeline(
         selected_params,
         seed=full_cv_seed + 9999,
         rf_n_estimators=config.rf_n_estimators,
+        execution_profile=config.execution_profile,
     )
-    final_estimator.fit(Z_full, y)
+    E_full = _estimator_input_matrix(
+        selected_family, final_preprocessor, X, Z_full, config.execution_profile
+    )
+    final_estimator.fit(E_full, y)
     shap_bg = ShapBackgroundReference.from_training_encoded(
         Z_full,
         y,
@@ -1251,6 +1680,7 @@ def _execute_shared_training_pipeline(
 
     internal_summary = {
         "evaluation_design": f"repeated_{config.outer_folds}x{config.inner_folds}_nested_stratified_cv",
+        "execution_profile": config.execution_profile,
         "development_cohort_id": dev_cohort,
         "development_dataset_id": dev_dataset,
         "pooled_cohorts": False,
@@ -1330,6 +1760,7 @@ def _execute_shared_training_pipeline(
         fold_ensemble=tuple(primary_fold_ensemble),
         internal_evaluation=internal_summary,
         negative_control=negative_control,
+        execution_profile=config.execution_profile,
     )
 
 
@@ -1446,8 +1877,15 @@ def evaluate_locked_external_cohort(
     try:
         # Apply frozen development preprocessor, estimator, and calibrator without modification
         Z_ext = trained_run.preprocessor.transform(X_ext)
+        E_ext = _estimator_input_matrix(
+            trained_run.selected_model_family,
+            trained_run.preprocessor,
+            X_ext,
+            Z_ext,
+            trained_run.execution_profile,
+        )
         p_ext_raw, logits_ext = _positive_proba_and_optional_logit(
-            trained_run.selected_model_family, trained_run.estimator, Z_ext
+            trained_run.selected_model_family, trained_run.estimator, E_ext
         )
         p_ext_cal = trained_run.calibrator.calibrate(p_ext_raw, raw_logits=logits_ext)
 

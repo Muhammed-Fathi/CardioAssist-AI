@@ -402,11 +402,34 @@ def _compute_grouped_interventional_tree_shap(
     z_row: np.ndarray,
     Z_bg: np.ndarray,
     preprocessor: FoldSafeClinicalPreprocessor,
+    *,
+    encoded_column_to_raw_feature: Sequence[int] | None = None,
 ) -> tuple[float, float, np.ndarray]:
-    col_to_raw = [0] * preprocessor.n_encoded_features
-    for raw_idx, ft in enumerate(preprocessor.field_transforms):
-        for col_idx in ft.slice_indices:
-            col_to_raw[col_idx] = raw_idx
+    if encoded_column_to_raw_feature is None:
+        if int(getattr(estimator, "n_features_in_", preprocessor.n_encoded_features)) != (
+            preprocessor.n_encoded_features
+        ):
+            raise ExplainabilityIntegrityError(
+                "shap_projection_required",
+                "Forest was fitted on a projected input space; an explicit "
+                "projected-column-to-raw-feature mapping is required.",
+            )
+        col_to_raw = [0] * preprocessor.n_encoded_features
+        for raw_idx, ft in enumerate(preprocessor.field_transforms):
+            for col_idx in ft.slice_indices:
+                col_to_raw[col_idx] = raw_idx
+    else:
+        col_to_raw = [int(v) for v in encoded_column_to_raw_feature]
+        if len(col_to_raw) != int(getattr(estimator, "n_features_in_", len(col_to_raw))):
+            raise ExplainabilityIntegrityError(
+                "shap_projection_mapping_mismatch",
+                "Projected SHAP column mapping width does not match the fitted forest.",
+            )
+        if any(v < 0 or v >= preprocessor.n_raw_features for v in col_to_raw):
+            raise ExplainabilityIntegrityError(
+                "shap_projection_mapping_mismatch",
+                "Projected SHAP column mapping references an unknown raw feature.",
+            )
 
     trees = list(estimator.estimators_)
     if not trees:
@@ -516,8 +539,19 @@ def explain_clinical_instance(
     z_row: np.ndarray,
     calibrator: OofLogisticCalibrator | None = None,
     missing_feature_names: frozenset[str] = frozenset(),
+    projected_z_row: np.ndarray | None = None,
+    projected_background: np.ndarray | None = None,
+    projected_column_to_raw_feature: Sequence[int] | None = None,
 ) -> FaithfulShapExplanation:
-    """Compute and verify a faithful Shapley explanation with explicit score/scale alignment."""
+    """Compute and verify a faithful Shapley explanation with explicit score/scale alignment.
+
+    ``projected_*`` carries a forest input-space adaptation (D-047 original
+    8-column space): when the fitted forest was trained on fewer columns than
+    the persisted full encoding, the caller must supply the projected
+    instance/background in the forest's own fitted width together with the
+    projected-column-to-raw-feature mapping. Any other family rejects
+    projection arguments fail-closed.
+    """
     if model_family not in METHOD_BY_MODEL_FAMILY:
         raise ExplainabilityIntegrityError(
             "unsupported_model_family_for_shap",
@@ -528,6 +562,16 @@ def explain_clinical_instance(
         raise ExplainabilityIntegrityError(
             "invalid_instance_vector",
             "Encoded instance vector is misaligned or contains non-finite values.",
+        )
+    projection_requested = (
+        projected_z_row is not None
+        or projected_background is not None
+        or projected_column_to_raw_feature is not None
+    )
+    if projection_requested and model_family != "constrained_random_forest":
+        raise ExplainabilityIntegrityError(
+            "shap_projection_unsupported_family",
+            "Projected SHAP inputs are supported only for the random-forest family.",
         )
 
     Z_bg = background.background_matrix
@@ -601,8 +645,45 @@ def explain_clinical_instance(
                 "estimator_family_mismatch",
                 "Expected fitted RandomForestClassifier for 'constrained_random_forest'.",
             )
+        fitted_width = int(getattr(estimator, "n_features_in_", preprocessor.n_encoded_features))
+        if fitted_width != preprocessor.n_encoded_features:
+            if (
+                not projection_requested
+                or projected_z_row is None
+                or projected_background is None
+                or projected_column_to_raw_feature is None
+            ):
+                raise ExplainabilityIntegrityError(
+                    "shap_projection_required",
+                    "Forest was fitted on a projected input space; complete "
+                    "projected SHAP inputs (instance, background, and column "
+                    "mapping) are required.",
+                )
+            z = np.asarray(projected_z_row, dtype=np.float64).ravel()
+            Z_bg = np.asarray(projected_background, dtype=np.float64)
+            if (
+                z.shape[0] != fitted_width
+                or Z_bg.ndim != 2
+                or Z_bg.shape[1] != fitted_width
+                or not np.isfinite(z).all()
+                or not np.isfinite(Z_bg).all()
+            ):
+                raise ExplainabilityIntegrityError(
+                    "shap_projection_misaligned",
+                    "Projected SHAP inputs do not match the fitted forest width.",
+                )
+        elif projection_requested:
+            raise ExplainabilityIntegrityError(
+                "shap_projection_unexpected",
+                "Forest was fitted on the full encoding; projected SHAP inputs "
+                "must not be supplied.",
+            )
         base_value, target_value, phi = _compute_grouped_interventional_tree_shap(
-            estimator, z, Z_bg, preprocessor
+            estimator,
+            z,
+            Z_bg,
+            preprocessor,
+            encoded_column_to_raw_feature=projected_column_to_raw_feature,
         )
         explained_quantity = "raw_model_score"
         scale = "raw_model_probability"
