@@ -14,6 +14,7 @@ import ast
 from copy import deepcopy
 import hashlib
 import io
+import math
 import json
 from pathlib import Path
 import subprocess
@@ -272,6 +273,69 @@ def _assert_prediction_faithful(payload: dict[str, Any], *, model_family: str) -
     assert payload["governance"]["approved_for_serving"] is False
     assert payload["governance"]["clinical_use_authorized"] is False
     assert any("RESEARCH_ONLY" in item for item in payload["limitations"])
+    lime = payload.get("lime_explanation")
+    if lime is not None:
+        # Genuine LIME must share the SHAP target/scale and match the actual
+        # prediction quantity on that declared scale.
+        assert lime["is_exact"] is False
+        assert lime["is_local_approximation"] is True
+        assert lime["additive_decomposition_claim"] is False
+        assert lime["explained_quantity"] == explanation["explained_quantity"]
+        assert lime["scale"] == explanation["scale"]
+        assert payload["explanation_comparability"]["comparable"] is True
+        fidelity = lime["fidelity"]
+        if lime["explained_quantity"] == "calibrated_log_odds":
+            expected = prediction["calibrated_log_odds"]
+        elif lime["explained_quantity"] == "raw_model_score":
+            expected = prediction["raw_model_score"]
+        else:
+            expected = prediction["raw_model_log_odds"]
+        assert fidelity["model_prediction_at_instance"] == pytest.approx(
+            expected, abs=1e-9
+        )
+        assert fidelity["local_fidelity_abs_error"] >= 0.0
+        assert math.isfinite(fidelity["local_fidelity_relative_error"])
+        assert fidelity["weighted_r2"] is not None
+        assert len(lime["attributions"]) == len(
+            DA_A2_RESTING_LABS_PANEL.feature_names
+        )
+        assert all(
+            math.isfinite(item["lime_weight"]) for item in lime["attributions"]
+        )
+        assert any("LIME" in item for item in payload["limitations"])
+        # Every LIME payload carries an explicit, machine-readable verdict.
+        quality = lime["quality"]
+        assert quality["status"] in {
+            "ACCEPTABLE_LOCAL_APPROXIMATION",
+            "LOW_LOCAL_FIDELITY",
+            "UNSTABLE",
+            "UNVERIFIED_STABILITY",
+            "INVALID",
+        }
+        assert quality["is_reliable_for_interpretation"] is (
+            quality["status"] == "ACCEPTABLE_LOCAL_APPROXIMATION"
+        )
+        assert quality["policy_sha256"]
+        assert quality["warnings"]
+        assert set(quality["dimensions"]) == {
+            "numerical_validity",
+            "instance_fidelity",
+            "neighborhood_fidelity",
+            "stability",
+        }
+        if not quality["is_reliable_for_interpretation"]:
+            assert "DO NOT RELY" in quality["interpretation_guard"]
+        assert payload["prediction"]["lime_quality_status"] == quality["status"]
+        assert payload["prediction"]["lime_reliable_for_interpretation"] is (
+            quality["is_reliable_for_interpretation"]
+        )
+        assert payload["lime_stability"]["stability_assessment"] in {
+            "STABLE_WITHIN_REGISTERED_TOLERANCE",
+            "SENSITIVE_TO_SEED",
+        }
+        assert math.isfinite(
+            float(lime["fidelity"]["local_fidelity_error_in_neighborhood_sigma"])
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -1034,6 +1098,7 @@ def test_cli_demo_retained_work_dir_then_predict(
         "3_trusted_local_verification",
         "4_research_cad_predictor_load",
         "5_calibrated_prediction_and_faithful_shap",
+        "6_local_lime_explanation",
     ]
     assert payload["work_artifacts_retained"] is True
     assert payload["bundle"]["cli_predict_supported"] is True

@@ -13,6 +13,18 @@ planned in ``docs/research/AI_FIRST_COMPLETION_STRATEGY.md``:
   LinearSHAP (exact on both ``raw_log_odds`` and ``calibrated_log_odds``) and
   Grouped Interventional TreeSHAP (exact on ``raw_model_probability``), plus
   explicit training-derivative privacy metadata on ``shap_background.json``.
+- :mod:`ai.lime_quality` — generation-free LIME quality assessment: a
+  registered acceptance policy, five machine-readable verdicts
+  (ACCEPTABLE_LOCAL_APPROXIMATION / LOW_LOCAL_FIDELITY / UNSTABLE /
+  UNVERIFIED_STABILITY / INVALID), per-criterion evidence and explicit
+  "do not rely on these weights" guards.
+- :mod:`ai.lime_explainability` — genuine tabular LIME: seeded binary-mask
+  perturbations over validated clinical/laboratory fields, decoded-background
+  marginal references, an exponential normalized-Hamming kernel, and a
+  kernel-weighted ridge local surrogate fitted on actual estimator calls, with
+  explicit explained-quantity/scale declarations, local-fidelity and
+  seed-stability diagnostics, and hard resource ceilings. Explicitly a local
+  approximation — never presented as exact Shapley attribution.
 - :mod:`ai.training` — nested-CV selection, cross-fitted calibration evaluation,
   label-shuffle negative controls, frozen external-cohort evaluation primitive,
   and locally protected ``ExternalEvaluationLedger`` single-shot enforcement.
@@ -67,6 +79,46 @@ from ai.explainability import (
     ShapBackgroundReference,
     exact_coalition_shapley_oracle,
     explain_clinical_instance,
+)
+from ai.lime_explainability import (
+    DEFAULT_LIME_STABILITY_SEEDS,
+    LIME_REFERENCE_FIXED_BACKGROUND,
+    LIME_REFERENCE_SAMPLED_MARGINALS,
+    ALLOWED_LIME_REFERENCE_SCHEMES,
+    FaithfulLimeExplanation,
+    FeatureLimeAttribution,
+    LimeConfig,
+    LimeModelTarget,
+    LimeStabilityReport,
+    LimeTargetSpecification,
+    assert_comparable_explanation_scales,
+    assess_lime_stability,
+    build_lime_model_target,
+    decode_background_to_raw_rows,
+    explain_clinical_instance_lime,
+    explain_clinical_instance_lime_certified,
+)
+from ai.lime_quality import (
+    CRITERION_FAIL,
+    CRITERION_NOT_ASSESSED,
+    CRITERION_PASS,
+    DIMENSION_FAIL,
+    DIMENSION_NOT_ASSESSED,
+    DIMENSION_PASS,
+    LIME_QUALITY_GUARD_ACCEPTABLE,
+    LIME_QUALITY_GUARD_UNRELIABLE,
+    LIME_QUALITY_POLICY_VERSION,
+    LIME_QUALITY_SCHEMA_VERSION,
+    QUALITY_DIMENSIONS,
+    LimeQualityAssessment,
+    LimeQualityCriterion,
+    LimeQualityEvidence,
+    LimeQualityPolicy,
+    LimeQualityStatus,
+    assess_lime_quality,
+    assess_lime_quality_from_evidence,
+    certify_lime_explanation,
+    require_acceptable_lime_quality,
 )
 from ai.filesystem_security import (
     AccessControlVerificationResult,
@@ -140,12 +192,18 @@ __all__ = [
     "ExecutionAuthorizationError",
     "ExplainabilityIntegrityError",
     "ExternalEvaluationLedger",
+    "FaithfulLimeExplanation",
     "FaithfulShapExplanation",
+    "FeatureLimeAttribution",
     "FeatureShapAttribution",
     "FoldEnsembleMember",
     "FoldSafeClinicalPreprocessor",
     "GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION",
     "GuardedClevelandExecutionProof",
+    "LimeConfig",
+    "LimeModelTarget",
+    "LimeStabilityReport",
+    "LimeTargetSpecification",
     "OofLogisticCalibrator",
     "PanelFieldSpec",
     "PreprocessingContractError",
@@ -159,11 +217,38 @@ __all__ = [
     "TrainedResearchRun",
     "ValidatedClinicalRecord",
     "VerifiedBundleDescriptor",
+    "ALLOWED_LIME_REFERENCE_SCHEMES",
+    "CRITERION_FAIL",
+    "CRITERION_NOT_ASSESSED",
+    "CRITERION_PASS",
+    "DEFAULT_LIME_STABILITY_SEEDS",
+    "DIMENSION_FAIL",
+    "DIMENSION_NOT_ASSESSED",
+    "DIMENSION_PASS",
+    "LIME_QUALITY_GUARD_ACCEPTABLE",
+    "LIME_QUALITY_GUARD_UNRELIABLE",
+    "LIME_QUALITY_POLICY_VERSION",
+    "LIME_QUALITY_SCHEMA_VERSION",
+    "LIME_REFERENCE_FIXED_BACKGROUND",
+    "LIME_REFERENCE_SAMPLED_MARGINALS",
+    "LimeQualityAssessment",
+    "LimeQualityCriterion",
+    "LimeQualityEvidence",
+    "LimeQualityPolicy",
+    "LimeQualityStatus",
+    "QUALITY_DIMENSIONS",
+    "assert_comparable_explanation_scales",
+    "assess_lime_quality",
+    "assess_lime_quality_from_evidence",
+    "assess_lime_stability",
+    "build_lime_model_target",
+    "certify_lime_explanation",
     "compute_fold_prediction_dispersion",
     "compute_instance_uncertainty",
     "compute_prevalence_shift_diagnostic",
     "derive_cleveland_d047_inner_seed",
     "derive_cleveland_d047_model_seed",
+    "decode_background_to_raw_rows",
     "derive_cleveland_d047_negative_control_outer_seed",
     "ensure_private_directory",
     "evaluate_comprehensive_metrics",
@@ -172,6 +257,8 @@ __all__ = [
     "execute_authorized_research_run",
     "execute_guarded_cleveland_d047_run",
     "explain_clinical_instance",
+    "explain_clinical_instance_lime",
+    "explain_clinical_instance_lime_certified",
     "get_or_create_local_signing_key",
     "get_panel_contract",
     "load_cleveland_source_records",
@@ -180,6 +267,7 @@ __all__ = [
     "parse_and_validate_research_authorization",
     "protect_private_directory",
     "protect_private_file",
+    "require_acceptable_lime_quality",
     "safe_clipped_logit",
     "train_research_model",
     "validate_clinical_record",

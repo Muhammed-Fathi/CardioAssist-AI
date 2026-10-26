@@ -8,7 +8,7 @@ Invocation (from the repository root)::
     python -m ai demo [--work-dir <private-dir-outside-repo>]
 
 Design boundaries (this module adds NO new inference engine, model, or
-explainability method):
+explainability method; LIME is delegated to :mod:`ai.lime_explainability`):
 
 - ``predict`` delegates exclusively to
   :meth:`ai.inference.ResearchCadPredictor.predict_research_only` on a bundle
@@ -71,6 +71,10 @@ from ai.filesystem_security import (
     is_windows_runtime,
 )
 from ai.inference import MANDATORY_LIMITATIONS, ResearchCadPredictor
+from ai.lime_explainability import (
+    DEFAULT_LIME_STABILITY_SEEDS,
+    LimeConfig,
+)
 from ai.packaging import (
     VerifiedBundleDescriptor,
     get_or_create_local_signing_key,
@@ -583,6 +587,9 @@ def run_predict(
     expect_profile: str | None,
     expect_model_family: str | None,
     exploratory_threshold: float,
+    lime_config: LimeConfig | None = None,
+    lime_stability_seeds: tuple[int, ...] | None = DEFAULT_LIME_STABILITY_SEEDS,
+    lime_require_acceptable_quality: bool = False,
 ) -> dict[str, Any]:
     """Predict one synthetic record with a verified synthetic bundle.
 
@@ -634,7 +641,11 @@ def run_predict(
         )
 
     result = predictor.predict_research_only(
-        payload, exploratory_threshold=float(exploratory_threshold)
+        payload,
+        exploratory_threshold=float(exploratory_threshold),
+        lime_config=lime_config,
+        lime_stability_seeds=lime_stability_seeds,
+        lime_require_acceptable_quality=lime_require_acceptable_quality,
     )
     payload_out = result.to_dict()
     payload_out["execution_profile"] = predictor.execution_profile
@@ -647,6 +658,20 @@ def run_predict(
         "verification": (
             "trusted_local_root_containment+platform_access_control+"
             "sha256_integrity+hmac_sha256_attestation+acceptance_state"
+        ),
+        "lime_requested": lime_config is not None,
+        "lime_stability_assessed": (
+            lime_config is not None and lime_stability_seeds is not None
+        ),
+        "lime_quality_status": (
+            None
+            if result.lime_explanation is None
+            else result.lime_explanation.quality_status
+        ),
+        "lime_reliable_for_interpretation": (
+            None
+            if result.lime_explanation is None
+            else result.lime_explanation.is_reliable_for_interpretation
         ),
     }
     return payload_out
@@ -737,7 +762,10 @@ def run_demo(*, work_dir: Path | None) -> dict[str, Any]:
         )
         steps_passed.append("4_research_cad_predictor_load")
 
-        result = predictor.predict_research_only(deepcopy(dict(SYNTHETIC_DEMO_RECORD)))
+        result = predictor.predict_research_only(
+            deepcopy(dict(SYNTHETIC_DEMO_RECORD)),
+            lime_config=LimeConfig(),
+        )
         if (
             not (0.0 < result.calibrated_research_score < 1.0)
             or abs(
@@ -754,6 +782,45 @@ def run_demo(*, work_dir: Path | None) -> dict[str, Any]:
                 "Demo prediction failed calibration or SHAP additivity invariants.",
             )
         steps_passed.append("5_calibrated_prediction_and_faithful_shap")
+
+        lime = result.lime_explanation
+        if (
+            lime is None
+            or lime.is_exact is not False
+            or lime.additive_decomposition_claim is not False
+            or result.lime_comparability is None
+            or result.lime_comparability.get("comparable") is not True
+            or not math.isfinite(lime.local_fidelity_abs_error)
+            or lime.weighted_r2 is None
+            or not math.isfinite(float(lime.weighted_r2))
+            or not (0.0 <= lime.linked_probability_value <= 1.0)
+            or result.lime_stability is None
+            or lime.quality.policy.policy_sha256
+            != result.lime_stability.quality_policy_sha256
+            or bool(lime.quality.warnings) is False
+            or (
+                lime.is_reliable_for_interpretation
+                and lime.quality_status != "ACCEPTABLE_LOCAL_APPROXIMATION"
+            )
+            or (
+                not lime.is_reliable_for_interpretation
+                and "DO NOT RELY" not in lime.quality.interpretation_guard
+            )
+        ):
+            raise AiPipelineError(
+                "cli_demo_invariant_failed",
+                "Demo prediction failed local LIME fidelity, quality-verdict or "
+                "scale-comparability invariants.",
+            )
+        if lime.quality_status != "ACCEPTABLE_LOCAL_APPROXIMATION":
+            # The demo must never hide a poor local surrogate behind a PASS.
+            raise AiPipelineError(
+                "cli_demo_lime_quality_not_acceptable",
+                "Demo LIME explanation did not reach "
+                "ACCEPTABLE_LOCAL_APPROXIMATION (status "
+                f"{lime.quality_status}); the demo cannot certify it.",
+            )
+        steps_passed.append("6_local_lime_explanation")
 
         prediction = result.to_dict()
         prediction["execution_profile"] = predictor.execution_profile
@@ -882,9 +949,82 @@ def _render_prediction_text(payload: Mapping[str, Any]) -> str:
         lines.append(
             f"    - {item['feature_name']} [{item['status']}]: {item['shap_value']:+.6f}"
         )
+    lime = payload.get("lime_explanation")
+    if isinstance(lime, Mapping):
+        lines.extend(_render_lime_text(lime))
     lines.append("Limitations:")
     lines.extend(f"  * {item}" for item in payload["limitations"])
     return "\n".join(lines)
+
+
+def _render_optional_float(value: Any, *, digits: int = 6) -> str:
+    if value is None:
+        return "not_estimable"
+    if isinstance(value, float) and not math.isfinite(value):
+        return "not_estimable"
+    return f"{float(value):.{digits}f}"
+
+
+def _render_lime_text(lime: Mapping[str, Any]) -> list[str]:
+    fidelity = lime["fidelity"]
+    surrogate = lime["surrogate"]
+    runtime = lime["runtime"]
+    sampling = lime["sampling"]
+    quality = lime.get("quality") or {}
+    reference = lime.get("reference") or {}
+    status = str(quality.get("status", "NOT_ASSESSED"))
+    reliable = bool(quality.get("is_reliable_for_interpretation", False))
+    lines = [
+        "",
+        "  LIME local explanation (local approximation, NOT an exact Shapley decomposition):",
+        f"    explained quantity: {lime['explained_quantity']} ({lime['scale']})",
+        f"    quality status: {status}"
+        + (" [reliable as a local approximation]" if reliable else " [DIAGNOSTIC ONLY]"),
+        f"    reference scheme: {reference.get('scheme', 'unknown')}",
+        f"    local surrogate value at instance: {_render_optional_float(surrogate['surrogate_prediction_at_instance'])}",
+        f"    actual model value at instance: {_render_optional_float(fidelity['model_prediction_at_instance'])}",
+        f"    local fidelity abs/rel error: {_render_optional_float(fidelity['local_fidelity_abs_error'])} / {_render_optional_float(fidelity['local_fidelity_relative_error'])}",
+        f"    local error in neighborhood sigma: {_render_optional_float(fidelity.get('local_fidelity_error_in_neighborhood_sigma'))} (neighborhood output SD {_render_optional_float(fidelity.get('neighborhood_output_weighted_sd'))})",
+        f"    weighted R^2: {_render_optional_float(fidelity['weighted_r2'])}; unweighted R^2: {_render_optional_float(fidelity['unweighted_r2'])}; holdout weighted R^2: {_render_optional_float(fidelity['holdout_weighted_r2'])}",
+        f"    perturbations: {sampling['num_perturbations']}; seed: {sampling['seed']}; effective samples: {_render_optional_float(surrogate['n_effective_samples'], digits=1)}; model rows scored: {runtime['model_rows_scored']}; runtime (s): {_render_optional_float(runtime['wall_clock_seconds'], digits=4)}",
+    ]
+    stability = quality.get("stability_summary")
+    if isinstance(stability, Mapping):
+        lines.append(
+            "    seed stability: "
+            f"{stability.get('assessment')} "
+            f"(seeds {stability.get('seeds')}, min pairwise Spearman "
+            f"{_render_optional_float(stability.get('min_pairwise_spearman'), digits=3)}, "
+            f"sign agreement {_render_optional_float(stability.get('sign_agreement_fraction'), digits=3)}, "
+            f"top-k overlap {_render_optional_float(stability.get('top_k_overlap_fraction'), digits=3)})"
+        )
+    else:
+        lines.append("    seed stability: NOT ASSESSED")
+    for dimension, outcome in (quality.get("dimensions") or {}).items():
+        lines.append(f"    criterion dimension {dimension}: {outcome}")
+    if not reliable:
+        lines.append("")
+        lines.append("    !! " + str(quality.get("interpretation_guard", "")))
+    warnings = quality.get("warnings") or []
+    if warnings:
+        lines.append("    quality warnings:")
+        lines.extend(f"      * {item}" for item in warnings)
+    lines.append("    LIME weights (panel order, rank by absolute local effect):")
+    for item in lime["attributions"]:
+        weight_text = (
+            f"{item['lime_weight']:+.6f}"
+            if reliable
+            else f"{item['lime_weight']:+.6f} (do not rely on this weight)"
+        )
+        lines.append(
+            f"      - {item['feature_name']} [{item['status']}] rank {item['absolute_weight_rank']}: "
+            f"{weight_text}"
+        )
+    lines.append(
+        "    note: LIME weights are local surrogate coefficients; they are not Shapley values, "
+        "are not additive in probability units, and are not causal or clinical claims."
+    )
+    return lines
 
 
 def _render_demo_text(payload: Mapping[str, Any]) -> str:
@@ -916,6 +1056,89 @@ def render_payload(command: str, payload: Mapping[str, Any], *, fmt: str) -> str
 # --------------------------------------------------------------------------- #
 # Argument parsing and fail-closed entry point
 # --------------------------------------------------------------------------- #
+
+
+def _resolve_cli_lime_config(args: argparse.Namespace) -> LimeConfig | None:
+    """Build an explicit LIME config from CLI flags, fail closed on misuse."""
+    with_lime = bool(getattr(args, "with_lime", False))
+    seed = getattr(args, "lime_seed", None)
+    perturbations = getattr(args, "lime_perturbations", None)
+    reference_scheme = getattr(args, "lime_reference_scheme", None)
+    stability_seeds = getattr(args, "lime_stability_seeds", None)
+    no_stability = bool(getattr(args, "lime_no_stability", False))
+    require_acceptable = bool(
+        getattr(args, "lime_require_acceptable_quality", False)
+    )
+    if not with_lime:
+        if (
+            seed is not None
+            or perturbations is not None
+            or reference_scheme is not None
+            or stability_seeds is not None
+            or no_stability
+            or require_acceptable
+        ):
+            raise AiPipelineError(
+                "cli_lime_flags_require_with_lime",
+                "LIME tuning flags require an explicit --with-lime request.",
+            )
+        return None
+    if stability_seeds is not None and no_stability:
+        raise AiPipelineError(
+            "cli_conflicting_lime_stability_flags",
+            "--lime-stability-seeds and --lime-no-stability are mutually "
+            "exclusive.",
+        )
+    overrides: dict[str, Any] = {}
+    if seed is not None:
+        overrides["seed"] = int(seed)
+    if perturbations is not None:
+        overrides["num_perturbations"] = int(perturbations)
+    if reference_scheme is not None:
+        overrides["reference_scheme"] = str(reference_scheme)
+    return LimeConfig(**overrides)
+
+
+def _resolve_cli_lime_stability_seeds(
+    args: argparse.Namespace,
+) -> tuple[int, ...] | None:
+    """Resolve the stability seeds used to certify a CLI LIME explanation."""
+    if not bool(getattr(args, "with_lime", False)):
+        return None
+    if bool(getattr(args, "lime_no_stability", False)):
+        return None
+    raw = getattr(args, "lime_stability_seeds", None)
+    if raw is None:
+        return DEFAULT_LIME_STABILITY_SEEDS
+    seeds: list[int] = []
+    for token in str(raw).split(","):
+        chunk = token.strip()
+        if not chunk:
+            raise AiPipelineError(
+                "cli_invalid_lime_stability_seeds",
+                "--lime-stability-seeds must be a comma-separated list of "
+                "non-negative integers.",
+            )
+        try:
+            value = int(chunk)
+        except ValueError as exc:
+            raise AiPipelineError(
+                "cli_invalid_lime_stability_seeds",
+                "--lime-stability-seeds must contain integers only.",
+            ) from exc
+        if value < 0:
+            raise AiPipelineError(
+                "cli_invalid_lime_stability_seeds",
+                "--lime-stability-seeds values must be non-negative.",
+            )
+        seeds.append(value)
+    unique = tuple(dict.fromkeys(seeds))
+    if len(unique) < 2:
+        raise AiPipelineError(
+            "cli_invalid_lime_stability_seeds",
+            "Stability assessment requires at least two distinct seeds.",
+        )
+    return unique
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -982,6 +1205,44 @@ def build_parser() -> argparse.ArgumentParser:
         "--expect-model-family", choices=sorted(METHOD_BY_MODEL_FAMILY), default=None
     )
     predict_cmd.add_argument("--threshold", type=float, default=0.5)
+    predict_cmd.add_argument(
+        "--with-lime",
+        action="store_true",
+        help="also compute a genuine local tabular LIME explanation",
+    )
+    predict_cmd.add_argument("--lime-seed", type=int, default=None)
+    predict_cmd.add_argument("--lime-perturbations", type=int, default=None)
+    predict_cmd.add_argument(
+        "--lime-reference-scheme",
+        choices=("fixed_background_reference", "sampled_background_marginals"),
+        default=None,
+        help=(
+            "reference scheme used for the 'field replaced' perturbed state "
+            "(default: fixed_background_reference)"
+        ),
+    )
+    predict_cmd.add_argument(
+        "--lime-stability-seeds",
+        type=str,
+        default=None,
+        help="comma-separated seeds used to certify seed stability",
+    )
+    predict_cmd.add_argument(
+        "--lime-no-stability",
+        action="store_true",
+        help=(
+            "skip the stability assessment; the quality verdict then stays at "
+            "UNVERIFIED_STABILITY at best"
+        ),
+    )
+    predict_cmd.add_argument(
+        "--lime-require-acceptable-quality",
+        action="store_true",
+        help=(
+            "fail closed instead of returning a diagnostic-only LIME "
+            "explanation"
+        ),
+    )
     predict_cmd.add_argument("--format", choices=("json", "text"), default="json")
 
     demo_cmd = commands.add_parser(
@@ -1088,6 +1349,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 expect_profile=args.expect_profile,
                 expect_model_family=args.expect_model_family,
                 exploratory_threshold=float(args.threshold),
+                lime_config=_resolve_cli_lime_config(args),
+                lime_stability_seeds=_resolve_cli_lime_stability_seeds(args),
+                lime_require_acceptable_quality=bool(
+                    getattr(args, "lime_require_acceptable_quality", False)
+                ),
             )
         elif args.command == "demo":
             payload = run_demo(work_dir=args.work_dir)
