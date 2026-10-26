@@ -118,27 +118,48 @@ def _create_valid_auth_manifest(
     panel_id: str,
     source_sha256: str,
     row_count: int,
-    status: str = "AUTHORIZED_FOR_LOCAL_RESEARCH",
+    status: str = "AUTHORIZED_FOR_LOCAL_INTERNAL_EXPLORATORY_CLEVELAND",
     claim_supervisor: bool = False,
     experiment_type: str = "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
+    signer: str = "Muhammed Fathi",
+    attestation: str | None = None,
+    protocol_sha: str | None = None,
+    plan_sha: str | None = None,
+    dictionary_sha: str | None = None,
+    source_relative_path: str | None = None,
 ) -> None:
-    """Create a structured test authorization manifest."""
+    """Create a structured test authorization manifest with exact frozen digests and ratified text."""
+    if dataset_id == "DA-A2":
+        default_status = "AUTHORIZED_FOR_LOCAL_INTERNAL_EXPLORATORY_CLEVELAND" if status == "AUTHORIZED_FOR_LOCAL_RESEARCH" else status
+        default_attestation = "I have reviewed and authorize this exact hash-bound local D-047 internal exploratory experiment. I understand Gate PT P-3 remains CLOSED."
+        default_proto_sha = "96c26829ff73893dab8ee091b2eaea1592479a1e0528ae6832651a9688ea3c86"
+        default_plan_sha = "2c441c4c44d61e2734277d3ee788ce09b5dd4cc8e54cbeff741374a428646c6a"
+        default_dict_sha = None
+        default_source_rel = "data/raw/uci-45/processed.cleveland.data"
+    else:
+        default_status = "AUTHORIZED_FOR_LOCAL_INTERNAL_RESEARCH" if status == "AUTHORIZED_FOR_LOCAL_RESEARCH" else status
+        default_attestation = "I have reviewed and authorize this exact hash-bound local UCI-412 internal research benchmark. I understand Gate PT P-3 remains CLOSED, that no supervisor approval is claimed, and that no clinical use, external validation, or publication claim is made."
+        default_proto_sha = "092055913fc618b9335ff97925c902dd3877e6174ef0911c322730b75ba0240e"
+        default_plan_sha = "f59a70aa376c4bfe2c3d7accb34642fe0f9e1f86c714059fb080318c1b76be66"
+        default_dict_sha = "503c0e08c4dc49b8b79d548b071981568c99a7e01dc2ccd953d6054315da9320"
+        default_source_rel = "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx"
+
     manifest_data = {
         "schema_version": "1.0.0",
         "governance_decision_id": "D-047" if dataset_id == "DA-A2" else "D-048",
-        "authorization_status": status,
+        "authorization_status": default_status,
         "experiment_type": experiment_type,
         "supervisor_signoff_claimed": claim_supervisor,
         "dataset_id": dataset_id,
         "panel_id": panel_id,
-        "local_signer": "Muhammed Fathi",
+        "local_signer": signer,
         "local_signed_at_iso8601": "2026-10-26T12:00:00Z",
-        "local_signature_attestation": "I explicitly authorize local research execution under Gate PT Closed boundaries.",
+        "local_signature_attestation": attestation if attestation is not None else default_attestation,
         "pinned_protocol_git_commit_sha": "9ca3e2cf56a637aaa03c36b22471187a15d0612c",
-        "frozen_protocol_sha256": "a" * 64,
-        "frozen_experiment_plan_sha256": "b" * 64,
-        "frozen_feature_dictionary_sha256": "c" * 64 if dataset_id == "DA-A1" else None,
-        "allowed_original_relative_file": f"data/raw/{dataset_id.lower()}/source.dat",
+        "frozen_protocol_sha256": protocol_sha if protocol_sha is not None else default_proto_sha,
+        "frozen_experiment_plan_sha256": plan_sha if plan_sha is not None else default_plan_sha,
+        "frozen_feature_dictionary_sha256": dictionary_sha if dictionary_sha is not None else default_dict_sha,
+        "allowed_original_relative_file": source_relative_path if source_relative_path is not None else default_source_rel,
         "expected_source_sha256": source_sha256,
         "authorized_source_row_count": row_count,
     }
@@ -496,3 +517,234 @@ def test_windows_python312_platform_compatibility() -> None:
     assert EXECUTION_HARNESS_VERSION == "cardioassist.ai.execution_harness/v1"
     assert MANDATORY_OUTPUT_BANNER == "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
     assert isinstance(is_windows_runtime(), bool)
+
+
+def test_regression_real_data_can_never_produce_synthetic_labeled_bundle(tmp_path: Path) -> None:
+    """Regression test: real-derived data can never produce a synthetic-labeled bundle."""
+    source_path = tmp_path / "processed.cleveland.data"
+    source_sha = _create_mock_cleveland_file(source_path)
+
+    manifest_path = tmp_path / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256=source_sha,
+        row_count=303,
+    )
+
+    bundle_dir = tmp_path / "models" / "cai_real_cleveland_resting_v1"
+    signing_key = get_or_create_local_signing_key(tmp_path / "keys" / "signer.key")
+
+    trained_run, descriptor = execute_authorized_research_run(
+        manifest_path=manifest_path,
+        source_path=source_path,
+        panel_id="da_a2_resting_v1",
+        output_bundle_dir=bundle_dir,
+        signing_key=signing_key,
+        training_config=FAST_TEST_CONFIG,
+        repo_root=tmp_path,
+    )
+
+    # 1. Assert TrainedResearchRun is not synthetic
+    assert trained_run.synthetic_only is False
+    assert trained_run.shap_background.synthetic_only is False
+    assert (
+        trained_run.shap_background.sensitivity_classification
+        == "SENSITIVE_REAL_PATIENT_DERIVED_RESTRICTED_LOCAL_ONLY"
+    )
+
+    # 2. Assert bundle manifest.json records synthetic_only = False
+    manifest_doc = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest_doc["eligibility"]["synthetic_only"] is False
+    assert manifest_doc["eligibility"]["execution_mode"] == "INTERNAL_EXPLORATORY_RESEARCH"
+    assert manifest_doc["research_authorization"]["governance_decision_id"] == "D-047"
+
+    # 3. Assert shap_background.json records synthetic_only = False
+    bg_doc = json.loads((bundle_dir / "shap_background.json").read_text(encoding="utf-8"))
+    assert bg_doc["privacy"]["synthetic_only"] is False
+    assert bg_doc["privacy"]["sensitivity_classification"] == "SENSITIVE_REAL_PATIENT_DERIVED_RESTRICTED_LOCAL_ONLY"
+
+
+def test_regression_arbitrary_protocol_dictionary_hashes_rejected(tmp_path: Path) -> None:
+    """Regression test: arbitrary but correctly formatted 64-hex protocol/plan/dictionary hashes are rejected."""
+    manifest_path = tmp_path / "manifest.json"
+    fake_sha = "e" * 64
+
+    # Mismatched protocol SHA
+    _create_valid_auth_manifest(
+        manifest_path,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="1" * 64,
+        row_count=303,
+        protocol_sha=fake_sha,
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A2",
+            expected_panel_id="da_a2_resting_v1",
+        )
+    assert exc_info.value.code == "protocol_hash_mismatch"
+
+    # Mismatched plan SHA
+    _create_valid_auth_manifest(
+        manifest_path,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="1" * 64,
+        row_count=303,
+        plan_sha=fake_sha,
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A2",
+            expected_panel_id="da_a2_resting_v1",
+        )
+    assert exc_info.value.code == "plan_hash_mismatch"
+
+    # Mismatched UCI-412 dictionary SHA
+    _create_valid_auth_manifest(
+        manifest_path,
+        dataset_id="DA-A1",
+        panel_id="da_a1_basic_clinical_v1",
+        source_sha256="1" * 64,
+        row_count=303,
+        dictionary_sha=fake_sha,
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A1",
+            expected_panel_id="da_a1_basic_clinical_v1",
+        )
+    assert exc_info.value.code == "dictionary_hash_mismatch"
+
+
+def test_regression_missing_ratification_or_mismatched_governance_blocks_fitting(tmp_path: Path) -> None:
+    """Regression test: missing human ratification, unknown maintainer, or altered attestation blocks fitting."""
+    manifest_path = tmp_path / "manifest.json"
+
+    # Unknown maintainer
+    _create_valid_auth_manifest(
+        manifest_path,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="1" * 64,
+        row_count=303,
+        signer="Unauthorized Researcher",
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A2",
+            expected_panel_id="da_a2_resting_v1",
+        )
+    assert exc_info.value.code == "unratified_maintainer_signer"
+
+    # Altered attestation statement
+    _create_valid_auth_manifest(
+        manifest_path,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="1" * 64,
+        row_count=303,
+        attestation="I bypassed supervisor sign-off and authorized clinical diagnostics.",
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A2",
+            expected_panel_id="da_a2_resting_v1",
+        )
+    assert exc_info.value.code == "invalid_attestation_statement"
+
+
+def test_regression_authorized_source_path_mismatch_blocks_fitting(tmp_path: Path) -> None:
+    """Regression test: authorized source path mismatches block fitting."""
+    manifest_path = tmp_path / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="1" * 64,
+        row_count=303,
+        source_relative_path="data/raw/unauthorized/other.csv",
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A2",
+            expected_panel_id="da_a2_resting_v1",
+        )
+    assert exc_info.value.code == "unauthorized_source_file_path"
+
+
+def test_regression_extended_panels_fail_before_fitting() -> None:
+    """Regression test: unsupported extended 7-feature Cleveland and 23-feature UCI-412 panels fail before fitting."""
+    from ai.errors import ClinicalInputValidationError
+
+    with pytest.raises(ClinicalInputValidationError) as exc_info_clev:
+        execute_authorized_research_run(
+            manifest_path=Path("nonexistent.json"),
+            source_path=Path("nonexistent.data"),
+            panel_id="da_a2_resting_labs_v1",
+            output_bundle_dir=Path("nonexistent"),
+        )
+    assert exc_info_clev.value.code == "extended_panel_blocked_before_fitting"
+
+    with pytest.raises(ClinicalInputValidationError) as exc_info_uci:
+        execute_authorized_research_run(
+            manifest_path=Path("nonexistent.json"),
+            source_path=Path("nonexistent.xlsx"),
+            panel_id="da_a1_clinical_core_labs_v1",
+            output_bundle_dir=Path("nonexistent"),
+        )
+    assert exc_info_uci.value.code == "extended_panel_blocked_before_fitting"
+
+
+def test_regression_full_evaluation_metrics_survive_packaging(tmp_path: Path) -> None:
+    """Regression test: comprehensive evaluation metrics, bootstrap CIs, and calibrator diagnostics survive packaging."""
+    source_path = tmp_path / "processed.cleveland.data"
+    source_sha = _create_mock_cleveland_file(source_path)
+
+    manifest_path = tmp_path / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256=source_sha,
+        row_count=303,
+    )
+
+    bundle_dir = tmp_path / "models" / "cai_eval_metrics_test_bundle"
+    signing_key = get_or_create_local_signing_key(tmp_path / "keys" / "signer.key")
+
+    trained_run, descriptor = execute_authorized_research_run(
+        manifest_path=manifest_path,
+        source_path=source_path,
+        panel_id="da_a2_resting_v1",
+        output_bundle_dir=bundle_dir,
+        signing_key=signing_key,
+        training_config=FAST_TEST_CONFIG,
+        repo_root=tmp_path,
+    )
+
+    eval_json_path = bundle_dir / "evaluation_summary.json"
+    assert eval_json_path.is_file()
+    eval_data = json.loads(eval_json_path.read_text(encoding="utf-8"))
+
+    # Assert evaluation structure matches shared AI-1 standard
+    assert "internal_evaluation" in eval_data
+    assert "negative_control" in eval_data
+    internal_eval = eval_data["internal_evaluation"]
+    assert "uncalibrated_nested_cv" in internal_eval
+    assert "cross_fitted_calibrated_nested_cv" in internal_eval
+    assert "final_development_calibrator_apparent_diagnostic" in internal_eval
+    assert "outer_fold_family_selection_counts" in internal_eval
+
+    # Verify negative control survived
+    assert eval_data["negative_control"]["leakage_alarm_triggered"] is False
+    assert "max_permuted_roc_auc" in eval_data["negative_control"]

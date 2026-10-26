@@ -98,11 +98,12 @@ class ShapBackgroundReference:
         max_samples: int = 64,
         seed: int = 20261025,
         synthetic_only: bool = True,
+        authorized_real_data: bool = False,
     ) -> "ShapBackgroundReference":
-        if not synthetic_only:
+        if not synthetic_only and not authorized_real_data:
             raise ExplainabilityIntegrityError(
                 "real_patient_shap_background_blocked_gate_pt_closed",
-                "Gate PT (P-3) remains closed; persisting real-patient SHAP background rows is blocked.",
+                "Gate PT (P-3) remains closed; persisting real-patient SHAP background rows is blocked unless authorized under local internal research protocol.",
             )
         Z = np.asarray(Z_train, dtype=np.float64)
         y = np.asarray(y_train, dtype=np.int64)
@@ -183,6 +184,7 @@ class ShapBackgroundReference:
         *,
         preprocessor: FoldSafeClinicalPreprocessor,
         require_synthetic: bool = True,
+        authorized_real_data: bool = False,
     ) -> "ShapBackgroundReference":
         if not isinstance(payload, Mapping) or (
             payload.get("schema_version") != SHAP_BACKGROUND_SCHEMA_VERSION
@@ -214,10 +216,10 @@ class ShapBackgroundReference:
                 "SHAP background JSON lacks mandatory training-projection privacy declarations.",
             )
         synthetic_only = bool(privacy["synthetic_only"])
-        if require_synthetic and not synthetic_only:
+        if require_synthetic and not synthetic_only and not authorized_real_data:
             raise ExplainabilityIntegrityError(
                 "real_patient_shap_background_blocked_gate_pt_closed",
-                "Refusing to load non-synthetic patient-derived SHAP background while Gate PT is closed.",
+                "Refusing to load non-synthetic patient-derived SHAP background while Gate PT is closed unless authorized.",
             )
 
         matrix = np.asarray(payload.get("background_matrix", []), dtype=np.float64)

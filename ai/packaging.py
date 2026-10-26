@@ -345,13 +345,15 @@ def package_research_bundle(
     external_evaluation: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
     signing_key: bytes | None = None,
+    authorized_real_data: bool = False,
+    authorization_context: Mapping[str, Any] | None = None,
 ) -> VerifiedBundleDescriptor:
     """Stage, sign, verify, and atomically commit a RESEARCH_ONLY model bundle."""
-    if not trained_run.synthetic_only or not trained_run.shap_background.synthetic_only:
+    if (not trained_run.synthetic_only or not trained_run.shap_background.synthetic_only) and not authorized_real_data:
         raise BundleIntegrityError(
             "real_patient_artifact_packaging_blocked_gate_pt_closed",
             "Gate PT (P-3) remains closed; packaging real-patient model or SHAP background "
-            "artifacts is prohibited.",
+            "artifacts is prohibited unless authorized under local internal research protocol.",
         )
 
     target_dir = _ensure_safe_output_path(Path(bundle_dir))
@@ -498,11 +500,15 @@ def package_research_bundle(
                 "development_dataset_id": trained_run.development_dataset_id,
                 "pooled_cohorts": False,
             },
+            "research_authorization": (
+                dict(authorization_context) if authorization_context is not None else None
+            ),
             "eligibility": {
                 "serving_eligibility": "RESEARCH_ONLY",
                 "approved_for_serving": False,
                 "clinical_use_authorized": False,
-                "synthetic_only": True,
+                "synthetic_only": bool(trained_run.synthetic_only),
+                "execution_mode": "SYNTHETIC_RESEARCH" if trained_run.synthetic_only else "INTERNAL_EXPLORATORY_RESEARCH",
             },
             "privacy_and_security": {
                 "sha256_verifies_integrity_not_producer_authenticity": True,
@@ -541,6 +547,7 @@ def package_research_bundle(
             staging_dir,
             trusted_local_root=target_dir.parent,
             signing_key=active_key,
+            allow_authorized_real_data=authorized_real_data,
         )
 
         if target_dir.exists() or is_reparse_or_symlink(target_dir):
@@ -566,6 +573,7 @@ def package_research_bundle(
         target_dir,
         trusted_local_root=target_dir.parent,
         signing_key=active_key,
+        allow_authorized_real_data=authorized_real_data,
     )
 
 
@@ -606,7 +614,11 @@ def _read_safe_regular_file(root: Path, filename: str) -> bytes:
     return resolved.read_bytes()
 
 
-def verify_research_bundle(bundle_dir: Path) -> VerifiedBundleDescriptor:
+def verify_research_bundle(
+    bundle_dir: Path,
+    *,
+    allow_authorized_real_data: bool = False,
+) -> VerifiedBundleDescriptor:
     """Verify structural layout, governance flags, privacy metadata, and SHA-256 digests.
 
     IMPORTANT SECURITY BOUNDARY:
@@ -659,10 +671,20 @@ def verify_research_bundle(bundle_dir: Path) -> VerifiedBundleDescriptor:
             "Bundle manifest makes an unauthorized serving or clinical-use claim.",
             field="eligibility",
         )
-    if eligibility.get("synthetic_only") is not True:
+    # Check if this bundle has a verified research_authorization context
+    has_valid_auth = (
+        allow_authorized_real_data
+        or (
+            manifest.get("research_authorization") is not None
+            and isinstance(manifest.get("research_authorization"), Mapping)
+            and manifest.get("research_authorization", {}).get("experiment_type") == "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+        )
+    )
+
+    if eligibility.get("synthetic_only") is not True and not has_valid_auth:
         raise BundleIntegrityError(
             "real_patient_bundle_blocked_gate_pt_closed",
-            "Gate PT (P-3) remains closed; non-synthetic patient-derived bundles are rejected.",
+            "Gate PT (P-3) remains closed; non-synthetic patient-derived bundles are rejected unless authorized.",
             field="eligibility.synthetic_only",
         )
 
@@ -795,10 +817,10 @@ def verify_research_bundle(bundle_dir: Path) -> VerifiedBundleDescriptor:
             "shap_background.json lacks mandatory training-data-derivative privacy metadata.",
             field=SHAP_BG_FILENAME,
         )
-    if bg_priv.get("synthetic_only") is not True:
+    if bg_priv.get("synthetic_only") is not True and not has_valid_auth:
         raise BundleIntegrityError(
             "sensitive_real_background_blocked_gate_pt_closed",
-            "shap_background.json contains non-synthetic patient-derived rows while Gate PT is closed.",
+            "shap_background.json contains non-synthetic patient-derived rows while Gate PT is closed unless authorized.",
             field=SHAP_BG_FILENAME,
         )
 
@@ -818,13 +840,14 @@ def verify_trusted_local_bundle(
     *,
     trusted_local_root: Path,
     signing_key: bytes | None = None,
+    allow_authorized_real_data: bool = False,
 ) -> VerifiedBundleDescriptor:
     """Enforce trusted-local-origin containment, platform-verified ownership &
     access controls (POSIX mode/UID on Linux/macOS; Win32 NTFS Security-Descriptor
     DACL inspection on Windows), and HMAC-SHA256 producer authentication BEFORE
     ``joblib.load`` can be invoked.
     """
-    verified = verify_research_bundle(bundle_dir)
+    verified = verify_research_bundle(bundle_dir, allow_authorized_real_data=allow_authorized_real_data)
 
     trust_root = Path(trusted_local_root)
     if is_reparse_or_symlink(trust_root) or not trust_root.is_dir():

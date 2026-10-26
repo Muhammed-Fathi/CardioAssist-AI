@@ -24,7 +24,7 @@ Operating Principles & Safeguards:
    measurements, unverified echocardiography variables (EF-TTE, Region RWMA, VHD),
    or wearable/smartwatch/sensor signals (Track B) are unconditionally blocked.
 4. Human Ratification Required:
-   Manifest templates (e.g. status PROPOSED_NOT_AUTHORIZING or NOT_AUTHORIZED)
+   Manifest templates (e.g. status containing PROPOSED or NOT_AUTHORIZED)
    never authorize execution. Real data fitting requires an explicit, timezone-aware
    locally signed manifest binding the verified git commit, protocol hash, plan hash,
    and source hash.
@@ -93,19 +93,28 @@ from ai.panels import (
     PanelFieldSpec,
     ResearchPanelContract,
     validate_clinical_record,
+    validate_cohort_records,
 )
 from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
     ResearchTrainingConfig,
     TrainedResearchRun,
-    _build_estimator,
-    _run_single_nested_pass,
+    _execute_shared_training_pipeline,
     _validate_cohort_provenance_token,
 )
 from research.audit.provenance import sha256_file
 from research.experiments.config import (
     DEFAULT_CONFIG as CLEVELAND_DEFAULT_CONFIG,
+    PLAN_PATH as CLEVELAND_PLAN_PATH,
+    PROTOCOL_RELATIVE_PATH as CLEVELAND_PROTOCOL_PATH,
     PROHIBITED_PREDICTORS as CLEVELAND_PROHIBITED,
+    D047_AUTHORIZATION_COMMENT,
+    D047_AUTHORIZATION_STATUS,
+    D047_AUTHORIZING_PR_NUMBER,
+    D047_AUTHORIZING_MERGE_SHA,
+    D047_AUTHORIZING_MAINTAINER,
+    D047_LOCAL_SIGNATURE_ATTESTATION,
+    D047_REPORT_BANNER,
     REPOSITORY_ROOT,
 )
 from research.experiments.data_adapter import (
@@ -125,6 +134,15 @@ from research.uci412.adapter import (
 from research.uci412.config import (
     DEFAULT_CONFIG as UCI412_DEFAULT_CONFIG,
     DEFAULT_DICTIONARY as UCI412_DEFAULT_DICTIONARY,
+    PLAN_PATH as UCI412_PLAN_PATH,
+    PROPOSAL_RELATIVE_PATH as UCI412_PROPOSAL_PATH,
+    DICTIONARY_PATH as UCI412_DICT_PATH,
+    M3A_AUTHORIZATION_COMMENT,
+    M3A_AUTHORIZATION_STATUS,
+    M3A_AUTHORIZING_MAINTAINER,
+    M3A_LOCAL_SIGNATURE_ATTESTATION,
+    M3A_PROTOCOL_AMENDMENT_ID,
+    REPORT_BANNER as UCI412_REPORT_BANNER,
     Uci412Config,
 )
 from research.uci412.feature_schema import FeatureDictionary
@@ -138,10 +156,16 @@ SHA256_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-fA-F]{64}$")
 TRACK_A_UCI412_SOURCE_ID: Final[str] = "DA-A1"
 TRACK_B_CLEVELAND_SOURCE_ID: Final[str] = "DA-A2"
 
-AUTHORIZED_TRACK_FAMILIES: Final[Mapping[str, frozenset[str]]] = {
-    TRACK_A_UCI412_SOURCE_ID: frozenset({"da_a1_basic_clinical_v1", "da_a1_clinical_core_labs_v1"}),
-    TRACK_B_CLEVELAND_SOURCE_ID: frozenset({"da_a2_resting_v1", "da_a2_resting_labs_v1"}),
+# Allowed dataset / panel combinations for internal exploratory research
+AUTHORIZED_REAL_PANELS: Final[Mapping[str, frozenset[str]]] = {
+    TRACK_A_UCI412_SOURCE_ID: frozenset({"da_a1_basic_clinical_v1"}),
+    TRACK_B_CLEVELAND_SOURCE_ID: frozenset({"da_a2_resting_v1"}),
 }
+
+BLOCKED_EXTENDED_PANELS: Final[frozenset[str]] = frozenset({
+    "da_a2_resting_labs_v1",         # 7-feature Cleveland resting+labs panel
+    "da_a1_clinical_core_labs_v1",   # 23-feature UCI-412 clinical+core-labs panel
+})
 
 PROHIBITED_REAL_DATA_DISGUISE_TOKENS: Final[tuple[str, ...]] = (
     "synthetic_patient",
@@ -231,8 +255,10 @@ def parse_and_validate_research_authorization(
 
     Fails closed on:
     - Missing files, symlinks, or reparse points.
-    - Template / unratified files (e.g. status containing PROPOSED or NOT_AUTHORIZED).
-    - Unapproved dataset or panel IDs.
+    - Template / unratified files (e.g. status containing PROPOSED, PENDING, or NOT_AUTHORIZED).
+    - Mismatched human ratification evidence (signer, attestation, PR/decision metadata).
+    - Mismatched protocol, plan, or dictionary digests compared against frozen on-disk files.
+    - Unapproved dataset or panel IDs (extended panels fail before fitting).
     - Missing or placeholder signer, commit SHA, or hash bindings.
     - Storage inside unignored repository directories.
     - Supervisor approval claims (Gate PT P-3 remains CLOSED).
@@ -289,10 +315,17 @@ def parse_and_validate_research_authorization(
             field="panel_id",
         )
 
-    if dataset_id not in AUTHORIZED_TRACK_FAMILIES or panel_id not in AUTHORIZED_TRACK_FAMILIES[dataset_id]:
+    if panel_id in BLOCKED_EXTENDED_PANELS:
+        raise ExecutionAuthorizationError(
+            "extended_panel_blocked_before_fitting",
+            f"Extended panel '{panel_id}' is registered but explicitly blocked pending independent implementation and scientific approval.",
+            field="panel_id",
+        )
+
+    if dataset_id not in AUTHORIZED_REAL_PANELS or panel_id not in AUTHORIZED_REAL_PANELS[dataset_id]:
         raise ExecutionAuthorizationError(
             "unauthorized_panel_for_dataset",
-            f"Panel '{panel_id}' is not authorized for dataset '{dataset_id}'.",
+            f"Panel '{panel_id}' is not authorized for real data execution on dataset '{dataset_id}'.",
             field="panel_id",
         )
 
@@ -335,6 +368,93 @@ def parse_and_validate_research_authorization(
     if row_count <= 0:
         raise ExecutionAuthorizationError("invalid_row_count", "Manifest authorized_source_row_count must be > 0.", field="authorized_source_row_count")
 
+    # Verify on-disk file digests for protocol, plan, dictionary, and exact source-path
+    if dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
+        expected_protocol_path = repo_root / CLEVELAND_PROTOCOL_PATH
+        expected_plan_path = CLEVELAND_PLAN_PATH
+        if expected_protocol_path.exists():
+            actual_proto, _ = sha256_file(expected_protocol_path)
+            if proto_sha.lower() != actual_proto.lower():
+                raise ExecutionAuthorizationError(
+                    "protocol_hash_mismatch",
+                    f"Manifest protocol SHA-256 '{proto_sha}' does not match actual on-disk file digest '{actual_proto}'.",
+                    field="frozen_protocol_sha256",
+                )
+        if expected_plan_path.exists():
+            actual_plan, _ = sha256_file(expected_plan_path)
+            if plan_sha.lower() != actual_plan.lower():
+                raise ExecutionAuthorizationError(
+                    "plan_hash_mismatch",
+                    f"Manifest plan SHA-256 '{plan_sha}' does not match actual on-disk file digest '{actual_plan}'.",
+                    field="frozen_experiment_plan_sha256",
+                )
+        # Verify human ratification evidence
+        if signer != D047_AUTHORIZING_MAINTAINER:
+            raise ExecutionAuthorizationError(
+                "unratified_maintainer_signer",
+                f"Signer '{signer}' is not the authorized maintainer '{D047_AUTHORIZING_MAINTAINER}'.",
+                field="local_signer",
+            )
+        if attestation != D047_LOCAL_SIGNATURE_ATTESTATION:
+            raise ExecutionAuthorizationError(
+                "invalid_attestation_statement",
+                "Signature attestation does not match the ratified D-047 attestation text.",
+                field="local_signature_attestation",
+            )
+        if source_rel != "data/raw/uci-45/processed.cleveland.data":
+            raise ExecutionAuthorizationError(
+                "unauthorized_source_file_path",
+                f"Source path '{source_rel}' is not the approved Cleveland source path.",
+                field="allowed_original_relative_file",
+            )
+
+    elif dataset_id == TRACK_A_UCI412_SOURCE_ID:
+        expected_proposal_path = repo_root / UCI412_PROPOSAL_PATH
+        expected_plan_path = UCI412_PLAN_PATH
+        expected_dict_path = UCI412_DICT_PATH
+        if expected_proposal_path.exists():
+            actual_prop, _ = sha256_file(expected_proposal_path)
+            if proto_sha.lower() != actual_prop.lower():
+                raise ExecutionAuthorizationError(
+                    "proposal_hash_mismatch",
+                    f"Manifest proposal SHA-256 '{proto_sha}' does not match actual on-disk file digest '{actual_prop}'.",
+                    field="frozen_authorization_proposal_sha256",
+                )
+        if expected_plan_path.exists():
+            actual_plan, _ = sha256_file(expected_plan_path)
+            if plan_sha.lower() != actual_plan.lower():
+                raise ExecutionAuthorizationError(
+                    "plan_hash_mismatch",
+                    f"Manifest plan SHA-256 '{plan_sha}' does not match actual on-disk file digest '{actual_plan}'.",
+                    field="frozen_research_plan_sha256",
+                )
+        if expected_dict_path.exists() and dict_sha:
+            actual_dict, _ = sha256_file(expected_dict_path)
+            if dict_sha.lower() != actual_dict.lower():
+                raise ExecutionAuthorizationError(
+                    "dictionary_hash_mismatch",
+                    f"Manifest dictionary SHA-256 '{dict_sha}' does not match actual on-disk file digest '{actual_dict}'.",
+                    field="frozen_feature_dictionary_sha256",
+                )
+        if signer != M3A_AUTHORIZING_MAINTAINER:
+            raise ExecutionAuthorizationError(
+                "unratified_maintainer_signer",
+                f"Signer '{signer}' is not the authorized maintainer '{M3A_AUTHORIZING_MAINTAINER}'.",
+                field="local_signer",
+            )
+        if attestation != M3A_LOCAL_SIGNATURE_ATTESTATION:
+            raise ExecutionAuthorizationError(
+                "invalid_attestation_statement",
+                "Signature attestation does not match the ratified M3a attestation text.",
+                field="local_signature_attestation",
+            )
+        if source_rel != "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx":
+            raise ExecutionAuthorizationError(
+                "unauthorized_source_file_path",
+                f"Source path '{source_rel}' is not the approved UCI-412 workbook path.",
+                field="allowed_original_relative_file",
+            )
+
     return ResearchAuthorizationContext(
         manifest_path=manifest_path,
         governance_decision_id=str(data.get("decision_id") or data.get("governance_decision_id") or data.get("proposal_id")),
@@ -359,28 +479,24 @@ def _check_source_not_disguised_or_contaminated(
     features: Sequence[Mapping[str, Any]],
     source_path: Path,
 ) -> None:
-    """Fail closed if dataset features contain synthetic tokens or prohibited fields."""
-    for idx, row in enumerate(features):
-        if "synthetic" in row and row["synthetic"] is True:
+    """Ensure raw patient records do not carry mock/synthetic disguise tokens or prohibited variables."""
+    for row_idx, row in enumerate(features):
+        prohibited_in_row = set(row) & ALL_PROHIBITED_FIELDS
+        if prohibited_in_row:
+            bad_field = sorted(prohibited_in_row)[0]
             raise DatasetAdapterIntegrityError(
-                "synthetic_flag_in_real_data",
-                f"Row {idx} contains 'synthetic: True'. Real data must not carry synthetic markers.",
-                field="synthetic",
+                "prohibited_field_present",
+                f"Prohibited feature '{bad_field}' detected in raw source record at row {row_idx}.",
             )
-        for key in row:
-            if key in ALL_PROHIBITED_FIELDS or key.lower() in ALL_PROHIBITED_FIELDS:
-                raise DatasetAdapterIntegrityError(
-                    "prohibited_field_present",
-                    f"Row {idx} contains prohibited field '{key}'.",
-                    field=key,
-                )
-            for bad_token in PROHIBITED_REAL_DATA_DISGUISE_TOKENS:
-                if isinstance(row[key], str) and bad_token in row[key].lower():
-                    raise DatasetAdapterIntegrityError(
-                        "disguised_token_detected",
-                        f"Row {idx} field '{key}' contains suspicious token '{bad_token}'.",
-                        field=key,
-                    )
+        for k, v in row.items():
+            if isinstance(v, str):
+                v_lower = v.lower()
+                for token in PROHIBITED_REAL_DATA_DISGUISE_TOKENS:
+                    if token in v_lower:
+                        raise DatasetAdapterIntegrityError(
+                            "disguised_or_contaminated_record",
+                            f"Prohibited disguise or contamination token '{token}' detected in row {row_idx}, column '{k}'.",
+                        )
 
 
 def load_cleveland_source_records(
@@ -390,44 +506,43 @@ def load_cleveland_source_records(
     panel: ResearchPanelContract,
     config: Any = CLEVELAND_DEFAULT_CONFIG,
 ) -> tuple[list[dict[str, Any]], list[int], ClevelandDataset]:
-    """Load Cleveland processed data via read-only adapter and map to panel records."""
-    if panel.panel_id not in ("da_a2_resting_v1", "da_a2_resting_labs_v1"):
+    """Load Cleveland processed.cleveland.data via read-only adapter and map to panel records."""
+    if panel.panel_id == "da_a2_resting_labs_v1":
+        raise DatasetAdapterIntegrityError(
+            "extended_panel_blocked_before_fitting",
+            "The 7-feature Cleveland resting+labs panel is registered but blocked pending authorized adapters.",
+        )
+    if panel.panel_id != "da_a2_resting_v1":
         raise DatasetAdapterIntegrityError("unsupported_cleveland_panel", f"Panel {panel.panel_id} not supported for Cleveland.")
 
-    source_bytes_obj = _read_source_bytes_read_only(
+    source_snapshot = _read_source_bytes_read_only(
         source_path,
         expected_sha256=expected_sha256,
+        expected_size_bytes=None,
     )
-    dataset = _parse_processed_cleveland_bytes(source_bytes_obj.content, config=config)
+    dataset = _parse_processed_cleveland_bytes(source_snapshot.content, config=config)
 
     records: list[dict[str, Any]] = []
     labels: list[int] = [int(val) for val in dataset.y]
 
     for i in range(dataset.row_count):
         row_feat: dict[str, Any] = {}
-        for feat_name in panel.feature_names:
-            if feat_name in dataset.feature_names:
-                col_idx = dataset.feature_names.index(feat_name)
-                val = dataset.X[i, col_idx]
-                f_spec = panel.field_map[feat_name]
-                if np.isnan(val):
-                    row_feat[feat_name] = None
-                elif f_spec.role == "categorical":
-                    row_feat[feat_name] = int(val)
-                else:
-                    row_feat[feat_name] = float(val)
-            else:
-                row_feat[feat_name] = None
-
-        missing_reasons: dict[str, str] = {}
-        for feat_name, feat_val in row_feat.items():
-            if feat_val is None:
-                missing_reasons[feat_name] = "not_available_at_time"
-
         units: dict[str, str] = {}
-        for f_spec in panel.fields:
-            if f_spec.unit is not None:
-                units[f_spec.name] = f_spec.unit
+        missing_reasons: dict[str, str] = {}
+
+        for j, col_name in enumerate(dataset.feature_names):
+            val = float(dataset.X[i, j])
+            if math.isnan(val):
+                row_feat[col_name] = None
+                missing_reasons[col_name] = "not_measured"
+            else:
+                f_spec = panel.field_map[col_name]
+                if f_spec.role == "categorical":
+                    row_feat[col_name] = int(val)
+                else:
+                    row_feat[col_name] = float(val)
+                if f_spec.unit is not None:
+                    units[f_spec.name] = f_spec.unit
 
         rec = {
             "synthetic": False,
@@ -453,7 +568,12 @@ def load_uci412_source_records(
     dictionary: FeatureDictionary = UCI412_DEFAULT_DICTIONARY,
 ) -> tuple[list[dict[str, Any]], list[int], Uci412Dataset]:
     """Load UCI-412 workbook via read-only adapter and map to panel records."""
-    if panel.panel_id not in ("da_a1_basic_clinical_v1", "da_a1_clinical_core_labs_v1"):
+    if panel.panel_id == "da_a1_clinical_core_labs_v1":
+        raise DatasetAdapterIntegrityError(
+            "extended_panel_blocked_before_fitting",
+            "The 23-feature UCI-412 clinical+core-labs panel is registered but blocked pending predictor-timing and governance approval.",
+        )
+    if panel.panel_id != "da_a1_basic_clinical_v1":
         raise DatasetAdapterIntegrityError("unsupported_uci412_panel", f"Panel {panel.panel_id} not supported for UCI-412.")
 
     snapshot, dataset = uci412_load_authorized_dataset(
@@ -468,29 +588,22 @@ def load_uci412_source_records(
 
     for i in range(dataset.row_count):
         row_feat: dict[str, Any] = {}
-        for feat_name in panel.feature_names:
-            if feat_name in dataset.feature_names:
-                col_idx = dataset.feature_names.index(feat_name)
-                val = dataset.X[i, col_idx]
-                f_spec = panel.field_map[feat_name]
-                if np.isnan(val):
-                    row_feat[feat_name] = None
-                elif f_spec.role == "categorical":
-                    row_feat[feat_name] = int(val)
-                else:
-                    row_feat[feat_name] = float(val)
-            else:
-                row_feat[feat_name] = None
-
-        missing_reasons: dict[str, str] = {}
-        for feat_name, feat_val in row_feat.items():
-            if feat_val is None:
-                missing_reasons[feat_name] = "not_available_at_time"
-
         units: dict[str, str] = {}
-        for f_spec in panel.fields:
-            if f_spec.unit is not None:
-                units[f_spec.name] = f_spec.unit
+        missing_reasons: dict[str, str] = {}
+
+        for j, col_name in enumerate(dataset.feature_names):
+            val = float(dataset.X[i, j])
+            f_spec = panel.field_map[col_name]
+            if math.isnan(val):
+                row_feat[col_name] = None
+                missing_reasons[col_name] = "not_measured"
+            else:
+                if f_spec.role == "categorical":
+                    row_feat[col_name] = int(val)
+                else:
+                    row_feat[col_name] = float(val)
+                if f_spec.unit is not None:
+                    units[f_spec.name] = f_spec.unit
 
         rec = {
             "synthetic": False,
@@ -509,18 +622,18 @@ def load_uci412_source_records(
 
 def execute_authorized_research_run(
     *,
-    manifest_path: Path,
     source_path: Path,
+    manifest_path: Path,
     panel_id: str,
     output_bundle_dir: Path,
-    signing_key: bytes | None = None,
-    training_config: ResearchTrainingConfig = ResearchTrainingConfig(),
     repo_root: Path = REPOSITORY_ROOT,
+    training_config: ResearchTrainingConfig = ResearchTrainingConfig(),
+    signing_key: bytes | None = None,
     allow_synthetic_test_manifest: bool = False,
 ) -> tuple[TrainedResearchRun, VerifiedBundleDescriptor]:
     """Execute authorized real-data research training and atomic bundle packaging.
 
-    Enforces all 10 AI-2 requirements:
+    Enforces all AI-2 requirements:
     1. Isolated source-specific adapter for UCI-412 consultation or Cleveland resting.
     2. Reuses existing read-only parsers without code duplication.
     3. Verifies source hashes, row counts, dictionaries, and missingness semantics.
@@ -530,11 +643,17 @@ def execute_authorized_research_run(
     7. Runs locally on CPU without remote telemetry.
     8. Writes outputs only to explicitly authorized private, Git-ignored paths.
     9. Generates aggregate-only evaluation report and signed private model bundle.
-    10. Uses AI-1 preprocessor, calibrator, training, SHAP, and packaging engines.
+    10. Reuses AI-1 training pipeline directly without divergent reimplementations.
     """
     if panel_id not in REGISTERED_PANELS:
         raise ClinicalInputValidationError("unregistered_panel", f"Panel '{panel_id}' is not registered.")
     panel = REGISTERED_PANELS[panel_id]
+
+    if panel_id in BLOCKED_EXTENDED_PANELS:
+        raise ClinicalInputValidationError(
+            "extended_panel_blocked_before_fitting",
+            f"Extended panel '{panel_id}' is blocked before fitting until authorized.",
+        )
 
     # 1. Authorize manifest
     auth = parse_and_validate_research_authorization(
@@ -584,175 +703,55 @@ def execute_authorized_research_run(
             f"Loaded {len(records)} rows; expected {auth.expected_source_row_count}.",
         )
 
-    # 5. Prepare feature arrays directly through source dataset arrays (preserving NaNs for fold-contained imputation)
-    # and validate individual record structure
-    X = np.asarray(raw_dataset.X, dtype=np.float64)
-    y = np.asarray(labels, dtype=np.int64)
+    # 5. Run validate_cohort_records(..., require_synthetic=False) to enforce exact feature names, order, shape, and units
+    X_val, y_val, _ = validate_cohort_records(
+        records,
+        labels,
+        panel,
+        require_synthetic=False,
+    )
 
-    # 6. Fit research model using fold-contained nested-CV, calibration & SHAP background
+    # 6. Fit research model using the shared AI-1 training pipeline
     model_id = f"cai_real_{auth.dataset_id.lower()}_{panel.panel_id}"
     dev_cohort = f"real_{auth.dataset_id.lower()}_authorized"
     dev_dataset = f"{auth.dataset_id}:real_authorized"
 
-    uncalibrated_repeat_summaries: list[dict[str, Any]] = []
-    calibrated_repeat_summaries: list[dict[str, Any]] = []
-    primary_fold_ensemble = []
-    selection_counts = {"l2_logistic_regression": 0, "constrained_random_forest": 0}
-
-    for rep_idx, seed in enumerate(training_config.repeat_seeds):
-        (
-            uncal_oof_scores,
-            cal_oof_scores,
-            fold_records,
-            fold_models,
-        ) = _run_single_nested_pass(
-            X,
-            y,
-            panel=panel,
-            config=training_config,
-            repeat_seed=seed,
-            retain_fold_models=(rep_idx == 0),
-            fit_cross_calibrators=True,
-        )
-        if rep_idx == 0:
-            primary_fold_ensemble = fold_models
-        for rec in fold_records:
-            selection_counts[rec["selected_family"]] += 1
-
-    winning_family = max(selection_counts, key=selection_counts.get)
-
-    # Negative control (label shuffle)
-    shuffle_aucs: list[float] = []
-    for s_seed in training_config.shuffle_control_seeds:
-        rng = np.random.default_rng(s_seed)
-        y_shuffled = rng.permutation(y)
-        uncal_oof_shuff, _, _, _ = _run_single_nested_pass(
-            X,
-            y_shuffled,
-            panel=panel,
-            config=training_config,
-            repeat_seed=s_seed,
-            retain_fold_models=False,
-            fit_cross_calibrators=False,
-        )
-        shuff_metrics = evaluate_comprehensive_metrics(
-            y_shuffled,
-            uncal_oof_shuff[winning_family],
-            n_bootstrap=training_config.bootstrap_resamples,
-            seed=s_seed,
-        )
-        shuffle_aucs.append(float(shuff_metrics["discrimination"]["roc_auc"]))
-
-    max_shuffle_auc = max(shuffle_aucs) if shuffle_aucs else 0.5
-    if max_shuffle_auc > training_config.shuffle_max_allowed_auroc:
-        raise CohortGovernanceError(
-            "label_shuffle_control_alarm",
-            f"Negative control maximum AUROC ({max_shuffle_auc:.4f}) exceeded safety threshold.",
-        )
-
-    # Refit full-cohort preprocessor, winning estimator, and OOF calibrator
-    final_prep = FoldSafeClinicalPreprocessor.fit(X, panel=panel)
-    Z_full = final_prep.transform(X)
-
-    best_params: dict[str, Any] = {}
-    if winning_family == "l2_logistic_regression":
-        best_params = {"C": 1.0}
-    else:
-        best_params = {"max_depth": 3, "min_samples_leaf": 5}
-
-    from sklearn.model_selection import StratifiedKFold
-    from ai.training import _positive_proba_and_optional_logit
-
-    final_est = _build_estimator(
-        winning_family,
-        best_params,
-        seed=training_config.repeat_seeds[0],
-        rf_n_estimators=training_config.rf_n_estimators,
-    )
-    final_est.fit(Z_full, y)
-
-    cal_splitter = StratifiedKFold(
-        n_splits=training_config.outer_folds,
-        shuffle=True,
-        random_state=training_config.repeat_seeds[0] + 333,
-    )
-    oof_for_cal = np.zeros(len(y), dtype=np.float64)
-    oof_logits_for_cal: np.ndarray | None = (
-        np.zeros(len(y), dtype=np.float64)
-        if winning_family == "l2_logistic_regression"
-        else None
-    )
-    for fold_idx, (tr_idx, val_idx) in enumerate(
-        cal_splitter.split(np.zeros(len(y)), y), start=1
-    ):
-        prep_k = FoldSafeClinicalPreprocessor.fit(X[tr_idx], panel)
-        est_k = _build_estimator(
-            winning_family,
-            best_params,
-            seed=training_config.repeat_seeds[0] + 1000 * fold_idx,
-            rf_n_estimators=training_config.rf_n_estimators,
-        )
-        est_k.fit(prep_k.transform(X[tr_idx]), y[tr_idx])
-        p_val, logits_val = _positive_proba_and_optional_logit(
-            winning_family, est_k, prep_k.transform(X[val_idx])
-        )
-        oof_for_cal[val_idx] = p_val
-        if oof_logits_for_cal is not None and logits_val is not None:
-            oof_logits_for_cal[val_idx] = logits_val
-
-    final_cal = OofLogisticCalibrator.fit_from_oof(
-        y,
-        oof_for_cal,
-        model_family=winning_family,
-        raw_logits=oof_logits_for_cal,
-        fit_scope="FULL_DEVELOPMENT_OOF_FINAL",
-    )
-
-    shap_bg = ShapBackgroundReference.from_training_encoded(
-        Z_full,
-        y,
-        final_prep,
-        max_samples=training_config.shap_max_background_samples,
-        seed=training_config.repeat_seeds[0] + 4242,
-        synthetic_only=True,  # Packaging engine checks synthetic_only; marked true for bundle self-consistency while manifest documents real origin
-    )
-
-    trained_run = TrainedResearchRun(
+    trained_run = _execute_shared_training_pipeline(
+        X_val,
+        y_val,
+        panel,
         model_id=model_id,
-        model_version=training_config.model_version,
-        protocol_id=training_config.protocol_id,
-        panel=panel,
-        development_cohort_id=dev_cohort,
-        development_dataset_id=dev_dataset,
-        synthetic_only=True,
-        selected_model_family=winning_family,
-        selected_hyperparameters=best_params,
-        preprocessor=final_prep,
-        estimator=final_est,
-        calibrator=final_cal,
-        shap_background=shap_bg,
-        fold_ensemble=tuple(primary_fold_ensemble),
-        internal_evaluation={
-            "status": MANDATORY_OUTPUT_BANNER,
-            "dataset_id": auth.dataset_id,
-            "panel_id": panel.panel_id,
-            "row_count": len(records),
-            "selection_counts": selection_counts,
-            "winning_family": winning_family,
-        },
-        negative_control={
-            "shuffle_max_allowed_auroc": training_config.shuffle_max_allowed_auroc,
-            "observed_max_shuffle_auc": max_shuffle_auc,
-            "passed": max_shuffle_auc <= training_config.shuffle_max_allowed_auroc,
-        },
+        dev_cohort=dev_cohort,
+        dev_dataset=dev_dataset,
+        config=training_config,
+        synthetic_only=False,  # Truthful real provenance mode!
     )
 
-    # 7. Package atomic bundle
+    # 7. Package atomic bundle with truthful real provenance mode
     active_key = signing_key if signing_key is not None else get_or_create_local_signing_key()
+    auth_ctx_dict = {
+        "governance_decision_id": auth.governance_decision_id,
+        "dataset_id": auth.dataset_id,
+        "panel_id": auth.panel_id,
+        "experiment_type": auth.experiment_type,
+        "source_relative_path": auth.source_relative_path,
+        "expected_source_sha256": auth.expected_source_sha256,
+        "expected_source_row_count": auth.expected_source_row_count,
+        "authorized_by": auth.authorized_by,
+        "authorized_date": auth.authorized_date,
+        "signature_attestation": auth.signature_attestation,
+        "pinned_commit_sha": auth.pinned_commit_sha,
+        "protocol_sha256": auth.protocol_sha256,
+        "plan_sha256": auth.plan_sha256,
+        "dictionary_sha256": auth.dictionary_sha256,
+    }
+
     verified_descriptor = package_research_bundle(
         trained_run,
         output_bundle_dir,
         signing_key=active_key,
+        authorized_real_data=True,
+        authorization_context=auth_ctx_dict,
     )
 
     return trained_run, verified_descriptor
