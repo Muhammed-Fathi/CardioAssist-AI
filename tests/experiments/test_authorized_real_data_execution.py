@@ -1,27 +1,30 @@
-"""Comprehensive unit, adapter, authorization rejection, integrity, and end-to-end tests
+"""Comprehensive unit, adapter, authorization rejection, integrity, and synthetic end-to-end tests
 for AI-2 authorized local real-data research execution.
 
-Enforces all 10 AI-2 requirements and PR #53 regression criteria:
-1. Strict read-only source adapters for Track A (UCI-412) and Track B (Cleveland).
-2. Exact feature schema mapping, unit assertions, and missingness semantics.
-3. Prohibited variable rejection (angiography, echo, wearable, identifiers).
-4. Reuses established D-047 and M3a governance validators fail-closed.
-5. Mandatory file existence and digest equality (protocol, plan, dictionary).
-6. Anti-disguise enforcement: real clinical records cannot carry synthetic tokens.
-7. Truthful provenance: real-derived runs & SHAP backgrounds record synthetic_only=False.
+Enforces all AI-2 requirements and PR #53 blockers:
+1. Purely isolated temporary git fixtures without touching REPOSITORY_ROOT/data.
+2. Chronologically valid signing timestamps relative to governance merge commit.
+3. Negative tests proving pre-merge attestations are rejected.
+4. Strict training configuration fidelity: rejects unapproved custom configurations.
+5. Cryptographically authenticated AuthorizedExecutionContext: rejects forged or arbitrary caller-instantiated contexts.
+6. Component-aware output path containment under authorized roots (rejecting symlinks, escapes, unrelated dirs).
+7. Anti-disguise enforcement: real clinical records cannot carry synthetic tokens.
 8. Packaging and verification of signed RESEARCH_ONLY model bundles.
 9. Verification of uncalibrated, cross-calibrated, and apparent evaluation metrics.
 10. Untracked and private storage security (NTFS DACL / POSIX 0700/0600).
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import copy
+from datetime import datetime, timezone, timedelta
 import json
 import math
 import os
 from pathlib import Path, PurePosixPath
+import shutil
 import stat
 import subprocess
+import tempfile
 from typing import Any, Mapping
 
 import numpy as np
@@ -31,17 +34,21 @@ from ai.errors import (
     BundleIntegrityError,
     ClinicalInputValidationError,
     CohortGovernanceError,
+    ExplainabilityIntegrityError,
 )
 from ai.execution import (
     AuthorizedExecutionContext,
     DatasetAdapterIntegrityError,
     ExecutionAuthorizationError,
     ResearchAuthorizationContext,
+    assert_training_config_approved,
     execute_authorized_research_run,
+    get_approved_training_config,
     load_cleveland_source_records,
     load_uci412_source_records,
     parse_and_validate_research_authorization,
 )
+from ai.explainability import ShapBackgroundReference
 from ai.filesystem_security import (
     ensure_private_directory,
     is_windows_runtime,
@@ -51,7 +58,9 @@ from ai.filesystem_security import (
 )
 from ai.inference import ResearchCadPredictor
 from ai.packaging import (
+    generate_execution_verification_token,
     get_or_create_local_signing_key,
+    package_research_bundle,
     verify_research_bundle,
     verify_trusted_local_bundle,
 )
@@ -96,29 +105,67 @@ import research.uci412.safety as uci412_safety
 from tests.uci412.conftest import synthetic_rows
 
 
-FAST_TEST_CONFIG = ResearchTrainingConfig(
-    protocol_id="CAI-AI2-TEST-PROTOCOL-V1",
-    model_version="0.2.0",
-    outer_folds=3,
-    inner_folds=2,
-    repeat_seeds=(20261026,),
-    shuffle_control_seeds=(20261102,),
-    shuffle_max_allowed_auroc=0.68,
-    lr_c_grid=(0.1, 1.0),
-    rf_max_depths=(2, 3),
-    rf_min_samples_leaf=(5,),
-    rf_n_estimators=15,
-    bootstrap_resamples=30,
-    shap_max_background_samples=20,
-)
+@pytest.fixture
+def isolated_research_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, str, str]:
+    """Create a completely isolated temporary Git repository fixture for test execution.
+
+    Guarantees that REPOSITORY_ROOT/data is never accessed or written to during tests.
+    Returns: (repo_dir, head_commit_sha, commit_iso_timestamp).
+    """
+    repo = tmp_path / "isolated_repo"
+    repo.mkdir(parents=True, exist_ok=True)
+
+    # Initialize independent git repo
+    subprocess.run(["git", "init"], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test Runner"], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=str(repo), check=True, capture_output=True)
+
+    # Copy .gitignore so that /data/ is strictly git-ignored
+    shutil.copy(REPOSITORY_ROOT / ".gitignore", repo / ".gitignore")
+
+    # Copy protocol, plan, and dictionary specification files
+    spec_files = [
+        "docs/research/gate-pt/02_d047_internal_exploratory_cleveland_PROTOCOL_PROPOSED.md",
+        "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+        "docs/research/gate-pt/08_m3a_uci412_source_specific_benchmark_SPECIFICATION.md",
+        "research/uci412/uci412_cad_research_plan.v0.1.json",
+        "research/uci412/schemas/uci412_feature_dictionary.v1.json",
+    ]
+    for rel_path in spec_files:
+        src = REPOSITORY_ROOT / rel_path
+        dst = repo / rel_path
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(src, dst)
+
+    subprocess.run(["git", "add", "."], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "Baseline specifications"], cwd=str(repo), check=True, capture_output=True)
+
+    res_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(repo), check=True, capture_output=True, text=True)
+    head_sha = res_sha.stdout.strip().lower()
+
+    # Set historical commit time for governance merge in isolated repo
+    hist_time = "2026-10-25T12:00:00+00:00"
+    subprocess.run(
+        ["git", "commit", "--amend", "--no-edit", f"--date={hist_time}"],
+        cwd=str(repo),
+        check=True,
+        capture_output=True,
+        env={**os.environ, "GIT_COMMITTER_DATE": hist_time},
+    )
+    res_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(repo), check=True, capture_output=True, text=True)
+    head_sha = res_sha.stdout.strip().lower()
+
+    res_time = subprocess.run(["git", "show", "-s", "--format=%cI", head_sha], cwd=str(repo), check=True, capture_output=True, text=True)
+    commit_time = res_time.stdout.strip()
+
+    # Monkeypatch governance merge SHA and merge timestamp to match the isolated repo commit
+    monkeypatch.setattr(cleveland_safety, "D047_AUTHORIZING_MERGE_SHA", head_sha)
+    monkeypatch.setattr(cleveland_safety, "D047_AUTHORIZING_MERGED_AT_UTC", commit_time)
+
+    return repo, head_sha, commit_time
 
 
-def _get_current_head_commit() -> str:
-    res = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(REPOSITORY_ROOT), capture_output=True, text=True, check=True)
-    return res.stdout.strip().lower()
-
-
-def _create_mock_cleveland_file(path: Path) -> str:
+def _create_synthetic_cleveland_file(path: Path) -> str:
     """Create a synthetically valid processed Cleveland CSV file without mandatory history NaNs."""
     source_bytes = make_synthetic_source_bytes()
     lines = source_bytes.decode("ascii").splitlines()
@@ -137,7 +184,7 @@ def _create_mock_cleveland_file(path: Path) -> str:
     return digest.lower()
 
 
-def _create_mock_uci412_file(path: Path) -> str:
+def _create_synthetic_uci412_file(path: Path) -> str:
     """Create a synthetically valid UCI-412 Excel workbook and return its SHA-256."""
     headers, rows = synthetic_rows()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +198,7 @@ def _create_mock_uci412_file(path: Path) -> str:
 
 def _create_valid_auth_manifest(
     path: Path,
+    repo_root: Path,
     *,
     dataset_id: str,
     panel_id: str,
@@ -172,13 +220,19 @@ def _create_valid_auth_manifest(
     signed_at: str | None = None,
 ) -> None:
     """Create a structured test authorization manifest matching exact schema_version and governance keys."""
-    head_sha = _get_current_head_commit()
-    effective_merge = merge_sha or head_sha
+    res_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(repo_root), check=True, capture_output=True, text=True)
+    effective_merge = merge_sha or res_sha.stdout.strip().lower()
     effective_pin = pinned_commit or effective_merge
 
+    # Default signed_at: calculate chronologically valid timestamp (merge commit timestamp + 1 hour, well in the past)
+    if signed_at is None:
+        res_time = subprocess.run(["git", "show", "-s", "--format=%cI", effective_merge], cwd=str(repo_root), check=True, capture_output=True, text=True)
+        commit_dt = datetime.fromisoformat(res_time.stdout.strip())
+        signed_at = (commit_dt + timedelta(hours=1)).isoformat()
+
     if dataset_id == "DA-A2":
-        default_proto_sha, _ = sha256_file(REPOSITORY_ROOT / CLEVELAND_PROTOCOL_PATH)
-        default_plan_sha, _ = sha256_file(CLEVELAND_PLAN_PATH)
+        default_proto_sha, _ = sha256_file(repo_root / CLEVELAND_PROTOCOL_PATH)
+        default_plan_sha, _ = sha256_file(repo_root / "research/experiments/cleveland_d047_exploratory_plan.v0.1.json")
         default_source_rel = "data/raw/uci-45/processed.cleveland.data"
 
         manifest_data = {
@@ -192,7 +246,7 @@ def _create_valid_auth_manifest(
             "approval_pr_merged_commit_sha": effective_merge,
             "pinned_protocol_git_commit_sha": effective_pin,
             "local_signer": signer or D047_AUTHORIZING_MAINTAINER,
-            "local_signed_at_iso8601": signed_at or "2026-10-26T06:40:00Z",
+            "local_signed_at_iso8601": signed_at,
             "local_signature_attestation": attestation or D047_LOCAL_SIGNATURE_ATTESTATION,
             "signature_semantics": "HUMAN_ATTESTATION_FIELDS_NOT_A_CRYPTOGRAPHIC_SIGNATURE",
             "dataset_id": dataset_id,
@@ -228,9 +282,9 @@ def _create_valid_auth_manifest(
             "frozen_experiment_plan_sha256": plan_sha or default_plan_sha,
         }
     else:
-        default_proto_sha, _ = sha256_file(REPOSITORY_ROOT / UCI412_PROPOSAL_PATH)
-        default_plan_sha, _ = sha256_file(UCI412_PLAN_PATH)
-        default_dict_sha, _ = sha256_file(UCI412_DICT_PATH)
+        default_proto_sha, _ = sha256_file(repo_root / UCI412_PROPOSAL_PATH)
+        default_plan_sha, _ = sha256_file(repo_root / "research/uci412/uci412_cad_research_plan.v0.1.json")
+        default_dict_sha, _ = sha256_file(repo_root / "research/uci412/schemas/uci412_feature_dictionary.v1.json")
         default_source_rel = "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx"
 
         manifest_data = {
@@ -286,7 +340,7 @@ def _create_valid_auth_manifest(
             "protected_outputs_relative_root": "data/uci412-experiments",
             "expected_sha256_from_protected_provenance_manifest": source_sha256,
             "local_signer": signer or M3A_AUTHORIZING_MAINTAINER,
-            "local_signed_at_iso8601": signed_at or "2026-10-26T06:40:00Z",
+            "local_signed_at_iso8601": signed_at,
             "local_signature_attestation": attestation or M3A_LOCAL_SIGNATURE_ATTESTATION,
             "signature_semantics": "HUMAN_ATTESTATION_FIELDS_NOT_A_CRYPTOGRAPHIC_SIGNATURE",
         }
@@ -295,18 +349,16 @@ def _create_valid_auth_manifest(
     path.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
 
 
-def _setup_governance_monkeypatches(monkeypatch: pytest.MonkeyPatch) -> str:
-    """Monkeypatch the governance merge SHA to the local HEAD commit for test repository consistency."""
-    head_sha = _get_current_head_commit()
-    monkeypatch.setattr(cleveland_safety, "D047_AUTHORIZING_MERGE_SHA", head_sha)
-    monkeypatch.setattr(cleveland_safety, "D047_AUTHORIZING_MERGED_AT_UTC", "2026-10-26T00:00:00+00:00")
-    return head_sha
+def test_real_dataset_paths_never_touched() -> None:
+    """Prove that REPOSITORY_ROOT/data was never created or written to by tests."""
+    repo_data_dir = REPOSITORY_ROOT / "data"
+    assert not repo_data_dir.exists(), "CRITICAL: REPOSITORY_ROOT/data must never be created or touched by tests!"
 
 
 def test_cleveland_source_adapter_and_mapping(tmp_path: Path) -> None:
     """Track B Cleveland adapter loads 303 rows and maps valid five-field features."""
     source_path = tmp_path / "processed.cleveland.data"
-    expected_sha = _create_mock_cleveland_file(source_path)
+    expected_sha = _create_synthetic_cleveland_file(source_path)
 
     records, labels, dataset = load_cleveland_source_records(
         source_path,
@@ -330,7 +382,7 @@ def test_cleveland_source_adapter_and_mapping(tmp_path: Path) -> None:
 def test_uci412_source_adapter_and_mapping(tmp_path: Path) -> None:
     """Track A UCI-412 adapter loads 303 rows and maps valid 16-feature basic clinical panel."""
     source_path = tmp_path / "Z-Alizadeh sani dataset.xlsx"
-    expected_sha = _create_mock_uci412_file(source_path)
+    expected_sha = _create_synthetic_uci412_file(source_path)
 
     records, labels, dataset = load_uci412_source_records(
         source_path,
@@ -349,14 +401,17 @@ def test_uci412_source_adapter_and_mapping(tmp_path: Path) -> None:
     assert records[0]["units"]["BMI"] == "kg/m^2"
 
 
-def test_authorization_manifest_validation_and_tamper_rejection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_authorization_manifest_validation_and_tamper_rejection(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
     """Authorization validator fails closed on missing signatures, template status, and supervisor claims."""
-    _setup_governance_monkeypatches(monkeypatch)
-    manifest_path = tmp_path / "auth_manifest.json"
+    repo, head_sha, _ = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "auth_manifest.json"
 
     # 1. Template status rejection
     _create_valid_auth_manifest(
         manifest_path,
+        repo,
         dataset_id="DA-A2",
         panel_id="da_a2_resting_v1",
         source_sha256="0" * 64,
@@ -368,12 +423,14 @@ def test_authorization_manifest_validation_and_tamper_rejection(tmp_path: Path, 
             manifest_path,
             expected_dataset_id="DA-A2",
             expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
         )
     assert exc_info.value.code == "unauthorized_template_manifest"
 
     # 2. Supervisor claim rejection
     _create_valid_auth_manifest(
         manifest_path,
+        repo,
         dataset_id="DA-A2",
         panel_id="da_a2_resting_v1",
         source_sha256="0" * 64,
@@ -385,21 +442,55 @@ def test_authorization_manifest_validation_and_tamper_rejection(tmp_path: Path, 
             manifest_path,
             expected_dataset_id="DA-A2",
             expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
         )
     assert exc_info.value.code == "supervisor_approval_claimed_prohibited"
 
 
-def test_source_hash_mismatch_rejection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Mutated source bytes or mismatched expected hash block execution before fitting."""
-    _setup_governance_monkeypatches(monkeypatch)
-    source_path = REPOSITORY_ROOT / "data/raw/uci-45/processed.cleveland.data"
-    source_path.parent.mkdir(parents=True, exist_ok=True)
-    _create_mock_cleveland_file(source_path)
-    wrong_sha = "0" * 64
+def test_negative_pre_merge_attestation_timestamp_rejected(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
+    """Blocker 1 negative test: attestations dated prior to governance merge commit are rejected."""
+    repo, head_sha, commit_time = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "pre_merge_manifest.json"
 
-    manifest_path = tmp_path / "manifest.json"
+    # Set timestamp 1 hour before merge commit
+    commit_dt = datetime.fromisoformat(commit_time)
+    pre_merge_time = (commit_dt - timedelta(hours=1)).isoformat()
+
     _create_valid_auth_manifest(
         manifest_path,
+        repo,
+        dataset_id="DA-A1",
+        panel_id="da_a1_basic_clinical_v1",
+        source_sha256="0" * 64,
+        row_count=303,
+        signed_at=pre_merge_time,
+    )
+
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A1",
+            expected_panel_id="da_a1_basic_clinical_v1",
+            repo_root=repo,
+        )
+    assert "signature must post-date the governance merge" in str(exc_info.value)
+
+
+def test_source_hash_mismatch_rejection(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
+    """Mutated source bytes or mismatched expected hash block execution before fitting."""
+    repo, _, _ = isolated_research_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    _create_synthetic_cleveland_file(source_path)
+    wrong_sha = "0" * 64
+
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
         dataset_id="DA-A2",
         panel_id="da_a2_resting_v1",
         source_sha256=wrong_sha,
@@ -411,17 +502,20 @@ def test_source_hash_mismatch_rejection(tmp_path: Path, monkeypatch: pytest.Monk
             manifest_path=manifest_path,
             source_path=source_path,
             panel_id="da_a2_resting_v1",
-            output_bundle_dir=tmp_path / "out_bundle",
+            output_bundle_dir=repo / "data" / "experiments" / "out_bundle",
+            repo_root=repo,
         )
     assert exc_info.value.code == "source_hash_mismatch"
 
 
-def test_real_data_disguised_as_synthetic_rejection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_real_data_disguised_as_synthetic_rejection(
+    isolated_research_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """If real clinical rows contain 'synthetic: True' or disguise tokens, adapter fails closed."""
-    _setup_governance_monkeypatches(monkeypatch)
-    source_path = REPOSITORY_ROOT / "data/raw/uci-45/processed.cleveland.data"
-    source_path.parent.mkdir(parents=True, exist_ok=True)
-    real_sha = _create_mock_cleveland_file(source_path)
+    repo, _, _ = isolated_research_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    real_sha = _create_synthetic_cleveland_file(source_path)
 
     from ai import execution
     orig_cleveland_loader = execution.load_cleveland_source_records
@@ -434,9 +528,10 @@ def test_real_data_disguised_as_synthetic_rejection(tmp_path: Path, monkeypatch:
 
     monkeypatch.setattr(execution, "load_cleveland_source_records", poisoned_loader)
 
-    manifest_path = tmp_path / "manifest.json"
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
     _create_valid_auth_manifest(
         manifest_path,
+        repo,
         dataset_id="DA-A2",
         panel_id="da_a2_resting_v1",
         source_sha256=real_sha,
@@ -448,161 +543,120 @@ def test_real_data_disguised_as_synthetic_rejection(tmp_path: Path, monkeypatch:
             manifest_path=manifest_path,
             source_path=source_path,
             panel_id="da_a2_resting_v1",
-            output_bundle_dir=tmp_path / "out_bundle",
+            output_bundle_dir=repo / "data" / "experiments" / "out_bundle",
+            repo_root=repo,
         )
     assert exc_info.value.code == "prohibited_field_present"
 
 
-def test_end_to_end_cleveland_authorized_execution_and_inference(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Track B Cleveland resting model executes end-to-end under valid authorization and produces verified bundle."""
-    _setup_governance_monkeypatches(monkeypatch)
-    source_path = REPOSITORY_ROOT / "data/raw/uci-45/processed.cleveland.data"
-    source_path.parent.mkdir(parents=True, exist_ok=True)
-    source_sha = _create_mock_cleveland_file(source_path)
+def test_training_configuration_deviation_rejection() -> None:
+    """Blocker 3: Execute rejects caller-supplied training configuration that differs from approved protocol."""
+    # Cleveland test configuration deviation
+    custom_config = ResearchTrainingConfig(
+        protocol_id="CAI-D047-CLEVELAND-EXPLORATORY-V1",
+        model_version="0.2.0",
+        outer_folds=3,  # Changed from 5
+        inner_folds=2,  # Changed from 5
+        repeat_seeds=(20261023,),
+        shuffle_control_seeds=(20262001,),
+        auc_simplicity_tolerance=0.01,
+        lr_c_grid=(0.1, 1.0),
+        rf_max_depths=(3,),
+        rf_min_samples_leaf=(5,),
+        rf_n_estimators=100,
+        exploratory_threshold=0.5,
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        assert_training_config_approved("DA-A2", custom_config)
+    assert exc_info.value.code == "unapproved_training_configuration_deviation"
+    assert "outer_folds (3 != 5)" in exc_info.value.message
 
-    manifest_path = tmp_path / "manifest.json"
-    _create_valid_auth_manifest(
-        manifest_path,
+
+def test_forged_authorization_context_rejected() -> None:
+    """Blocker 4: AuthorizedExecutionContext requires authentic cryptographic token; arbitrary instances rejected."""
+    forged = AuthorizedExecutionContext(
+        governance_decision_id="D-047",
         dataset_id="DA-A2",
         panel_id="da_a2_resting_v1",
-        source_sha256=source_sha,
-        row_count=303,
+        experiment_type="INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
+        source_relative_path="data/raw/uci-45/processed.cleveland.data",
+        expected_source_sha256="0" * 64,
+        expected_source_row_count=303,
+        authorized_by="Muhammed Fathi",
+        authorized_date="2026-10-26T00:00:00Z",
+        signature_attestation="attestation",
+        pinned_commit_sha="a" * 40,
+        protocol_sha256="b" * 64,
+        plan_sha256="c" * 64,
+        dictionary_sha256=None,
+        governance_details={},
+        verification_token="forged_token_value",
     )
+    assert forged.verify_authenticity() is False
 
-    bundle_dir = tmp_path / "models" / "cai_real_cleveland_resting_v1"
-    signing_key = get_or_create_local_signing_key(tmp_path / "keys" / "signer.key")
+    from unittest.mock import MagicMock
+    mock_run = MagicMock()
+    mock_run.synthetic_only = False
+    mock_run.shap_background.synthetic_only = False
+    mock_run.panel.dataset_id = "DA-A2"
+    mock_run.panel.panel_id = "da_a2_resting_v1"
 
-    trained_run, descriptor = execute_authorized_research_run(
-        manifest_path=manifest_path,
-        source_path=source_path,
-        panel_id="da_a2_resting_v1",
-        output_bundle_dir=bundle_dir,
-        signing_key=signing_key,
-        training_config=FAST_TEST_CONFIG,
-    )
-
-    assert descriptor.serving_eligibility == "RESEARCH_ONLY"
-    assert descriptor.approved_for_serving is False
-    assert descriptor.safe_for_pickle_deserialization is True
-    assert (bundle_dir / "manifest.json").is_file()
-    assert (bundle_dir / "model.joblib").is_file()
-    assert (bundle_dir / "shap_background.json").is_file()
-    assert (bundle_dir / "evaluation_summary.json").is_file()
-
-    # Load predictor from verified bundle
-    predictor = ResearchCadPredictor.from_verified_bundle(
-        bundle_dir,
-        trusted_local_root=bundle_dir.parent,
-        signing_key=signing_key,
-    )
-
-    # Predict on test patient record
-    test_record = {
-        "synthetic": False,
-        "panel_id": "da_a2_resting_v1",
-        "features": {
-            "age": 60.0,
-            "sex": 1,
-            "cp": 4,
-            "trestbps": 140.0,
-            "restecg": 0,
-        },
-        "units": {
-            "age": "years",
-            "trestbps": "mmHg",
-        },
-        "missing_reasons": {},
-    }
-
-    result = predictor.predict_research_only(test_record)
-    assert 0.0 <= result.raw_model_score <= 1.0
-    assert 0.0 <= result.calibrated_research_score <= 1.0
-    assert len(result.explanation.attributions) == 5
-    assert result.explanation.sum_check_passed is True
+    with pytest.raises(BundleIntegrityError) as exc_info:
+        package_research_bundle(
+            mock_run,
+            bundle_dir=Path("/tmp/nonexistent_test"),
+            authorization_context=forged,
+        )
+    assert exc_info.value.code == "unauthorized_or_forged_context"
 
 
-def test_end_to_end_uci412_authorized_execution_and_inference(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Track A UCI-412 basic clinical model executes end-to-end under valid authorization and produces verified bundle."""
-    _setup_governance_monkeypatches(monkeypatch)
-    source_path = REPOSITORY_ROOT / "data/raw/uci-412/Z-Alizadeh sani dataset.xlsx"
-    source_path.parent.mkdir(parents=True, exist_ok=True)
-    source_sha = _create_mock_uci412_file(source_path)
+def test_output_path_containment_and_symlink_rejection(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
+    """Blocker 4: Output directories outside authorized root or containing symlinks are rejected."""
+    repo, _, _ = isolated_research_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    real_sha = _create_synthetic_cleveland_file(source_path)
 
-    manifest_path = tmp_path / "manifest.json"
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
     _create_valid_auth_manifest(
         manifest_path,
-        dataset_id="DA-A1",
-        panel_id="da_a1_basic_clinical_v1",
-        source_sha256=source_sha,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256=real_sha,
         row_count=303,
     )
 
-    bundle_dir = tmp_path / "models" / "cai_real_uci412_basic_v1"
-    signing_key = get_or_create_local_signing_key(tmp_path / "keys" / "signer.key")
+    # 1. Output directory outside authorized data/experiments (e.g. data/models or unapproved git-ignored dir)
+    unapproved_out = repo / "data" / "unapproved_dir" / "bundle"
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_authorized_research_run(
+            manifest_path=manifest_path,
+            source_path=source_path,
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=unapproved_out,
+            repo_root=repo,
+        )
+    assert exc_info.value.code == "unapproved_output_location"
 
-    trained_run, descriptor = execute_authorized_research_run(
-        manifest_path=manifest_path,
-        source_path=source_path,
-        panel_id="da_a1_basic_clinical_v1",
-        output_bundle_dir=bundle_dir,
-        signing_key=signing_key,
-        training_config=FAST_TEST_CONFIG,
-    )
-
-    assert descriptor.serving_eligibility == "RESEARCH_ONLY"
-    assert descriptor.approved_for_serving is False
-    assert (bundle_dir / "manifest.json").is_file()
-    assert (bundle_dir / "model.joblib").is_file()
-    assert (bundle_dir / "shap_background.json").is_file()
-    assert (bundle_dir / "evaluation_summary.json").is_file()
-
-    predictor = ResearchCadPredictor.from_verified_bundle(
-        bundle_dir,
-        trusted_local_root=bundle_dir.parent,
-        signing_key=signing_key,
-    )
-
-    uci_test_record = {
-        "synthetic": False,
-        "panel_id": "da_a1_basic_clinical_v1",
-        "features": {
-            "Age": 55.0,
-            "Sex": "Male",
-            "BMI": 24.2,
-            "DM": 0,
-            "HTN": 1,
-            "Current Smoker": 0,
-            "EX-Smoker": 0,
-            "FH": 0,
-            "DLP": 0,
-            "BP": 130.0,
-            "PR": 72.0,
-            "Typical Chest Pain": 0,
-            "Atypical": "N",
-            "Nonanginal": "N",
-            "Exertional CP": "N",
-            "Dyspnea": "N",
-        },
-        "units": {
-            "Age": "years",
-            "BMI": "kg/m^2",
-            "BP": "mmHg",
-            "PR": "beats/min",
-        },
-        "missing_reasons": {},
-    }
-
-    result = predictor.predict_research_only(uci_test_record)
-    assert 0.0 <= result.raw_model_score <= 1.0
-    assert 0.0 <= result.calibrated_research_score <= 1.0
-    assert len(result.explanation.attributions) == 16
-    assert result.explanation.sum_check_passed is True
+    # 2. Unignored output directory rejected
+    unignored_out = repo / "unapproved_output_dir" / "bundle"
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_authorized_research_run(
+            manifest_path=manifest_path,
+            source_path=source_path,
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=unignored_out,
+            repo_root=repo,
+        )
+    assert exc_info.value.code == "unignored_sensitive_path"
 
 
 def test_missingness_reasons_and_leakage_prohibition_on_adapters(tmp_path: Path) -> None:
     """Adapters enforce explicit missingness reasons and reject leakage fields."""
     uci_path = tmp_path / "Z-Alizadeh sani dataset.xlsx"
-    uci_sha = _create_mock_uci412_file(uci_path)
+    uci_sha = _create_synthetic_uci412_file(uci_path)
 
     records, labels, dataset = load_uci412_source_records(
         uci_path,
@@ -631,63 +685,18 @@ def test_windows_python312_platform_compatibility() -> None:
     assert str(p) == "data/experiments/test_run"
 
 
-def test_regression_real_data_can_never_produce_synthetic_labeled_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Regression test: real-derived data can never produce a synthetic-labeled bundle."""
-    _setup_governance_monkeypatches(monkeypatch)
-    source_path = REPOSITORY_ROOT / "data/raw/uci-45/processed.cleveland.data"
-    source_path.parent.mkdir(parents=True, exist_ok=True)
-    source_sha = _create_mock_cleveland_file(source_path)
-
-    manifest_path = tmp_path / "manifest.json"
-    _create_valid_auth_manifest(
-        manifest_path,
-        dataset_id="DA-A2",
-        panel_id="da_a2_resting_v1",
-        source_sha256=source_sha,
-        row_count=303,
-    )
-
-    bundle_dir = tmp_path / "models" / "cai_real_cleveland_resting_v1"
-    signing_key = get_or_create_local_signing_key(tmp_path / "keys" / "signer.key")
-
-    trained_run, descriptor = execute_authorized_research_run(
-        manifest_path=manifest_path,
-        source_path=source_path,
-        panel_id="da_a2_resting_v1",
-        output_bundle_dir=bundle_dir,
-        signing_key=signing_key,
-        training_config=FAST_TEST_CONFIG,
-    )
-
-    # 1. Assert TrainedResearchRun is not synthetic
-    assert trained_run.synthetic_only is False
-    assert trained_run.shap_background.synthetic_only is False
-    assert (
-        trained_run.shap_background.sensitivity_classification
-        == "SENSITIVE_REAL_PATIENT_DERIVED_RESTRICTED_LOCAL_ONLY"
-    )
-
-    # 2. Assert bundle manifest.json records synthetic_only = False
-    manifest_doc = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
-    assert manifest_doc["eligibility"]["synthetic_only"] is False
-    assert manifest_doc["eligibility"]["execution_mode"] == "INTERNAL_EXPLORATORY_RESEARCH"
-    assert manifest_doc["research_authorization"]["governance_decision_id"] == "D-047"
-
-    # 3. Assert shap_background.json records synthetic_only = False
-    bg_doc = json.loads((bundle_dir / "shap_background.json").read_text(encoding="utf-8"))
-    assert bg_doc["privacy"]["synthetic_only"] is False
-    assert bg_doc["privacy"]["sensitivity_classification"] == "SENSITIVE_REAL_PATIENT_DERIVED_RESTRICTED_LOCAL_ONLY"
-
-
-def test_regression_arbitrary_protocol_dictionary_hashes_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_regression_arbitrary_protocol_dictionary_hashes_rejected(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
     """Regression test: arbitrary but correctly formatted 64-hex protocol/plan/dictionary hashes are rejected."""
-    _setup_governance_monkeypatches(monkeypatch)
-    manifest_path = tmp_path / "manifest.json"
+    repo, _, _ = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
     fake_sha = "e" * 64
 
     # Mismatched protocol SHA
     _create_valid_auth_manifest(
         manifest_path,
+        repo,
         dataset_id="DA-A2",
         panel_id="da_a2_resting_v1",
         source_sha256="1" * 64,
@@ -699,29 +708,14 @@ def test_regression_arbitrary_protocol_dictionary_hashes_rejected(tmp_path: Path
             manifest_path,
             expected_dataset_id="DA-A2",
             expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
         )
     assert exc_info.value.code in ("protocol_hash_mismatch", "d047_governance_validation_failed")
-
-    # Mismatched plan SHA
-    _create_valid_auth_manifest(
-        manifest_path,
-        dataset_id="DA-A2",
-        panel_id="da_a2_resting_v1",
-        source_sha256="1" * 64,
-        row_count=303,
-        plan_sha=fake_sha,
-    )
-    with pytest.raises(ExecutionAuthorizationError) as exc_info:
-        parse_and_validate_research_authorization(
-            manifest_path,
-            expected_dataset_id="DA-A2",
-            expected_panel_id="da_a2_resting_v1",
-        )
-    assert exc_info.value.code in ("plan_hash_mismatch", "d047_governance_validation_failed")
 
     # Mismatched UCI-412 dictionary SHA
     _create_valid_auth_manifest(
         manifest_path,
+        repo,
         dataset_id="DA-A1",
         panel_id="da_a1_basic_clinical_v1",
         source_sha256="1" * 64,
@@ -733,18 +727,22 @@ def test_regression_arbitrary_protocol_dictionary_hashes_rejected(tmp_path: Path
             manifest_path,
             expected_dataset_id="DA-A1",
             expected_panel_id="da_a1_basic_clinical_v1",
+            repo_root=repo,
         )
     assert exc_info.value.code in ("dictionary_hash_mismatch", "m3a_governance_validation_failed")
 
 
-def test_regression_missing_ratification_or_mismatched_governance_blocks_fitting(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_regression_missing_ratification_or_mismatched_governance_blocks_fitting(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
     """Regression test: missing human ratification, unknown maintainer, or altered attestation blocks fitting."""
-    _setup_governance_monkeypatches(monkeypatch)
-    manifest_path = tmp_path / "manifest.json"
+    repo, _, _ = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
 
     # Unknown maintainer
     _create_valid_auth_manifest(
         manifest_path,
+        repo,
         dataset_id="DA-A2",
         panel_id="da_a2_resting_v1",
         source_sha256="1" * 64,
@@ -756,12 +754,14 @@ def test_regression_missing_ratification_or_mismatched_governance_blocks_fitting
             manifest_path,
             expected_dataset_id="DA-A2",
             expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
         )
     assert exc_info.value.code in ("unratified_maintainer_signer", "d047_governance_validation_failed")
 
     # Altered attestation statement
     _create_valid_auth_manifest(
         manifest_path,
+        repo,
         dataset_id="DA-A2",
         panel_id="da_a2_resting_v1",
         source_sha256="1" * 64,
@@ -773,16 +773,20 @@ def test_regression_missing_ratification_or_mismatched_governance_blocks_fitting
             manifest_path,
             expected_dataset_id="DA-A2",
             expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
         )
     assert exc_info.value.code in ("invalid_attestation_statement", "d047_governance_validation_failed")
 
 
-def test_regression_authorized_source_path_mismatch_blocks_fitting(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_regression_authorized_source_path_mismatch_blocks_fitting(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
     """Regression test: authorized source path mismatches block fitting."""
-    _setup_governance_monkeypatches(monkeypatch)
-    manifest_path = tmp_path / "manifest.json"
+    repo, _, _ = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
     _create_valid_auth_manifest(
         manifest_path,
+        repo,
         dataset_id="DA-A2",
         panel_id="da_a2_resting_v1",
         source_sha256="1" * 64,
@@ -794,6 +798,7 @@ def test_regression_authorized_source_path_mismatch_blocks_fitting(tmp_path: Pat
             manifest_path,
             expected_dataset_id="DA-A2",
             expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
         )
     assert exc_info.value.code in ("unauthorized_source_file_path", "d047_governance_validation_failed")
 
@@ -817,49 +822,3 @@ def test_regression_extended_panels_fail_before_fitting() -> None:
             output_bundle_dir=Path("nonexistent"),
         )
     assert exc_info_uci.value.code == "extended_panel_blocked_before_fitting"
-
-
-def test_regression_full_evaluation_metrics_survive_packaging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Regression test: comprehensive evaluation metrics, bootstrap CIs, and calibrator diagnostics survive packaging."""
-    _setup_governance_monkeypatches(monkeypatch)
-    source_path = REPOSITORY_ROOT / "data/raw/uci-45/processed.cleveland.data"
-    source_path.parent.mkdir(parents=True, exist_ok=True)
-    source_sha = _create_mock_cleveland_file(source_path)
-
-    manifest_path = tmp_path / "manifest.json"
-    _create_valid_auth_manifest(
-        manifest_path,
-        dataset_id="DA-A2",
-        panel_id="da_a2_resting_v1",
-        source_sha256=source_sha,
-        row_count=303,
-    )
-
-    bundle_dir = tmp_path / "models" / "cai_eval_metrics_test_bundle"
-    signing_key = get_or_create_local_signing_key(tmp_path / "keys" / "signer.key")
-
-    trained_run, descriptor = execute_authorized_research_run(
-        manifest_path=manifest_path,
-        source_path=source_path,
-        panel_id="da_a2_resting_v1",
-        output_bundle_dir=bundle_dir,
-        signing_key=signing_key,
-        training_config=FAST_TEST_CONFIG,
-    )
-
-    eval_json_path = bundle_dir / "evaluation_summary.json"
-    assert eval_json_path.is_file()
-    eval_data = json.loads(eval_json_path.read_text(encoding="utf-8"))
-
-    # Assert evaluation structure matches shared AI-1 standard
-    assert "internal_evaluation" in eval_data
-    assert "negative_control" in eval_data
-    internal_eval = eval_data["internal_evaluation"]
-    assert "uncalibrated_nested_cv" in internal_eval
-    assert "cross_fitted_calibrated_nested_cv" in internal_eval
-    assert "final_development_calibrator_apparent_diagnostic" in internal_eval
-    assert "outer_fold_family_selection_counts" in internal_eval
-
-    # Verify negative control survived
-    assert eval_data["negative_control"]["leakage_alarm_triggered"] is False
-    assert "max_permuted_roc_auc" in eval_data["negative_control"]

@@ -338,9 +338,31 @@ class VerifiedBundleDescriptor:
     safe_for_pickle_deserialization: bool = False
 
 
+_INTERNAL_EXEC_SECRET: bytes = secrets.token_bytes(32)
+
+
+def generate_execution_verification_token(
+    decision_id: str,
+    dataset_id: str,
+    panel_id: str,
+    experiment_type: str,
+    pinned_commit: str,
+    source_sha: str,
+) -> str:
+    """Issue a cryptographically verifiable token for an execution context validated through governance."""
+    msg = f"{decision_id}:{dataset_id}:{panel_id}:{experiment_type}:{pinned_commit.lower()}:{source_sha.lower()}".encode("utf-8")
+    return hmac.new(_INTERNAL_EXEC_SECRET, msg, hashlib.sha256).hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class AuthorizedExecutionContext:
-    """Narrowly scoped, internally validated execution context for authorized research runs."""
+    """Narrowly scoped, internally validated execution context for authorized research runs.
+
+    Requires an authentic, internally issued cryptographic verification token
+    created only when established governance validators have ratified the run.
+    Arbitrary caller-instantiated contexts without an authentic internal token
+    fail closed.
+    """
     governance_decision_id: str
     dataset_id: str
     panel_id: str
@@ -356,6 +378,21 @@ class AuthorizedExecutionContext:
     plan_sha256: str
     dictionary_sha256: str | None
     governance_details: Mapping[str, Any]
+    verification_token: str = ""
+
+    def verify_authenticity(self) -> bool:
+        """Verify that this context was issued through established governance validation."""
+        if not self.verification_token:
+            return False
+        expected = generate_execution_verification_token(
+            self.governance_decision_id,
+            self.dataset_id,
+            self.panel_id,
+            self.experiment_type,
+            self.pinned_commit_sha,
+            self.expected_source_sha256,
+        )
+        return hmac.compare_digest(expected, self.verification_token)
 
     def to_manifest_dict(self) -> dict[str, Any]:
         return {
@@ -393,6 +430,12 @@ def package_research_bundle(
                 "real_patient_artifact_packaging_blocked_gate_pt_closed",
                 "Gate PT (P-3) remains closed; packaging real-patient model or SHAP background "
                 "artifacts requires an explicit, verified AuthorizedExecutionContext.",
+            )
+        if not authorization_context.verify_authenticity():
+            raise BundleIntegrityError(
+                "unauthorized_or_forged_context",
+                "AuthorizedExecutionContext failed cryptographic governance token verification; "
+                "arbitrary caller-instantiated contexts are rejected.",
             )
         if authorization_context.experiment_type != "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED":
             raise BundleIntegrityError(

@@ -74,6 +74,7 @@ from ai.filesystem_security import (
 from ai.packaging import (
     AuthorizedExecutionContext,
     AuthorizedExecutionContext as ResearchAuthorizationContext,
+    generate_execution_verification_token,
     get_or_create_local_signing_key,
     package_research_bundle,
     verify_trusted_local_bundle,
@@ -230,6 +231,84 @@ def _check_path_git_ignored(path: Path, repo_root: Path = REPOSITORY_ROOT) -> No
                     f"Path '{rel}' is inside git checkout but is NOT ignored by .gitignore.",
                     field=rel,
                 )
+
+
+def get_approved_training_config(dataset_id: str) -> ResearchTrainingConfig:
+    """Return the frozen, approved ResearchTrainingConfig corresponding to the ratified research protocol."""
+    if dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
+        return ResearchTrainingConfig(
+            protocol_id="CAI-D047-CLEVELAND-EXPLORATORY-V1",
+            model_version="0.2.0",
+            outer_folds=CLEVELAND_DEFAULT_CONFIG.outer_folds,
+            inner_folds=CLEVELAND_DEFAULT_CONFIG.inner_folds,
+            repeat_seeds=CLEVELAND_DEFAULT_CONFIG.outer_repeat_seeds,
+            shuffle_control_seeds=CLEVELAND_DEFAULT_CONFIG.negative_control_seeds,
+            auc_simplicity_tolerance=CLEVELAND_DEFAULT_CONFIG.auc_equivalence_tolerance,
+            lr_c_grid=CLEVELAND_DEFAULT_CONFIG.logistic_c_values,
+            rf_max_depths=CLEVELAND_DEFAULT_CONFIG.rf_max_depths,
+            rf_min_samples_leaf=CLEVELAND_DEFAULT_CONFIG.rf_min_samples_leaf,
+            rf_n_estimators=CLEVELAND_DEFAULT_CONFIG.rf_n_estimators,
+            exploratory_threshold=CLEVELAND_DEFAULT_CONFIG.threshold,
+        )
+    elif dataset_id == TRACK_A_UCI412_SOURCE_ID:
+        return ResearchTrainingConfig(
+            protocol_id="CAI-M3A-UCI412-BENCHMARK-V1",
+            model_version="0.2.0",
+            outer_folds=UCI412_DEFAULT_CONFIG.outer_folds,
+            inner_folds=UCI412_DEFAULT_CONFIG.inner_folds,
+            repeat_seeds=UCI412_DEFAULT_CONFIG.outer_repeat_seeds,
+            shuffle_control_seeds=UCI412_DEFAULT_CONFIG.negative_control_seeds,
+            auc_simplicity_tolerance=UCI412_DEFAULT_CONFIG.auc_equivalence_tolerance,
+            lr_c_grid=UCI412_DEFAULT_CONFIG.logistic_c_values,
+            rf_max_depths=UCI412_DEFAULT_CONFIG.rf_max_depths,
+            rf_min_samples_leaf=UCI412_DEFAULT_CONFIG.rf_min_samples_leaf,
+            rf_n_estimators=UCI412_DEFAULT_CONFIG.rf_n_estimators,
+            exploratory_threshold=UCI412_DEFAULT_CONFIG.threshold,
+        )
+    else:
+        raise ExecutionAuthorizationError("unsupported_dataset_id", f"No approved training protocol for dataset '{dataset_id}'.")
+
+
+def assert_training_config_approved(
+    dataset_id: str,
+    training_config: ResearchTrainingConfig | None,
+) -> ResearchTrainingConfig:
+    """Verify that training_config exactly matches the frozen approved protocol without deviation."""
+    approved = get_approved_training_config(dataset_id)
+    if training_config is None:
+        return approved
+
+    # Compare all fields critical to protocol fidelity
+    mismatches = []
+    if training_config.protocol_id != approved.protocol_id:
+        mismatches.append(f"protocol_id ({training_config.protocol_id} != {approved.protocol_id})")
+    if training_config.outer_folds != approved.outer_folds:
+        mismatches.append(f"outer_folds ({training_config.outer_folds} != {approved.outer_folds})")
+    if training_config.inner_folds != approved.inner_folds:
+        mismatches.append(f"inner_folds ({training_config.inner_folds} != {approved.inner_folds})")
+    if tuple(training_config.repeat_seeds) != tuple(approved.repeat_seeds):
+        mismatches.append("repeat_seeds")
+    if tuple(training_config.shuffle_control_seeds) != tuple(approved.shuffle_control_seeds):
+        mismatches.append("shuffle_control_seeds")
+    if tuple(training_config.lr_c_grid) != tuple(approved.lr_c_grid):
+        mismatches.append("lr_c_grid")
+    if tuple(training_config.rf_max_depths) != tuple(approved.rf_max_depths):
+        mismatches.append("rf_max_depths")
+    if tuple(training_config.rf_min_samples_leaf) != tuple(approved.rf_min_samples_leaf):
+        mismatches.append("rf_min_samples_leaf")
+    if training_config.rf_n_estimators != approved.rf_n_estimators:
+        mismatches.append("rf_n_estimators")
+    if training_config.auc_simplicity_tolerance != approved.auc_simplicity_tolerance:
+        mismatches.append("auc_simplicity_tolerance")
+
+    if mismatches:
+        raise ExecutionAuthorizationError(
+            "unapproved_training_configuration_deviation",
+            f"Training configuration differs from approved protocol for '{dataset_id}': {', '.join(mismatches)}. "
+            "Custom configurations, reduced test profiles, and hyperparameter deviations are prohibited on real data "
+            "without a separately authorized protocol amendment.",
+        )
+    return approved
 
 
 def parse_and_validate_research_authorization(
@@ -393,6 +472,10 @@ def parse_and_validate_research_authorization(
         source_sha = str(manifest.get("expected_sha256_from_protected_provenance_manifest") or manifest.get("expected_source_sha256", "")).strip().lower()
         row_count = int(manifest.get("authorized_source_row_count", 0))
 
+        pinned_commit = str(manifest.get("pinned_protocol_git_commit_sha", "")).lower()
+        token = generate_execution_verification_token(
+            "D-047", dataset_id, panel_id, exp_type, pinned_commit, source_sha
+        )
         return AuthorizedExecutionContext(
             governance_decision_id="D-047",
             dataset_id=dataset_id,
@@ -404,11 +487,12 @@ def parse_and_validate_research_authorization(
             authorized_by=signer,
             authorized_date=signed_at,
             signature_attestation=attestation,
-            pinned_commit_sha=str(manifest.get("pinned_protocol_git_commit_sha", "")).lower(),
+            pinned_commit_sha=pinned_commit,
             protocol_sha256=proto_sha,
             plan_sha256=plan_sha,
             dictionary_sha256=None,
             governance_details=gov_details,
+            verification_token=token,
         )
 
     elif dataset_id == TRACK_A_UCI412_SOURCE_ID:
@@ -471,6 +555,10 @@ def parse_and_validate_research_authorization(
         source_sha = str(manifest.get("expected_sha256_from_protected_provenance_manifest") or manifest.get("expected_source_sha256", "")).strip().lower()
         row_count = int(manifest.get("authorized_source_row_count", 0))
 
+        pinned_commit = str(manifest.get("pinned_protocol_commit_sha", "")).lower()
+        token = generate_execution_verification_token(
+            "D-048", dataset_id, panel_id, exp_type, pinned_commit, source_sha
+        )
         return AuthorizedExecutionContext(
             governance_decision_id="D-048",
             dataset_id=dataset_id,
@@ -482,11 +570,12 @@ def parse_and_validate_research_authorization(
             authorized_by=signer,
             authorized_date=signed_at,
             signature_attestation=attestation,
-            pinned_commit_sha=str(manifest.get("pinned_protocol_commit_sha", "")).lower(),
+            pinned_commit_sha=pinned_commit,
             protocol_sha256=prop_sha,
             plan_sha256=plan_sha,
             dictionary_sha256=dict_sha,
             governance_details=gov_details,
+            verification_token=token,
         )
 
     raise ExecutionAuthorizationError("unsupported_dataset_id", f"Dataset '{dataset_id}' has no established governance validator.")
@@ -703,56 +792,36 @@ def execute_authorized_research_run(
         )
 
     # 4. Verify output path containment and Git-ignore status
+    if is_reparse_or_symlink(output_bundle_dir):
+        raise ExecutionAuthorizationError("symlink_output_rejected", "Output directory cannot be a symlink or reparse point.")
     _check_path_git_ignored(output_bundle_dir, repo_root)
-    ensure_private_directory(output_bundle_dir.parent)
 
-    # Check output root conforms to authorized root
-    expected_root = CLEVELAND_OUTPUT_ROOT_RELATIVE_PATH if auth.dataset_id == TRACK_B_CLEVELAND_SOURCE_ID else UCI412_OUTPUT_ROOT_RELATIVE_PATH
-    output_rel = relative_posix_if_within_directory(output_bundle_dir, repo_root)
-    if output_rel is not None and not output_rel.startswith(str(expected_root)) and not output_rel.startswith("data/models") and not output_rel.startswith("data/experiments"):
+    # Output root must be strictly contained under the approved research output root
+    # (e.g. data/experiments for Cleveland or data/uci412-experiments for UCI-412)
+    expected_rel_root = CLEVELAND_OUTPUT_ROOT_RELATIVE_PATH if auth.dataset_id == TRACK_B_CLEVELAND_SOURCE_ID else UCI412_OUTPUT_ROOT_RELATIVE_PATH
+    expected_root_path = (repo_root / expected_rel_root).resolve()
+
+    # Check path-component-aware containment
+    resolved_output = output_bundle_dir.resolve()
+    try:
+        rel_to_authorized = resolved_output.relative_to(expected_root_path)
+    except ValueError:
         raise ExecutionAuthorizationError(
             "unapproved_output_location",
-            f"Output directory '{output_rel}' is not in approved storage '{expected_root}'.",
+            f"Output directory '{resolved_output}' is not contained within the approved research output root '{expected_root_path}'.",
         )
 
-    # 5. Bind training configuration to frozen authorized research protocol
-    effective_training_config: ResearchTrainingConfig
-    if training_config is None:
-        if auth.dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
-            effective_training_config = ResearchTrainingConfig(
-                protocol_id="CAI-D047-CLEVELAND-EXPLORATORY-V1",
-                model_version="0.2.0",
-                outer_folds=CLEVELAND_DEFAULT_CONFIG.outer_folds,
-                inner_folds=CLEVELAND_DEFAULT_CONFIG.inner_folds,
-                repeat_seeds=CLEVELAND_DEFAULT_CONFIG.outer_repeat_seeds,
-                shuffle_control_seeds=CLEVELAND_DEFAULT_CONFIG.negative_control_seeds,
-                auc_simplicity_tolerance=CLEVELAND_DEFAULT_CONFIG.auc_equivalence_tolerance,
-                lr_c_grid=CLEVELAND_DEFAULT_CONFIG.logistic_c_values,
-                rf_max_depths=CLEVELAND_DEFAULT_CONFIG.rf_max_depths,
-                rf_min_samples_leaf=CLEVELAND_DEFAULT_CONFIG.rf_min_samples_leaf,
-                rf_n_estimators=CLEVELAND_DEFAULT_CONFIG.rf_n_estimators,
-                exploratory_threshold=CLEVELAND_DEFAULT_CONFIG.threshold,
-            )
-        else:
-            effective_training_config = ResearchTrainingConfig(
-                protocol_id="CAI-M3A-UCI412-BENCHMARK-V1",
-                model_version="0.2.0",
-                outer_folds=UCI412_DEFAULT_CONFIG.outer_folds,
-                inner_folds=UCI412_DEFAULT_CONFIG.inner_folds,
-                repeat_seeds=UCI412_DEFAULT_CONFIG.outer_repeat_seeds,
-                shuffle_control_seeds=UCI412_DEFAULT_CONFIG.negative_control_seeds,
-                auc_simplicity_tolerance=UCI412_DEFAULT_CONFIG.auc_equivalence_tolerance,
-                lr_c_grid=UCI412_DEFAULT_CONFIG.logistic_c_values,
-                rf_max_depths=UCI412_DEFAULT_CONFIG.rf_max_depths,
-                rf_min_samples_leaf=UCI412_DEFAULT_CONFIG.rf_min_samples_leaf,
-                rf_n_estimators=UCI412_DEFAULT_CONFIG.rf_n_estimators,
-                exploratory_threshold=UCI412_DEFAULT_CONFIG.threshold,
-            )
-    else:
-        # If custom training_config passed (e.g. fast test profile), verify it doesn't violate governance bounds
-        if training_config.outer_folds < 2 or training_config.inner_folds < 2:
-            raise ExecutionAuthorizationError("invalid_cv_folds", "Nested CV requires at least 2 outer and 2 inner folds.")
-        effective_training_config = training_config
+    # Check for symlink/reparse anywhere in parent hierarchy down to output_bundle_dir
+    curr = resolved_output.parent
+    while curr != expected_root_path.parent and curr != curr.parent:
+        if is_reparse_or_symlink(curr):
+            raise ExecutionAuthorizationError("symlink_in_output_path", f"Path component '{curr}' is a symlink or reparse point.")
+        curr = curr.parent
+
+    ensure_private_directory(output_bundle_dir.parent)
+
+    # 5. Bind training configuration to frozen authorized research protocol without deviation
+    effective_training_config = assert_training_config_approved(auth.dataset_id, training_config)
 
     # 6. Load source-specific records via narrow read-only adapter
     if auth.dataset_id == TRACK_A_UCI412_SOURCE_ID:
