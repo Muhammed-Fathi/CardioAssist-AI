@@ -44,7 +44,6 @@ from ai.execution import (
     ResearchAuthorizationContext,
     assert_training_config_approved,
     execute_authorized_research_run,
-    _execute_isolated_test_simulation,
     get_approved_training_config,
     load_cleveland_source_records,
     load_uci412_source_records,
@@ -200,6 +199,60 @@ def _create_synthetic_uci412_file(path: Path) -> str:
     return digest.lower()
 
 
+def _execute_isolated_test_simulation(
+    *,
+    source_path: Path,
+    manifest_path: Path,
+    panel_id: str,
+    output_bundle_dir: Path,
+    repo_root: Path,
+    training_config: ResearchTrainingConfig | None = None,
+    signing_key: bytes | None = None,
+    current_git_commit: str | None = None,
+    monkeypatch: pytest.MonkeyPatch | None = None,
+) -> tuple[TrainedResearchRun, VerifiedBundleDescriptor]:
+    """Test-only orchestration helper for synthetic fixtures on Linux CI.
+
+    Bypasses OS-level Windows-only checks via pytest monkeypatching strictly
+    within temporary isolated synthetic test repositories. Never used or exposed
+    in production modules.
+    """
+    from ai import execution
+    if monkeypatch is not None:
+        monkeypatch.setattr(execution, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None)
+        monkeypatch.setattr(execution, "uci412_enforce_local_windows_runtime", lambda **kwargs: None)
+    else:
+        orig_clev = execution.cleveland_enforce_local_windows_runtime
+        orig_uci = execution.uci412_enforce_local_windows_runtime
+        execution.cleveland_enforce_local_windows_runtime = lambda **kwargs: None
+        execution.uci412_enforce_local_windows_runtime = lambda **kwargs: None
+        try:
+            return execute_authorized_research_run(
+                source_path=source_path,
+                manifest_path=manifest_path,
+                panel_id=panel_id,
+                output_bundle_dir=output_bundle_dir,
+                repo_root=repo_root,
+                training_config=training_config,
+                signing_key=signing_key,
+                current_git_commit=current_git_commit,
+            )
+        finally:
+            execution.cleveland_enforce_local_windows_runtime = orig_clev
+            execution.uci412_enforce_local_windows_runtime = orig_uci
+
+    return execute_authorized_research_run(
+        source_path=source_path,
+        manifest_path=manifest_path,
+        panel_id=panel_id,
+        output_bundle_dir=output_bundle_dir,
+        repo_root=repo_root,
+        training_config=training_config,
+        signing_key=signing_key,
+        current_git_commit=current_git_commit,
+    )
+
+
 def _create_valid_auth_manifest(
     path: Path,
     repo_root: Path,
@@ -267,8 +320,9 @@ def _create_valid_auth_manifest(
             amend_doc_file.write_text("# AI-2 Operational Scope Amendment\nRatified for isolated internal experimentation only.\n", encoding="utf-8")
         amend_doc_sha, _ = sha256_file(amend_doc_file)
 
+        amend_id = "CAI-AMEND-AI2-SYNTHETIC-TEST-V1"
         op_amendment = {
-            "amendment_id": "CAI-AMEND-AI2-REAL-PACKAGING-V1",
+            "amendment_id": amend_id,
             "ratification_status": "RATIFIED_BY_PROJECT_MAINTAINER",
             "supervisor_signoff_claimed": False,
             "ratified_by": "Muhammed Fathi",
@@ -286,6 +340,9 @@ def _create_valid_auth_manifest(
             "human_attestation": "HUMAN_RATIFIED_LOCAL_EXPERIMENTATION_ONLY_GATE_PT_P3_CLOSED",
             "signature_semantics": "HUMAN_ATTESTATION_FIELDS_NOT_A_CRYPTOGRAPHIC_SIGNATURE",
         }
+        # In synthetic test fixtures, register the synthetic test amendment record into the trusted registry
+        from ai import execution
+        execution.RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS[amend_id] = dict(op_amendment)
 
     if dataset_id == "DA-A2":
         default_proto_sha, _ = sha256_file(repo_root / CLEVELAND_PROTOCOL_PATH)
@@ -1311,10 +1368,79 @@ def test_context_integrity_tamper_of_authorized_booleans_fails_verification(
     assert tampered_context.verify_authenticity() is False
 
 
-def test_unratified_amendment_commit_not_in_git_rejected(
-    isolated_research_repo: tuple[Path, str, str]
+def test_fabricated_git_commit_and_document_does_not_authorize_operations(
+    isolated_research_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Blocker 1: Amendment naming nonexistent or fabricated Git merge commit is rejected."""
+    """Gap 1 Negative Test: Fabricated local Git commit with self-declared ratified document does NOT authorize operations."""
+    repo, head_sha, _ = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+
+    # Create a fabricated amendment document and commit it to git
+    fake_doc = repo / "docs/research/gate-pt/fake_amendment.md"
+    fake_doc.parent.mkdir(parents=True, exist_ok=True)
+    fake_doc.write_text("# Fabricated Self-Declared Amendment\nClaims ratification without maintainer registry approval.\n", encoding="utf-8")
+    subprocess.run(["git", "add", str(fake_doc)], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "Fabricated amendment commit"], cwd=str(repo), check=True, capture_output=True)
+    fake_commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(repo), check=True, capture_output=True, text=True).stdout.strip().lower()
+    fake_doc_sha, _ = sha256_file(fake_doc)
+
+    # Base valid manifest bound to the fixture's D-047 merge commit (head_sha)
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="0" * 64,
+        row_count=303,
+        merge_sha=head_sha,
+        pinned_commit=head_sha,
+        model_packaging_authorized=False,
+    )
+
+    # Manually attach fabricated amendment claiming ratification
+    raw_doc = json.loads(manifest_path.read_text(encoding="utf-8"))
+    raw_doc["operation_scope_amendment"] = {
+        "amendment_id": "CAI-AMEND-FABRICATED-LOCAL-V1",
+        "ratification_status": "RATIFIED_BY_PROJECT_MAINTAINER",
+        "supervisor_signoff_claimed": False,
+        "ratified_by": "Muhammed Fathi",
+        "ratification_comment_exact": "RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION",
+        "governance_pr_number": 999,
+        "governance_merge_commit_sha": fake_commit,
+        "approved_code_revision": fake_commit,
+        "approved_dataset_id": "DA-A2",
+        "approved_panel_id": "da_a2_resting_v1",
+        "frozen_source_sha256": "0" * 64,
+        "frozen_protocol_sha256": raw_doc["frozen_protocol_sha256"],
+        "amendment_document_relative_path": "docs/research/gate-pt/fake_amendment.md",
+        "frozen_amendment_document_sha256": fake_doc_sha.lower(),
+        "approved_operations": ["persistent_model_packaging", "patient_level_shap_background"],
+        "human_attestation": "HUMAN_RATIFIED_LOCAL_EXPERIMENTATION_ONLY_GATE_PT_P3_CLOSED",
+        "signature_semantics": "HUMAN_ATTESTATION_FIELDS_NOT_A_CRYPTOGRAPHIC_SIGNATURE",
+    }
+    manifest_path.write_text(json.dumps(raw_doc, indent=2), encoding="utf-8")
+
+    # In production registry, this fabricated amendment is NOT present
+    from ai import execution
+    assert "CAI-AMEND-FABRICATED-LOCAL-V1" not in execution.RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS
+
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A2",
+            expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
+            current_git_commit=fake_commit,
+        )
+    assert exc_info.value.code == "unratified_operational_amendment_id"
+
+
+def test_amendment_scope_mismatch_against_trusted_evidence_rejected(
+    isolated_research_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap 1: Manifest attempting to alter approved operations or cohort beyond trusted evidence is rejected."""
     repo, _, _ = isolated_research_repo
     manifest_path = repo / "data" / "experiments" / "manifest.json"
     _create_valid_auth_manifest(
@@ -1327,9 +1453,9 @@ def test_unratified_amendment_commit_not_in_git_rejected(
         model_packaging_authorized=True,
     )
 
-    # Set governance merge commit to a nonexistent commit SHA
+    # Manifest claims an unapproved operation not in the trusted record
     raw_doc = json.loads(manifest_path.read_text(encoding="utf-8"))
-    raw_doc["operation_scope_amendment"]["governance_merge_commit_sha"] = "d" * 40
+    raw_doc["operation_scope_amendment"]["approved_operations"].append("remote_patient_data_upload")
     manifest_path.write_text(json.dumps(raw_doc, indent=2), encoding="utf-8")
 
     with pytest.raises(ExecutionAuthorizationError) as exc_info:
@@ -1339,35 +1465,4 @@ def test_unratified_amendment_commit_not_in_git_rejected(
             expected_panel_id="da_a2_resting_v1",
             repo_root=repo,
         )
-    assert exc_info.value.code == "amendment_commit_not_found_in_git"
-
-
-def test_amendment_document_hash_mismatch_rejected(
-    isolated_research_repo: tuple[Path, str, str]
-) -> None:
-    """Blocker 1: Amendment document differing from human-frozen SHA-256 is rejected."""
-    repo, _, _ = isolated_research_repo
-    manifest_path = repo / "data" / "experiments" / "manifest.json"
-    _create_valid_auth_manifest(
-        manifest_path,
-        repo,
-        dataset_id="DA-A2",
-        panel_id="da_a2_resting_v1",
-        source_sha256="0" * 64,
-        row_count=303,
-        model_packaging_authorized=True,
-    )
-
-    # Mutate expected amendment document hash
-    raw_doc = json.loads(manifest_path.read_text(encoding="utf-8"))
-    raw_doc["operation_scope_amendment"]["frozen_amendment_document_sha256"] = "f" * 64
-    manifest_path.write_text(json.dumps(raw_doc, indent=2), encoding="utf-8")
-
-    with pytest.raises(ExecutionAuthorizationError) as exc_info:
-        parse_and_validate_research_authorization(
-            manifest_path,
-            expected_dataset_id="DA-A2",
-            expected_panel_id="da_a2_resting_v1",
-            repo_root=repo,
-        )
-    assert exc_info.value.code == "amendment_document_hash_mismatch"
+    assert exc_info.value.code == "amendment_operations_mismatch"

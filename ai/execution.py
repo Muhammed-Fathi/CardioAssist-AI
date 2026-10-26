@@ -242,6 +242,29 @@ def _check_path_git_ignored(path: Path, repo_root: Path = REPOSITORY_ROOT) -> No
 AMENDMENT_RATIFICATION_COMMENT: str = "RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION"
 AMENDMENT_RATIFICATION_STATUS: str = "RATIFIED_BY_PROJECT_MAINTAINER"
 
+# Trusted Maintainer Ratification Registry for Operational Scope Amendments.
+# Each ratified operational amendment record must independently bind:
+# - amendment_id: Unique amendment identifier
+# - governance_pr_number: Approved governance pull request number
+# - governance_merge_commit_sha: Verified 40-hex merge commit SHA in local Git history
+# - approved_code_revision: Verified 40-hex executing revision SHA
+# - approved_dataset_id: Pinned cohort dataset ID
+# - approved_panel_id: Pinned registered panel ID
+# - frozen_source_sha256: 64-hex SHA-256 of the frozen source data
+# - frozen_protocol_sha256: 64-hex SHA-256 of the frozen research protocol
+# - amendment_document_relative_path: Relative repository path to amendment document
+# - frozen_amendment_document_sha256: 64-hex SHA-256 of the approved amendment document
+# - approved_operations: Tuple of authorized operations (e.g. persistent_model_packaging)
+# - ratified_by: Named project maintainer attesting to ratification
+# - ratification_comment_exact: Exact maintainer ratification statement
+# - protected_output_root: Restricted Git-ignored output directory root
+#
+# IMPORTANT: Gate PT (P-3) remains closed. Neither D-047 nor M3a grants persistent model
+# packaging or patient-derived SHAP persistence for real patient data. Until a separate
+# operational amendment is formally ratified by the project maintainer and recorded here,
+# this registry contains NO ratified amendments, ensuring these operations remain disabled.
+RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS: dict[str, dict[str, Any]] = {}
+
 
 def validate_operation_scope_amendment(
     amendment: Mapping[str, Any] | None,
@@ -253,19 +276,23 @@ def validate_operation_scope_amendment(
     current_git_commit: str,
     repo_root: Path,
 ) -> tuple[bool, bool]:
-    """Validate a separate, human-ratified operational scope amendment.
+    """Validate a separate, human-ratified operational scope amendment against trusted approval evidence.
 
     Enforces that persistent real model artifact packaging and patient-derived
     SHAP backgrounds are NEVER enabled by caller-supplied boolean flags,
-    in-process HMAC tokens, or older D-047/M3a training authorizations alone.
+    in-process HMAC tokens, older D-047/M3a training authorizations alone, or
+    self-declared unratified manifest documents.
 
-    Requires independent Git repository verification:
+    Requires independent approval evidence and Git repository verification:
+    - Verifies amendment is bound to an independently ratified maintainer approval record.
+    - Verifies all scope parameters (PR, merge commit, code revision, dataset, panel,
+      source SHA-256, protocol SHA-256, amendment doc path, amendment doc SHA-256,
+      signer, and comment) match the trusted ratification record, not merely manifest claims.
     - Verifies the referenced governance merge commit exists in trusted local Git history.
     - Verifies the governance commit is an ancestor of the executing code revision.
     - Verifies the exact frozen amendment document exists at that commit in Git.
     - Verifies that the amendment document's SHA-256 exactly matches the approved record.
-    - Binds the document to the named cohort, panel, protocol, source digest, and restricted artifact location.
-    - Rejects nonexistent, unratified, or unrelated PR/merge evidence.
+    - Rejects nonexistent, unratified, or fabricated PR/merge evidence.
 
     Returns:
         (packaging_authorized: bool, patient_shap_authorized: bool)
@@ -280,7 +307,116 @@ def validate_operation_scope_amendment(
             field="operation_scope_amendment",
         )
 
-    # 1. Reject template / unratified status
+    amendment_id = str(amendment.get("amendment_id", "")).strip()
+    if not amendment_id:
+        raise ExecutionAuthorizationError(
+            "missing_amendment_id",
+            "Operation amendment must specify an amendment_id.",
+            field="operation_scope_amendment.amendment_id",
+        )
+
+    # 1. Independent trusted approval binding:
+    # Must match an independently ratified operational scope amendment record
+    # approved by the project maintainer. Caller-supplied manifest values alone cannot authorize operations.
+    if amendment_id not in RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS:
+        raise ExecutionAuthorizationError(
+            "unratified_operational_amendment_id",
+            f"Operation amendment '{amendment_id}' is not present in the trusted maintainer ratification registry. "
+            "Persistent packaging and patient-derived SHAP persistence remain disabled.",
+            field="operation_scope_amendment.amendment_id",
+        )
+
+    trusted_record = RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS[amendment_id]
+
+    # Verify that the trusted record independently binds required scope
+    trusted_pr = trusted_record.get("governance_pr_number")
+    trusted_merge = str(trusted_record.get("governance_merge_commit_sha", "")).strip().lower()
+    trusted_code_rev = str(trusted_record.get("approved_code_revision", "")).strip().lower()
+    trusted_dataset = str(trusted_record.get("approved_dataset_id", "")).strip()
+    trusted_panel = str(trusted_record.get("approved_panel_id", "")).strip()
+    trusted_source_sha = str(trusted_record.get("frozen_source_sha256", "")).strip().lower()
+    trusted_proto_sha = str(trusted_record.get("frozen_protocol_sha256", "")).strip().lower()
+    trusted_doc_rel = str(trusted_record.get("amendment_document_relative_path", "")).strip()
+    trusted_doc_sha = str(trusted_record.get("frozen_amendment_document_sha256", "")).strip().lower()
+    trusted_signer = str(trusted_record.get("ratified_by", "")).strip()
+    trusted_comment = str(trusted_record.get("ratification_comment_exact", "")).strip()
+    trusted_ops = tuple(trusted_record.get("approved_operations", ()))
+
+    # Compare manifest claims against trusted record
+    if amendment.get("governance_pr_number") != trusted_pr:
+        raise ExecutionAuthorizationError(
+            "amendment_pr_mismatch",
+            f"Manifest PR number '{amendment.get('governance_pr_number')}' does not match trusted record '{trusted_pr}'.",
+            field="operation_scope_amendment.governance_pr_number",
+        )
+    if str(amendment.get("governance_merge_commit_sha", "")).strip().lower() != trusted_merge:
+        raise ExecutionAuthorizationError(
+            "amendment_merge_commit_mismatch",
+            f"Manifest merge commit does not match trusted record '{trusted_merge}'.",
+            field="operation_scope_amendment.governance_merge_commit_sha",
+        )
+    if str(amendment.get("approved_code_revision", "")).strip().lower() != trusted_code_rev:
+        raise ExecutionAuthorizationError(
+            "amendment_code_revision_mismatch",
+            f"Manifest approved_code_revision does not match trusted record '{trusted_code_rev}'.",
+            field="operation_scope_amendment.approved_code_revision",
+        )
+    if str(amendment.get("approved_dataset_id", "")).strip() != trusted_dataset or dataset_id != trusted_dataset:
+        raise ExecutionAuthorizationError(
+            "amendment_dataset_mismatch",
+            f"Cohort/dataset '{dataset_id}' does not match trusted ratified scope '{trusted_dataset}'.",
+            field="operation_scope_amendment.approved_dataset_id",
+        )
+    if str(amendment.get("approved_panel_id", "")).strip() != trusted_panel or panel_id != trusted_panel:
+        raise ExecutionAuthorizationError(
+            "amendment_panel_mismatch",
+            f"Panel '{panel_id}' does not match trusted ratified scope '{trusted_panel}'.",
+            field="operation_scope_amendment.approved_panel_id",
+        )
+    if str(amendment.get("frozen_source_sha256", "")).strip().lower() != trusted_source_sha or source_sha256.lower() != trusted_source_sha:
+        raise ExecutionAuthorizationError(
+            "amendment_source_sha_mismatch",
+            "Source SHA-256 does not match trusted ratified scope.",
+            field="operation_scope_amendment.frozen_source_sha256",
+        )
+    if str(amendment.get("frozen_protocol_sha256", "")).strip().lower() != trusted_proto_sha or protocol_sha256.lower() != trusted_proto_sha:
+        raise ExecutionAuthorizationError(
+            "amendment_protocol_sha_mismatch",
+            "Protocol SHA-256 does not match trusted ratified scope.",
+            field="operation_scope_amendment.frozen_protocol_sha256",
+        )
+    if str(amendment.get("amendment_document_relative_path", "")).strip() != trusted_doc_rel:
+        raise ExecutionAuthorizationError(
+            "amendment_document_path_mismatch",
+            f"Amendment document path does not match trusted record '{trusted_doc_rel}'.",
+            field="operation_scope_amendment.amendment_document_relative_path",
+        )
+    if str(amendment.get("frozen_amendment_document_sha256", "")).strip().lower() != trusted_doc_sha:
+        raise ExecutionAuthorizationError(
+            "amendment_document_hash_mismatch",
+            f"Amendment document hash does not match trusted record '{trusted_doc_sha}'.",
+            field="operation_scope_amendment.frozen_amendment_document_sha256",
+        )
+    if str(amendment.get("ratified_by", "")).strip() != trusted_signer:
+        raise ExecutionAuthorizationError(
+            "unratified_amendment_signer",
+            f"Signer does not match trusted record '{trusted_signer}'.",
+            field="operation_scope_amendment.ratified_by",
+        )
+    if str(amendment.get("ratification_comment_exact", "")).strip() != trusted_comment:
+        raise ExecutionAuthorizationError(
+            "unratified_amendment_comment",
+            f"Ratification comment does not match trusted record '{trusted_comment}'.",
+            field="operation_scope_amendment.ratification_comment_exact",
+        )
+    if tuple(amendment.get("approved_operations", ())) != trusted_ops:
+        raise ExecutionAuthorizationError(
+            "amendment_operations_mismatch",
+            "Approved operations list does not match trusted ratified operations.",
+            field="operation_scope_amendment.approved_operations",
+        )
+
+    # 2. Reject template / unratified status
     status = str(amendment.get("ratification_status", "")).strip()
     if status != AMENDMENT_RATIFICATION_STATUS:
         raise ExecutionAuthorizationError(
@@ -289,7 +425,7 @@ def validate_operation_scope_amendment(
             field="operation_scope_amendment.ratification_status",
         )
 
-    # 2. Enforce supervisor approval guard: Gate PT P-3 remains closed!
+    # 3. Enforce supervisor approval guard: Gate PT P-3 remains closed!
     if amendment.get("supervisor_signoff_claimed") is not False:
         raise ExecutionAuthorizationError(
             "supervisor_approval_claimed_prohibited",
@@ -297,131 +433,7 @@ def validate_operation_scope_amendment(
             field="operation_scope_amendment.supervisor_signoff_claimed",
         )
 
-    # 3. Check maintainer signer
-    signer = str(amendment.get("ratified_by", "")).strip()
-    if signer != D047_AUTHORIZING_MAINTAINER and signer != M3A_AUTHORIZING_MAINTAINER:
-        raise ExecutionAuthorizationError(
-            "unratified_amendment_signer",
-            f"Operational amendment signer '{signer}' is not the ratified project maintainer.",
-            field="operation_scope_amendment.ratified_by",
-        )
-
-    # 4. Check exact ratification comment
-    comment = str(amendment.get("ratification_comment_exact", "")).strip()
-    if comment != AMENDMENT_RATIFICATION_COMMENT:
-        raise ExecutionAuthorizationError(
-            "unratified_amendment_comment",
-            f"Operational amendment comment does not match required comment '{AMENDMENT_RATIFICATION_COMMENT}'.",
-            field="operation_scope_amendment.ratification_comment_exact",
-        )
-
-    # 5. Check governance PR and merge SHA
-    pr_num = amendment.get("governance_pr_number")
-    if not isinstance(pr_num, int) or pr_num <= 0:
-        raise ExecutionAuthorizationError(
-            "invalid_governance_pr",
-            "A valid positive governance PR number is required.",
-            field="operation_scope_amendment.governance_pr_number",
-        )
-
-    merge_sha = str(amendment.get("governance_merge_commit_sha", "")).strip().lower()
-    code_rev = str(amendment.get("approved_code_revision", "")).strip().lower()
-    if not GIT_SHA_RE.fullmatch(merge_sha) or not GIT_SHA_RE.fullmatch(code_rev):
-        raise ExecutionAuthorizationError(
-            "invalid_amendment_commit_sha",
-            "Governance commit SHAs must be 40-character hex strings.",
-            field="operation_scope_amendment.governance_merge_commit_sha",
-        )
-
-    # Independent Git verification of the governance merge commit:
-    # 5a. Merge commit must exist in local Git repository
-    cat_check = subprocess.run(
-        ["git", "cat-file", "-e", f"{merge_sha}^{{commit}}"],
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if cat_check.returncode != 0:
-        raise ExecutionAuthorizationError(
-            "amendment_commit_not_found_in_git",
-            f"The operational amendment governance commit '{merge_sha}' is not present in local Git history.",
-            field="operation_scope_amendment.governance_merge_commit_sha",
-        )
-
-    # 5b. Merge commit must be an ancestor of the executing code commit
-    ancestor_check = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", merge_sha, current_git_commit],
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if ancestor_check.returncode != 0:
-        raise ExecutionAuthorizationError(
-            "amendment_commit_not_ancestor",
-            f"The operational amendment governance commit '{merge_sha}' is not an ancestor of current code commit '{current_git_commit}'.",
-            field="operation_scope_amendment.governance_merge_commit_sha",
-        )
-
-    # 5c. Amendment document must exist at the pinned governance commit and match hash
-    doc_rel_path = str(amendment.get("amendment_document_relative_path", "")).strip()
-    expected_doc_sha = str(amendment.get("frozen_amendment_document_sha256", "")).strip().lower()
-    if not doc_rel_path or not SHA256_RE.fullmatch(expected_doc_sha):
-        raise ExecutionAuthorizationError(
-            "missing_amendment_document_provenance",
-            "Operational amendment must specify a valid amendment_document_relative_path and 64-hex frozen_amendment_document_sha256.",
-            field="operation_scope_amendment.frozen_amendment_document_sha256",
-        )
-
-    doc_git = subprocess.run(
-        ["git", "show", f"{merge_sha}:{doc_rel_path}"],
-        cwd=str(repo_root),
-        capture_output=True,
-        check=False,
-    )
-    if doc_git.returncode != 0:
-        raise ExecutionAuthorizationError(
-            "amendment_document_absent_from_git_commit",
-            f"Amendment document '{doc_rel_path}' is absent from governance commit '{merge_sha}'.",
-            field="operation_scope_amendment.amendment_document_relative_path",
-        )
-
-    actual_doc_sha = hashlib.sha256(doc_git.stdout).hexdigest().lower()
-    if actual_doc_sha != expected_doc_sha:
-        raise ExecutionAuthorizationError(
-            "amendment_document_hash_mismatch",
-            f"Amendment document at commit '{merge_sha}' has SHA-256 '{actual_doc_sha}', expected '{expected_doc_sha}'.",
-            field="operation_scope_amendment.frozen_amendment_document_sha256",
-        )
-
-    # 6. Check scope bindings: dataset, panel, source SHA, protocol SHA
-    if str(amendment.get("approved_dataset_id", "")).strip() != dataset_id:
-        raise ExecutionAuthorizationError(
-            "amendment_dataset_mismatch",
-            f"Amendment approved_dataset_id '{amendment.get('approved_dataset_id')}' does not match '{dataset_id}'.",
-            field="operation_scope_amendment.approved_dataset_id",
-        )
-    if str(amendment.get("approved_panel_id", "")).strip() != panel_id:
-        raise ExecutionAuthorizationError(
-            "amendment_panel_mismatch",
-            f"Amendment approved_panel_id '{amendment.get('approved_panel_id')}' does not match '{panel_id}'.",
-            field="operation_scope_amendment.approved_panel_id",
-        )
-    if str(amendment.get("frozen_source_sha256", "")).strip().lower() != source_sha256.lower():
-        raise ExecutionAuthorizationError(
-            "amendment_source_sha_mismatch",
-            "Amendment frozen_source_sha256 does not match verified source SHA-256.",
-            field="operation_scope_amendment.frozen_source_sha256",
-        )
-    if str(amendment.get("frozen_protocol_sha256", "")).strip().lower() != protocol_sha256.lower():
-        raise ExecutionAuthorizationError(
-            "amendment_protocol_sha_mismatch",
-            "Amendment frozen_protocol_sha256 does not match verified protocol SHA-256.",
-            field="operation_scope_amendment.frozen_protocol_sha256",
-        )
-
-    # 7. Check human attestation
+    # 4. Check human attestation
     attest = str(amendment.get("human_attestation", "")).strip()
     if "GATE_PT_P3_CLOSED" not in attest or "HUMAN_RATIFIED" not in attest:
         raise ExecutionAuthorizationError(
@@ -430,9 +442,61 @@ def validate_operation_scope_amendment(
             field="operation_scope_amendment.human_attestation",
         )
 
-    approved_ops = tuple(amendment.get("approved_operations", ()))
-    packaging_auth = "persistent_model_packaging" in approved_ops
-    shap_auth = "patient_level_shap_background" in approved_ops
+    # 5. Independent Git verification of the governance merge commit:
+    # 5a. Merge commit must exist in local Git repository
+    cat_check = subprocess.run(
+        ["git", "cat-file", "-e", f"{trusted_merge}^{{commit}}"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if cat_check.returncode != 0:
+        raise ExecutionAuthorizationError(
+            "amendment_commit_not_found_in_git",
+            f"The operational amendment governance commit '{trusted_merge}' is not present in local Git history.",
+            field="operation_scope_amendment.governance_merge_commit_sha",
+        )
+
+    # 5b. Merge commit must be an ancestor of the executing code commit
+    ancestor_check = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", trusted_merge, current_git_commit],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if ancestor_check.returncode != 0:
+        raise ExecutionAuthorizationError(
+            "amendment_commit_not_ancestor",
+            f"The operational amendment governance commit '{trusted_merge}' is not an ancestor of current code commit '{current_git_commit}'.",
+            field="operation_scope_amendment.governance_merge_commit_sha",
+        )
+
+    # 5c. Amendment document must exist at the pinned governance commit and match hash
+    doc_git = subprocess.run(
+        ["git", "show", f"{trusted_merge}:{trusted_doc_rel}"],
+        cwd=str(repo_root),
+        capture_output=True,
+        check=False,
+    )
+    if doc_git.returncode != 0:
+        raise ExecutionAuthorizationError(
+            "amendment_document_absent_from_git_commit",
+            f"Amendment document '{trusted_doc_rel}' is absent from governance commit '{trusted_merge}'.",
+            field="operation_scope_amendment.amendment_document_relative_path",
+        )
+
+    actual_doc_sha = hashlib.sha256(doc_git.stdout).hexdigest().lower()
+    if actual_doc_sha != trusted_doc_sha:
+        raise ExecutionAuthorizationError(
+            "amendment_document_hash_mismatch",
+            f"Amendment document at commit '{trusted_merge}' has SHA-256 '{actual_doc_sha}', expected '{trusted_doc_sha}'.",
+            field="operation_scope_amendment.frozen_amendment_document_sha256",
+        )
+
+    packaging_auth = "persistent_model_packaging" in trusted_ops
+    shap_auth = "patient_level_shap_background" in trusted_ops
 
     return packaging_auth, shap_auth
 
@@ -1156,154 +1220,6 @@ def execute_authorized_research_run(
     )
 
     # 9. Package atomic bundle with truthful real provenance mode
-    active_key = signing_key if signing_key is not None else get_or_create_local_signing_key()
-
-    verified_descriptor = package_research_bundle(
-        trained_run,
-        output_bundle_dir,
-        signing_key=active_key,
-        authorization_context=auth,
-    )
-
-    return trained_run, verified_descriptor
-
-
-
-def _execute_isolated_test_simulation(
-    *,
-    source_path: Path,
-    manifest_path: Path,
-    panel_id: str,
-    output_bundle_dir: Path,
-    repo_root: Path,
-    training_config: ResearchTrainingConfig | None = None,
-    signing_key: bytes | None = None,
-    current_git_commit: str | None = None,
-) -> tuple[TrainedResearchRun, VerifiedBundleDescriptor]:
-    """Execute research pipeline in an isolated test fixture without production Windows runtime checks.
-
-    INTERNAL TEST-ONLY HARNESS:
-    This function is strictly for isolated temporary synthetic test fixtures on Linux CI.
-    It exercises the complete source adapter, authorization verification, fold-contained training,
-    evaluation summary, and signed packaging pipeline without weakening production guards on
-    :func:`execute_authorized_research_run`.
-    """
-    if panel_id not in REGISTERED_PANELS:
-        raise ClinicalInputValidationError("unregistered_panel", f"Panel '{panel_id}' is not registered.")
-    panel = REGISTERED_PANELS[panel_id]
-
-    if panel_id in BLOCKED_EXTENDED_PANELS:
-        raise ClinicalInputValidationError(
-            "extended_panel_blocked_before_fitting",
-            f"Extended panel '{panel_id}' is blocked before fitting until authorized.",
-        )
-
-    # 1. Authorize manifest through established governance validators
-    auth = parse_and_validate_research_authorization(
-        manifest_path,
-        expected_dataset_id=panel.dataset_id,
-        expected_panel_id=panel_id,
-        repo_root=repo_root,
-        current_git_commit=current_git_commit,
-    )
-
-    # 2. Check canonical source path equality
-    expected_canonical_source = repo_root / auth.source_relative_path
-    if source_path.resolve() != expected_canonical_source.resolve():
-        raise ExecutionAuthorizationError(
-            "source_path_mismatch",
-            f"Actual source path '{source_path}' does not resolve to the authorized canonical path '{expected_canonical_source}'.",
-        )
-
-    # 3. Check source path containment, non-symlink status and verify SHA-256 matches manifest
-    if is_reparse_or_symlink(source_path):
-        raise DatasetAdapterIntegrityError("source_symlink_rejected", "Source path cannot be a symlink or reparse point.")
-    _check_path_git_ignored(source_path, repo_root)
-
-    actual_source_sha, _ = sha256_file(source_path)
-    actual_source_sha = actual_source_sha.lower()
-    if actual_source_sha != auth.expected_source_sha256:
-        raise DatasetAdapterIntegrityError(
-            "source_hash_mismatch",
-            f"Actual source SHA-256 '{actual_source_sha}' does not match authorization '{auth.expected_source_sha256}'.",
-        )
-
-    # 4. Verify output path containment and Git-ignore status
-    if is_reparse_or_symlink(output_bundle_dir):
-        raise ExecutionAuthorizationError("symlink_output_rejected", "Output directory cannot be a symlink or reparse point.")
-    _check_path_git_ignored(output_bundle_dir, repo_root)
-
-    expected_rel_root = CLEVELAND_OUTPUT_ROOT_RELATIVE_PATH if auth.dataset_id == TRACK_B_CLEVELAND_SOURCE_ID else UCI412_OUTPUT_ROOT_RELATIVE_PATH
-    expected_root_path = (repo_root / expected_rel_root).resolve()
-
-    resolved_output = output_bundle_dir.resolve()
-    try:
-        resolved_output.relative_to(expected_root_path)
-    except ValueError:
-        raise ExecutionAuthorizationError(
-            "unapproved_output_location",
-            f"Output directory '{resolved_output}' is not contained within the approved research output root '{expected_root_path}'.",
-        )
-
-    curr = resolved_output.parent
-    while curr != expected_root_path.parent and curr != curr.parent:
-        if is_reparse_or_symlink(curr):
-            raise ExecutionAuthorizationError("symlink_in_output_path", f"Path component '{curr}' is a symlink or reparse point.")
-        curr = curr.parent
-
-    ensure_private_directory(output_bundle_dir.parent)
-
-    # 5. Bind training configuration
-    effective_training_config = assert_training_config_approved(auth.dataset_id, training_config)
-
-    # 6. Load source-specific records via narrow read-only adapter
-    if auth.dataset_id == TRACK_A_UCI412_SOURCE_ID:
-        records, labels, raw_dataset = load_uci412_source_records(
-            source_path,
-            expected_sha256=auth.expected_source_sha256,
-            panel=panel,
-        )
-    elif auth.dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
-        records, labels, raw_dataset = load_cleveland_source_records(
-            source_path,
-            expected_sha256=auth.expected_source_sha256,
-            panel=panel,
-        )
-    else:
-        raise DatasetAdapterIntegrityError("unsupported_dataset_id", f"Dataset '{auth.dataset_id}' not supported.")
-
-    if len(records) != auth.expected_source_row_count:
-        raise DatasetAdapterIntegrityError(
-            "row_count_mismatch",
-            f"Loaded {len(records)} rows; expected {auth.expected_source_row_count}.",
-        )
-
-    # 7. Run validate_cohort_records
-    X_val, y_val, _ = validate_cohort_records(
-        records,
-        labels,
-        panel,
-        require_synthetic=False,
-    )
-
-    # 8. Fit research model
-    model_id = f"cai_real_{auth.dataset_id.lower()}_{panel.panel_id}"
-    dev_cohort = f"real_{auth.dataset_id.lower()}_authorized"
-    dev_dataset = f"{auth.dataset_id}:real_authorized"
-
-    trained_run = _execute_shared_training_pipeline(
-        X_val,
-        y_val,
-        panel,
-        model_id=model_id,
-        dev_cohort=dev_cohort,
-        dev_dataset=dev_dataset,
-        config=effective_training_config,
-        synthetic_only=False,
-        authorization_context=auth,
-    )
-
-    # 9. Package atomic bundle
     active_key = signing_key if signing_key is not None else get_or_create_local_signing_key()
 
     verified_descriptor = package_research_bundle(
