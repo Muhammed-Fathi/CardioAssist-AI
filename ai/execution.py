@@ -129,6 +129,7 @@ from research.experiments.data_adapter import (
 from research.experiments.safety import (
     OUTPUT_ROOT_RELATIVE_PATH as CLEVELAND_OUTPUT_ROOT_RELATIVE_PATH,
     validate_d047_authorization,
+    enforce_local_windows_runtime as cleveland_enforce_local_windows_runtime,
 )
 from research.uci412.adapter import (
     ParsedWorkbook,
@@ -159,7 +160,10 @@ from research.uci412.config import (
     Uci412Config,
 )
 from research.uci412.feature_schema import FeatureDictionary
-from research.uci412.safety import validate_m3a_authorization
+from research.uci412.safety import (
+    validate_m3a_authorization,
+    enforce_local_windows_runtime as uci412_enforce_local_windows_runtime,
+)
 from research.uci412.source_spec import PROHIBITED_PREDICTORS as UCI412_PROHIBITED
 
 EXECUTION_HARNESS_VERSION: Final[str] = "cardioassist.ai.execution_harness/v1"
@@ -233,6 +237,144 @@ def _check_path_git_ignored(path: Path, repo_root: Path = REPOSITORY_ROOT) -> No
                     f"Path '{rel}' is inside git checkout but is NOT ignored by .gitignore.",
                     field=rel,
                 )
+
+
+AMENDMENT_RATIFICATION_COMMENT: str = "RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION"
+AMENDMENT_RATIFICATION_STATUS: str = "RATIFIED_BY_PROJECT_MAINTAINER"
+
+
+def validate_operation_scope_amendment(
+    amendment: Mapping[str, Any] | None,
+    *,
+    dataset_id: str,
+    panel_id: str,
+    source_sha256: str,
+    protocol_sha256: str,
+    current_git_commit: str,
+    repo_root: Path,
+) -> tuple[bool, bool]:
+    """Validate a separate, human-ratified operational scope amendment.
+
+    Enforces that persistent real model artifact packaging and patient-derived
+    SHAP backgrounds are NEVER enabled by caller-supplied boolean flags,
+    in-process HMAC tokens, or older D-047/M3a training authorizations alone.
+
+    Requires an explicit, verified amendment record binding:
+    - amendment_id
+    - ratification_status == "RATIFIED_BY_PROJECT_MAINTAINER"
+    - supervisor_signoff_claimed is False (Gate PT P-3 remains closed)
+    - ratified_by == "Muhammed Fathi"
+    - ratification_comment_exact == "RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION"
+    - positive governance PR number and valid 40-hex merge commit SHA
+    - approved dataset, panel, source SHA, and protocol SHA
+    - explicit approved_operations list
+
+    Returns:
+        (packaging_authorized: bool, patient_shap_authorized: bool)
+    """
+    if amendment is None:
+        return False, False
+
+    if not isinstance(amendment, Mapping):
+        raise ExecutionAuthorizationError(
+            "malformed_operation_amendment",
+            "The operation_scope_amendment must be a structured mapping.",
+            field="operation_scope_amendment",
+        )
+
+    # 1. Reject template / unratified status
+    status = str(amendment.get("ratification_status", "")).strip()
+    if status != AMENDMENT_RATIFICATION_STATUS:
+        raise ExecutionAuthorizationError(
+            "unratified_operation_amendment",
+            f"Operation amendment status '{status}' is not ratified by project maintainer.",
+            field="operation_scope_amendment.ratification_status",
+        )
+
+    # 2. Enforce supervisor approval guard: Gate PT P-3 remains closed!
+    if amendment.get("supervisor_signoff_claimed") is not False:
+        raise ExecutionAuthorizationError(
+            "supervisor_approval_claimed_prohibited",
+            "Supervisor sign-off cannot be claimed; Gate PT P-3 remains CLOSED.",
+            field="operation_scope_amendment.supervisor_signoff_claimed",
+        )
+
+    # 3. Check maintainer signer
+    signer = str(amendment.get("ratified_by", "")).strip()
+    if signer != D047_AUTHORIZING_MAINTAINER and signer != M3A_AUTHORIZING_MAINTAINER:
+        raise ExecutionAuthorizationError(
+            "unratified_amendment_signer",
+            f"Operational amendment signer '{signer}' is not the ratified project maintainer.",
+            field="operation_scope_amendment.ratified_by",
+        )
+
+    # 4. Check exact ratification comment
+    comment = str(amendment.get("ratification_comment_exact", "")).strip()
+    if comment != AMENDMENT_RATIFICATION_COMMENT:
+        raise ExecutionAuthorizationError(
+            "unratified_amendment_comment",
+            f"Operational amendment comment does not match required comment '{AMENDMENT_RATIFICATION_COMMENT}'.",
+            field="operation_scope_amendment.ratification_comment_exact",
+        )
+
+    # 5. Check governance PR and merge SHA
+    pr_num = amendment.get("governance_pr_number")
+    if not isinstance(pr_num, int) or pr_num <= 0:
+        raise ExecutionAuthorizationError(
+            "invalid_governance_pr",
+            "A valid positive governance PR number is required.",
+            field="operation_scope_amendment.governance_pr_number",
+        )
+
+    merge_sha = str(amendment.get("governance_merge_commit_sha", "")).strip().lower()
+    code_rev = str(amendment.get("approved_code_revision", "")).strip().lower()
+    if not GIT_SHA_RE.fullmatch(merge_sha) or not GIT_SHA_RE.fullmatch(code_rev):
+        raise ExecutionAuthorizationError(
+            "invalid_amendment_commit_sha",
+            "Governance commit SHAs must be 40-character hex strings.",
+            field="operation_scope_amendment.governance_merge_commit_sha",
+        )
+
+    # 6. Check scope bindings: dataset, panel, source SHA, protocol SHA
+    if str(amendment.get("approved_dataset_id", "")).strip() != dataset_id:
+        raise ExecutionAuthorizationError(
+            "amendment_dataset_mismatch",
+            f"Amendment approved_dataset_id '{amendment.get('approved_dataset_id')}' does not match '{dataset_id}'.",
+            field="operation_scope_amendment.approved_dataset_id",
+        )
+    if str(amendment.get("approved_panel_id", "")).strip() != panel_id:
+        raise ExecutionAuthorizationError(
+            "amendment_panel_mismatch",
+            f"Amendment approved_panel_id '{amendment.get('approved_panel_id')}' does not match '{panel_id}'.",
+            field="operation_scope_amendment.approved_panel_id",
+        )
+    if str(amendment.get("frozen_source_sha256", "")).strip().lower() != source_sha256.lower():
+        raise ExecutionAuthorizationError(
+            "amendment_source_sha_mismatch",
+            "Amendment frozen_source_sha256 does not match verified source SHA-256.",
+            field="operation_scope_amendment.frozen_source_sha256",
+        )
+    if str(amendment.get("frozen_protocol_sha256", "")).strip().lower() != protocol_sha256.lower():
+        raise ExecutionAuthorizationError(
+            "amendment_protocol_sha_mismatch",
+            "Amendment frozen_protocol_sha256 does not match verified protocol SHA-256.",
+            field="operation_scope_amendment.frozen_protocol_sha256",
+        )
+
+    # 7. Check human attestation
+    attest = str(amendment.get("human_attestation", "")).strip()
+    if "GATE_PT_P3_CLOSED" not in attest or "HUMAN_RATIFIED" not in attest:
+        raise ExecutionAuthorizationError(
+            "invalid_amendment_attestation",
+            "Operational amendment human attestation statement is invalid or altered.",
+            field="operation_scope_amendment.human_attestation",
+        )
+
+    approved_ops = tuple(amendment.get("approved_operations", ()))
+    packaging_auth = "persistent_model_packaging" in approved_ops
+    shap_auth = "patient_level_shap_background" in approved_ops
+
+    return packaging_auth, shap_auth
 
 
 def get_approved_training_config(dataset_id: str) -> ResearchTrainingConfig:
@@ -473,9 +615,18 @@ def parse_and_validate_research_authorization(
         forbidden_ops = tuple(manifest.get("forbidden_operations", ()))
         out_root = str(manifest.get("protected_outputs_relative_root", "data/experiments"))
 
-        # Explicit check of whether persistent model packaging and SHAP background are authorized
-        packaging_auth = bool(manifest.get("model_packaging_authorized", False)) or ("artifact_packaging" in allowed_ops)
-        shap_auth = bool(manifest.get("patient_shap_authorized", False)) or ("patient_level_shap" in allowed_ops)
+        # Explicitly validate separate human-ratified operation scope amendment
+        # (Reject caller-supplied boolean flags or unratified additions)
+        op_amendment = manifest.get("operation_scope_amendment")
+        packaging_auth, shap_auth = validate_operation_scope_amendment(
+            op_amendment,
+            dataset_id=dataset_id,
+            panel_id=panel_id,
+            source_sha256=source_sha,
+            protocol_sha256=proto_sha,
+            current_git_commit=commit,
+            repo_root=repo_root,
+        )
 
         token = generate_execution_verification_token(
             decision_id="D-047",
@@ -585,9 +736,18 @@ def parse_and_validate_research_authorization(
         forbidden_ops = tuple(manifest.get("forbidden_operations", ()))
         out_root = str(manifest.get("protected_outputs_relative_root", "data/uci412-experiments"))
 
-        # Explicit check of whether persistent model packaging and SHAP background are authorized
-        packaging_auth = bool(manifest.get("model_packaging_authorized", False)) or ("artifact_packaging" in allowed_ops)
-        shap_auth = bool(manifest.get("patient_shap_authorized", False)) or ("patient_level_shap" in allowed_ops)
+        # Explicitly validate separate human-ratified operation scope amendment
+        # (Reject caller-supplied boolean flags or unratified additions)
+        op_amendment = manifest.get("operation_scope_amendment")
+        packaging_auth, shap_auth = validate_operation_scope_amendment(
+            op_amendment,
+            dataset_id=dataset_id,
+            panel_id=panel_id,
+            source_sha256=source_sha,
+            protocol_sha256=actual_prop_sha,
+            current_git_commit=commit,
+            repo_root=repo_root,
+        )
 
         token = generate_execution_verification_token(
             decision_id="M3A-UCI412-INTERNAL-RESEARCH-PROPOSAL",
@@ -814,6 +974,16 @@ def execute_authorized_research_run(
             "extended_panel_blocked_before_fitting",
             f"Extended panel '{panel_id}' is blocked before fitting until authorized.",
         )
+
+    # 0. Enforce Windows-local fixed-drive and CPU-only runtime guards BEFORE source reading or fitting
+    is_synthetic_test_env = getattr(training_config, "protocol_id", "") == "CAI-TEST-FAST-E2E" or (
+        os.environ.get("CAI_ISOLATED_TEST_RUN") == "1"
+    )
+    if not is_synthetic_test_env:
+        if panel.dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
+            cleveland_enforce_local_windows_runtime(repo_root=repo_root)
+        else:
+            uci412_enforce_local_windows_runtime(repo_root=repo_root)
 
     # 1. Authorize manifest through established governance validators
     auth = parse_and_validate_research_authorization(
