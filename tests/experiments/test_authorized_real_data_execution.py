@@ -15,6 +15,8 @@ Strictly satisfies all PR #53 review criteria:
 """
 from __future__ import annotations
 
+import hashlib
+
 import copy
 import dataclasses
 from datetime import datetime, timezone, timedelta
@@ -138,10 +140,15 @@ def isolated_research_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> t
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(src, dst)
 
-    # Add verified amendment specification document in isolated git repo
+    # Configure git repo to strictly preserve LF line endings across all platforms (including Windows)
+    subprocess.run(["git", "config", "core.autocrlf", "false"], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(["git", "config", "core.eol", "lf"], cwd=str(repo), check=True, capture_output=True)
+
+    # Add verified amendment specification document using deterministic LF bytes
     amend_doc_path = repo / "docs/research/gate-pt/17_ai2_operational_scope_amendment.md"
     amend_doc_path.parent.mkdir(parents=True, exist_ok=True)
-    amend_doc_path.write_text("# AI-2 Operational Scope Amendment\nRatified for isolated internal experimentation only.\n", encoding="utf-8")
+    amend_bytes = b"# AI-2 Operational Scope Amendment\nRatified for isolated internal experimentation only.\n"
+    amend_doc_path.write_bytes(amend_bytes)
 
     subprocess.run(["git", "add", "."], cwd=str(repo), check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "Baseline specifications"], cwd=str(repo), check=True, capture_output=True)
@@ -164,6 +171,10 @@ def isolated_research_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> t
     # Monkeypatch governance merge SHA and merge timestamp to match the isolated repo commit
     monkeypatch.setattr(cleveland_safety, "D047_AUTHORIZING_MERGE_SHA", head_sha)
     monkeypatch.setattr(cleveland_safety, "D047_AUTHORIZING_MERGED_AT_UTC", commit_time)
+
+    # Ensure synthetic ratification registry changes are automatically restored on test teardown
+    from ai import execution
+    monkeypatch.setattr(execution, "RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS", {})
 
     return repo, head_sha, commit_time
 
@@ -317,8 +328,16 @@ def _create_valid_auth_manifest(
         amend_doc_file = repo_root / amend_doc_rel
         if not amend_doc_file.exists():
             amend_doc_file.parent.mkdir(parents=True, exist_ok=True)
-            amend_doc_file.write_text("# AI-2 Operational Scope Amendment\nRatified for isolated internal experimentation only.\n", encoding="utf-8")
-        amend_doc_sha, _ = sha256_file(amend_doc_file)
+            amend_doc_file.write_bytes(b"# AI-2 Operational Scope Amendment\nRatified for isolated internal experimentation only.\n")
+
+        # Freeze the expected document SHA-256 strictly from the exact Git blob at the pinned commit
+        show_blob = subprocess.run(
+            ["git", "show", f"{effective_merge}:{amend_doc_rel}"],
+            cwd=str(repo_root),
+            capture_output=True,
+            check=True,
+        )
+        amend_doc_sha = hashlib.sha256(show_blob.stdout).hexdigest().lower()
 
         amend_id = "CAI-AMEND-AI2-SYNTHETIC-TEST-V1"
         op_amendment = {
@@ -1466,3 +1485,42 @@ def test_amendment_scope_mismatch_against_trusted_evidence_rejected(
             repo_root=repo,
         )
     assert exc_info.value.code == "amendment_operations_mismatch"
+
+
+def test_amendment_working_tree_crlf_mismatch_against_git_blob_rejected(
+    isolated_research_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression test: Working-tree CRLF bytes differing from Git blob LF hash is strictly rejected."""
+    repo, head_sha, _ = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="0" * 64,
+        row_count=303,
+        model_packaging_authorized=True,
+    )
+
+    # Mutate working-tree document to Windows CRLF bytes
+    amend_doc_rel = "docs/research/gate-pt/17_ai2_operational_scope_amendment.md"
+    crlf_bytes = b"# AI-2 Operational Scope Amendment\r\nRatified for isolated internal experimentation only.\r\n"
+    crlf_sha = hashlib.sha256(crlf_bytes).hexdigest().lower()
+    (repo / amend_doc_rel).write_bytes(crlf_bytes)
+
+    # If a manifest attempts to bind the working-tree CRLF hash rather than the Git blob hash
+    raw_doc = json.loads(manifest_path.read_text(encoding="utf-8"))
+    raw_doc["operation_scope_amendment"]["frozen_amendment_document_sha256"] = crlf_sha
+    manifest_path.write_text(json.dumps(raw_doc, indent=2), encoding="utf-8")
+
+    # The production validator checks against the trusted record and Git blob, rejecting the CRLF hash
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A2",
+            expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
+        )
+    assert exc_info.value.code == "amendment_document_hash_mismatch"
