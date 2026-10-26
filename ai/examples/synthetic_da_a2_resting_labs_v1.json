@@ -1,0 +1,19 @@
+{
+  "synthetic": true,
+  "panel_id": "da_a2_resting_labs_v1",
+  "features": {
+    "age": 54,
+    "sex": 1,
+    "cp": 4,
+    "trestbps": 138,
+    "restecg": 1,
+    "chol": 235,
+    "fbs": 0
+  },
+  "units": {
+    "age": "years",
+    "trestbps": "mmHg",
+    "chol": "mg/dL"
+  },
+  "missing_reasons": {}
+}
