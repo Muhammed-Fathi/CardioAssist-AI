@@ -44,6 +44,7 @@ from ai.execution import (
     ResearchAuthorizationContext,
     assert_training_config_approved,
     execute_authorized_research_run,
+    _execute_isolated_test_simulation,
     get_approved_training_config,
     load_cleveland_source_records,
     load_uci412_source_records,
@@ -137,6 +138,11 @@ def isolated_research_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> t
         dst = repo / rel_path
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(src, dst)
+
+    # Add verified amendment specification document in isolated git repo
+    amend_doc_path = repo / "docs/research/gate-pt/17_ai2_operational_scope_amendment.md"
+    amend_doc_path.parent.mkdir(parents=True, exist_ok=True)
+    amend_doc_path.write_text("# AI-2 Operational Scope Amendment\nRatified for isolated internal experimentation only.\n", encoding="utf-8")
 
     subprocess.run(["git", "add", "."], cwd=str(repo), check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "Baseline specifications"], cwd=str(repo), check=True, capture_output=True)
@@ -254,6 +260,13 @@ def _create_valid_auth_manifest(
             else:
                 proto_sha_for_amend, _ = sha256_file(repo_root / UCI412_PROPOSAL_PATH)
 
+        amend_doc_rel = "docs/research/gate-pt/17_ai2_operational_scope_amendment.md"
+        amend_doc_file = repo_root / amend_doc_rel
+        if not amend_doc_file.exists():
+            amend_doc_file.parent.mkdir(parents=True, exist_ok=True)
+            amend_doc_file.write_text("# AI-2 Operational Scope Amendment\nRatified for isolated internal experimentation only.\n", encoding="utf-8")
+        amend_doc_sha, _ = sha256_file(amend_doc_file)
+
         op_amendment = {
             "amendment_id": "CAI-AMEND-AI2-REAL-PACKAGING-V1",
             "ratification_status": "RATIFIED_BY_PROJECT_MAINTAINER",
@@ -267,6 +280,8 @@ def _create_valid_auth_manifest(
             "approved_panel_id": panel_id,
             "frozen_source_sha256": source_sha256.lower(),
             "frozen_protocol_sha256": proto_sha_for_amend.lower(),
+            "amendment_document_relative_path": amend_doc_rel,
+            "frozen_amendment_document_sha256": amend_doc_sha.lower(),
             "approved_operations": approved_ops,
             "human_attestation": "HUMAN_RATIFIED_LOCAL_EXPERIMENTATION_ONLY_GATE_PT_P3_CLOSED",
             "signature_semantics": "HUMAN_ATTESTATION_FIELDS_NOT_A_CRYPTOGRAPHIC_SIGNATURE",
@@ -549,7 +564,7 @@ def test_source_hash_mismatch_rejection(
     )
 
     with pytest.raises(DatasetAdapterIntegrityError) as exc_info:
-        execute_authorized_research_run(
+        _execute_isolated_test_simulation(
             manifest_path=manifest_path,
             source_path=source_path,
             panel_id="da_a2_resting_v1",
@@ -591,7 +606,7 @@ def test_real_data_disguised_as_synthetic_rejection(
     )
 
     with pytest.raises(DatasetAdapterIntegrityError) as exc_info:
-        execute_authorized_research_run(
+        _execute_isolated_test_simulation(
             manifest_path=manifest_path,
             source_path=source_path,
             panel_id="da_a2_resting_v1",
@@ -742,7 +757,7 @@ def test_output_path_containment_and_symlink_rejection(
     # 1. Output directory outside authorized data/experiments
     unapproved_out = repo / "data" / "unapproved_dir" / "bundle"
     with pytest.raises(ExecutionAuthorizationError) as exc_info:
-        execute_authorized_research_run(
+        _execute_isolated_test_simulation(
             manifest_path=manifest_path,
             source_path=source_path,
             panel_id="da_a2_resting_v1",
@@ -754,7 +769,7 @@ def test_output_path_containment_and_symlink_rejection(
     # 2. Unignored output directory rejected
     unignored_out = repo / "unapproved_output_dir" / "bundle"
     with pytest.raises(ExecutionAuthorizationError) as exc_info:
-        execute_authorized_research_run(
+        _execute_isolated_test_simulation(
             manifest_path=manifest_path,
             source_path=source_path,
             panel_id="da_a2_resting_v1",
@@ -981,7 +996,7 @@ def test_end_to_end_cleveland_authorized_execution_and_inference(
     monkeypatch.setattr(execution, "get_approved_training_config", lambda dataset_id: fast_clev_config)
     monkeypatch.setenv("CAI_ISOLATED_TEST_RUN", "1")
 
-    trained_run, descriptor = execute_authorized_research_run(
+    trained_run, descriptor = _execute_isolated_test_simulation(
         manifest_path=manifest_path,
         source_path=source_path,
         panel_id="da_a2_resting_v1",
@@ -1090,7 +1105,7 @@ def test_end_to_end_uci412_authorized_execution_and_inference(
     monkeypatch.setattr(execution, "get_approved_training_config", lambda dataset_id: fast_uci_config)
     monkeypatch.setenv("CAI_ISOLATED_TEST_RUN", "1")
 
-    trained_run, descriptor = execute_authorized_research_run(
+    trained_run, descriptor = _execute_isolated_test_simulation(
         manifest_path=manifest_path,
         source_path=source_path,
         panel_id="da_a1_basic_clinical_v1",
@@ -1209,11 +1224,11 @@ def test_unratified_boolean_flags_rejected_without_separate_amendment(
     assert exc_info.value.code == "model_packaging_operation_not_authorized"
 
 
-def test_production_real_execution_rejects_non_windows_runtime_before_reading_source(
+def test_production_real_execution_rejects_non_windows_runtime_even_with_bypass_attempts(
     isolated_research_repo: tuple[Path, str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Blocker 2: Production execution rejects non-Windows / remote runtimes before reading source."""
+    """Blocker 3: Production execution rejects non-Windows runtime even if caller attempts env or config bypass."""
     repo, _, _ = isolated_research_repo
     source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
     _create_synthetic_cleveland_file(source_path)
@@ -1228,11 +1243,11 @@ def test_production_real_execution_rejects_non_windows_runtime_before_reading_so
         row_count=303,
     )
 
-    # Ensure test environment flag is disabled to simulate production execution
-    monkeypatch.delenv("CAI_ISOLATED_TEST_RUN", raising=False)
+    # 1. Attempt bypass with CAI_ISOLATED_TEST_RUN="1"
+    monkeypatch.setenv("CAI_ISOLATED_TEST_RUN", "1")
 
     from research.experiments.errors import RuntimeGuardError
-    with pytest.raises(RuntimeGuardError) as exc_info:
+    with pytest.raises(RuntimeGuardError) as exc_info_env:
         execute_authorized_research_run(
             manifest_path=manifest_path,
             source_path=source_path,
@@ -1240,4 +1255,119 @@ def test_production_real_execution_rejects_non_windows_runtime_before_reading_so
             output_bundle_dir=repo / "data" / "experiments" / "out_bundle",
             repo_root=repo,
         )
-    assert "Windows-local only" in str(exc_info.value) or "interactive local Windows console" in str(exc_info.value)
+    assert "Windows-local only" in str(exc_info_env.value) or "interactive local Windows console" in str(exc_info_env.value)
+
+    # 2. Attempt bypass with special test protocol id in training config
+    test_config = ResearchTrainingConfig(
+        protocol_id="CAI-TEST-FAST-E2E",
+        model_version="0.2.0",
+        outer_folds=5,
+        inner_folds=5,
+    )
+    with pytest.raises(RuntimeGuardError) as exc_info_cfg:
+        execute_authorized_research_run(
+            manifest_path=manifest_path,
+            source_path=source_path,
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=repo / "data" / "experiments" / "out_bundle",
+            repo_root=repo,
+            training_config=test_config,
+        )
+    assert "Windows-local only" in str(exc_info_cfg.value) or "interactive local Windows console" in str(exc_info_cfg.value)
+
+
+def test_context_integrity_tamper_of_authorized_booleans_fails_verification(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
+    """Blocker 2: Modifying operation-authorized booleans with dataclasses.replace fails HMAC verification."""
+    repo, _, _ = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="0" * 64,
+        row_count=303,
+        model_packaging_authorized=False,
+    )
+
+    valid_context = parse_and_validate_research_authorization(
+        manifest_path,
+        expected_dataset_id="DA-A2",
+        expected_panel_id="da_a2_resting_v1",
+        repo_root=repo,
+    )
+    assert valid_context.verify_authenticity() is True
+    assert valid_context.model_packaging_authorized is False
+
+    # Tamper with the context using dataclasses.replace to escalate operational scope
+    tampered_context = dataclasses.replace(
+        valid_context,
+        model_packaging_authorized=True,
+        patient_shap_authorized=True,
+    )
+    # The HMAC token MUST fail verification because the booleans were bound into the integrity digest
+    assert tampered_context.verify_authenticity() is False
+
+
+def test_unratified_amendment_commit_not_in_git_rejected(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
+    """Blocker 1: Amendment naming nonexistent or fabricated Git merge commit is rejected."""
+    repo, _, _ = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="0" * 64,
+        row_count=303,
+        model_packaging_authorized=True,
+    )
+
+    # Set governance merge commit to a nonexistent commit SHA
+    raw_doc = json.loads(manifest_path.read_text(encoding="utf-8"))
+    raw_doc["operation_scope_amendment"]["governance_merge_commit_sha"] = "d" * 40
+    manifest_path.write_text(json.dumps(raw_doc, indent=2), encoding="utf-8")
+
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A2",
+            expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
+        )
+    assert exc_info.value.code == "amendment_commit_not_found_in_git"
+
+
+def test_amendment_document_hash_mismatch_rejected(
+    isolated_research_repo: tuple[Path, str, str]
+) -> None:
+    """Blocker 1: Amendment document differing from human-frozen SHA-256 is rejected."""
+    repo, _, _ = isolated_research_repo
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="0" * 64,
+        row_count=303,
+        model_packaging_authorized=True,
+    )
+
+    # Mutate expected amendment document hash
+    raw_doc = json.loads(manifest_path.read_text(encoding="utf-8"))
+    raw_doc["operation_scope_amendment"]["frozen_amendment_document_sha256"] = "f" * 64
+    manifest_path.write_text(json.dumps(raw_doc, indent=2), encoding="utf-8")
+
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        parse_and_validate_research_authorization(
+            manifest_path,
+            expected_dataset_id="DA-A2",
+            expected_panel_id="da_a2_resting_v1",
+            repo_root=repo,
+        )
+    assert exc_info.value.code == "amendment_document_hash_mismatch"

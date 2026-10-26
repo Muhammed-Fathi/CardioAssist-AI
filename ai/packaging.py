@@ -360,6 +360,8 @@ def generate_execution_verification_token(
     allowed_operations: tuple[str, ...],
     forbidden_operations: tuple[str, ...],
     protected_output_root: str,
+    model_packaging_authorized: bool = False,
+    patient_shap_authorized: bool = False,
 ) -> str:
     """Issue a cryptographically verifiable token binding all governance decision, source, and scope parameters."""
     payload = json.dumps({
@@ -380,6 +382,8 @@ def generate_execution_verification_token(
         "allowed_operations": sorted(allowed_operations),
         "forbidden_operations": sorted(forbidden_operations),
         "protected_output_root": protected_output_root,
+        "model_packaging_authorized": bool(model_packaging_authorized),
+        "patient_shap_authorized": bool(patient_shap_authorized),
     }, sort_keys=True)
     return hmac.new(_INTERNAL_EXEC_SECRET, payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
@@ -441,6 +445,8 @@ class AuthorizedExecutionContext:
             allowed_operations=self.allowed_operations,
             forbidden_operations=self.forbidden_operations,
             protected_output_root=self.protected_output_root,
+            model_packaging_authorized=self.model_packaging_authorized,
+            patient_shap_authorized=self.patient_shap_authorized,
         )
         return hmac.compare_digest(expected, self.verification_token)
 
