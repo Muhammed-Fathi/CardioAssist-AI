@@ -2,9 +2,9 @@
 
 - **Decision ID:** `AI2-OPERATIONAL-SCOPE-001`
 - **Governance PR:** **#54**
-- **Revision:** AI-4.2 reconciliation with PR #56/main and bounded authority resolution, 2026-10-26
-- **Status:** **PROPOSED / UNRATIFIED / INTERNAL EXCEPTION PROPOSED / EXTERNAL APPLICABILITY RECORD REQUIRED / NOT ACTIVATED**
-- **Approval-readiness:** **READY FOR MAINTAINER AND INSTITUTIONAL APPLICABILITY REVIEW; HOLD FOR RATIFICATION AND EXECUTION**
+- **Revision:** Final reconciliation with PR #57/main and maintainer native-Windows preflight evidence, 2026-10-26
+- **Status:** **PROPOSED / UNRATIFIED / READY FOR MAINTAINER POLICY DECISION / NOT ACTIVATED**
+- **Approval-readiness:** **READY FOR MAINTAINER RATIFICATION REVIEW; EXECUTION REQUIRES `G` + `A` + LOCAL AUTHORIZATION AND RUN-SPECIFIC PREFLIGHT**
 - **Gate PT:** **P-1 PENDING; P-3 CLOSED; P-4/P-5 NOT OPENED**
 
 > This document is a governance proposal, not an authorization. PR #54 remains open and unmerged. The operational registry remains empty. No local authorization manifest is created by this proposal, and no real dataset access, fitting, packaging, inference, or activation is permitted by it.
@@ -50,49 +50,39 @@ This is the narrowest coherent project scientific/engineering decision because i
 
 **The maintainer's required internal decision is therefore explicit:** accept or reject this exact exception and the accompanying AI-first text. Accepting it is a project-governance decision only. It is not a waiver of P-1/P-3 statuses and cannot supply supervisor, ethics, data-protection, licensing, institutional, or regulatory permission.
 
-### 1.2 Source, license, and external-applicability determination
+### 1.2 External duties versus project-imposed process
 
-The following source review used metadata and legal/regulatory documents only on 2026-10-26. No patient-level file was accessed for this review. It separates what the evidence establishes from what only an authorized external or institutional body can decide.
+This review used source metadata and legal/regulatory documents only; no patient-level file was accessed for it. It does not declare an exemption, approval, anonymity determination, or legal opinion.
 
-| Question | Evidence reviewed | Consequence for this exact proposal |
-|---|---|---|
-| What is the source? | The [official UCI Heart Disease page](https://archive.ics.uci.edu/dataset/45/heart+disease), DOI `10.24432/C52P4X`, identifies the donated 1988 database, 303 Cleveland instances, and `processed.cleveland.data`. It says names and Social Security numbers were removed/replaced with dummy values. | This supports **public, historical, direct-identifier-removed** provenance in UCI's stated sense. It does not establish irreversible anonymity, non-identifiability under every applicable law, participant consent for this new use, or an ethics exemption. The amendment uses only the five resting predictors and the already governed target; it does not restore identifiers or attempt linkage/re-identification. |
-| May the licensed material be used and adapted? | UCI labels the dataset [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode). Sections 2(a)(1) and 4 permit reproduction, sharing, adaptation, and database extraction/reuse subject to the license; §3(a) requires attribution and modification notices when licensed material is shared. Section 2(b)(1) does not generally license privacy/publicity/personality rights. | **No separate copyright/database-license approval is identified for the proposed private local adaptation.** Preserve UCI/creator/DOI/license attribution in research records and any later aggregate report, and indicate modifications where applicable. CC BY 4.0 is not privacy, ethics, institutional, or regulatory clearance. This amendment authorizes no public redistribution of source rows, the bundle, SHAP background, or other patient-derived artifacts. |
-| Does Egyptian PDPL necessarily disappear because the source is public and names were removed? | The [official PDPC FAQ](https://pdpc.gov.eg/) defines protected data through direct or indirect identifiability and treats health data as sensitive. Its listed exclusions do not include a general student or scientific-research exclusion. The English translation of [Law 151/2020](https://www.acc.com/sites/default/files/program-materials/upload/Data%20Protection%20Law%20-%20Egypt%20-%20EN%20-%20MBH.PDF) likewise covers electronic analysis of directly/indirectly identifiable data and includes controller/processor license-or-permit duties. The translated [Executive Regulations, Decision 816/2025](https://shehatalaw.com/wp-content/uploads/2026/01/Shehata-Partners-Publications-Data-Protection-Executive-Regulations-English.pdf), Articles 3–4, include licensing language, conditions for specified non-profit statistical/educational secondary processing (including consent, relevance, and encoding when circulating so the person cannot be identified), and AI-training safeguards. | **PDPL applicability is not self-resolved.** Public availability, identifier removal, CC BY, small sample size, non-profit status, and graduation-project status are not, individually or together, a demonstrated exemption. The proposed local-only, no-linkage, no-re-identification, no-new-transfer, private-custody design reduces exposure but does not decide whether the remaining records/derivatives are identifiable or whether a lawful basis, consent condition, license/permit, DPO, records, retention, security, or other duty applies. The one-year compliance transition ending 2026-10-31 is not relied on as permission. |
-| Is this automatically exempt from Egyptian clinical-research review? | The current official [EDA Good Regulatory Oversight guideline, EDREX.GL.Bioinn.006 v5, effective 2026-07-01](https://edaegypt.gov.eg/media/2qejszxf/guideline-gcp_en-2026.pdf), read with Clinical Trials Law 214/2020 and Executive Regulation 927/2022, addresses interventional research involving human participants and non-interventional clinical trials. Its definitions include studies/experiments on human participants and non-interventional research in which participants record information about an approved intervention or health history. | This pilot proposes no recruitment, contact, intervention, current-participant measurement, or care decision; it reuses a historical public dataset. Those facts support an applicability review, **not a repository-declared exemption**. The competent institution/REC must determine whether this secondary-data AI pilot is outside that regime or requires IRB/REC or other review. Neither the earlier 2024 guideline nor a foreign “coded data” rule is used to grant an Egyptian exemption. |
-| What about institutional and supervisor duties? | No institution, applicable university policy, supervisor determination, REC/IRB determination, data-protection determination, or external approval is identified in the repository evidence. P-3 remains CLOSED and `supervisor_signoff_claimed=false`. | An internal maintainer cannot infer that no institutional duty exists. A supervisor's informal assent would not substitute for an authorized REC/data-protection decision, and a maintainer's ratification would not substitute for any of them. |
+**Established source and license facts.** The [official UCI Heart Disease page](https://archive.ics.uci.edu/dataset/45/heart+disease), DOI `10.24432/C52P4X`, identifies the historical 303-instance Cleveland source and states that names and Social Security numbers were removed or replaced with dummy values. UCI labels the dataset [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode), which permits use and adaptation subject to its terms, including attribution and modification notices when sharing. No separate copyright/database-license approval is identified for the proposed private local adaptation. Preserve source/creator/DOI/license attribution in research records and later aggregate reports. CC BY is not privacy, ethics, institutional, or regulatory approval, and this amendment permits no sharing of source rows, bundles, SHAP backgrounds, or other patient-derived artifacts.
 
-The linked Egyptian statute/regulation translations are secondary English aids, not a substitute for review of the official Arabic instruments by a qualified person. This section is an issue-spotting governance record, not a legal opinion.
+**External duties remain mandatory when actually applicable.**
 
-#### Required human decision before ratification
+- The [official PDPC FAQ](https://pdpc.gov.eg/) defines personal data through direct or indirect identifiability and treats health data as sensitive. UCI identifier removal is not a legal anonymity determination. If the remaining records or derivatives are identifiable personal data, applicable lawful-processing, security, record, retention, license/permit, or other duties cannot be waived by the maintainer or this amendment. No anonymity or PDPL exclusion is claimed here.
+- The current official [EDA EDREX.GL.Bioinn.006 v5 guideline](https://edaegypt.gov.eg/media/2qejszxf/guideline-gcp_en-2026.pdf), effective 2026-07-01, addresses interventional research involving human participants and non-interventional clinical trials. This run involves no recruitment, participant contact, intervention, current measurement, or care decision. The reviewed scope does not establish a blanket EDA/IRB approval requirement for this exact no-contact reuse of an already public historical dataset; that statement is not a regulatory exemption determination.
+- No particular institution or institutional policy has been identified in the repository evidence. Accordingly, this amendment does not assert that institutional or supervisor approval is universally required. Any rule actually imposed by the maintainer's institution remains binding and cannot be waived here.
 
-Before recording the ratification comment, the maintainer must **accept or reject the exact internal exception in §1.1** and, if accepting it, obtain and reference a dated written **coordinated institutional applicability record** for this exact bounded run. The institution's authorized research-compliance/ethics and data-protection/legal channels must contribute as their respective remits require; if the institution cannot decide a PDPL question, qualified Egyptian advice or PDPC guidance is required. The record must answer, without relying on this agent's conclusions:
+**Hard-blocker classification on the current evidence.** The reviewed sources establish no specific external legal, regulatory, or institutional approval as a universal precondition to amending this internal project policy. The earlier proposal's blanket requirement for a coordinated institutional applicability record is therefore removed. This is **not** a certification that external law is inapplicable or that compliance is optional: a requirement imposed by applicable law, a competent authority, or the maintainer's actual institution is a genuine external hard blocker and must be satisfied before execution.
 
-1. **Data protection:** whether the specified source rows and private model/SHAP derivatives are anonymous/non-personal for this use or PDPL applies; if PDPL applies, the lawful basis and any consent, secondary-processing, license/permit, DPO, record, retention, security, or transfer duties, and how each is satisfied before execution.
-2. **Research ethics/regulatory scope:** whether this historical public secondary-data engineering pilot is outside Law 214/2020/EDA and institutional REC/IRB review, or what review/approval/notification is required. Any required approval must actually be obtained; a requested or pending review is insufficient.
-3. **Academic/institutional authority:** whether graduation-project policy requires supervisor or other approval for this internal exploratory artifact route notwithstanding closed P-3, and whether private local derivatives plus aggregate-only reporting are permitted. Any required approval must actually be obtained.
-4. **Conditions and identity:** the deciding body/person, authority, date, exact scope, conditions, and evidence reference. The record must cover this run, not a generic course policy or another cohort.
-
-A limited applicability determination or permission does not reopen P-3 or make this formal supervisor-approved research. The frozen `INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED` label and `supervisor_signoff_claimed=false` fields deny a **formal Gate PT supervisor-signoff claim**; they must not be used to deny or conceal an actual limited institutional permission. If the authorized institution requires this work to proceed as formal supervisor-approved/Gate PT research, or requires a label inconsistent with those frozen fields, this amendment is incompatible and must not be activated; that would require separate governance and engineering review outside this PR.
-
-This is deliberately an **applicability determination first**, not an assertion that an IRB approval, PDPC license, or supervisor sign-off is always required. If the authorized record concludes that a particular approval is not required, retain that reasoned determination; if it concludes one is required, that approval becomes a precondition. No such record exists now, so external readiness remains **HOLD**. Repository ratification cannot create it.
+The remaining definite blockers are **internal project controls**: maintainer ratification `G`, separate registry-only activation `A`, the local authorization manifest, and run-specific guarded preflight at `A`. They are mandatory for this implementation unless the maintainer lawfully revises project policy and its enforcing code through a separate reviewed change; they are not represented as external legal requirements.
 
 ## 2. Verified references and immutable bindings
 
-The following references were checked against Git objects on the current PR #54 branch after merging latest main (including PRs #55 and #56). They are historical or current-object hashes, **not predictions of a future merge**.
+The following references were checked against Git objects on the current PR #54 branch after merging latest main (including PRs #55, #56, and #57). They are historical or current-object hashes, **not predictions of a future merge**.
 
 | Binding | Verified value / rule |
 |---|---|
 | Original D-047 governance PR | #31; exact owner authorization comment `AUTHORIZE-D047-INTERNAL-CLEVELAND` |
 | D-047 governance merge | `434e49a37e6e60b8b91498dde0f9d02dc1af18de` |
 | D-047 protocol path | `docs/research/gate-pt/02_d047_internal_exploratory_cleveland_PROTOCOL_PROPOSED.md` |
-| Protocol Git-blob SHA-256 at D-047 merge, merged PRs #55/#56, and this PR | `96c26829ff73893dab8ee091b2eaea1592479a1e0528ae6832651a9688ea3c86` |
+| Protocol Git-blob SHA-256 at D-047 merge, merged PRs #55/#56/#57, and this PR | `96c26829ff73893dab8ee091b2eaea1592479a1e0528ae6832651a9688ea3c86` |
 | Current registered plan path | `research/experiments/cleveland_d047_exploratory_plan.v0.1.json` |
-| Current registered-plan SHA-256 on merged PRs #55/#56 and this PR | `2c441c4c44d61e2734277d3ee788ce09b5dd4cc8e54cbeff741374a428646c6a` |
+| Current registered-plan SHA-256 on merged PRs #55/#56/#57 and this PR | `2c441c4c44d61e2734277d3ee788ce09b5dd4cc8e54cbeff741374a428646c6a` |
 | Five-field panel | `da_a2_resting_v1` |
 | Panel-contract SHA-256 | `c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8` |
 | Merged AI-3.2 engineering PR | #55; head `f3c1676561c60733b878d66643484af6fb418e83`; merge `6a5466a4ddc19aa315007ead9985cfd1f4049d04` |
 | Merged AI-4.1 synthetic CLI PR | #56; head `5fccd2b88cb7db65328c1595532bd623e52e5703`; merge `a7dd334b5717c60290627a0959284dd4d93c3ca9` |
+| Merged AI-5.1 LIME PR | #57; head `55fbd8537d19a617531058d9d35dad3a91fe4673`; merge `a1b21896b37786897112810c41965ac9867932db` |
 | AI-first boundary reconciled by this PR | `docs/research/AI_FIRST_COMPLETION_STRATEGY.md` §2.2 and §5.1(2); its future bytes are reviewed at `G`, not pre-hashed here |
 | Operational registry now | `RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS = {}` |
 
@@ -111,7 +101,7 @@ D-047 remains the historical basis for the Cleveland-only internal exploratory m
 
 This proposal does not alter the D-047 source, target, predictor set, primary nested-CV estimand, historical results, or formal P-3 status. It does not convert an internal exploratory artifact into a locked externally validated model. It also does not authorize inference merely because the merged engineering contains an offline inference implementation.
 
-## 4. Engineering reconciliation with merged PRs #55 and #56
+## 4. Engineering reconciliation with merged PRs #55–#57
 
 ### 4.1 Historical implementation blockers now resolved in merged code
 
@@ -156,7 +146,7 @@ The primary D-047-style internal estimate remains `uncalibrated_nested_cv` for `
 
 ### 4.3 PR #56 CLI is not an activation or real-execution route
 
-Latest main includes PR #56 (`a7dd334b5717c60290627a0959284dd4d93c3ca9`). Its `python -m ai` interface provides only `panels`, `verify-bundle`, `predict`, and `demo`:
+Main includes PR #56 (`a7dd334b5717c60290627a0959284dd4d93c3ca9`). Its `python -m ai` interface provides only `panels`, `verify-bundle`, `predict`, and `demo`:
 
 - `demo` is an isolated synthetic train-to-predict demonstration;
 - `predict` accepts only synthetic-provenance `AI1_GENERIC_V1` bundles and rejects real-provenance and `CLEVELAND_D047_FROZEN_V1` prediction before bundle deserialization;
@@ -165,23 +155,37 @@ Latest main includes PR #56 (`a7dd334b5717c60290627a0959284dd4d93c3ca9`). Its `p
 
 Accordingly, PR #56 changes neither this amendment's activation controls nor its inference prohibition. The only supported future real-Cleveland execution path remains `execute_guarded_cleveland_d047_run` after `G`, `A`, local authorization, and every preflight/custody requirement. The final trusted-local verification inside that wrapper is an acceptance check, not permission to call `ResearchCadPredictor` or the synthetic CLI for real inference.
 
+### 4.4 PR #57 and maintainer-supplied native-Windows evidence
+
+PR #57 (`a1b21896b37786897112810c41965ac9867932db`) adds optional synthetic-tested LIME inference and quality assessment. It does not change the frozen D-047 training profile, exact SHAP implementation, packaging, operational registry, or guarded execution wrapper. LIME is not added to this amendment's bundle or authorized operations, and real inference remains prohibited.
+
+The maintainer reports the following native-Windows results:
+
+- Cleveland D-047 preflight: **PASS**, exit code `0`;
+- UCI-412 M3a preflight: **PASS**, exit code `0` (context only; it does not authorize or broaden UCI-412 here);
+- both protected real sources passed their registered SHA-256 and byte-size checks; and
+- **no fitting was performed** during those checks.
+
+These are maintainer-supplied results, not operations performed or independently verified in Arena. They establish that the reported host/source preflight is no longer an unresolved environment blocker at the tested revision. They do not create `G` or `A`, sign the local manifest, or prove post-package HMAC/custody acceptance. The guarded wrapper must still run its revision-bound preflight at future `A`; no additional research-planning milestone is introduced.
+
 ## 5. Mandatory two-stage governance and activation sequence
 
 ### Stage 0 — current state
 
 - PR #54 is open, unmerged, and unratified.
 - The internal inconsistency is resolved **in this proposal's coordinated text**, but the exception has no effect before `G` and `A`.
-- The written external/institutional applicability record required by §1.2 has not been supplied; any approvals it identifies remain outstanding.
+- No specific external approval is established as a hard blocker by the reviewed sources; §1.2 preserves every actually applicable external duty without inventing a blanket paperwork gate.
+- The maintainer reports native-Windows D-047 preflight PASS with source hash/byte-size verification and no fitting; future-`A` preflight remains required.
 - The production operational registry is empty.
 - No registry-only activation PR exists.
 - No real execution, packaging, inference, or retry is allowed.
 
 ### Stage 1 — governance merge `G`
 
-Only after the maintainer accepts the exact §1.1 exception and the §1.2 applicability record plus every approval it requires is complete may the authorized human:
+After the maintainer accepts the exact §1.1 exception, the authorized human may:
 
 1. review the final PR #54 diff and confirm it changes exactly `docs/research/AI_FIRST_COMPLETION_STRATEGY.md` and `docs/research/gate-pt/17_ai2_operational_scope_amendment.md`, with no code, test, protocol, plan, registry, or manifest change;
-2. record the exact owner comment **`RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION`** on PR #54, explicitly referencing both the accepted internal-scope decision and the written external/institutional applicability record in the review record;
+2. record the exact owner comment **`RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION`** on PR #54 as the internal project-policy decision, without representing it as an external legal, institutional, supervisor, or ethics approval;
 3. merge PR #54 independently of any activation change; and
 4. record the actual GitHub merge commit as `G`, then verify the amendment, reconciled AI-first boundary, protocol, and plan bytes at `G`.
 
@@ -304,7 +308,7 @@ Only the authorized human may create/update the ignored file `data/manifests/int
 }
 ```
 
-The top-level D-047 PR/merge fields remain bound to historical PR #31. The amendment fields separately bind PR #54, `G`, and `A`; they must not be conflated. The two boolean flags do not self-authorize operations—the independent trusted registry entry and all hash/Git checks remain necessary. The `experiment_type` and `supervisor_signoff_claimed=false` values retain the limited formal-Gate-PT meaning in §1.2; they do not replace or conceal the separate applicability record. If that record requires inconsistent formal status or wording, stop rather than editing the manifest to force a fit.
+The top-level D-047 PR/merge fields remain bound to historical PR #31. The amendment fields separately bind PR #54, `G`, and `A`; they must not be conflated. The two boolean flags do not self-authorize operations—the independent trusted registry entry and all hash/Git checks remain necessary. The `experiment_type` and `supervisor_signoff_claimed=false` values preserve the frozen internal exploratory label and make no external approval claim. If an actually applicable external requirement cannot be satisfied truthfully while preserving those fields, stop rather than editing the manifest to force a fit.
 
 ## 7. Supported guarded execution interface
 
@@ -383,13 +387,13 @@ The following evidence must be recorded by responsible humans; none is created o
 | Control | Required human evidence |
 |---|---|
 | Internal authority | Maintainer acceptance or rejection of the exact §1.1 exception and coordinated AI-first text; P-1/P-3 statuses remain unchanged and no broader route is inferred. |
-| External/institutional applicability | The dated written §1.2 record from authorized research-compliance/ethics and data-protection/legal channels, plus every approval it requires. `supervisor_signoff_claimed=false` denies formal Gate PT supervisor sign-off, not a separately documented limited permission, and is not a waiver; maintainer authority is not an external exemption. |
-| License and redistribution | Preserve the verified CC BY 4.0 attribution/source/DOI/license record and modification notices where applicable; confirm institutional policy through §1.2. The license does not decide privacy or ethics, and no patient-derived artifact redistribution is authorized here. |
+| External legal/institutional duties | Human confirmation that no known actually applicable external duty remains unsatisfied; if a competent authority or the maintainer's institution imposes one, evidence that it is satisfied before execution. §1.2 imposes no blanket institutional-record requirement, and maintainer ratification is not an external approval or exemption. |
+| License and redistribution | Preserve the verified CC BY 4.0 attribution/source/DOI/license record and modification notices where applicable. The license does not decide privacy or ethics, and no patient-derived artifact redistribution is authorized here. |
 | GitHub ratification | Exact owner comment, comment timing, PR #54 merged state, full `G`, and independent review of the final document diff. |
 | Activation review | Separate PR content review, full `A`, registry-only content, `G` ancestry, exact `G..A` diff, and equality of both governance/code-revision fields to `G`. |
 | Local signature | Actual signer identity, authority, timestamp after final review/`G`/`A`, and understanding that the attestation is not a cryptographic signature. |
 | Source provenance | Protected source SHA/byte size, canonical official-source attestation, D-046 authorization, and license snapshot. Hashes prove byte identity, not official origin or participant independence. |
-| Native Windows environment | Supported native Windows/Python environment, CPU-only execution, dependency versions, interactive local operation, and actual Win32 NTFS owner/DACL checks. POSIX synthetic tests do not establish native Windows acceptance. |
+| Native Windows environment | Maintainer-reported D-047 preflight PASS and source hash/byte-size checks are recorded in §4.4; a fresh revision-bound preflight at `A`, actual Win32 NTFS owner/DACL checks, and post-package HMAC/custody acceptance remain mandatory. No fitting occurred during the reported preflight. |
 | Custody | Private source/manifests/license snapshot/output root/signing key, no symlink/junction/reparse escape, no cloud sync or external sharing, and secure retention/disposition. |
 | Run discipline | Exactly one authorized run; no new-process retry, no configuration reduction, no response-driven model/panel iteration, and human disposition of every failure. |
 | Reporting | Aggregate-only disclosure review, no small-cell or row-level leakage, separate historical/enhanced estimands, honest uncertainty and limitations, and no clinical/external-validation wording. |
@@ -397,27 +401,26 @@ The following evidence must be recorded by responsible humans; none is created o
 
 ## 10. Execution-permit checklist
 
-Every box must be satisfied by human evidence before the wrapper is invoked. The current state fails this checklist.
+The first nine boxes are pre-invocation controls. The final two are mandatory post-run outcomes, not evidence that can be precomputed before invocation. The current state has not completed this sequence.
 
 - [ ] Maintainer accepted the exact §1.1 exception and coordinated AI-first text; P-1/P-3 statuses remain unchanged.
-- [ ] The dated §1.2 institutional applicability record is complete, and every data-protection, ethics/REC, regulatory, supervisor, or other approval it requires has actually been obtained.
+- [ ] No known actually applicable external legal or institutional duty remains unsatisfied; if a competent requirement exists, it has been satisfied. This amendment does not require a generic institutional applicability record.
 - [ ] Exact ratification comment recorded on PR #54 and actual full `G` verified.
 - [ ] Amendment/protocol/plan hashes and scientific scope verified at `G`.
 - [ ] Separate registry-only activation reviewed and merged; actual full `A` verified.
 - [ ] Trusted registry and manifest fields match; both governance/code-revision fields equal `G`; activation field equals `A`.
-- [ ] Clean native Windows checkout at `A`; full preflight and protected storage pass.
+- [ ] Clean native Windows checkout at `A`; full revision-bound preflight and protected storage pass again (the §4.4 reported PASS does not skip this step).
 - [ ] Source, provenance, license, local manifest, output, key, and ACL/custody checks pass.
-- [ ] Frozen Cleveland profile and native synthetic/regression acceptance evidence reviewed.
 - [ ] Operator confirms the one-run/no-retry scope and invokes only `execute_guarded_cleveland_d047_run`.
-- [ ] Post-run source/custody checks, acceptance marker, and final verification all succeed.
-- [ ] Output remains private; no inference, sharing, additional run, or clinical claim occurs.
+- [ ] **Post-run:** source/custody checks, acceptance marker, and final HMAC/ACL verification all succeed.
+- [ ] **Post-run:** output remains private; no inference, sharing, additional run, or clinical claim occurs.
 
 ## 11. Approval-readiness disposition
 
 **Internal contradiction:** **RESOLVED IN THIS PROPOSAL; NOT YET EFFECTIVE.** The coordinated AI-first and amendment text now states one rule for the `ai/` real-bundle/SHAP boundary: P-1/P-3 govern the formal route and every other `ai/` operation covered by §5.1(2), while only the exact D-047 artifact/SHAP exception can proceed through `G` → `A` without changing those gate statuses. There is no implied waiver and no broader Cleveland, Hungary, UCI-412, or AngioCAD authorization. If the maintainer rejects that text, the original prohibition remains and this proposal must not be ratified.
 
-**External approval/applicability:** **HOLD.** UCI's CC BY 4.0 license supports private local adaptation with attribution obligations; it is not an external ethics or data-protection approval. No authorized institutional applicability record or external approval has been supplied. The remaining independently required human evidence is the exact §1.2 written determination and any approval it identifies—not an assumed blanket IRB/PDPC requirement and not a self-declared exemption.
+**External legal/institutional assessment:** **NO SPECIFIC EXTERNAL HARD BLOCKER IS ESTABLISHED BY THE REVIEWED SOURCES.** No blanket institutional applicability record, IRB submission, PDPC license, or supervisor approval is imposed by this amendment. That is not an exemption or a finding that such requirements can never apply. Applicable law and actual institutional rules remain mandatory; if a competent requirement is identified, satisfying it is an external hard blocker that the maintainer cannot waive.
 
-**Exact pre-ratification decision:** the maintainer must accept the narrow internal exception and obtain/reference the coordinated institutional record answering §1.2(1)–(4). Only then may the owner record the ratification comment and merge `G`. P-1 remains PENDING and P-3 remains CLOSED throughout.
+**Exact maintainer decision and remaining hard blocker:** the required pre-ratification decision is simply whether to accept the exact internal exception in §1.1. On the current evidence, the remaining definite blockers are **solely internal project policy and its enforcing controls**: ratification `G`, separate registry-only `A`, the post-`A` local manifest, and successful revision-bound preflight at `A`. P-1 remains PENDING and P-3 remains CLOSED. No generic external paperwork step stands between maintainer review and `G`.
 
-**Engineering and activation:** PR #55 resolved the verified frozen-method and guarded-wrapper implementation issues; PR #56 adds no real execution route and does not weaken those controls. The implementation is ready for final native-Windows acceptance review, **not ready to execute today**. Conditional on valid `G` and `A`, guarded execution is ready only after the local manifest, actual native Windows/Python environment, protected custody/ACLs, full preflight, and all human checks pass. Activation alone is insufficient, and any failed run requires a new human decision rather than retry. No `G` or `A` is precomputed here, and this document authorizes nothing by itself.
+**Engineering readiness:** PRs #55–#57 preserve the supported guarded implementation; PR #57's optional LIME inference is outside this amendment. The maintainer-reported native-Windows D-047 preflight PASS with source hash/byte-size verification and no fitting removes the previously unverified host/source uncertainty at the tested revision. Execution is nevertheless **HOLD until the internal `G` → `A` sequence and local authorization complete**. The wrapper must then rerun preflight at `A` and pass its normal post-package source, NTFS ACL, HMAC, acceptance, and custody checks. No `G` or `A` is precomputed, and this document authorizes nothing by itself.
