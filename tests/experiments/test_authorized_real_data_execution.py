@@ -180,7 +180,13 @@ def isolated_research_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> t
 
 
 def _create_synthetic_cleveland_file(path: Path) -> str:
-    """Create a synthetically valid processed Cleveland CSV file without mandatory history NaNs."""
+    """Create a synthetically valid processed Cleveland CSV file with a complete five-field panel.
+
+    The AI-pipeline Cleveland loader requires a complete audited panel (no '?'
+    in age/sex/cp/trestbps/restecg) and fails closed instead of inventing
+    missingness reasons. Research-pipeline fixtures that exercise imputation
+    use ``make_synthetic_source_bytes`` directly and are unaffected.
+    """
     source_bytes = make_synthetic_source_bytes()
     lines = source_bytes.decode("ascii").splitlines()
     clean_lines = []
@@ -190,6 +196,8 @@ def _create_synthetic_cleveland_file(path: Path) -> str:
             if parts[0] == "?": parts[0] = "55"
             if parts[1] == "?": parts[1] = "1"
             if parts[2] == "?": parts[2] = "3"
+            if parts[3] == "?": parts[3] = "130"
+            if parts[6] == "?": parts[6] = "0"
         clean_lines.append(",".join(parts))
     clean_bytes = ("\n".join(clean_lines) + "\n").encode("ascii")
     path.parent.mkdir(parents=True, exist_ok=True)

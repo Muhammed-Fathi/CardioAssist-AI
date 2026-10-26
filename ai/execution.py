@@ -20,9 +20,11 @@ Operating Principles & Safeguards:
    allow_authorized_real_data). Real model packaging and SHAP background generation
    strictly require an authentic, internally validated :class:`AuthorizedExecutionContext`.
 4. Frozen Model Configuration Binding:
-   Model hyperparameters, nested-CV folds (outer 4, inner 3), repeat seeds, candidate
-   families, simplicity tolerances, and negative controls are bound strictly to the
-   frozen registered research plans. Arbitrary custom configurations are rejected.
+   Model hyperparameters, nested-CV folds, repeat seeds, candidate
+   families, simplicity tolerances, negative controls, and the executable
+   methodology profile (solver, iteration limit, seed derivations) are bound
+   strictly to the frozen registered research plans. Arbitrary custom
+   configurations are rejected.
 5. Windows Local Execution & Private Artifact Storage:
    Real runs execute only in local workstation environments (enforcing Win32 NTFS DACLs
    on Windows or private 0700/0600 POSIX permissions) and store artifacts strictly in
@@ -96,6 +98,8 @@ from ai.panels import (
 )
 from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
+    EXECUTION_PROFILE_AI1_GENERIC_V1,
+    EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
     ResearchTrainingConfig,
     TrainedResearchRun,
     _execute_shared_training_pipeline,
@@ -127,8 +131,12 @@ from research.experiments.data_adapter import (
     sha256_bytes as cleveland_sha256_bytes,
 )
 from research.experiments.safety import (
+    D047_AUTH_RELATIVE_PATH as CLEVELAND_D047_MANIFEST_RELATIVE_PATH,
     OUTPUT_ROOT_RELATIVE_PATH as CLEVELAND_OUTPUT_ROOT_RELATIVE_PATH,
+    PreflightContext as ClevelandPreflightContext,
+    run_preflight as cleveland_run_preflight,
     validate_d047_authorization,
+    verify_source_still_unchanged as cleveland_verify_source_still_unchanged,
     enforce_local_windows_runtime as cleveland_enforce_local_windows_runtime,
 )
 from research.uci412.adapter import (
@@ -502,7 +510,17 @@ def validate_operation_scope_amendment(
 
 
 def get_approved_training_config(dataset_id: str) -> ResearchTrainingConfig:
-    """Return the frozen, approved ResearchTrainingConfig corresponding to the ratified research protocol."""
+    """Return the frozen, approved ResearchTrainingConfig corresponding to the ratified research protocol.
+
+    - Cleveland (``DA-A2``) selects the frozen D-047 execution profile
+      (``liblinear``/``max_iter=2000`` logistic, registered D-047 seed
+      derivations, registered negative-control split seeds). The profile field
+      is bound by :func:`assert_training_config_approved` dataclass equality,
+      and a dedicated regression test verifies the profile actually controls
+      estimator construction and observed CV seeds (not just static values).
+    - UCI-412 (``DA-A1``) explicitly retains the generic AI-1 profile so this
+      Cleveland-only correction leaves UCI-412 methodology unchanged.
+    """
     if dataset_id == TRACK_B_CLEVELAND_SOURCE_ID:
         return ResearchTrainingConfig(
             protocol_id="CAI-D047-CLEVELAND-EXPLORATORY-V1",
@@ -517,6 +535,7 @@ def get_approved_training_config(dataset_id: str) -> ResearchTrainingConfig:
             rf_min_samples_leaf=CLEVELAND_DEFAULT_CONFIG.rf_min_samples_leaf,
             rf_n_estimators=CLEVELAND_DEFAULT_CONFIG.rf_n_estimators,
             exploratory_threshold=CLEVELAND_DEFAULT_CONFIG.threshold,
+            execution_profile=EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
         )
     elif dataset_id == TRACK_A_UCI412_SOURCE_ID:
         return ResearchTrainingConfig(
@@ -532,6 +551,7 @@ def get_approved_training_config(dataset_id: str) -> ResearchTrainingConfig:
             rf_min_samples_leaf=UCI412_DEFAULT_CONFIG.rf_min_samples_leaf,
             rf_n_estimators=UCI412_DEFAULT_CONFIG.rf_n_estimators,
             exploratory_threshold=UCI412_DEFAULT_CONFIG.threshold,
+            execution_profile=EXECUTION_PROFILE_AI1_GENERIC_V1,
         )
     else:
         raise ExecutionAuthorizationError("unsupported_dataset_id", f"No approved training protocol for dataset '{dataset_id}'.")
@@ -545,7 +565,11 @@ def assert_training_config_approved(
 
     Enforces mandatory dataclass equality across every field (CV folds, repeat seeds,
     negative control seeds, shuffle_max_allowed_auroc, bootstrap_resamples,
-    shap_max_background_samples, exploratory_threshold, hyperparameter grids, etc.).
+    shap_max_background_samples, exploratory_threshold, hyperparameter grids,
+    execution_profile, etc.). The execution profile selects the executable
+    methodology (solver, iteration limit, seed derivations); static equality is
+    necessary but a dedicated regression test separately verifies the profile
+    actually controls estimator construction and observed CV behavior.
     """
     approved = get_approved_training_config(dataset_id)
     if training_config is None:
@@ -954,7 +978,17 @@ def load_cleveland_source_records(
     panel: ResearchPanelContract,
     config: Any = CLEVELAND_DEFAULT_CONFIG,
 ) -> tuple[list[dict[str, Any]], list[int], ClevelandDataset]:
-    """Load Cleveland processed.cleveland.data via read-only adapter and map to panel records."""
+    """Load Cleveland processed.cleveland.data via read-only adapter and map to panel records.
+
+    The locally audited five-field Cleveland panel (``age``, ``sex``, ``cp``,
+    ``trestbps``, ``restecg``) is complete: the registered D-047 plan forbids
+    inventing unrecorded missingness reasons (``missing_reason_columns`` is
+    ``FORBIDDEN_NOT_RECORDED_IN_UCI45``). If the parsed panel matrix contains
+    any ``?``-derived missing value, this loader fails closed *before*
+    inventing a ``not_measured`` reason or fitting, so an unexpected source
+    ``?`` can never be silently relabeled with a fabricated reason. The human
+    data custodian must review the source deviation instead.
+    """
     if panel.panel_id == "da_a2_resting_labs_v1":
         raise DatasetAdapterIntegrityError(
             "extended_panel_blocked_before_fitting",
@@ -970,6 +1004,23 @@ def load_cleveland_source_records(
     )
     dataset = _parse_processed_cleveland_bytes(source_snapshot.content, config=config)
 
+    # Fail closed on unexpected panel missingness instead of inventing reasons.
+    # Aggregate-only diagnostics (column names + counts); no patient values.
+    nan_mask = np.isnan(np.asarray(dataset.X, dtype=np.float64))
+    if bool(nan_mask.any()):
+        affected: list[str] = []
+        for col_idx, col_name in enumerate(dataset.feature_names):
+            n_missing = int(nan_mask[:, col_idx].sum())
+            if n_missing:
+                affected.append(f"{col_name}:{n_missing}")
+        raise DatasetAdapterIntegrityError(
+            "unexpected_cleveland_missingness_requires_review",
+            "Parsed Cleveland five-field panel contains unexpected missing ('?') values in "
+            f"{'; '.join(affected)}; the audited D-047 panel is complete and the plan "
+            "forbids inventing missingness reasons. Refusing to fabricate 'not_measured' "
+            "reasons or fit. Human custodian review of the source deviation is required.",
+        )
+
     records: list[dict[str, Any]] = []
     labels: list[int] = [int(val) for val in dataset.y]
 
@@ -980,9 +1031,12 @@ def load_cleveland_source_records(
 
         for j, col_name in enumerate(dataset.feature_names):
             val = float(dataset.X[i, j])
-            if math.isnan(val):
-                row_feat[col_name] = None
-                missing_reasons[col_name] = "not_measured"
+            if math.isnan(val):  # Defensive: unreachable after the fail-closed check above.
+                raise DatasetAdapterIntegrityError(
+                    "unexpected_cleveland_missingness_requires_review",
+                    "Encountered an unexpected missing panel value after completeness screening; "
+                    "refusing to invent a missingness reason.",
+                )
             else:
                 f_spec = panel.field_map[col_name]
                 if f_spec.role == "categorical":
@@ -1230,3 +1284,236 @@ def execute_authorized_research_run(
     )
 
     return trained_run, verified_descriptor
+
+
+# --------------------------------------------------------------------------- #
+# Guarded Cleveland D-047 execution wrapper (AI-3.2, Phase 3)
+# --------------------------------------------------------------------------- #
+
+GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID: Final[str] = "da_a2_resting_v1"
+GUARDED_CLEVELAND_D047_ALLOWED_DATASET_ID: Final[str] = TRACK_B_CLEVELAND_SOURCE_ID
+GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION: Final[str] = (
+    "I_CONFIRM_AUTHORIZED_CLEVELAND_D047_EXECUTION"
+)
+
+
+def execute_guarded_cleveland_d047_run(
+    *,
+    source_path: Path,
+    manifest_path: Path,
+    panel_id: str,
+    output_bundle_dir: Path,
+    repo_root: Path = REPOSITORY_ROOT,
+    training_config: ResearchTrainingConfig | None = None,
+    signing_key: bytes | None = None,
+    current_git_commit: str | None = None,
+    operator_confirmation: str | None = None,
+) -> tuple[TrainedResearchRun, VerifiedBundleDescriptor]:
+    """Execute one guarded Cleveland D-047 run with full preflight and post-run custody checks.
+
+    This is the ONLY supported entry point for a future human-authorized
+    Cleveland pilot. It is engineering readiness only: with the production
+    :data:`RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS` registry empty, every real
+    invocation fails closed before fitting. No registry entry, manifest
+    signature, or human approval is created, populated, or claimed here.
+
+    Fail-closed sequence (no automatic retry at any stage):
+    1. Require the exact permitted panel (``da_a2_resting_v1``), frozen
+       configuration (``training_config`` must be ``None`` so the frozen D-047
+       profile is used), and the exact local operator confirmation string.
+    2. Run the complete D-047 :func:`run_preflight` FIRST, before any
+       source-row parsing. This enforces interactive Windows-local runtime,
+       clean Git worktree, D-047 manifest validity, D-046 read-only
+       provenance, license snapshot, and source byte identity. The returned
+       :class:`PreflightContext` is preserved for post-run re-verification.
+    3. Bind the caller's ``manifest_path``/``source_path`` to the exact
+       canonical preflight paths (no substitution), and bind the caller's
+       ``current_git_commit`` (when supplied) to the actual preflight HEAD.
+    4. Perform an authorization-only operational-scope check (no fitting, no
+       source-row parsing) via :func:`parse_and_validate_research_authorization`
+       and require BOTH ``persistent_model_packaging`` and
+       ``patient_level_shap_background`` authorizations. An empty or
+       non-matching trusted registry fails closed here.
+    5. Require a new, non-existent output bundle directory under the approved
+       ``data/experiments`` root.
+    6. Call :func:`execute_authorized_research_run` exactly once with the
+       frozen configuration and the preflight-verified HEAD. Any exception
+       after fitting starts propagates without retry.
+    7. BEFORE accepting any output, re-verify unchanged source bytes via
+       :func:`verify_source_still_unchanged` with the preserved preflight
+       context. A mismatch quarantines the output (raised, never returned).
+    8. Verify private artifact custody and trusted-bundle integrity via the
+       existing trusted-local ACL/HMAC path
+       (:func:`verify_trusted_local_bundle`) before returning. A custody or
+       integrity failure quarantines the output.
+
+    The maintainer must still perform the separate human governance sequence
+    (exact ratification comment, governance merge ``G``, registry-only
+    activation merge ``A``, clean checkout at ``A``, ancestry and
+    registry-only-diff checks) before invoking this wrapper; those human
+    decisions cannot be supplied through this function.
+    """
+    # 1. Exact permitted cohort/panel, frozen config, explicit human confirmation.
+    if panel_id != GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_panel_rejected",
+            f"Guarded Cleveland D-047 wrapper permits only panel "
+            f"'{GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID}'; got '{panel_id}'.",
+            field="panel_id",
+        )
+    if training_config is not None:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_frozen_config_required",
+            "Guarded Cleveland D-047 wrapper requires training_config=None so the "
+            "frozen D-047 execution profile is used; custom configurations are prohibited.",
+            field="training_config",
+        )
+    if operator_confirmation != GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_operator_confirmation_required",
+            "Guarded Cleveland D-047 wrapper requires the exact local operator "
+            "confirmation string; refusing to execute without explicit human confirmation.",
+            field="operator_confirmation",
+        )
+
+    # 2. Complete D-047 preflight BEFORE any source-row parsing. This is the
+    # first substantive call: nothing above reads source bytes.
+    preflight: ClevelandPreflightContext = cleveland_run_preflight(repo_root=repo_root)
+    if preflight.authorization.get("expected_source_sha256") is None:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_preflight_context_incomplete",
+            "D-047 preflight did not return a source integrity context; refusing to execute.",
+        )
+
+    # 3. Bind caller paths and revision to the preflight-verified canonical values.
+    try:
+        canonical_manifest = (
+            preflight.repo_root / Path(*CLEVELAND_D047_MANIFEST_RELATIVE_PATH.parts)
+        ).resolve()
+        supplied_manifest = Path(manifest_path).resolve()
+    except OSError as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_manifest_path_unresolvable",
+            "Guarded wrapper could not resolve the authorization manifest path.",
+            field="manifest_path",
+        ) from exc
+    if not paths_equal_platform(supplied_manifest, canonical_manifest):
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_manifest_path_mismatch",
+            "Authorization manifest path does not resolve to the canonical D-047 "
+            "manifest bound by preflight; refusing to execute.",
+            field="manifest_path",
+        )
+    try:
+        supplied_source = Path(source_path).resolve()
+        canonical_source = Path(preflight.source_path).resolve()
+    except OSError as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_source_path_unresolvable",
+            "Guarded wrapper could not resolve the source path.",
+            field="source_path",
+        ) from exc
+    if not paths_equal_platform(supplied_source, canonical_source):
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_source_path_mismatch",
+            "Source path does not resolve to the canonical preflight-verified "
+            "Cleveland source; refusing to execute.",
+            field="source_path",
+        )
+    effective_commit = preflight.current_git_commit
+    if current_git_commit is not None and str(current_git_commit).strip().lower() != effective_commit.lower():
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_revision_mismatch",
+            "Supplied current_git_commit does not match the actual preflight-verified "
+            "clean HEAD; refusing to execute.",
+            field="current_git_commit",
+        )
+
+    # 4. Authorization-only operational-scope check: no fitting, no source-row
+    # parsing. Requires BOTH packaging and patient-SHAP authorizations from the
+    # independently verified trusted registry (empty in production → fail-closed).
+    auth_only = parse_and_validate_research_authorization(
+        Path(manifest_path),
+        expected_dataset_id=GUARDED_CLEVELAND_D047_ALLOWED_DATASET_ID,
+        expected_panel_id=GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID,
+        repo_root=preflight.repo_root,
+        current_git_commit=effective_commit,
+    )
+    if auth_only.dataset_id != GUARDED_CLEVELAND_D047_ALLOWED_DATASET_ID:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_dataset_rejected",
+            f"Guarded wrapper permits only dataset '{GUARDED_CLEVELAND_D047_ALLOWED_DATASET_ID}'.",
+            field="dataset_id",
+        )
+    if (
+        auth_only.expected_source_sha256.lower()
+        != str(preflight.source_sha256).lower()
+    ):
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_source_binding_mismatch",
+            "Authorization manifest source SHA-256 does not match the "
+            "preflight-verified source bytes; refusing to execute.",
+            field="expected_source_sha256",
+        )
+    if not (
+        bool(auth_only.model_packaging_authorized)
+        and bool(auth_only.patient_shap_authorized)
+    ):
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_operational_authorization_missing",
+            "Guarded wrapper requires BOTH persistent_model_packaging AND "
+            "patient_level_shap_background authorizations from a separately "
+            "ratified operational amendment; the trusted registry does not "
+            "authorize this execution.",
+        )
+
+    # 5. New, non-existent output directory (execute_* re-checks containment).
+    if Path(output_bundle_dir).exists() or Path(output_bundle_dir).is_symlink():
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_output_must_be_new",
+            "Guarded wrapper requires a new, non-existent output bundle directory; "
+            "refusing to overwrite.",
+            field="output_bundle_dir",
+        )
+
+    # 6. Single guarded execution with the frozen config and verified HEAD.
+    # No try/except retry: any exception after fitting starts propagates and
+    # the caller must NOT automatically retry.
+    trained_run, bundle_descriptor = execute_authorized_research_run(
+        source_path=Path(source_path),
+        manifest_path=Path(manifest_path),
+        panel_id=GUARDED_CLEVELAND_D047_ALLOWED_PANEL_ID,
+        output_bundle_dir=Path(output_bundle_dir),
+        repo_root=preflight.repo_root,
+        training_config=None,
+        signing_key=signing_key,
+        current_git_commit=effective_commit,
+    )
+
+    # 7. Re-verify unchanged source bytes BEFORE accepting any output.
+    try:
+        cleveland_verify_source_still_unchanged(preflight)
+    except Exception as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_source_changed_quarantined",
+            "Post-execution source byte-identity check failed; output bundle is "
+            "QUARANTINED / NOT ACCEPTED and must not be loaded, shared, or used. "
+            "No automatic retry is permitted.",
+        ) from exc
+
+    # 8. Verify private artifact custody and trusted-bundle integrity before
+    # accepting. Uses the same signing key (or the default local key when None).
+    try:
+        reverified = verify_trusted_local_bundle(
+            Path(output_bundle_dir),
+            trusted_local_root=Path(output_bundle_dir).parent,
+            signing_key=signing_key,
+        )
+    except Exception as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_bundle_custody_failed_quarantined",
+            "Post-execution trusted-local bundle verification failed; output is "
+            "QUARANTINED / NOT ACCEPTED. No automatic retry is permitted.",
+        ) from exc
+
+    return trained_run, reverified
