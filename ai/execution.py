@@ -276,7 +276,26 @@ AMENDMENT_RATIFICATION_STATUS: str = "RATIFIED_BY_PROJECT_MAINTAINER"
 # packaging or patient-derived SHAP persistence for real patient data. Until a separate
 # operational amendment is formally ratified by the project maintainer and recorded here,
 # this registry contains NO ratified amendments, ensuring these operations remain disabled.
-RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS: dict[str, dict[str, Any]] = {}
+RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS: dict[str, dict[str, Any]] = {
+    "CAI-AMEND-AI2-CLEVELAND-D047-V1": {
+        "governance_pr_number": 54,
+        "governance_merge_commit_sha": "7f4b7a50d7fd423914e5bd98ed2b525bddbfc627",
+        "approved_code_revision": "7f4b7a50d7fd423914e5bd98ed2b525bddbfc627",
+        "approved_dataset_id": "DA-A2",
+        "approved_panel_id": "da_a2_resting_v1",
+        "frozen_source_sha256": "a74b7efa387bc9d108d7d0115d831fe9b414b29ae7124f331b622b4efa0427c8",
+        "frozen_protocol_sha256": "96c26829ff73893dab8ee091b2eaea1592479a1e0528ae6832651a9688ea3c86",
+        "amendment_document_relative_path": "docs/research/gate-pt/17_ai2_operational_scope_amendment.md",
+        "frozen_amendment_document_sha256": "4c1d595534fd9a642a895cc59c01d4d81fbf5b84cf38ec3da5edcb7dd2d82890",
+        "ratified_by": "Muhammed Fathi",
+        "ratification_comment_exact": "RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION",
+        "approved_operations": (
+            "persistent_model_packaging",
+            "patient_level_shap_background",
+        ),
+        "protected_output_root": "data/experiments",
+    },
+}
 
 
 def validate_operation_scope_amendment(
