@@ -119,6 +119,30 @@ CLEVELAND_D047_MODEL_SEED_MODULUS: Final[int] = 2**32 - 1
 CLEVELAND_D047_LR_SOLVER: Final[str] = "liblinear"
 CLEVELAND_D047_LR_MAX_ITER: Final[int] = 2000
 
+# D-047 preprocessing lineage vs the original fold-local D-047 implementation
+# (``research.experiments.models._preprocessor``; read-only reference, never
+# modified). Both preprocessors are fitted per training fold (fold-local; no
+# leakage-structure difference). Verified on complete synthetic data by
+# ``test_d047_preprocessing_matches_original_fold_local_implementation``:
+# - Numeric imputation (median), z-score mean/population-std, categorical mode
+#   imputation (ascending code order makes the tie-break coincide), fixed
+#   drop-first one-hot reference levels, and unknown-code rejection are
+#   equivalent; the 8 shared encoded columns match to 1e-12.
+# - The AI lineage additionally emits two always-present missing-indicator
+#   columns (all-zero on complete data; the Cleveland loader fails closed on
+#   unexpected '?' instead of imputing, so they stay zero on that path).
+# - The AI lineage z-scores numerics for the forest where the original keeps
+#   raw values; the map is strictly monotone (same ordering), but the wider
+#   encoding (10 vs 8 columns) changes the forest's 'sqrt' per-split
+#   subsample (3 vs 2) over different index spaces. Measured effect on the
+#   fixed synthetic fixture: 2/30 holdout disagreements, AUROC 0.8235 vs
+#   0.7647 for same-seed 15-tree depth-3 forests. This documents the observed
+#   magnitude only; bit-for-bit reproduction of earlier D-047 performance is
+#   explicitly NOT claimed.
+# The D-047 primary estimate (``uncalibrated_nested_cv``) is always reported
+# from pure uncalibrated out-of-fold scores and kept separate from the added
+# cross-fitted calibration, full-development refit, and SHAP analyses.
+
 PROHIBITED_COHORT_TOKENS: Final[tuple[str, ...]] = (
     "pooled",
     "merged",

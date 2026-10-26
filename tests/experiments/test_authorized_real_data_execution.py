@@ -235,8 +235,26 @@ def _execute_isolated_test_simulation(
     Bypasses OS-level Windows-only checks via pytest monkeypatching strictly
     within temporary isolated synthetic test repositories. Never used or exposed
     in production modules.
+
+    For Cleveland simulations this helper mints an EXPLICIT test-only
+    guarded-execution proof bound to the exact simulation paths, satisfying
+    the production boundary that prohibits silent direct Cleveland
+    invocation. UCI-412 simulations pass no proof (the UCI-412 path neither
+    requires nor inspects one).
     """
     from ai import execution
+    from ai.execution import GuardedClevelandExecutionProof
+    test_proof = None
+    if panel_id == "da_a2_resting_v1":
+        test_proof = GuardedClevelandExecutionProof(
+            source_path_resolved=str(Path(source_path).resolve()),
+            manifest_path_resolved=str(Path(manifest_path).resolve()),
+            output_bundle_dir_resolved=str(Path(output_bundle_dir).resolve()),
+            repo_root_resolved=str(Path(repo_root).resolve()),
+            current_git_commit=str(current_git_commit).strip().lower()
+            if current_git_commit is not None
+            else "",
+        )
     if monkeypatch is not None:
         monkeypatch.setattr(execution, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None)
         monkeypatch.setattr(execution, "uci412_enforce_local_windows_runtime", lambda **kwargs: None)
@@ -255,6 +273,7 @@ def _execute_isolated_test_simulation(
                 training_config=training_config,
                 signing_key=signing_key,
                 current_git_commit=current_git_commit,
+                guarded_cleveland_proof=test_proof,
             )
         finally:
             execution.cleveland_enforce_local_windows_runtime = orig_clev
@@ -269,6 +288,7 @@ def _execute_isolated_test_simulation(
         training_config=training_config,
         signing_key=signing_key,
         current_git_commit=current_git_commit,
+        guarded_cleveland_proof=test_proof,
     )
 
 

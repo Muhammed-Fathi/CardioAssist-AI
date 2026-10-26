@@ -100,6 +100,9 @@ SENSITIVE_PRIVATE_FILES: Final[frozenset[str]] = frozenset(
     }
 )
 
+BUNDLE_QUARANTINE_MARKER_FILENAME: Final[str] = "QUARANTINED_DO_NOT_TRUST.json"
+BUNDLE_QUARANTINE_SCHEMA_VERSION: Final[str] = "cardioassist.ai.bundle_quarantine/v1"
+
 FORBIDDEN_SUMMARY_KEYS: Final[frozenset[str]] = frozenset(
     {
         "patient_rows",
@@ -299,6 +302,51 @@ def _assert_aggregate_only(summary: Mapping[str, Any]) -> None:
             "non_finite_summary_value",
             "Evaluation summary contains non-JSON or non-finite values.",
         ) from exc
+
+
+def write_bundle_quarantine_marker(
+    bundle_dir: Path,
+    *,
+    reason_code: str,
+    detail: str,
+) -> Path:
+    """Record a tamper-evident quarantine marker inside an unaccepted bundle directory.
+
+    Called only after a post-run source-integrity or custody check has failed.
+    Nothing is deleted or overwritten: every previously written artifact is
+    preserved for audit, and an existing marker is never replaced (the first
+    recorded failure is the most informative). Both
+    :func:`verify_research_bundle` and :func:`verify_trusted_local_bundle`
+    refuse any bundle directory containing this marker, so a quarantined
+    bundle can never be mistakenly accepted as trusted for later loading.
+
+    ``reason_code``/``detail`` must be aggregate-only (no patient values).
+    """
+    root = Path(bundle_dir)
+    if is_reparse_or_symlink(root) or not root.is_dir():
+        raise BundleIntegrityError(
+            "invalid_bundle_directory",
+            "Quarantine marker target must be an existing non-symlink directory.",
+        )
+    marker_path = root / BUNDLE_QUARANTINE_MARKER_FILENAME
+    if marker_path.exists() or is_reparse_or_symlink(marker_path):
+        return marker_path
+    payload = {
+        "marker": BUNDLE_QUARANTINE_MARKER_FILENAME,
+        "bundle_quarantine_version": BUNDLE_QUARANTINE_SCHEMA_VERSION,
+        "quarantined": True,
+        "accepted_for_loading": False,
+        "reason_code": str(reason_code),
+        "detail": str(detail),
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "instruction": (
+            "QUARANTINED / NOT ACCEPTED. Do not load, share, use, or delete "
+            "this directory. Preserve it for human audit."
+        ),
+    }
+    content = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    _write_atomic_private(marker_path, content)
+    return marker_path
 
 
 def _write_atomic_private(path: Path, content: bytes) -> dict[str, Any]:
@@ -794,6 +842,16 @@ def verify_research_bundle(
             "Bundle root must be an existing non-symlink, non-reparse directory.",
         )
 
+    # Quarantine takes precedence over every other check: a bundle rejected by
+    # a post-run integrity/custody gate must never load, even though its
+    # previously written HMAC attestation may still verify.
+    if (root / BUNDLE_QUARANTINE_MARKER_FILENAME).exists():
+        raise BundleIntegrityError(
+            "bundle_quarantined_not_accepted",
+            "Bundle is QUARANTINED / NOT ACCEPTED by a post-run integrity or "
+            "custody gate; refusing to load. Preserve the directory for audit.",
+        )
+
     present_entries = {entry.name for entry in root.iterdir()}
     expected_entries = {MANIFEST_FILENAME, *REQUIRED_SIBLING_FILES}
     if present_entries != expected_entries:
@@ -1018,6 +1076,15 @@ def verify_trusted_local_bundle(
     DACL inspection on Windows), and HMAC-SHA256 producer authentication BEFORE
     ``joblib.load`` can be invoked.
     """
+    # Explicit quarantine fast path (also enforced inside
+    # verify_research_bundle below): a post-run failure marker must refuse
+    # trusted loading before any ACL, digest, or HMAC inspection.
+    if (Path(bundle_dir) / BUNDLE_QUARANTINE_MARKER_FILENAME).exists():
+        raise BundleIntegrityError(
+            "bundle_quarantined_not_accepted",
+            "Bundle is QUARANTINED / NOT ACCEPTED by a post-run integrity or "
+            "custody gate; refusing trusted loading. Preserve it for audit.",
+        )
     verified = verify_research_bundle(bundle_dir)
 
     trust_root = Path(trusted_local_root)

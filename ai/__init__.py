@@ -53,6 +53,7 @@ from ai.execution import (
     GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
     DatasetAdapterIntegrityError,
     ExecutionAuthorizationError,
+    GuardedClevelandExecutionProof,
     ResearchAuthorizationContext,
     execute_authorized_research_run,
     execute_guarded_cleveland_d047_run,
@@ -76,12 +77,14 @@ from ai.filesystem_security import (
 )
 from ai.inference import ResearchCadPredictor, ResearchPredictionResult
 from ai.packaging import (
+    BUNDLE_QUARANTINE_MARKER_FILENAME,
     BUNDLE_SCHEMA_VERSION,
     VerifiedBundleDescriptor,
     get_or_create_local_signing_key,
     package_research_bundle,
     verify_research_bundle,
     verify_trusted_local_bundle,
+    write_bundle_quarantine_marker,
 )
 from ai.panels import (
     DA_A1_BASIC_CLINICAL_PANEL,
@@ -114,6 +117,7 @@ from ai.training import (
 __all__ = [
     "AccessControlVerificationResult",
     "AiPipelineError",
+    "BUNDLE_QUARANTINE_MARKER_FILENAME",
     "BUNDLE_SCHEMA_VERSION",
     "BundleIntegrityError",
     "CalibrationIntegrityError",
@@ -134,6 +138,7 @@ __all__ = [
     "FoldEnsembleMember",
     "FoldSafeClinicalPreprocessor",
     "GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION",
+    "GuardedClevelandExecutionProof",
     "OofLogisticCalibrator",
     "PanelFieldSpec",
     "PreprocessingContractError",
@@ -175,4 +180,5 @@ __all__ = [
     "verify_access_control",
     "verify_research_bundle",
     "verify_trusted_local_bundle",
+    "write_bundle_quarantine_marker",
 ]

@@ -27,11 +27,14 @@ from sklearn.linear_model import LogisticRegression
 import ai.execution as execution_mod
 import ai.training as training_mod
 from ai.errors import CohortGovernanceError
+from ai.errors import BundleIntegrityError
 from ai.execution import (
     GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
     DatasetAdapterIntegrityError,
     ExecutionAuthorizationError,
+    GuardedClevelandExecutionProof,
     assert_training_config_approved,
+    execute_authorized_research_run,
     execute_guarded_cleveland_d047_run,
     get_approved_training_config,
     load_cleveland_source_records,
@@ -46,6 +49,7 @@ from ai.panels import (
     DA_A2_RESTING_PANEL,
     validate_cohort_records,
 )
+from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
     EXECUTION_PROFILE_AI1_GENERIC_V1,
     EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
@@ -1121,10 +1125,16 @@ def test_guarded_wrapper_full_sequence_order_and_single_execution(
         assert kwargs["expected_panel_id"] == "da_a2_resting_v1"
         return _authorized_mock_context(preflight.source_sha256, packaging=True, shap=True)
 
+    def _fake_activation(*args: Any, **kwargs: Any) -> None:
+        calls.append("activation_binding")
+        assert kwargs["effective_commit"] == preflight.current_git_commit
+        return None
+
     def _fake_execute(*args: Any, **kwargs: Any) -> tuple[Any, Any]:
         calls.append("execute_once")
         assert kwargs["training_config"] is None
         assert kwargs["current_git_commit"] == preflight.current_git_commit
+        assert kwargs["guarded_cleveland_proof"] is not None
         out = Path(kwargs["output_bundle_dir"])
         out.mkdir(parents=True, exist_ok=False)
         (out / "manifest.json").write_text("{}", encoding="utf-8")
@@ -1141,6 +1151,9 @@ def test_guarded_wrapper_full_sequence_order_and_single_execution(
     monkeypatch.setattr(execution_mod, "cleveland_run_preflight", _fake_preflight)
     monkeypatch.setattr(
         execution_mod, "parse_and_validate_research_authorization", _fake_parse
+    )
+    monkeypatch.setattr(
+        execution_mod, "_enforce_cleveland_activation_revision_binding", _fake_activation
     )
     monkeypatch.setattr(execution_mod, "execute_authorized_research_run", _fake_execute)
     monkeypatch.setattr(
@@ -1164,6 +1177,7 @@ def test_guarded_wrapper_full_sequence_order_and_single_execution(
     assert calls == [
         "preflight",
         "parse_authorization",
+        "activation_binding",
         "execute_once",
         "verify_source",
         "verify_bundle",
@@ -1270,9 +1284,15 @@ def test_guarded_wrapper_quarantines_source_mismatch_and_custody_failure(
     def _fake_execute(*args: Any, **kwargs: Any) -> tuple[Any, Any]:
         out = Path(kwargs["output_bundle_dir"])
         out.mkdir(parents=True, exist_ok=False)
+        (out / "evidence.txt").write_text("preserved", encoding="utf-8")
         return MagicMock(), MagicMock()
 
     monkeypatch.setattr(execution_mod, "execute_authorized_research_run", _fake_execute)
+    monkeypatch.setattr(
+        execution_mod,
+        "_enforce_cleveland_activation_revision_binding",
+        lambda **kwargs: None,
+    )
     canonical_manifest = (
         preflight.repo_root / "data" / "manifests" / "internal_exploratory_authorization.local.json"
     )
@@ -1293,6 +1313,11 @@ def test_guarded_wrapper_quarantines_source_mismatch_and_custody_failure(
             operator_confirmation=GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
         )
     assert exc_quarantine.value.code == "guarded_wrapper_source_changed_quarantined"
+    quarantine_marker = (
+        tmp_path / "quarantine_bundle" / "QUARANTINED_DO_NOT_TRUST.json"
+    )
+    assert quarantine_marker.is_file()
+    assert (tmp_path / "quarantine_bundle" / "evidence.txt").is_file()
 
     monkeypatch.setattr(
         execution_mod, "cleveland_verify_source_still_unchanged", lambda ctx: None
@@ -1312,6 +1337,8 @@ def test_guarded_wrapper_quarantines_source_mismatch_and_custody_failure(
             operator_confirmation=GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
         )
     assert exc_custody.value.code == "guarded_wrapper_bundle_custody_failed_quarantined"
+    assert (tmp_path / "custody_bundle" / "QUARANTINED_DO_NOT_TRUST.json").is_file()
+    assert (tmp_path / "custody_bundle" / "evidence.txt").is_file()
 
 
 def test_guarded_wrapper_never_retries_after_fitting_starts(
@@ -1327,6 +1354,11 @@ def test_guarded_wrapper_never_retries_after_fitting_starts(
         lambda *a, **k: _authorized_mock_context(
             preflight.source_sha256, packaging=True, shap=True
         ),
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "_enforce_cleveland_activation_revision_binding",
+        lambda **kwargs: None,
     )
     attempts: list[int] = []
 
@@ -1363,6 +1395,9 @@ def test_windows_python312_compatibility_static_checks() -> None:
     for rel in (
         Path("ai/training.py"),
         Path("ai/execution.py"),
+        Path("ai/packaging.py"),
+        Path("ai/__init__.py"),
+        Path("tests/experiments/test_authorized_real_data_execution.py"),
         Path("tests/experiments/test_cleveland_d047_fidelity.py"),
     ):
         tree = ast.parse((REPO_ROOT / rel).read_text(encoding="utf-8"))
@@ -1381,3 +1416,710 @@ def test_windows_python312_compatibility_static_checks() -> None:
         GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
     ):
         value.encode("ascii")
+
+
+# --------------------------------------------------------------------------- #
+# 9. Guarded execution boundary: silent direct invocation is prohibited
+# --------------------------------------------------------------------------- #
+
+
+def _forbid_call(recorder: list[str], name: str) -> Any:
+    def _spy(*args: Any, **kwargs: Any) -> Any:
+        reorder.append(name)
+        raise AssertionError(f"{name} must not be called before the guard passes")
+    return _spy
+
+
+def test_direct_cleveland_execution_without_proof_fails_before_any_source_access(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Direct Cleveland invocation without a wrapper proof fails closed first.
+
+    Only the OS-level Windows runtime guard is bypassed (exactly as the
+    shared simulation helper does); no guarded proof is supplied even though
+    the manifest is fully authorized. Manifest authorization, source hashing,
+    source parsing, and fitting must all remain untouched.
+    """
+    repo, _, _ = d047_isolated_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    source_sha = _create_synthetic_cleveland_file(source_path)
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256=source_sha,
+        row_count=303,
+        model_packaging_authorized=True,
+        patient_shap_authorized=True,
+    )
+    monkeypatch.setattr(
+        execution_mod, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None
+    )
+    touched: list[str] = []
+    monkeypatch.setattr(
+        execution_mod,
+        "parse_and_validate_research_authorization",
+        _forbid_call(touched, "parse_and_validate_research_authorization"),
+    )
+    monkeypatch.setattr(
+        execution_mod, "sha256_file", _forbid_call(touched, "sha256_file")
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "load_cleveland_source_records",
+        _forbid_call(touched, "load_cleveland_source_records"),
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "_execute_shared_training_pipeline",
+        _forbid_call(touched, "_execute_shared_training_pipeline"),
+    )
+    output_dir = repo / "data" / "experiments" / "unguarded_bundle"
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_authorized_research_run(
+            source_path=source_path,
+            manifest_path=manifest_path,
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=output_dir,
+            repo_root=repo,
+            training_config=None,
+            current_git_commit=None,
+            guarded_cleveland_proof=None,
+        )
+    assert exc_info.value.code == "unguarded_cleveland_execution_blocked"
+    assert touched == []
+    assert not output_dir.exists()
+
+
+def test_stale_guarded_proof_bound_elsewhere_fails_before_parsing_or_fitting(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A proof minted for different execution parameters cannot be reused."""
+    repo, _, _ = d047_isolated_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    source_sha = _create_synthetic_cleveland_file(source_path)
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256=source_sha,
+        row_count=303,
+        model_packaging_authorized=True,
+        patient_shap_authorized=True,
+    )
+    monkeypatch.setattr(
+        execution_mod, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None
+    )
+    touched: list[str] = []
+    monkeypatch.setattr(
+        execution_mod,
+        "load_cleveland_source_records",
+        _forbid_call(touched, "load_cleveland_source_records"),
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "_execute_shared_training_pipeline",
+        _forbid_call(touched, "_execute_shared_training_pipeline"),
+    )
+    stale_proof = GuardedClevelandExecutionProof(
+        source_path_resolved=str(source_path.resolve()),
+        manifest_path_resolved=str(manifest_path.resolve()),
+        output_bundle_dir_resolved=str(
+            (repo / "data" / "experiments" / "other_bundle").resolve()
+        ),
+        repo_root_resolved=str(repo.resolve()),
+        current_git_commit="",
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_authorized_research_run(
+            source_path=source_path,
+            manifest_path=manifest_path,
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=repo / "data" / "experiments" / "real_bundle",
+            repo_root=repo,
+            training_config=None,
+            current_git_commit=None,
+            guarded_cleveland_proof=stale_proof,
+        )
+    assert exc_info.value.code == "guarded_proof_binding_mismatch"
+    assert touched == []
+
+
+# --------------------------------------------------------------------------- #
+# 10. Activation-revision binding: fail closed until trusted evidence exists
+# --------------------------------------------------------------------------- #
+
+
+def _make_governance_activation_repo(
+    tmp_path: Path,
+    *,
+    extra_diff_file: bool = False,
+    dirty_tracked_file: bool = False,
+) -> tuple[Path, str, str]:
+    """Real git repo with governance commit G and activation commit A (HEAD)."""
+    repo = tmp_path / "activation_repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.name", "Test Runner"],
+        cwd=str(repo),
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=str(repo),
+        check=True,
+        capture_output=True,
+    )
+    (repo / "README.md").write_text("governance baseline\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "governance G"], cwd=str(repo), check=True, capture_output=True
+    )
+    g_sha = (
+        subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(repo),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        .stdout.strip()
+        .lower()
+    )
+    ai_pkg = repo / "ai"
+    ai_pkg.mkdir(exist_ok=True)
+    (ai_pkg / "execution.py").write_text(
+        "RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS = {'TEST-AMEND': {}}\n",
+        encoding="utf-8",
+    )
+    if extra_diff_file:
+        (repo / "unreviewed_change.py").write_text("print('x')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-m", "activation A"],
+        cwd=str(repo),
+        check=True,
+        capture_output=True,
+    )
+    a_sha = (
+        subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(repo),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        .stdout.strip()
+        .lower()
+    )
+    if dirty_tracked_file:
+        (repo / "README.md").write_text("dirty\n", encoding="utf-8")
+    return repo, g_sha, a_sha
+
+
+def _write_activation_manifest(manifest_path: Path, amendment: Any) -> None:
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps({"operation_scope_amendment": amendment}), encoding="utf-8"
+    )
+
+
+def test_activation_revision_binding_happy_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, g_sha, a_sha = _make_governance_activation_repo(tmp_path)
+    manifest_path = repo / "manifest.json"
+    _write_activation_manifest(
+        manifest_path,
+        {"amendment_id": "TEST-AMEND", "activation_merge_commit_sha": a_sha},
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS",
+        {"TEST-AMEND": {"governance_merge_commit_sha": g_sha}},
+    )
+    execution_mod._enforce_cleveland_activation_revision_binding(
+        manifest_path=manifest_path, effective_commit=a_sha, repo_root=repo
+    )
+
+
+def test_activation_revision_binding_missing_evidence_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, g_sha, a_sha = _make_governance_activation_repo(tmp_path)
+    monkeypatch.setattr(
+        execution_mod,
+        "RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS",
+        {"TEST-AMEND": {"governance_merge_commit_sha": g_sha}},
+    )
+    # No amendment mapping at all.
+    missing = repo / "missing.json"
+    missing.write_text("{}", encoding="utf-8")
+    with pytest.raises(ExecutionAuthorizationError) as exc_missing:
+        execution_mod._enforce_cleveland_activation_revision_binding(
+            manifest_path=missing, effective_commit=a_sha, repo_root=repo
+        )
+    assert exc_missing.value.code == "activation_merge_evidence_missing"
+
+    # Amendment without the compensating activation SHA field.
+    no_sha = repo / "no_sha.json"
+    _write_activation_manifest(no_sha, {"amendment_id": "TEST-AMEND"})
+    with pytest.raises(ExecutionAuthorizationError) as exc_no_sha:
+        execution_mod._enforce_cleveland_activation_revision_binding(
+            manifest_path=no_sha, effective_commit=a_sha, repo_root=repo
+        )
+    assert exc_no_sha.value.code == "activation_merge_evidence_missing"
+
+    # Malformed activation SHA is not evidence.
+    bad_sha = repo / "bad_sha.json"
+    _write_activation_manifest(
+        bad_sha, {"amendment_id": "TEST-AMEND", "activation_merge_commit_sha": "zzz"}
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_bad_sha:
+        execution_mod._enforce_cleveland_activation_revision_binding(
+            manifest_path=bad_sha, effective_commit=a_sha, repo_root=repo
+        )
+    assert exc_bad_sha.value.code == "activation_merge_evidence_missing"
+
+
+def test_activation_revision_binding_head_and_worktree_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, g_sha, a_sha = _make_governance_activation_repo(tmp_path)
+    manifest_path = repo / "manifest.json"
+    _write_activation_manifest(
+        manifest_path,
+        {"amendment_id": "TEST-AMEND", "activation_merge_commit_sha": a_sha},
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS",
+        {"TEST-AMEND": {"governance_merge_commit_sha": g_sha}},
+    )
+    # Declared activation merge is not the actual HEAD (stale/supplied SHA).
+    stale = repo / "stale.json"
+    _write_activation_manifest(
+        stale, {"amendment_id": "TEST-AMEND", "activation_merge_commit_sha": g_sha}
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_stale:
+        execution_mod._enforce_cleveland_activation_revision_binding(
+            manifest_path=stale, effective_commit=g_sha, repo_root=repo
+        )
+    assert exc_stale.value.code == "activation_revision_mismatch"
+
+    # Preflight-verified HEAD no longer matches the independently resolved HEAD.
+    with pytest.raises(ExecutionAuthorizationError) as exc_moved:
+        execution_mod._enforce_cleveland_activation_revision_binding(
+            manifest_path=manifest_path, effective_commit=g_sha, repo_root=repo
+        )
+    assert exc_moved.value.code == "activation_revision_mismatch"
+
+
+def test_activation_revision_binding_dirty_worktree_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, g_sha, a_sha = _make_governance_activation_repo(
+        tmp_path, dirty_tracked_file=True
+    )
+    manifest_path = repo / "manifest.json"
+    _write_activation_manifest(
+        manifest_path,
+        {"amendment_id": "TEST-AMEND", "activation_merge_commit_sha": a_sha},
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS",
+        {"TEST-AMEND": {"governance_merge_commit_sha": g_sha}},
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_dirty:
+        execution_mod._enforce_cleveland_activation_revision_binding(
+            manifest_path=manifest_path, effective_commit=a_sha, repo_root=repo
+        )
+    assert exc_dirty.value.code == "activation_worktree_not_clean"
+
+
+def test_activation_revision_binding_trust_and_diff_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, g_sha, a_sha = _make_governance_activation_repo(tmp_path)
+    manifest_path = repo / "manifest.json"
+    _write_activation_manifest(
+        manifest_path,
+        {"amendment_id": "TEST-AMEND", "activation_merge_commit_sha": a_sha},
+    )
+    # Amendment unknown to the trusted registry: no independent evidence.
+    monkeypatch.setattr(execution_mod, "RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS", {})
+    with pytest.raises(ExecutionAuthorizationError) as exc_untrusted:
+        execution_mod._enforce_cleveland_activation_revision_binding(
+            manifest_path=manifest_path, effective_commit=a_sha, repo_root=repo
+        )
+    assert exc_untrusted.value.code == "activation_trusted_evidence_missing"
+
+    # Trusted G that is not an ancestor of HEAD.
+    monkeypatch.setattr(
+        execution_mod,
+        "RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS",
+        {"TEST-AMEND": {"governance_merge_commit_sha": "f" * 40}},
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_ancestry:
+        execution_mod._enforce_cleveland_activation_revision_binding(
+            manifest_path=manifest_path, effective_commit=a_sha, repo_root=repo
+        )
+    assert exc_ancestry.value.code == "activation_governance_ancestry_failed"
+
+    # Diff beyond the registry-only file stops activation.
+    wide_repo, wide_g, wide_a = _make_governance_activation_repo(
+        tmp_path / "wide", extra_diff_file=True
+    )
+    wide_manifest = wide_repo / "manifest.json"
+    _write_activation_manifest(
+        wide_manifest,
+        {"amendment_id": "TEST-AMEND", "activation_merge_commit_sha": wide_a},
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS",
+        {"TEST-AMEND": {"governance_merge_commit_sha": wide_g}},
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_diff:
+        execution_mod._enforce_cleveland_activation_revision_binding(
+            manifest_path=wide_manifest, effective_commit=wide_a, repo_root=wide_repo
+        )
+    assert exc_diff.value.code == "activation_diff_not_registry_only"
+
+
+# --------------------------------------------------------------------------- #
+# 11. Quarantine semantics: a failed post-run check can never load as trusted
+# --------------------------------------------------------------------------- #
+
+
+def test_quarantined_bundle_refused_by_trusted_loading_after_post_write_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Post-packaging failure quarantines a real bundle; loading must refuse it.
+
+    The mocked inner execution writes a genuine synthetic bundle (valid HMAC
+    attestation included); the post-run source re-verification then fails.
+    The wrapper must preserve every artifact, record a quarantine marker, and
+    every trusted-loading path must refuse the directory afterwards.
+    """
+    from ai.filesystem_security import ensure_private_directory
+    from ai.inference import ResearchCadPredictor
+    from ai.packaging import (
+        BUNDLE_QUARANTINE_MARKER_FILENAME,
+        package_research_bundle,
+        verify_research_bundle,
+        verify_trusted_local_bundle,
+    )
+
+    tmp_path = ensure_private_directory(tmp_path)
+    preflight = _fake_preflight_context(tmp_path)
+    monkeypatch.setattr(
+        execution_mod, "cleveland_run_preflight", lambda **kwargs: preflight
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "parse_and_validate_research_authorization",
+        lambda *a, **k: _authorized_mock_context(
+            preflight.source_sha256, packaging=True, shap=True
+        ),
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "_enforce_cleveland_activation_revision_binding",
+        lambda **kwargs: None,
+    )
+
+    def _fake_execute_and_package(*args: Any, **kwargs: Any) -> tuple[Any, Any]:
+        out = Path(kwargs["output_bundle_dir"])
+        records, labels = _generate_synthetic_resting_cohort(72, seed=80808)
+        run = train_research_model(
+            records,
+            labels,
+            DA_A2_RESTING_PANEL,
+            model_id="synth_quarantine_e2e",
+            development_cohort_id="synthetic_cleveland",
+            development_dataset_id="DA-A2",
+            synthetic_data_confirmed=True,
+            config=FAST_D047_TEST_CONFIG,
+        )
+        package_research_bundle(run, out)
+        return run, MagicMock()
+
+    monkeypatch.setattr(
+        execution_mod, "execute_authorized_research_run", _fake_execute_and_package
+    )
+
+    def _raise_source_changed(ctx: Any) -> None:
+        raise RuntimeError("source bytes changed after packaging")
+
+    monkeypatch.setattr(
+        execution_mod, "cleveland_verify_source_still_unchanged", _raise_source_changed
+    )
+    bundle_dir = preflight.repo_root / "data" / "experiments" / "quarantine_real_bundle"
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_guarded_cleveland_d047_run(
+            source_path=preflight.source_path,
+            manifest_path=preflight.repo_root
+            / "data"
+            / "manifests"
+            / "internal_exploratory_authorization.local.json",
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=bundle_dir,
+            repo_root=preflight.repo_root,
+            training_config=None,
+            operator_confirmation=GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
+        )
+    assert exc_info.value.code == "guarded_wrapper_source_changed_quarantined"
+
+    # Marker recorded; every previously written artifact preserved for audit.
+    marker = bundle_dir / BUNDLE_QUARANTINE_MARKER_FILENAME
+    assert marker.is_file()
+    marker_doc = json.loads(marker.read_text(encoding="utf-8"))
+    assert marker_doc["quarantined"] is True
+    assert marker_doc["accepted_for_loading"] is False
+    assert (
+        marker_doc["reason_code"] == "guarded_wrapper_source_changed_quarantined"
+    )
+    assert (bundle_dir / "manifest.json").is_file()
+    assert (bundle_dir / "model.joblib").is_file()
+
+    # No trusted-loading path may accept the quarantined directory.
+    with pytest.raises(BundleIntegrityError) as exc_trusted:
+        verify_trusted_local_bundle(bundle_dir, trusted_local_root=tmp_path)
+    assert exc_trusted.value.code == "bundle_quarantined_not_accepted"
+    with pytest.raises(BundleIntegrityError) as exc_structural:
+        verify_research_bundle(bundle_dir)
+    assert exc_structural.value.code == "bundle_quarantined_not_accepted"
+    with pytest.raises(BundleIntegrityError) as exc_predictor:
+        ResearchCadPredictor.from_verified_bundle(
+            bundle_dir, trusted_local_root=tmp_path
+        )
+    assert exc_predictor.value.code == "bundle_quarantined_not_accepted"
+
+
+def test_quarantine_marker_unit_semantics(tmp_path: Path) -> None:
+    """Marker refuses loading, never deletes artifacts, never overwrites itself."""
+    from ai.filesystem_security import ensure_private_directory
+    from ai.packaging import (
+        package_research_bundle,
+        verify_trusted_local_bundle,
+        write_bundle_quarantine_marker,
+    )
+
+    tmp_path = ensure_private_directory(tmp_path)
+    records, labels = _generate_synthetic_resting_cohort(72, seed=90909)
+    run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_PANEL,
+        model_id="synth_quarantine_unit",
+        development_cohort_id="synthetic_cleveland",
+        synthetic_data_confirmed=True,
+        config=FAST_D047_TEST_CONFIG,
+    )
+    bundle_dir = tmp_path / "marker_unit_bundle"
+    package_research_bundle(run, bundle_dir)
+    # Sanity: the intact bundle loads before quarantine.
+    verify_trusted_local_bundle(bundle_dir, trusted_local_root=tmp_path)
+
+    marker = write_bundle_quarantine_marker(
+        bundle_dir, reason_code="unit_check", detail="synthetic quarantine unit check"
+    )
+    assert marker.is_file()
+    with pytest.raises(BundleIntegrityError) as exc_info:
+        verify_trusted_local_bundle(bundle_dir, trusted_local_root=tmp_path)
+    assert exc_info.value.code == "bundle_quarantined_not_accepted"
+
+    # A second quarantine attempt preserves the first failure record.
+    marker_again = write_bundle_quarantine_marker(
+        bundle_dir, reason_code="later", detail="must not overwrite"
+    )
+    assert marker_again == marker
+    assert json.loads(marker.read_text(encoding="utf-8"))["reason_code"] == "unit_check"
+    assert (bundle_dir / "model.joblib").is_file()
+
+
+# --------------------------------------------------------------------------- #
+# 12. Scientific reproducibility: original fold-local D-047 preprocessing
+# --------------------------------------------------------------------------- #
+
+
+def _dense(matrix: Any) -> np.ndarray:
+    return matrix.toarray() if hasattr(matrix, "toarray") else np.asarray(matrix)
+
+
+def test_d047_preprocessing_matches_original_fold_local_implementation() -> None:
+    """Compare AI encoding against the original fold-local D-047 pipeline.
+
+    The registered D-047 implementation fits a per-training-fold sklearn
+    ``ColumnTransformer`` (median/mode imputation, LR-only z-scoring,
+    fixed-category drop-first one-hot). On complete synthetic data the AI
+    fold-local preprocessor must reproduce its 8 shared columns, and
+    same-seed fits on either encoding must agree.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    from research.experiments.models import _preprocessor as original_preprocessor
+
+    X, y = _cohort_matrices(n=120, seed=12121)
+    X_tr, y_tr, X_te, y_te = X[:90], y[:90], X[90:], y[90:]
+    ai_prep = FoldSafeClinicalPreprocessor.fit(X_tr, DA_A2_RESTING_PANEL)
+    Z_ai_tr = ai_prep.transform(X_tr)
+    Z_ai_te = ai_prep.transform(X_te)
+    # Original column order -> AI column order for the 8 shared columns:
+    # age, trestbps, sex_eq1, cp_eq2..4, restecg_eq1..2.
+    shared = [(0, 0), (1, 5), (2, 1), (3, 2), (4, 3), (5, 4), (6, 7), (7, 8)]
+
+    orig_lr = original_preprocessor(
+        "l2_logistic_regression", CLEVELAND_DEFAULT_CONFIG
+    )
+    Z_orig_tr = _dense(orig_lr.fit_transform(X_tr))
+    Z_orig_te = _dense(orig_lr.transform(X_te))
+    assert Z_orig_tr.shape == (90, 8)
+    for orig_idx, ai_idx in shared:
+        assert np.allclose(
+            Z_orig_tr[:, orig_idx], Z_ai_tr[:, ai_idx], rtol=1e-12, atol=1e-12
+        )
+        assert np.allclose(
+            Z_orig_te[:, orig_idx], Z_ai_te[:, ai_idx], rtol=1e-12, atol=1e-12
+        )
+
+    seed = derive_cleveland_d047_model_seed(20261026, 1, "l2_logistic_regression")
+    lr_orig = LogisticRegression(
+        solver="liblinear",
+        penalty="l2",
+        C=1.0,
+        max_iter=2000,
+        class_weight=None,
+        random_state=seed,
+    ).fit(Z_orig_tr, y_tr)
+    lr_ai = _build_estimator(
+        "l2_logistic_regression",
+        {"C": 1.0},
+        seed=seed,
+        rf_n_estimators=15,
+        execution_profile=EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
+    ).fit(Z_ai_tr, y_tr)
+    assert (lr_orig.predict(Z_orig_te) == lr_ai.predict(Z_ai_te)).all()
+    assert roc_auc_score(y_te, lr_orig.predict_proba(Z_orig_te)[:, 1]) == pytest.approx(
+        roc_auc_score(y_te, lr_ai.predict_proba(Z_ai_te)[:, 1]), abs=1e-12
+    )
+
+    # Forest family: one-hots identical and AI z-scoring is a strictly
+    # monotone affine map of the original raw numerics (same ordering), so
+    # any same-seed forest divergence comes only from the two extra
+    # always-present missing-indicator columns: encoded widths 8 vs 10 change
+    # the 'sqrt' per-split subsample from 2 to 3 over different index spaces.
+    # Measured effect on this fixed synthetic fixture (90 train / 30 holdout,
+    # 15 trees, depth 3): 2/30 holdout disagreements, AUROC 0.8235 vs 0.7647.
+    # This pins the mechanism and the observed magnitude; it is not a claim
+    # about real-data performance direction, and bit-for-bit RF reproduction
+    # of earlier D-047 performance is explicitly NOT claimed.
+    orig_rf = original_preprocessor(
+        "constrained_random_forest", CLEVELAND_DEFAULT_CONFIG
+    )
+    R_orig_tr = _dense(orig_rf.fit_transform(X_tr))
+    R_orig_te = _dense(orig_rf.transform(X_te))
+    assert R_orig_tr.shape[1] == 8
+    assert Z_ai_tr.shape[1] == 10
+    for orig_idx, ai_idx in shared[2:]:
+        assert (R_orig_te[:, orig_idx] == Z_ai_te[:, ai_idx]).all()
+    for orig_idx, ai_idx in shared[:2]:
+        assert (
+            np.argsort(R_orig_te[:, orig_idx], kind="stable")
+            == np.argsort(Z_ai_te[:, ai_idx], kind="stable")
+        ).all()
+    rf_seed = derive_cleveland_d047_model_seed(
+        20261026, 1, "constrained_random_forest"
+    )
+    rf_orig = RandomForestClassifier(
+        n_estimators=15,
+        max_depth=3,
+        min_samples_leaf=5,
+        max_features="sqrt",
+        class_weight=None,
+        random_state=rf_seed,
+        n_jobs=1,
+    ).fit(R_orig_tr, y_tr)
+    rf_ai = _build_estimator(
+        "constrained_random_forest",
+        {"max_depth": 3, "min_samples_leaf": 5},
+        seed=rf_seed,
+        rf_n_estimators=15,
+        execution_profile=EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
+    ).fit(Z_ai_tr, y_tr)
+    rf_disagreements = int(
+        (rf_orig.predict(R_orig_te) != rf_ai.predict(Z_ai_te)).sum()
+    )
+    assert rf_disagreements == 2
+    assert roc_auc_score(y_te, rf_orig.predict_proba(R_orig_te)[:, 1]) == pytest.approx(
+        0.823529411765, abs=1e-12
+    )
+    assert roc_auc_score(y_te, rf_ai.predict_proba(Z_ai_te)[:, 1]) == pytest.approx(
+        0.764705882353, abs=1e-12
+    )
+
+
+def test_d047_primary_estimate_is_uncalibrated_oof_reported_separately(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The D-047 primary estimate is pure uncalibrated OOF; extras are separate.
+
+    Recomputes the reported primary AUROC from the captured uncalibrated
+    out-of-fold scores (no calibration may leak in) and verifies the
+    cross-fitted calibrated block is built from genuinely different,
+    calibrator-transformed scores in its own labeled block.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    X, y = _cohort_matrices(n=90, seed=47047)
+    captured: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    orig_pass = training_mod._run_single_nested_pass
+
+    def _spy(X_in: np.ndarray, y_in: np.ndarray, **kwargs: Any) -> Any:
+        uncal, cal, recs, ens = orig_pass(X_in, y_in, **kwargs)
+        if y_in is y and "primary" not in captured:
+            captured["primary"] = (
+                np.asarray(uncal["inner_selected_procedure"]),
+                np.asarray(cal["inner_selected_procedure"]),
+            )
+        return uncal, cal, recs, ens
+
+    monkeypatch.setattr(training_mod, "_run_single_nested_pass", _spy)
+    run = _execute_shared_training_pipeline(
+        X,
+        y,
+        DA_A2_RESTING_PANEL,
+        model_id="synth_d047_separation_check",
+        dev_cohort="synthetic_cleveland",
+        dev_dataset="DA-A2:synthetic",
+        config=FAST_D047_TEST_CONFIG,
+        synthetic_only=True,
+    )
+    uncal_scores, cal_scores = captured["primary"]
+    reported_primary = run.internal_evaluation["uncalibrated_nested_cv"]["repeats"][0][
+        "models"
+    ]["inner_selected_procedure"]["discrimination"]["roc_auc"]
+    assert reported_primary == pytest.approx(
+        roc_auc_score(y, uncal_scores), abs=1e-12
+    )
+    assert run.internal_evaluation["uncalibrated_nested_cv"][
+        "post_hoc_calibration_applied"
+    ] is False
+    # The calibrated block is genuinely separate: different scores, own block.
+    assert not np.allclose(uncal_scores, cal_scores)
+    reported_calibrated = run.internal_evaluation["cross_fitted_calibrated_nested_cv"][
+        "repeats"
+    ][0]["models"]["inner_selected_procedure"]["discrimination"]["roc_auc"]
+    assert reported_calibrated == pytest.approx(
+        roc_auc_score(y, cal_scores), abs=1e-12
+    )
