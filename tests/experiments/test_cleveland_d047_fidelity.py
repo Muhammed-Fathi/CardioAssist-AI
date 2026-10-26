@@ -51,10 +51,15 @@ from ai.panels import (
 )
 from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
+    CLEVELAND_D047_RF_SPACE_VERSION,
+    CLEVELAND_D047_RF_SPACE_WIDTH,
     EXECUTION_PROFILE_AI1_GENERIC_V1,
     EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
     ResearchTrainingConfig,
     _build_estimator,
+    _d047_original_rf_matrix,
+    _d047_project_background_to_rf_space,
+    _d047_rf_column_to_raw_feature,
     _execute_shared_training_pipeline,
     _run_single_nested_pass,
     derive_cleveland_d047_inner_seed,
@@ -1111,8 +1116,11 @@ def _authorized_mock_context(source_sha: str, *, packaging: bool, shap: bool) ->
 def test_guarded_wrapper_full_sequence_order_and_single_execution(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from ai.packaging import BUNDLE_ACCEPTANCE_MARKER_FILENAME
+
     preflight = _fake_preflight_context(tmp_path)
     calls: list[str] = []
+    verify_kwargs: list[dict[str, Any]] = []
 
     def _fake_preflight(*args: Any, **kwargs: Any) -> Any:
         calls.append("preflight")
@@ -1146,6 +1154,7 @@ def test_guarded_wrapper_full_sequence_order_and_single_execution(
 
     def _fake_verify_bundle(*args: Any, **kwargs: Any) -> Any:
         calls.append("verify_bundle")
+        verify_kwargs.append(dict(kwargs))
         return MagicMock()
 
     monkeypatch.setattr(execution_mod, "cleveland_run_preflight", _fake_preflight)
@@ -1180,8 +1189,20 @@ def test_guarded_wrapper_full_sequence_order_and_single_execution(
         "activation_binding",
         "execute_once",
         "verify_source",
-        "verify_bundle",
+        "verify_bundle",  # step 9: pre-acceptance custody check
+        "verify_bundle",  # step 11: final acceptance-required verification
     ]
+    # Step 9 must not require the marker it precedes; step 11 must.
+    assert verify_kwargs[0].get("_require_post_run_acceptance") is False
+    assert verify_kwargs[1].get("_require_post_run_acceptance", True) is True
+    # Step 10 records post-run acceptance inside the output bundle directory.
+    assert (
+        preflight.repo_root
+        / "data"
+        / "experiments"
+        / "new_bundle"
+        / BUNDLE_ACCEPTANCE_MARKER_FILENAME
+    ).exists()
 
 
 def test_guarded_wrapper_binds_paths_revision_and_both_operations(
@@ -1527,14 +1548,12 @@ def test_stale_guarded_proof_bound_elsewhere_fails_before_parsing_or_fitting(
         "_execute_shared_training_pipeline",
         _forbid_call(touched, "_execute_shared_training_pipeline"),
     )
-    stale_proof = GuardedClevelandExecutionProof(
-        source_path_resolved=str(source_path.resolve()),
-        manifest_path_resolved=str(manifest_path.resolve()),
-        output_bundle_dir_resolved=str(
-            (repo / "data" / "experiments" / "other_bundle").resolve()
-        ),
-        repo_root_resolved=str(repo.resolve()),
-        current_git_commit="",
+    stale_proof = execution_mod._issue_test_guarded_cleveland_proof(
+        source_path=source_path,
+        manifest_path=manifest_path,
+        output_bundle_dir=repo / "data" / "experiments" / "other_bundle",
+        repo_root=repo,
+        current_git_commit=None,
     )
     with pytest.raises(ExecutionAuthorizationError) as exc_info:
         execute_authorized_research_run(
@@ -2123,3 +2142,1025 @@ def test_d047_primary_estimate_is_uncalibrated_oof_reported_separately(
     assert reported_calibrated == pytest.approx(
         roc_auc_score(y, cal_scores), abs=1e-12
     )
+
+
+# --------------------------------------------------------------------------- #
+# 13. D-047 Random Forest feature-space fidelity (same-seed pipeline equivalence)
+# --------------------------------------------------------------------------- #
+
+
+def _generate_rf_selecting_cohort(
+    n: int = 120, *, seed: int = 777
+) -> tuple[list[dict[str, Any]], list[int]]:
+    """Deterministic complete cohort on which inner-CV selects the forest family."""
+    rng = np.random.default_rng(seed)
+    age = rng.integers(29, 78, size=n).astype(float)
+    sex = rng.integers(0, 2, size=n).astype(float)
+    cp = rng.integers(1, 5, size=n).astype(float)
+    trestbps = rng.integers(94, 201, size=n).astype(float)
+    restecg = rng.integers(0, 3, size=n).astype(float)
+    logit = (
+        -3.0
+        + 0.05 * (age - 50)
+        + 0.8 * sex
+        + 0.4 * (cp - 1)
+        + 0.01 * (trestbps - 120)
+        + 0.3 * restecg
+    )
+    labels = [int(v) for v in (rng.random(n) < 1 / (1 + np.exp(-logit)))]
+    records: list[dict[str, Any]] = []
+    for i in range(n):
+        records.append(
+            {
+                "synthetic": True,
+                "panel_id": DA_A2_RESTING_PANEL.panel_id,
+                "features": {
+                    "age": float(age[i]),
+                    "sex": int(sex[i]),
+                    "cp": int(cp[i]),
+                    "trestbps": float(trestbps[i]),
+                    "restecg": int(restecg[i]),
+                },
+                "units": {"age": "years", "trestbps": "mmHg"},
+                "missing_reasons": {},
+            }
+        )
+    return records, labels
+
+
+def _d047_comparison_configs() -> tuple[Any, ResearchTrainingConfig]:
+    """Matched reduced-cost configs: original plan vs AI D-047 profile."""
+    original = dataclasses.replace(
+        CLEVELAND_DEFAULT_CONFIG,
+        outer_folds=3,
+        inner_folds=2,
+        outer_repeat_seeds=(20261026,),
+        rf_n_estimators=25,
+    )
+    ai_config = dataclasses.replace(
+        FAST_D047_TEST_CONFIG,
+        rf_max_depths=(3, 5),
+        rf_min_samples_leaf=(5, 10),
+        rf_n_estimators=25,
+    )
+    return original, ai_config
+
+
+def test_d047_rf_matches_original_pipeline_same_seed() -> None:
+    """Gap A: the adapted D-047 forest reproduces the original pipeline bit-for-bit."""
+    from research.experiments.data_adapter import ClevelandDataset
+
+    records, labels = _generate_rf_selecting_cohort()
+    original_config, ai_config = _d047_comparison_configs()
+    X_raw = np.array(
+        [
+            [
+                r["features"]["age"],
+                r["features"]["sex"],
+                r["features"]["cp"],
+                r["features"]["trestbps"],
+                r["features"]["restecg"],
+            ]
+            for r in records
+        ],
+        dtype=np.float64,
+    )
+    y_raw = np.array(labels, dtype=int)
+    dataset = ClevelandDataset(
+        X=X_raw,
+        y=y_raw,
+        feature_names=original_config.feature_names,
+        row_count=len(labels),
+        binary_target_counts=((0, int((y_raw == 0).sum())), (1, int(y_raw.sum()))),
+    )
+    original = cleveland_eval._run_nested_cv(dataset, config=original_config)
+    assert len(original.repeat_results) == 1
+    original_repeat = original.repeat_results[0]
+
+    X_ai, y_ai, _ = validate_cohort_records(
+        records, labels, DA_A2_RESTING_PANEL, require_synthetic=True
+    )
+    uncalibrated, _, fold_records, _ = _run_single_nested_pass(
+        X_ai,
+        y_ai,
+        panel=DA_A2_RESTING_PANEL,
+        config=ai_config,
+        repeat_seed=20261026,
+        retain_fold_models=False,
+        fit_cross_calibrators=False,
+    )
+
+    # Forest out-of-fold scores: exact same-input/same-seed/same-procedure match.
+    assert np.array_equal(
+        uncalibrated["constrained_random_forest"],
+        original_repeat.predictions["constrained_random_forest"],
+    )
+    # Inner-selected procedure: exact match (same inner AUCs + same rule).
+    assert np.array_equal(
+        uncalibrated["inner_selected_procedure"],
+        original_repeat.predictions["inner_selected_procedure"],
+    )
+    # Inner-CV mean ROC-AUC per family per fold: exact match.
+    assert len(fold_records) == len(original_repeat.fold_records) == 3
+    for ai_fold, original_fold in zip(fold_records, original_repeat.fold_records):
+        for family in ("l2_logistic_regression", "constrained_random_forest"):
+            assert (
+                ai_fold["inner_cv_roc_auc"][family]
+                == original_fold["inner_best_mean_roc_auc_by_family"][family]
+            )
+        assert ai_fold["selected_family"] == original_fold["selected_family"]
+        chosen = ai_fold["selected_family"]
+        assert chosen == "constrained_random_forest"
+        original_params = original_fold["inner_best_parameters_by_family"][chosen]
+        assert ai_fold["selected_hyperparameters"] == {
+            "max_depth": original_params["classifier__max_depth"],
+            "min_samples_leaf": original_params["classifier__min_samples_leaf"],
+        }
+        # Audit records the forest input space per family.
+        assert (
+            ai_fold["estimator_input_space_by_family"]["constrained_random_forest"]
+            == CLEVELAND_D047_RF_SPACE_VERSION
+        )
+    # Logistic family stays on the full 10-column encoding: identical ranks,
+    # ~1ulp score differences from the two all-zero indicator columns.
+    assert np.allclose(
+        uncalibrated["l2_logistic_regression"],
+        original_repeat.predictions["l2_logistic_regression"],
+        rtol=0.0,
+        atol=1e-12,
+    )
+
+
+def test_d047_rf_space_matrix_matches_original_encoding() -> None:
+    """Gap A: the projected 8-column matrix equals the original preprocessor output."""
+    from research.experiments.models import build_family_estimator
+
+    records, labels = _generate_rf_selecting_cohort()
+    X_ai, _, _ = validate_cohort_records(
+        records, labels, DA_A2_RESTING_PANEL, require_synthetic=True
+    )
+    prep = FoldSafeClinicalPreprocessor.fit(X_ai, DA_A2_RESTING_PANEL)
+    R = _d047_original_rf_matrix(prep, X_ai)
+    assert R.shape == (len(labels), CLEVELAND_D047_RF_SPACE_WIDTH)
+    # Bit-exact agreement with the original D-047 preprocessor fitted on the
+    # same fold data (read-only reference; the original module is untouched).
+    original_pipe = build_family_estimator(
+        "constrained_random_forest",
+        random_state=1,
+        config=CLEVELAND_DEFAULT_CONFIG,
+    )
+    original_pre = original_pipe.named_steps["preprocess"].fit(X_ai)
+    assert np.array_equal(R, original_pre.transform(X_ai))
+    # Numerics are raw median-imputed values in panel order (no z-scoring).
+    assert np.array_equal(R[:, 0], X_ai[:, 0])
+    assert np.array_equal(R[:, 1], X_ai[:, 3])
+    # One-hots equal the AI full-encoding one-hot slices (drop-first levels).
+    name_to_col = {name: idx for idx, name in enumerate(prep.encoded_feature_names)}
+    expected_one_hot = np.column_stack(
+        [
+            prep.transform(X_ai)[
+                :,
+                [
+                    name_to_col["sex__eq_1"],
+                    name_to_col["cp__eq_2"],
+                    name_to_col["cp__eq_3"],
+                    name_to_col["cp__eq_4"],
+                    name_to_col["restecg__eq_1"],
+                    name_to_col["restecg__eq_2"],
+                ],
+            ]
+        ]
+    )
+    assert np.array_equal(R[:, 2:], expected_one_hot)
+    # Column-to-raw mapping covers the five raw fields in projected order.
+    assert _d047_rf_column_to_raw_feature(prep) == (0, 3, 1, 2, 2, 2, 4, 4)
+    # Optional-missing trestbps imputes the fitted fold median, like the original.
+    X_missing = X_ai.copy()
+    X_missing[0, 3] = np.nan
+    R_missing = _d047_original_rf_matrix(prep, X_missing)
+    median = float(np.nanmedian(X_ai[:, 3]))
+    assert R_missing[0, 1] == median
+
+
+def test_d047_rf_space_layout_rejects_unexpected_preprocessor() -> None:
+    """Gap A: projection fails closed unless the preprocessor is the D-047 layout."""
+    records, labels = _generate_rf_selecting_cohort(n=40)
+    X_ai, _, _ = validate_cohort_records(
+        records, labels, DA_A2_RESTING_PANEL, require_synthetic=True
+    )
+    prep = FoldSafeClinicalPreprocessor.fit(X_ai, DA_A2_RESTING_PANEL)
+    truncated = dataclasses.replace(prep, field_transforms=prep.field_transforms[:4])
+    with pytest.raises(CohortGovernanceError) as exc_info:
+        _d047_original_rf_matrix(truncated, X_ai)
+    assert exc_info.value.code == "d047_rf_space_layout_mismatch"
+
+
+def test_d047_background_projection_matches_direct_space() -> None:
+    """Gap A: stored-background projection agrees with the direct 8-column space."""
+    records, labels = _generate_rf_selecting_cohort()
+    X_ai, _, _ = validate_cohort_records(
+        records, labels, DA_A2_RESTING_PANEL, require_synthetic=True
+    )
+    X_ai = X_ai.copy()
+    X_ai[0, 3] = np.nan  # optional-missing trestbps exercises median imputation
+    prep = FoldSafeClinicalPreprocessor.fit(X_ai, DA_A2_RESTING_PANEL)
+    Z = prep.transform(X_ai)
+    projected = _d047_project_background_to_rf_space(prep, Z)
+    direct = _d047_original_rf_matrix(prep, X_ai)
+    assert projected.shape == direct.shape == (len(labels), CLEVELAND_D047_RF_SPACE_WIDTH)
+    # One-hot columns transfer exactly; numerics invert the z-score (~1ulp).
+    assert np.array_equal(projected[:, 2:], direct[:, 2:])
+    assert np.allclose(projected[:, :2], direct[:, :2], rtol=0.0, atol=1e-9)
+
+
+def test_d047_projected_bundle_round_trip_aligns_inference_and_shap(
+    tmp_path: Path,
+) -> None:
+    """Gap A: an RF-selected D-047 bundle loads, predicts, and explains on 8 columns."""
+    import joblib
+
+    from ai.filesystem_security import ensure_private_directory
+    from ai.inference import ResearchCadPredictor
+    from ai.packaging import package_research_bundle
+
+    tmp_path = ensure_private_directory(tmp_path)
+    records, labels = _generate_rf_selecting_cohort()
+    _, ai_config = _d047_comparison_configs()
+    run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_PANEL,
+        model_id="synth_cleveland_d047_rf_fidelity",
+        development_cohort_id="synthetic_cleveland",
+        development_dataset_id="DA-A2",
+        synthetic_data_confirmed=True,
+        config=ai_config,
+    )
+    assert run.selected_model_family == "constrained_random_forest"
+    assert run.execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+    assert int(run.estimator.n_features_in_) == CLEVELAND_D047_RF_SPACE_WIDTH
+
+    bundle_dir = tmp_path / "cleveland_d047_rf_bundle"
+    verified = package_research_bundle(run, bundle_dir)
+    manifest_model = verified.manifest["model"]
+    assert manifest_model["execution_profile"] == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+    container = joblib.load(bundle_dir / "model.joblib")
+    assert container["execution_profile"] == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+
+    predictor = ResearchCadPredictor.from_verified_bundle(
+        bundle_dir, trusted_local_root=tmp_path
+    )
+    assert predictor.execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+    result = predictor.predict_research_only(records[0])
+    assert 0.0 <= result.calibrated_research_score <= 1.0
+    assert result.explanation.sum_check_passed is True
+    assert len(result.explanation.attributions) == 5
+
+
+def test_inference_execution_profile_and_width_guards() -> None:
+    """Gap A: profile/width enforcement accepts declared spaces and rejects the rest."""
+    from ai.inference import _validate_estimator_fitted_width, _validated_execution_profile
+
+    records, labels = _generate_rf_selecting_cohort(n=40)
+    X_ai, _, _ = validate_cohort_records(
+        records, labels, DA_A2_RESTING_PANEL, require_synthetic=True
+    )
+    prep = FoldSafeClinicalPreprocessor.fit(X_ai, DA_A2_RESTING_PANEL)
+    forest8 = RandomForestClassifier(n_estimators=2, random_state=1).fit(
+        _d047_original_rf_matrix(prep, X_ai), np.array(labels)
+    )
+    forest10 = RandomForestClassifier(n_estimators=2, random_state=1).fit(
+        prep.transform(X_ai), np.array(labels)
+    )
+
+    assert (
+        _validated_execution_profile(
+            {"execution_profile": EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1},
+            {"execution_profile": EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1},
+        )
+        == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+    )
+    with pytest.raises(BundleIntegrityError) as exc_info:
+        _validated_execution_profile(
+            {"execution_profile": EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1},
+            {"execution_profile": EXECUTION_PROFILE_AI1_GENERIC_V1},
+        )
+    assert exc_info.value.code == "execution_profile_container_mismatch"
+    with pytest.raises(BundleIntegrityError) as exc_info:
+        _validated_execution_profile({"execution_profile": "unknown_profile"}, {})
+    assert exc_info.value.code == "execution_profile_container_mismatch"
+
+    _validate_estimator_fitted_width(
+        forest8,
+        "constrained_random_forest",
+        prep,
+        EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
+    )
+    with pytest.raises(BundleIntegrityError) as exc_info:
+        _validate_estimator_fitted_width(
+            forest10,
+            "constrained_random_forest",
+            prep,
+            EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
+        )
+    assert exc_info.value.code == "estimator_fitted_width_mismatch"
+    _validate_estimator_fitted_width(
+        forest10, "constrained_random_forest", prep, EXECUTION_PROFILE_AI1_GENERIC_V1
+    )
+
+
+def test_generic_profile_uses_full_encoding_unchanged() -> None:
+    """Gap A: the generic AI-1 profile keeps the full 10-column forest space."""
+    records, labels = _generate_rf_selecting_cohort()
+    run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_PANEL,
+        model_id="synth_generic_full_encoding",
+        development_cohort_id="synthetic_generic",
+        development_dataset_id="DA-A2",
+        synthetic_data_confirmed=True,
+        config=FAST_GENERIC_TEST_CONFIG,
+    )
+    assert run.execution_profile == EXECUTION_PROFILE_AI1_GENERIC_V1
+    assert int(run.estimator.n_features_in_) == run.preprocessor.n_encoded_features == 10
+    for repeat in run.internal_evaluation["uncalibrated_nested_cv"]["repeats"]:
+        for fold_rec in repeat["fold_selections"]:
+            assert "estimator_input_space_by_family" not in fold_rec
+
+
+# --------------------------------------------------------------------------- #
+# 14. Wrapper-issued proof tokens: manual construction and replay fail closed
+# --------------------------------------------------------------------------- #
+
+
+def test_manually_constructed_matching_proof_is_rejected(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap B: a hand-built proof with exact bindings still fails the boundary.
+
+    Only wrapper-issued (process-local token) proofs authorize the Cleveland
+    path; structural equality of the bound paths is insufficient.
+    """
+    repo, _, _ = d047_isolated_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    source_sha = _create_synthetic_cleveland_file(source_path)
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256=source_sha,
+        row_count=303,
+        model_packaging_authorized=True,
+        patient_shap_authorized=True,
+    )
+    monkeypatch.setattr(
+        execution_mod, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None
+    )
+    touched: list[str] = []
+    monkeypatch.setattr(
+        execution_mod,
+        "parse_and_validate_research_authorization",
+        _forbid_call(touched, "parse_and_validate_research_authorization"),
+    )
+    monkeypatch.setattr(execution_mod, "sha256_file", _forbid_call(touched, "sha256_file"))
+    monkeypatch.setattr(
+        execution_mod,
+        "load_cleveland_source_records",
+        _forbid_call(touched, "load_cleveland_source_records"),
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "_execute_shared_training_pipeline",
+        _forbid_call(touched, "_execute_shared_training_pipeline"),
+    )
+    output_dir = repo / "data" / "experiments" / "manual_proof_bundle"
+    manual_proof = GuardedClevelandExecutionProof(
+        source_path_resolved=str(source_path.resolve()),
+        manifest_path_resolved=str(manifest_path.resolve()),
+        output_bundle_dir_resolved=str(output_dir.resolve()),
+        repo_root_resolved=str(repo.resolve()),
+        current_git_commit="",
+    )
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_authorized_research_run(
+            source_path=source_path,
+            manifest_path=manifest_path,
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=output_dir,
+            repo_root=repo,
+            training_config=None,
+            current_git_commit=None,
+            guarded_cleveland_proof=manual_proof,
+        )
+    assert exc_info.value.code == "unguarded_cleveland_execution_blocked"
+    assert touched == []
+    assert not output_dir.exists()
+
+
+def test_wrapper_issued_proof_token_is_single_use(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap B: a consumed proof token cannot authorize a second execution."""
+    repo, _, _ = d047_isolated_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    _create_synthetic_cleveland_file(source_path)
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256="f" * 64,  # wrong hash: first call passes the guard, then fails
+        row_count=303,
+        model_packaging_authorized=True,
+        patient_shap_authorized=True,
+    )
+    monkeypatch.setattr(
+        execution_mod, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None
+    )
+    touched: list[str] = []
+    monkeypatch.setattr(
+        execution_mod,
+        "load_cleveland_source_records",
+        _forbid_call(touched, "load_cleveland_source_records"),
+    )
+    monkeypatch.setattr(
+        execution_mod,
+        "_execute_shared_training_pipeline",
+        _forbid_call(touched, "_execute_shared_training_pipeline"),
+    )
+    output_dir = repo / "data" / "experiments" / "replay_bundle"
+    proof = execution_mod._issue_test_guarded_cleveland_proof(
+        source_path=source_path,
+        manifest_path=manifest_path,
+        output_bundle_dir=output_dir,
+        repo_root=repo,
+        current_git_commit=None,
+    )
+    call_kwargs: dict[str, Any] = dict(
+        source_path=source_path,
+        manifest_path=manifest_path,
+        panel_id="da_a2_resting_v1",
+        output_bundle_dir=output_dir,
+        repo_root=repo,
+        training_config=None,
+        current_git_commit=None,
+        guarded_cleveland_proof=proof,
+    )
+    with pytest.raises(DatasetAdapterIntegrityError) as exc_info:
+        execute_authorized_research_run(**call_kwargs)
+    # Past the step-0b boundary (token consumed), failed at source integrity.
+    assert exc_info.value.code == "source_hash_mismatch"
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_authorized_research_run(**call_kwargs)
+    assert exc_info.value.code == "guarded_proof_token_reused"
+    assert touched == []
+
+
+def test_expired_proof_token_is_rejected(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap B: TTL-expired tokens fail closed as never-issued."""
+    repo, _, _ = d047_isolated_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    source_sha = _create_synthetic_cleveland_file(source_path)
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256=source_sha,
+        row_count=303,
+        model_packaging_authorized=True,
+        patient_shap_authorized=True,
+    )
+    monkeypatch.setattr(
+        execution_mod, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None
+    )
+    output_dir = repo / "data" / "experiments" / "expired_bundle"
+    proof = execution_mod._issue_test_guarded_cleveland_proof(
+        source_path=source_path,
+        manifest_path=manifest_path,
+        output_bundle_dir=output_dir,
+        repo_root=repo,
+        current_git_commit=None,
+    )
+    monkeypatch.setattr(execution_mod, "_GUARDED_PROOF_TOKEN_TTL_SECONDS", -1)
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_authorized_research_run(
+            source_path=source_path,
+            manifest_path=manifest_path,
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=output_dir,
+            repo_root=repo,
+            training_config=None,
+            current_git_commit=None,
+            guarded_cleveland_proof=proof,
+        )
+    assert exc_info.value.code == "unguarded_cleveland_execution_blocked"
+
+
+def test_proof_token_redacted_from_repr() -> None:
+    """Gap B: proof tokens never appear in reprs, logs, or tracebacks."""
+    proof = execution_mod._issue_test_guarded_cleveland_proof(
+        source_path=Path("/tmp/synth_source.data"),
+        manifest_path=Path("/tmp/synth_manifest.json"),
+        output_bundle_dir=Path("/tmp/synth_bundle"),
+        repo_root=Path("/tmp"),
+        current_git_commit=None,
+    )
+    assert proof.proof_token
+    assert proof.proof_token not in repr(proof)
+    assert "proof_token" not in repr(proof)
+
+
+# --------------------------------------------------------------------------- #
+# 15. Post-run acceptance: real bundles load only after recorded success
+# --------------------------------------------------------------------------- #
+
+
+def _wrapper_integration_preflight(
+    repo: Path, source_path: Path, source_sha: str, head_commit: str
+) -> Any:
+    ctx = MagicMock()
+    ctx.repo_root = repo
+    ctx.source_path = source_path
+    ctx.source_sha256 = source_sha
+    ctx.current_git_commit = head_commit
+    ctx.authorization = {"expected_source_sha256": source_sha}
+    return ctx
+
+
+def _setup_wrapper_integration(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, Any]:
+    """Real inner Cleveland execution behind mocked preflight/activation only.
+
+    Preflight, activation-revision binding, and the Windows runtime guard are
+    mocked (each covered by dedicated real-git/real-filesystem suites);
+    authorization parsing, the guarded proof, training under the D-047
+    profile, real-mode packaging, and the post-run checks all execute for
+    real on synthetic fixtures.
+    """
+    from ai.packaging import get_or_create_local_signing_key
+
+    repo, head_commit, _ = d047_isolated_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    source_sha = _create_synthetic_cleveland_file(source_path)
+    manifest_path = (
+        repo / "data" / "manifests" / "internal_exploratory_authorization.local.json"
+    )
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256=source_sha,
+        row_count=303,
+        model_packaging_authorized=True,
+        patient_shap_authorized=True,
+    )
+    preflight = _wrapper_integration_preflight(repo, source_path, source_sha, head_commit)
+    monkeypatch.setattr(
+        execution_mod, "cleveland_run_preflight", lambda **kwargs: preflight
+    )
+    monkeypatch.setattr(
+        execution_mod, "_enforce_cleveland_activation_revision_binding", lambda **kwargs: None
+    )
+    monkeypatch.setattr(
+        execution_mod, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None
+    )
+    monkeypatch.setattr(
+        execution_mod, "get_approved_training_config", lambda dataset_id: FAST_D047_TEST_CONFIG
+    )
+    signing_key = get_or_create_local_signing_key(
+        repo / "data" / "experiments" / "signer.key"
+    )
+    return {
+        "repo": repo,
+        "head_commit": head_commit,
+        "source_path": source_path,
+        "source_sha": source_sha,
+        "manifest_path": manifest_path,
+        "preflight": preflight,
+        "signing_key": signing_key,
+    }
+
+
+def test_wrapper_integration_success_records_acceptance_and_loads(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap C: the full wrapper path records acceptance; the bundle loads."""
+    from ai.inference import ResearchCadPredictor
+    from ai.packaging import (
+        BUNDLE_ACCEPTANCE_MARKER_FILENAME,
+        verify_trusted_local_bundle,
+    )
+
+    setup = _setup_wrapper_integration(d047_isolated_repo, monkeypatch)
+    source_checks: list[Any] = []
+
+    def _ok_source(ctx: Any) -> None:
+        source_checks.append(ctx)
+
+    monkeypatch.setattr(execution_mod, "cleveland_verify_source_still_unchanged", _ok_source)
+    bundle_dir = setup["repo"] / "data" / "experiments" / "wrapper_accepted_bundle"
+    trained_run, descriptor = execute_guarded_cleveland_d047_run(
+        source_path=setup["source_path"],
+        manifest_path=setup["manifest_path"],
+        panel_id="da_a2_resting_v1",
+        output_bundle_dir=bundle_dir,
+        repo_root=setup["repo"],
+        training_config=None,
+        signing_key=setup["signing_key"],
+        current_git_commit=setup["head_commit"],
+        operator_confirmation=GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
+    )
+    assert descriptor.manifest["research_authorization"]["governance_decision_id"] == "D-047"
+    assert source_checks == [setup["preflight"]]
+    marker_path = bundle_dir / BUNDLE_ACCEPTANCE_MARKER_FILENAME
+    assert marker_path.is_file()
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert marker["accepted_for_loading"] is True
+    assert marker["expected_source_sha256"] == setup["source_sha"].lower()
+    assert marker["accepted_by"] == "execute_guarded_cleveland_d047_run"
+    # The production loading gate accepts the bundle.
+    reverified = verify_trusted_local_bundle(
+        bundle_dir,
+        trusted_local_root=bundle_dir.parent,
+        signing_key=setup["signing_key"],
+    )
+    assert reverified.manifest["model"]["model_id"] == trained_run.model_id
+    predictor = ResearchCadPredictor.from_verified_bundle(
+        bundle_dir, trusted_local_root=bundle_dir.parent, signing_key=setup["signing_key"]
+    )
+    result = predictor.predict_research_only(
+        {
+            "synthetic": False,
+            "panel_id": "da_a2_resting_v1",
+            "features": {"age": 60.0, "sex": 1, "cp": 4, "trestbps": 140.0, "restecg": 0},
+            "units": {"age": "years", "trestbps": "mmHg"},
+            "missing_reasons": {},
+        }
+    )
+    assert 0.0 <= result.calibrated_research_score <= 1.0
+    assert result.explanation.sum_check_passed is True
+
+
+def test_wrapper_integration_source_change_quarantines_without_acceptance(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap C: a failed post-run source check quarantines and records no acceptance."""
+    from ai.errors import BundleIntegrityError
+    from ai.inference import ResearchCadPredictor
+    from ai.packaging import (
+        BUNDLE_ACCEPTANCE_MARKER_FILENAME,
+        BUNDLE_QUARANTINE_MARKER_FILENAME,
+        verify_trusted_local_bundle,
+    )
+
+    setup = _setup_wrapper_integration(d047_isolated_repo, monkeypatch)
+
+    def _boom(ctx: Any) -> None:
+        raise RuntimeError("simulated post-run source change")
+
+    monkeypatch.setattr(execution_mod, "cleveland_verify_source_still_unchanged", _boom)
+    bundle_dir = setup["repo"] / "data" / "experiments" / "wrapper_quarantined_bundle"
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_guarded_cleveland_d047_run(
+            source_path=setup["source_path"],
+            manifest_path=setup["manifest_path"],
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=bundle_dir,
+            repo_root=setup["repo"],
+            training_config=None,
+            signing_key=setup["signing_key"],
+            current_git_commit=setup["head_commit"],
+            operator_confirmation=GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
+        )
+    assert exc_info.value.code == "guarded_wrapper_source_changed_quarantined"
+    assert (bundle_dir / BUNDLE_QUARANTINE_MARKER_FILENAME).is_file()
+    assert not (bundle_dir / BUNDLE_ACCEPTANCE_MARKER_FILENAME).exists()
+    # Artifacts preserved; loading refused through every trusted path.
+    assert (bundle_dir / "manifest.json").is_file()
+    assert (bundle_dir / "model.joblib").is_file()
+    with pytest.raises(BundleIntegrityError) as exc_verify:
+        verify_trusted_local_bundle(
+            bundle_dir,
+            trusted_local_root=bundle_dir.parent,
+            signing_key=setup["signing_key"],
+        )
+    assert exc_verify.value.code == "bundle_quarantined_not_accepted"
+    with pytest.raises(BundleIntegrityError) as exc_load:
+        ResearchCadPredictor.from_verified_bundle(
+            bundle_dir, trusted_local_root=bundle_dir.parent, signing_key=setup["signing_key"]
+        )
+    assert exc_load.value.code == "bundle_quarantined_not_accepted"
+
+
+def test_wrapper_integration_quarantine_write_failure_stays_unloadable(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap C: the review's core scenario -- marker-write failure fails closed.
+
+    Post-run source check fails AND the quarantine marker cannot be written:
+    the original failure code is preserved (never masked), the missing audit
+    record is surfaced in the message, and the signed bundle stays
+    unloadable because no post-run acceptance exists.
+    """
+    from ai.errors import BundleIntegrityError
+    from ai.inference import ResearchCadPredictor
+    from ai.packaging import (
+        BUNDLE_ACCEPTANCE_MARKER_FILENAME,
+        BUNDLE_QUARANTINE_MARKER_FILENAME,
+        verify_trusted_local_bundle,
+    )
+
+    setup = _setup_wrapper_integration(d047_isolated_repo, monkeypatch)
+
+    def _boom_source(ctx: Any) -> None:
+        raise RuntimeError("simulated post-run source change")
+
+    def _boom_marker(*args: Any, **kwargs: Any) -> Path:
+        raise OSError("simulated marker-write failure")
+
+    monkeypatch.setattr(execution_mod, "cleveland_verify_source_still_unchanged", _boom_source)
+    monkeypatch.setattr(execution_mod, "write_bundle_quarantine_marker", _boom_marker)
+    bundle_dir = setup["repo"] / "data" / "experiments" / "wrapper_unmarked_bundle"
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_guarded_cleveland_d047_run(
+            source_path=setup["source_path"],
+            manifest_path=setup["manifest_path"],
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=bundle_dir,
+            repo_root=setup["repo"],
+            training_config=None,
+            signing_key=setup["signing_key"],
+            current_git_commit=setup["head_commit"],
+            operator_confirmation=GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
+        )
+    assert exc_info.value.code == "guarded_wrapper_source_changed_quarantined"
+    assert "quarantine marker write also failed" in exc_info.value.message
+    assert not (bundle_dir / BUNDLE_QUARANTINE_MARKER_FILENAME).exists()
+    assert not (bundle_dir / BUNDLE_ACCEPTANCE_MARKER_FILENAME).exists()
+    # Nothing deleted; the signed bundle refuses loading for missing acceptance.
+    assert (bundle_dir / "manifest.json").is_file()
+    assert (bundle_dir / "model.joblib").is_file()
+    with pytest.raises(BundleIntegrityError) as exc_verify:
+        verify_trusted_local_bundle(
+            bundle_dir,
+            trusted_local_root=bundle_dir.parent,
+            signing_key=setup["signing_key"],
+        )
+    assert exc_verify.value.code == "bundle_post_run_acceptance_missing"
+    with pytest.raises(BundleIntegrityError) as exc_load:
+        ResearchCadPredictor.from_verified_bundle(
+            bundle_dir, trusted_local_root=bundle_dir.parent, signing_key=setup["signing_key"]
+        )
+    assert exc_load.value.code == "bundle_post_run_acceptance_missing"
+
+
+def test_wrapper_integration_acceptance_write_failure_fails_closed(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap C: acceptance-write failure on the success path fails closed."""
+    from ai.errors import BundleIntegrityError
+    from ai.inference import ResearchCadPredictor
+    from ai.packaging import (
+        BUNDLE_ACCEPTANCE_MARKER_FILENAME,
+        verify_trusted_local_bundle,
+    )
+
+    setup = _setup_wrapper_integration(d047_isolated_repo, monkeypatch)
+    monkeypatch.setattr(
+        execution_mod, "cleveland_verify_source_still_unchanged", lambda ctx: None
+    )
+
+    def _boom_marker(*args: Any, **kwargs: Any) -> Path:
+        raise OSError("simulated acceptance-write failure")
+
+    monkeypatch.setattr(execution_mod, "write_bundle_acceptance_marker", _boom_marker)
+    bundle_dir = setup["repo"] / "data" / "experiments" / "wrapper_no_acceptance_bundle"
+    with pytest.raises(ExecutionAuthorizationError) as exc_info:
+        execute_guarded_cleveland_d047_run(
+            source_path=setup["source_path"],
+            manifest_path=setup["manifest_path"],
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=bundle_dir,
+            repo_root=setup["repo"],
+            training_config=None,
+            signing_key=setup["signing_key"],
+            current_git_commit=setup["head_commit"],
+            operator_confirmation=GUARDED_CLEVELAND_D047_OPERATOR_CONFIRMATION,
+        )
+    assert exc_info.value.code == "guarded_wrapper_acceptance_marker_failed"
+    assert not (bundle_dir / BUNDLE_ACCEPTANCE_MARKER_FILENAME).exists()
+    assert (bundle_dir / "manifest.json").is_file()
+    assert (bundle_dir / "model.joblib").is_file()
+    with pytest.raises(BundleIntegrityError) as exc_verify:
+        verify_trusted_local_bundle(
+            bundle_dir,
+            trusted_local_root=bundle_dir.parent,
+            signing_key=setup["signing_key"],
+        )
+    assert exc_verify.value.code == "bundle_post_run_acceptance_missing"
+    with pytest.raises(BundleIntegrityError) as exc_load:
+        ResearchCadPredictor.from_verified_bundle(
+            bundle_dir, trusted_local_root=bundle_dir.parent, signing_key=setup["signing_key"]
+        )
+    assert exc_load.value.code == "bundle_post_run_acceptance_missing"
+
+
+def _build_helper_accepted_bundle(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    bundle_name: str,
+) -> tuple[Path, bytes]:
+    """Real-provenance bundle via the isolated simulation (acceptance recorded)."""
+    from ai.packaging import get_or_create_local_signing_key
+
+    repo, _, _ = d047_isolated_repo
+    source_path = repo / "data" / "raw" / "uci-45" / "processed.cleveland.data"
+    source_sha = _create_synthetic_cleveland_file(source_path)
+    manifest_path = repo / "data" / "experiments" / "manifest.json"
+    _create_valid_auth_manifest(
+        manifest_path,
+        repo,
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        source_sha256=source_sha,
+        row_count=303,
+        model_packaging_authorized=True,
+        patient_shap_authorized=True,
+    )
+    bundle_dir = repo / "data" / "experiments" / bundle_name
+    signing_key = get_or_create_local_signing_key(repo / "data" / "experiments" / "signer.key")
+    monkeypatch.setattr(
+        execution_mod, "get_approved_training_config", lambda dataset_id: FAST_D047_TEST_CONFIG
+    )
+    _execute_isolated_test_simulation(
+        manifest_path=manifest_path,
+        source_path=source_path,
+        panel_id="da_a2_resting_v1",
+        output_bundle_dir=bundle_dir,
+        signing_key=signing_key,
+        repo_root=repo,
+    )
+    return bundle_dir, signing_key
+
+
+def test_real_bundle_without_acceptance_refuses_every_loading_path(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap C: removing post-run acceptance renders a signed bundle unloadable."""
+    from ai.errors import BundleIntegrityError
+    from ai.inference import ResearchCadPredictor
+    from ai.packaging import (
+        BUNDLE_ACCEPTANCE_MARKER_FILENAME,
+        verify_research_bundle,
+        verify_trusted_local_bundle,
+    )
+
+    bundle_dir, signing_key = _build_helper_accepted_bundle(
+        d047_isolated_repo, monkeypatch, "acceptance_removed_bundle"
+    )
+    assert (bundle_dir / BUNDLE_ACCEPTANCE_MARKER_FILENAME).is_file()
+    (bundle_dir / BUNDLE_ACCEPTANCE_MARKER_FILENAME).unlink()
+    for loader in (
+        lambda: verify_research_bundle(bundle_dir),
+        lambda: verify_trusted_local_bundle(
+            bundle_dir, trusted_local_root=bundle_dir.parent, signing_key=signing_key
+        ),
+        lambda: ResearchCadPredictor.from_verified_bundle(
+            bundle_dir, trusted_local_root=bundle_dir.parent, signing_key=signing_key
+        ),
+    ):
+        with pytest.raises(BundleIntegrityError) as exc_info:
+            loader()
+        assert exc_info.value.code == "bundle_post_run_acceptance_missing"
+    # Pre-acceptance verification still passes: the gate is the only refusal.
+    pre = verify_trusted_local_bundle(
+        bundle_dir,
+        trusted_local_root=bundle_dir.parent,
+        signing_key=signing_key,
+        _require_post_run_acceptance=False,
+    )
+    assert pre.manifest["research_authorization"]["governance_decision_id"] == "D-047"
+
+
+def test_acceptance_marker_must_bind_authorized_source_sha(
+    d047_isolated_repo: tuple[Path, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gap C: a marker bound to another source cannot authorize loading."""
+    from ai.errors import BundleIntegrityError
+    from ai.packaging import (
+        BUNDLE_ACCEPTANCE_MARKER_FILENAME,
+        verify_research_bundle,
+    )
+
+    bundle_dir, _ = _build_helper_accepted_bundle(
+        d047_isolated_repo, monkeypatch, "acceptance_rebound_bundle"
+    )
+    marker_path = bundle_dir / BUNDLE_ACCEPTANCE_MARKER_FILENAME
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    marker["expected_source_sha256"] = "0" * 64
+    marker_path.write_text(json.dumps(marker, indent=2), encoding="utf-8")
+    with pytest.raises(BundleIntegrityError) as exc_info:
+        verify_research_bundle(bundle_dir)
+    assert exc_info.value.code == "bundle_post_run_acceptance_mismatch"
+
+
+def test_synthetic_bundle_loads_without_acceptance(tmp_path: Path) -> None:
+    """Gap C: synthetic bundles are unaffected by the acceptance gate."""
+    from ai.filesystem_security import ensure_private_directory
+    from ai.inference import ResearchCadPredictor
+    from ai.packaging import (
+        BUNDLE_ACCEPTANCE_MARKER_FILENAME,
+        package_research_bundle,
+        verify_trusted_local_bundle,
+    )
+
+    tmp_path = ensure_private_directory(tmp_path)
+    records, labels = _generate_synthetic_resting_cohort(48, seed=4242)
+    run = train_research_model(
+        records,
+        labels,
+        DA_A2_RESTING_PANEL,
+        model_id="synth_no_acceptance_needed",
+        development_cohort_id="synthetic_cleveland",
+        development_dataset_id="DA-A2",
+        synthetic_data_confirmed=True,
+        config=FAST_D047_TEST_CONFIG,
+    )
+    bundle_dir = tmp_path / "synthetic_bundle"
+    verified = package_research_bundle(run, bundle_dir)
+    assert verified.manifest["eligibility"]["synthetic_only"] is True
+    assert not (bundle_dir / BUNDLE_ACCEPTANCE_MARKER_FILENAME).exists()
+    loaded = verify_trusted_local_bundle(bundle_dir, trusted_local_root=tmp_path)
+    assert loaded.serving_eligibility == "RESEARCH_ONLY"
+    predictor = ResearchCadPredictor.from_verified_bundle(
+        bundle_dir, trusted_local_root=tmp_path
+    )
+    assert predictor.execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+
+
+def test_projected_shap_requires_complete_projection_arguments() -> None:
+    """Gap A: partial projected-SHAP requests fail closed (never silently mis-group)."""
+    from ai.errors import ExplainabilityIntegrityError
+    from ai.explainability import ShapBackgroundReference, explain_clinical_instance
+
+    records, labels = _generate_rf_selecting_cohort(n=60)
+    X_ai, y_ai, _ = validate_cohort_records(
+        records, labels, DA_A2_RESTING_PANEL, require_synthetic=True
+    )
+    prep = FoldSafeClinicalPreprocessor.fit(X_ai, DA_A2_RESTING_PANEL)
+    Z = prep.transform(X_ai)
+    forest8 = RandomForestClassifier(n_estimators=4, max_depth=3, random_state=7).fit(
+        _d047_original_rf_matrix(prep, X_ai), y_ai
+    )
+    background = ShapBackgroundReference.from_training_encoded(
+        Z, y_ai, prep, max_samples=16, synthetic_only=True
+    )
+    base_kwargs: dict[str, Any] = dict(
+        model_family="constrained_random_forest",
+        estimator=forest8,
+        preprocessor=prep,
+        panel=DA_A2_RESTING_PANEL,
+        background=background,
+        z_row=Z[0],
+    )
+    # No projection at all: required, not optional.
+    with pytest.raises(ExplainabilityIntegrityError) as exc_info:
+        explain_clinical_instance(**base_kwargs)
+    assert exc_info.value.code == "shap_projection_required"
+    # Partial projection (instance only): still refused, never mis-grouped.
+    with pytest.raises(ExplainabilityIntegrityError) as exc_info:
+        explain_clinical_instance(
+            **base_kwargs,
+            projected_z_row=_d047_original_rf_matrix(prep, X_ai[[0]])[0],
+        )
+    assert exc_info.value.code == "shap_projection_required"
+    # Complete projection explains with an exact efficiency sum-check.
+    explanation = explain_clinical_instance(
+        **base_kwargs,
+        projected_z_row=_d047_original_rf_matrix(prep, X_ai[[0]])[0],
+        projected_background=_d047_project_background_to_rf_space(prep, Z),
+        projected_column_to_raw_feature=_d047_rf_column_to_raw_feature(prep),
+    )
+    assert explanation.sum_check_passed is True
+    assert len(explanation.attributions) == 5

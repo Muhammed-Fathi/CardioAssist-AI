@@ -40,7 +40,7 @@ from __future__ import annotations
 import dataclasses
 
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import hashlib
 import io
@@ -49,9 +49,12 @@ import math
 import os
 from pathlib import Path, PurePosixPath
 import re
+import secrets
 import shutil
 import stat
 import subprocess
+import threading
+import time
 from typing import Any, Final, Mapping, Sequence
 
 import numpy as np
@@ -82,6 +85,7 @@ from ai.packaging import (
     get_or_create_local_signing_key,
     package_research_bundle,
     verify_trusted_local_bundle,
+    write_bundle_acceptance_marker,
     write_bundle_quarantine_marker,
     VerifiedBundleDescriptor,
 )
@@ -1318,18 +1322,21 @@ class GuardedClevelandExecutionProof:
 
     :func:`execute_authorized_research_run` requires this proof for every
     Cleveland (``DA-A2``) invocation and verifies, before any manifest
-    authorization, source-byte access, or fitting, that the proof binds the
-    exact source, manifest, output, repository, and revision of the call. A
-    direct call without a proof fails closed, so the production Cleveland
-    path cannot silently bypass the wrapper's full D-047 preflight,
+    authorization, source-byte access, or fitting, that the proof was issued
+    by the wrapper in this process (single-use process-local token) and binds
+    the exact source, manifest, output, repository, and revision of the call.
+    A direct call without a wrapper-issued proof fails closed -- including a
+    manually constructed proof whose bindings match -- so the production
+    Cleveland path cannot silently bypass the wrapper's full D-047 preflight,
     activation-revision binding, and post-run source/custody re-verification.
 
     Only :func:`execute_guarded_cleveland_d047_run` mints production proofs
     (via :func:`_issue_guarded_cleveland_proof`, after preflight and the
     authorization-only checks pass). Synthetic tests that exercise the inner
     function directly must mint an explicit test proof through the shared
-    isolated-simulation helper; silent direct invocation is prohibited. The
-    UCI-412 (``DA-A1``) path never requires or inspects this proof.
+    isolated-simulation helper (via :func:`_issue_test_guarded_cleveland_proof`);
+    silent direct invocation is prohibited. The UCI-412 (``DA-A1``) path never
+    requires or inspects this proof.
     """
 
     source_path_resolved: str
@@ -1337,6 +1344,66 @@ class GuardedClevelandExecutionProof:
     output_bundle_dir_resolved: str
     repo_root_resolved: str
     current_git_commit: str  # Lowercase 40-hex, or "" when the caller binds no revision.
+    proof_token: str = field(default="", repr=False, compare=True)
+
+
+_GUARDED_PROOF_TOKEN_TTL_SECONDS: Final[int] = 3600
+_GUARDED_PROOF_TOKENS: dict[str, dict[str, Any]] = {}
+_GUARDED_PROOF_TOKENS_LOCK = threading.Lock()
+
+
+def _purge_expired_guarded_proof_tokens_locked() -> None:
+    now = time.time()
+    expired = [
+        token
+        for token, record in _GUARDED_PROOF_TOKENS.items()
+        if now - float(record["issued_at"]) > _GUARDED_PROOF_TOKEN_TTL_SECONDS
+    ]
+    for token in expired:
+        del _GUARDED_PROOF_TOKENS[token]
+
+
+def _register_guarded_proof_token() -> str:
+    """Register a wrapper-issued single-use token for one proof (process-local)."""
+    token = secrets.token_urlsafe(32)
+    with _GUARDED_PROOF_TOKENS_LOCK:
+        _purge_expired_guarded_proof_tokens_locked()
+        _GUARDED_PROOF_TOKENS[token] = {
+            "issued_at": time.time(),
+            "consumed": False,
+        }
+    return token
+
+
+def _consume_guarded_proof_token(token: str) -> None:
+    """Consume a wrapper-issued token exactly once; fail closed otherwise.
+
+    Raises :class:`ExecutionAuthorizationError` with
+    ``unguarded_cleveland_execution_blocked`` for tokens never issued by this
+    process (including manually constructed proofs) and with
+    ``guarded_proof_token_reused`` for replayed tokens. Reads no source bytes
+    and performs no fitting.
+    """
+    with _GUARDED_PROOF_TOKENS_LOCK:
+        _purge_expired_guarded_proof_tokens_locked()
+        record = _GUARDED_PROOF_TOKENS.get(token) if token else None
+        if record is None:
+            raise ExecutionAuthorizationError(
+                "unguarded_cleveland_execution_blocked",
+                "Cleveland (DA-A2) proof was not issued by the guarded wrapper "
+                "in this process: full D-047 preflight, activation-revision "
+                "binding, and post-run source/custody re-verification would be "
+                "bypassed. Use execute_guarded_cleveland_d047_run. No source "
+                "parsing or fitting was performed.",
+            )
+        if bool(record["consumed"]):
+            raise ExecutionAuthorizationError(
+                "guarded_proof_token_reused",
+                "Guarded Cleveland proof token was already consumed by a prior "
+                "execution; a proof authorizes exactly one run. No source "
+                "parsing or fitting was performed.",
+            )
+        record["consumed"] = True
 
 
 def _issue_guarded_cleveland_proof(
@@ -1349,7 +1416,7 @@ def _issue_guarded_cleveland_proof(
 ) -> GuardedClevelandExecutionProof:
     """Mint a guarded-execution proof for one exact wrapper-authorized run."""
     try:
-        return GuardedClevelandExecutionProof(
+        proof = GuardedClevelandExecutionProof(
             source_path_resolved=str(Path(source_path).resolve()),
             manifest_path_resolved=str(Path(manifest_path).resolve()),
             output_bundle_dir_resolved=str(Path(output_bundle_dir).resolve()),
@@ -1361,6 +1428,29 @@ def _issue_guarded_cleveland_proof(
             "guarded_proof_binding_unresolvable",
             "Guarded wrapper could not resolve execution paths for proof binding.",
         ) from exc
+    return dataclasses.replace(proof, proof_token=_register_guarded_proof_token())
+
+
+def _issue_test_guarded_cleveland_proof(
+    *,
+    source_path: Path,
+    manifest_path: Path,
+    output_bundle_dir: Path,
+    repo_root: Path,
+    current_git_commit: str | None,
+) -> GuardedClevelandExecutionProof:
+    """Test-only issuer for the shared isolated-simulation helper.
+
+    Registers a process-local single-use token exactly like the production
+    wrapper. Never called outside synthetic tests.
+    """
+    return _issue_guarded_cleveland_proof(
+        source_path=source_path,
+        manifest_path=manifest_path,
+        output_bundle_dir=output_bundle_dir,
+        repo_root=repo_root,
+        current_git_commit=current_git_commit or "",
+    )
 
 
 def _require_guarded_cleveland_proof(
@@ -1375,8 +1465,9 @@ def _require_guarded_cleveland_proof(
     """Enforce the guarded Cleveland boundary before authorization or source access.
 
     Raises :class:`ExecutionAuthorizationError` when the proof is absent,
-    malformed, or bound to different execution parameters. Reads no source
-    bytes and performs no fitting.
+    not wrapper-issued in this process, already consumed, malformed, or bound
+    to different execution parameters. Reads no source bytes and performs no
+    fitting.
     """
     if not isinstance(proof, GuardedClevelandExecutionProof):
         raise ExecutionAuthorizationError(
@@ -1387,6 +1478,7 @@ def _require_guarded_cleveland_proof(
             "execute_guarded_cleveland_d047_run. No source parsing or fitting "
             "was performed.",
         )
+    _consume_guarded_proof_token(proof.proof_token)
     try:
         resolved = {
             "source": Path(source_path).resolve(),
@@ -1434,7 +1526,11 @@ def _quarantine_cleveland_bundle(
     """Best-effort quarantine marker; never masks the original failure.
 
     Returns the marker path on success, else ``None``. Nothing is deleted:
-    previously written artifacts are preserved for human audit.
+    previously written artifacts are preserved for human audit. A ``None``
+    return no longer leaves a loadable bundle: real-provenance bundles are
+    unloadable without post-run acceptance (inverted trust), which is never
+    written on this path. Callers surface a ``None`` return in the raised
+    failure message so the missing audit record is visible.
     """
     try:
         return write_bundle_quarantine_marker(
@@ -1649,12 +1745,22 @@ def execute_guarded_cleveland_d047_run(
        :func:`verify_source_still_unchanged` with the preserved preflight
        context. A mismatch writes a quarantine marker into the output
        directory (nothing is deleted) and the output is raised as
-       QUARANTINED / NOT ACCEPTED, never returned.
+       QUARANTINED / NOT ACCEPTED, never returned. No post-run acceptance
+       marker is written, so the bundle stays unloadable.
     9. Verify private artifact custody and trusted-bundle integrity via the
        existing trusted-local ACL/HMAC path
-       (:func:`verify_trusted_local_bundle`) before returning. A custody or
-       integrity failure writes a quarantine marker (nothing is deleted) and
-       the output is raised as QUARANTINED / NOT ACCEPTED.
+       (:func:`verify_trusted_local_bundle`, pre-acceptance mode) before
+       accepting. A custody or integrity failure writes a quarantine marker
+       (nothing is deleted), records no acceptance, and the output is raised
+       as QUARANTINED / NOT ACCEPTED.
+    10. Record post-run acceptance via
+        :func:`write_bundle_acceptance_marker`, binding the authorized source
+        SHA-256. The bundle becomes loadable ONLY through this marker; a
+        write failure fails closed with
+        ``guarded_wrapper_acceptance_marker_failed`` (bundle unloadable,
+        nothing deleted, no retry).
+    11. Re-verify under the production loading gate (acceptance required)
+        and return the resulting descriptor.
 
     Governance/activation audit -- what code enforces vs. external human checks
     (per the AI-3.1 activation handoff; ``G`` = governance merge, ``A`` =
@@ -1683,7 +1789,7 @@ def execute_guarded_cleveland_d047_run(
     - Section 8 evidence rows (preflight PASS, source byte identity,
       Windows custody, environment, synthetic suites, authorization-only
       check, final operator check): CODE ENFORCED where executable here
-      (steps 2/4/5/6/8/9); the remainder (GitHub verification, human
+      (steps 2/4/5/6/8/9/10/11); the remainder (GitHub verification, human
       attestation, local environment recording) is HUMAN ONLY.
     """
     # 1. Exact permitted cohort/panel, frozen config, explicit human confirmation.
@@ -1841,43 +1947,89 @@ def execute_guarded_cleveland_d047_run(
     )
 
     # 8. Re-verify unchanged source bytes BEFORE accepting any output.
-    # Failure writes a quarantine marker (nothing is deleted) so the written
-    # bundle can never be mistakenly accepted as trusted later.
+    # Failure quarantines (nothing is deleted). The bundle is unloadable
+    # regardless: no post-run acceptance marker is written on this path, and
+    # real-provenance bundles require one (inverted trust).
     try:
         cleveland_verify_source_still_unchanged(preflight)
     except Exception as exc:
-        _quarantine_cleveland_bundle(
+        quarantine_marker = _quarantine_cleveland_bundle(
             Path(output_bundle_dir),
             reason_code="guarded_wrapper_source_changed_quarantined",
             detail="Post-execution Cleveland source byte-identity check failed.",
+        )
+        marker_note = (
+            ""
+            if quarantine_marker is not None
+            else " (WARNING: quarantine marker write also failed; the bundle "
+            "remains unloadable because no post-run acceptance was recorded.)"
         )
         raise ExecutionAuthorizationError(
             "guarded_wrapper_source_changed_quarantined",
             "Post-execution source byte-identity check failed; output bundle is "
             "QUARANTINED / NOT ACCEPTED and must not be loaded, shared, or used. "
-            "The directory is preserved for audit. No automatic retry is permitted.",
+            f"The directory is preserved for audit. No automatic retry is permitted.{marker_note}",
         ) from exc
 
-    # 9. Verify private artifact custody and trusted-bundle integrity before
+    # 9. Verify private artifact custody and trusted-bundle integrity BEFORE
     # accepting. Uses the same signing key (or the default local key when None).
-    # Failure writes a quarantine marker (nothing is deleted).
+    # Pre-acceptance: the acceptance marker cannot exist yet (step 10 writes
+    # it), so this check must not require it. Failure quarantines (nothing is
+    # deleted) and the bundle stays unloadable (no acceptance recorded).
     try:
-        reverified = verify_trusted_local_bundle(
+        verify_trusted_local_bundle(
             Path(output_bundle_dir),
             trusted_local_root=Path(output_bundle_dir).parent,
             signing_key=signing_key,
+            _require_post_run_acceptance=False,
         )
     except Exception as exc:
-        _quarantine_cleveland_bundle(
+        quarantine_marker = _quarantine_cleveland_bundle(
             Path(output_bundle_dir),
             reason_code="guarded_wrapper_bundle_custody_failed_quarantined",
             detail="Post-execution trusted-local bundle verification failed.",
+        )
+        marker_note = (
+            ""
+            if quarantine_marker is not None
+            else " (WARNING: quarantine marker write also failed; the bundle "
+            "remains unloadable because no post-run acceptance was recorded.)"
         )
         raise ExecutionAuthorizationError(
             "guarded_wrapper_bundle_custody_failed_quarantined",
             "Post-execution trusted-local bundle verification failed; output is "
             "QUARANTINED / NOT ACCEPTED. The directory is preserved for audit. "
-            "No automatic retry is permitted.",
+            f"No automatic retry is permitted.{marker_note}",
         ) from exc
+
+    # 10. Record post-run acceptance (source AND custody checks both passed).
+    # The bundle becomes loadable ONLY through this marker. A write failure
+    # fails closed with a dedicated code: the bundle stays unloadable,
+    # nothing is deleted, and no automatic retry is permitted.
+    try:
+        write_bundle_acceptance_marker(
+            Path(output_bundle_dir),
+            expected_source_sha256=auth_only.expected_source_sha256,
+            accepted_by="execute_guarded_cleveland_d047_run",
+            detail=(
+                "Post-run Cleveland source byte-identity and trusted-local "
+                "bundle custody checks passed."
+            ),
+        )
+    except Exception as exc:
+        raise ExecutionAuthorizationError(
+            "guarded_wrapper_acceptance_marker_failed",
+            "Post-execution acceptance marker could not be written; output "
+            "bundle is NOT ACCEPTED and unloadable. The directory is preserved "
+            "for audit. No automatic retry is permitted.",
+        ) from exc
+
+    # 11. Final acceptance-required verification: the returned descriptor is
+    # only issued when the bundle loads under the production loading gate.
+    reverified = verify_trusted_local_bundle(
+        Path(output_bundle_dir),
+        trusted_local_root=Path(output_bundle_dir).parent,
+        signing_key=signing_key,
+    )
 
     return trained_run, reverified

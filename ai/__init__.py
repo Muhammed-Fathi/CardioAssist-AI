@@ -77,6 +77,7 @@ from ai.filesystem_security import (
 )
 from ai.inference import ResearchCadPredictor, ResearchPredictionResult
 from ai.packaging import (
+    BUNDLE_ACCEPTANCE_MARKER_FILENAME,
     BUNDLE_QUARANTINE_MARKER_FILENAME,
     BUNDLE_SCHEMA_VERSION,
     VerifiedBundleDescriptor,
@@ -84,6 +85,7 @@ from ai.packaging import (
     package_research_bundle,
     verify_research_bundle,
     verify_trusted_local_bundle,
+    write_bundle_acceptance_marker,
     write_bundle_quarantine_marker,
 )
 from ai.panels import (
@@ -101,6 +103,8 @@ from ai.panels import (
 )
 from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
+    CLEVELAND_D047_RF_SPACE_VERSION,
+    CLEVELAND_D047_RF_SPACE_WIDTH,
     EXECUTION_PROFILE_AI1_GENERIC_V1,
     EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1,
     ExternalEvaluationLedger,
@@ -117,11 +121,14 @@ from ai.training import (
 __all__ = [
     "AccessControlVerificationResult",
     "AiPipelineError",
+    "BUNDLE_ACCEPTANCE_MARKER_FILENAME",
     "BUNDLE_QUARANTINE_MARKER_FILENAME",
     "BUNDLE_SCHEMA_VERSION",
     "BundleIntegrityError",
     "CalibrationIntegrityError",
     "ClinicalInputValidationError",
+    "CLEVELAND_D047_RF_SPACE_VERSION",
+    "CLEVELAND_D047_RF_SPACE_WIDTH",
     "CohortGovernanceError",
     "DA_A1_BASIC_CLINICAL_PANEL",
     "DA_A1_CLINICAL_CORE_LABS_PANEL",
@@ -180,5 +187,6 @@ __all__ = [
     "verify_access_control",
     "verify_research_bundle",
     "verify_trusted_local_bundle",
+    "write_bundle_acceptance_marker",
     "write_bundle_quarantine_marker",
 ]

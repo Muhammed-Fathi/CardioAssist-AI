@@ -122,26 +122,196 @@ CLEVELAND_D047_LR_MAX_ITER: Final[int] = 2000
 # D-047 preprocessing lineage vs the original fold-local D-047 implementation
 # (``research.experiments.models._preprocessor``; read-only reference, never
 # modified). Both preprocessors are fitted per training fold (fold-local; no
-# leakage-structure difference). Verified on complete synthetic data by
-# ``test_d047_preprocessing_matches_original_fold_local_implementation``:
-# - Numeric imputation (median), z-score mean/population-std, categorical mode
-#   imputation (ascending code order makes the tie-break coincide), fixed
-#   drop-first one-hot reference levels, and unknown-code rejection are
-#   equivalent; the 8 shared encoded columns match to 1e-12.
-# - The AI lineage additionally emits two always-present missing-indicator
-#   columns (all-zero on complete data; the Cleveland loader fails closed on
-#   unexpected '?' instead of imputing, so they stay zero on that path).
-# - The AI lineage z-scores numerics for the forest where the original keeps
-#   raw values; the map is strictly monotone (same ordering), but the wider
-#   encoding (10 vs 8 columns) changes the forest's 'sqrt' per-split
-#   subsample (3 vs 2) over different index spaces. Measured effect on the
-#   fixed synthetic fixture: 2/30 holdout disagreements, AUROC 0.8235 vs
-#   0.7647 for same-seed 15-tree depth-3 forests. This documents the observed
-#   magnitude only; bit-for-bit reproduction of earlier D-047 performance is
-#   explicitly NOT claimed.
+# leakage-structure difference).
+#
+# Under ``CLEVELAND_D047_FROZEN_V1`` the constrained forest fits and predicts
+# on the exact original 8-column space (raw median-imputed numerics in panel
+# order, then drop-first one-hots in panel order), built fold-safely from the
+# fitted AI preprocessor statistics by :func:`_d047_original_rf_matrix`. The
+# persisted preprocessor artifact keeps the full 10-column lineage (shared
+# with inference/SHAP), while the forest input space is recorded via the
+# persisted ``execution_profile`` and enforced at load time. Same-seed
+# comparisons against the original D-047 pipeline live in
+# ``test_d047_rf_matches_original_pipeline_same_seed``. The 10-column
+# unadapted encoding is retained for the logistic family (verified
+# rank-identical with ~1ulp score differences on complete data) and for every
+# generic-profile path. Bit-for-bit reproduction of earlier real-data D-047 performance is
+# explicitly NOT claimed; the claim is same-input/same-seed/same-procedure
+# equivalence on synthetic fixtures.
 # The D-047 primary estimate (``uncalibrated_nested_cv``) is always reported
 # from pure uncalibrated out-of-fold scores and kept separate from the added
 # cross-fitted calibration, full-development refit, and SHAP analyses.
+CLEVELAND_D047_RF_SPACE_VERSION: Final[str] = "d047_rf_original_space_v1"
+CLEVELAND_D047_RF_SPACE_WIDTH: Final[int] = 8
+CLEVELAND_D047_RF_SPACE_LAYOUT: Final[tuple[tuple[str, str, bool], ...]] = (
+    ("age", "numeric", True),
+    ("sex", "categorical", True),
+    ("cp", "categorical", True),
+    ("trestbps", "numeric", False),
+    ("restecg", "categorical", False),
+)
+CLEVELAND_D047_RF_SPACE_CATEGORY_CODES: Final[tuple[tuple[str, tuple[int, ...]], ...]] = (
+    ("sex", (0, 1)),
+    ("cp", (1, 2, 3, 4)),
+    ("restecg", (0, 1, 2)),
+)
+
+
+def _validate_d047_rf_space_layout(preprocessor: FoldSafeClinicalPreprocessor) -> None:
+    """Fail closed unless the fitted preprocessor describes the registered D-047 5-field layout."""
+    actual = tuple(
+        (ft.name, ft.role, bool(ft.required)) for ft in preprocessor.field_transforms
+    )
+    if actual != CLEVELAND_D047_RF_SPACE_LAYOUT:
+        raise CohortGovernanceError(
+            "d047_rf_space_layout_mismatch",
+            "D-047 forest feature-space adaptation requires the registered "
+            "five-field Cleveland layout (age/sex/cp/trestbps/restecg); "
+            "refusing to project an unexpected preprocessor.",
+        )
+    for name, codes in CLEVELAND_D047_RF_SPACE_CATEGORY_CODES:
+        ft = preprocessor.field_transforms[preprocessor.raw_feature_names.index(name)]
+        if tuple(ft.categorical_codes or ()) != tuple(codes):
+            raise CohortGovernanceError(
+                "d047_rf_space_layout_mismatch",
+                f"D-047 forest feature-space adaptation requires registered "
+                f"category codes for '{name}'; refusing to project.",
+            )
+
+
+def _d047_original_rf_matrix(
+    preprocessor: FoldSafeClinicalPreprocessor, X_raw: np.ndarray
+) -> np.ndarray:
+    """Build the exact original 8-column D-047 forest input space, fold-safely.
+
+    Column order matches the original ``ColumnTransformer`` exactly: raw
+    median-imputed numerics in panel order (age, trestbps), then drop-first
+    one-hots in panel order (sex, cp, restecg). All preprocessor guards
+    (required-missing rejection, unknown-code rejection) are enforced by
+    transforming first; only fitted training-fold statistics are used.
+    """
+    _validate_d047_rf_space_layout(preprocessor)
+    arr = np.asarray(X_raw, dtype=np.float64)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    Z = preprocessor.transform(arr)
+    raw_index = {name: idx for idx, name in enumerate(preprocessor.raw_feature_names)}
+    parts: list[np.ndarray] = []
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role != "numeric":
+            continue
+        ft = preprocessor.field_transforms[raw_index[name]]
+        col = arr[:, raw_index[name]]
+        if bool(np.isnan(col).any()):
+            if ft.required:
+                # Defensive: preprocessor.transform above already rejects
+                # required-missing values; never silently impute them here.
+                raise CohortGovernanceError(
+                    "d047_rf_space_required_missing",
+                    f"Required D-047 predictor '{name}' is missing; refusing to impute.",
+                )
+            assert ft.impute_median is not None
+            col = np.where(np.isnan(col), ft.impute_median, col)
+        parts.append(col.reshape(-1, 1))
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role != "categorical":
+            continue
+        ft = preprocessor.field_transforms[raw_index[name]]
+        n_one_hot = len(ft.categorical_codes or ()) - 1
+        parts.append(Z[:, list(ft.slice_indices[:n_one_hot])])
+    R = np.concatenate(parts, axis=1)
+    if R.shape[1] != CLEVELAND_D047_RF_SPACE_WIDTH:
+        raise CohortGovernanceError(
+            "d047_rf_space_width_mismatch",
+            "D-047 forest feature-space adaptation produced an unexpected width.",
+        )
+    return R
+
+
+def _d047_rf_column_to_raw_feature(
+    preprocessor: FoldSafeClinicalPreprocessor,
+) -> tuple[int, ...]:
+    """Map each original-space forest column to its raw panel feature index."""
+    _validate_d047_rf_space_layout(preprocessor)
+    raw_index = {name: idx for idx, name in enumerate(preprocessor.raw_feature_names)}
+    mapping: list[int] = []
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role == "numeric":
+            mapping.append(raw_index[name])
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role == "categorical":
+            ft = preprocessor.field_transforms[raw_index[name]]
+            mapping.extend([raw_index[name]] * (len(ft.categorical_codes or ()) - 1))
+    if len(mapping) != CLEVELAND_D047_RF_SPACE_WIDTH:
+        raise CohortGovernanceError(
+            "d047_rf_space_width_mismatch",
+            "D-047 forest column mapping has unexpected width.",
+        )
+    return tuple(mapping)
+
+
+def _d047_project_background_to_rf_space(
+    preprocessor: FoldSafeClinicalPreprocessor, Z_bg: np.ndarray
+) -> np.ndarray:
+    """Project stored full-encoding background rows into the original 8-column forest space.
+
+    One-hot columns transfer exactly; numeric columns are recovered by
+    inverting the fitted z-score (exact up to ~1ulp floating-point
+    rounding). Used only for SHAP background evaluation, never for model
+    fitting or scoring.
+    """
+    _validate_d047_rf_space_layout(preprocessor)
+    bg = np.asarray(Z_bg, dtype=np.float64)
+    if bg.ndim != 2 or bg.shape[1] != preprocessor.n_encoded_features:
+        raise CohortGovernanceError(
+            "d047_rf_space_background_mismatch",
+            "Background width does not match the fitted preprocessor encoding.",
+        )
+    raw_index = {name: idx for idx, name in enumerate(preprocessor.raw_feature_names)}
+    ai_col_of = {col_name: idx for idx, col_name in enumerate(preprocessor.encoded_feature_names)}
+    parts: list[np.ndarray] = []
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role != "numeric":
+            continue
+        ft = preprocessor.field_transforms[raw_index[name]]
+        assert ft.scale_mean is not None and ft.scale_std is not None
+        z_col = bg[:, ai_col_of[f"{name}__zscore"]]
+        parts.append((z_col * ft.scale_std + ft.scale_mean).reshape(-1, 1))
+    for name, role, _ in CLEVELAND_D047_RF_SPACE_LAYOUT:
+        if role != "categorical":
+            continue
+        ft = preprocessor.field_transforms[raw_index[name]]
+        n_one_hot = len(ft.categorical_codes or ()) - 1
+        parts.append(bg[:, list(ft.slice_indices[:n_one_hot])])
+    R_bg = np.concatenate(parts, axis=1)
+    if R_bg.shape[1] != CLEVELAND_D047_RF_SPACE_WIDTH:
+        raise CohortGovernanceError(
+            "d047_rf_space_width_mismatch",
+            "Projected background has unexpected width.",
+        )
+    return R_bg
+
+
+def _estimator_input_matrix(
+    family: str,
+    preprocessor: FoldSafeClinicalPreprocessor,
+    X_raw: np.ndarray,
+    Z_encoded: np.ndarray,
+    execution_profile: str,
+) -> np.ndarray:
+    """Return the encoded matrix a family estimator must fit/predict on.
+
+    Under ``CLEVELAND_D047_FROZEN_V1`` the constrained forest uses the exact
+    original 8-column space; every other (profile, family) pair uses the full
+    preprocessor encoding unchanged.
+    """
+    if (
+        execution_profile == EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
+        and family == "constrained_random_forest"
+    ):
+        return _d047_original_rf_matrix(preprocessor, X_raw)
+    return np.asarray(Z_encoded, dtype=np.float64)
+
 
 PROHIBITED_COHORT_TOKENS: Final[tuple[str, ...]] = (
     "pooled",
@@ -286,6 +456,7 @@ class TrainedResearchRun:
     fold_ensemble: tuple[FoldEnsembleMember, ...]
     internal_evaluation: Mapping[str, Any]
     negative_control: Mapping[str, Any]
+    execution_profile: str = EXECUTION_PROFILE_AI1_GENERIC_V1
 
 
 def _validate_cohort_provenance_token(token: str, *, field_name: str) -> str:
@@ -900,8 +1071,14 @@ def _select_best_params_and_inner_oof(
                 rf_n_estimators=config.rf_n_estimators,
                 execution_profile=config.execution_profile,
             )
-            est.fit(Z_tr, y_outer_train[tr_idx])
-            p_val, logits_val = _positive_proba_and_optional_logit(family, est, Z_val)
+            E_tr = _estimator_input_matrix(
+                family, prep, X_outer_train[tr_idx], Z_tr, config.execution_profile
+            )
+            E_val = _estimator_input_matrix(
+                family, prep, X_outer_train[val_idx], Z_val, config.execution_profile
+            )
+            est.fit(E_tr, y_outer_train[tr_idx])
+            p_val, logits_val = _positive_proba_and_optional_logit(family, est, E_val)
             cand_oof_probs[val_idx] = p_val
             if cand_oof_logits is not None and logits_val is not None:
                 cand_oof_logits[val_idx] = logits_val
@@ -1082,9 +1259,11 @@ def _run_single_nested_pass(
                 rf_n_estimators=config.rf_n_estimators,
                 execution_profile=config.execution_profile,
             )
-            est.fit(Z_tr, y_tr)
+            E_tr = _estimator_input_matrix(family, outer_prep, X_tr, Z_tr, config.execution_profile)
+            E_te = _estimator_input_matrix(family, outer_prep, X_te, Z_te, config.execution_profile)
+            est.fit(E_tr, y_tr)
             fitted_by_fam[family] = est
-            p_te, logits_te = _positive_proba_and_optional_logit(family, est, Z_te)
+            p_te, logits_te = _positive_proba_and_optional_logit(family, est, E_te)
             uncalibrated_oof[family][test_idx] = p_te
 
             if fit_cross_calibrators:
@@ -1121,6 +1300,10 @@ def _run_single_nested_pass(
             fold_rec["inner_seed"] = int(d047_inner_seed)
             fold_rec["model_seed_by_family"] = {
                 fam: int(seed) for fam, seed in d047_model_seeds.items()
+            }
+            fold_rec["estimator_input_space_by_family"] = {
+                "l2_logistic_regression": "ai_full_encoding",
+                "constrained_random_forest": CLEVELAND_D047_RF_SPACE_VERSION,
             }
         if fit_cross_calibrators:
             chosen_cal = calibrators_by_fam[chosen_family]
@@ -1388,9 +1571,17 @@ def _execute_shared_training_pipeline(
             rf_n_estimators=config.rf_n_estimators,
             execution_profile=config.execution_profile,
         )
-        est_k.fit(prep_k.transform(X[tr_idx]), y[tr_idx])
+        Z_k_tr = prep_k.transform(X[tr_idx])
+        Z_k_val = prep_k.transform(X[val_idx])
+        E_k_tr = _estimator_input_matrix(
+            selected_family, prep_k, X[tr_idx], Z_k_tr, config.execution_profile
+        )
+        E_k_val = _estimator_input_matrix(
+            selected_family, prep_k, X[val_idx], Z_k_val, config.execution_profile
+        )
+        est_k.fit(E_k_tr, y[tr_idx])
         p_val, logits_val = _positive_proba_and_optional_logit(
-            selected_family, est_k, prep_k.transform(X[val_idx])
+            selected_family, est_k, E_k_val
         )
         oof_for_cal[val_idx] = p_val
         if oof_logits_for_cal is not None and logits_val is not None:
@@ -1439,7 +1630,10 @@ def _execute_shared_training_pipeline(
         rf_n_estimators=config.rf_n_estimators,
         execution_profile=config.execution_profile,
     )
-    final_estimator.fit(Z_full, y)
+    E_full = _estimator_input_matrix(
+        selected_family, final_preprocessor, X, Z_full, config.execution_profile
+    )
+    final_estimator.fit(E_full, y)
     shap_bg = ShapBackgroundReference.from_training_encoded(
         Z_full,
         y,
@@ -1566,6 +1760,7 @@ def _execute_shared_training_pipeline(
         fold_ensemble=tuple(primary_fold_ensemble),
         internal_evaluation=internal_summary,
         negative_control=negative_control,
+        execution_profile=config.execution_profile,
     )
 
 
@@ -1682,8 +1877,15 @@ def evaluate_locked_external_cohort(
     try:
         # Apply frozen development preprocessor, estimator, and calibrator without modification
         Z_ext = trained_run.preprocessor.transform(X_ext)
+        E_ext = _estimator_input_matrix(
+            trained_run.selected_model_family,
+            trained_run.preprocessor,
+            X_ext,
+            Z_ext,
+            trained_run.execution_profile,
+        )
         p_ext_raw, logits_ext = _positive_proba_and_optional_logit(
-            trained_run.selected_model_family, trained_run.estimator, Z_ext
+            trained_run.selected_model_family, trained_run.estimator, E_ext
         )
         p_ext_cal = trained_run.calibrator.calibrate(p_ext_raw, raw_logits=logits_ext)
 

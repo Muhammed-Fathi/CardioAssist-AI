@@ -240,56 +240,66 @@ def _execute_isolated_test_simulation(
     guarded-execution proof bound to the exact simulation paths, satisfying
     the production boundary that prohibits silent direct Cleveland
     invocation. UCI-412 simulations pass no proof (the UCI-412 path neither
-    requires nor inspects one).
+    requires nor inspects one). On success the helper records post-run
+    acceptance for real-provenance bundles, mirroring the guarded wrapper
+    (inverted trust: no acceptance, no loading).
     """
+    from collections.abc import Mapping
+
     from ai import execution
-    from ai.execution import GuardedClevelandExecutionProof
+    from ai.execution import _issue_test_guarded_cleveland_proof
+    from ai.packaging import write_bundle_acceptance_marker
+
     test_proof = None
     if panel_id == "da_a2_resting_v1":
-        test_proof = GuardedClevelandExecutionProof(
-            source_path_resolved=str(Path(source_path).resolve()),
-            manifest_path_resolved=str(Path(manifest_path).resolve()),
-            output_bundle_dir_resolved=str(Path(output_bundle_dir).resolve()),
-            repo_root_resolved=str(Path(repo_root).resolve()),
-            current_git_commit=str(current_git_commit).strip().lower()
-            if current_git_commit is not None
-            else "",
+        test_proof = _issue_test_guarded_cleveland_proof(
+            source_path=Path(source_path),
+            manifest_path=Path(manifest_path),
+            output_bundle_dir=Path(output_bundle_dir),
+            repo_root=Path(repo_root),
+            current_git_commit=current_git_commit,
         )
+
+    def _run_once():  # type: ignore[no-untyped-def]
+        return execute_authorized_research_run(
+            source_path=source_path,
+            manifest_path=manifest_path,
+            panel_id=panel_id,
+            output_bundle_dir=output_bundle_dir,
+            repo_root=repo_root,
+            training_config=training_config,
+            signing_key=signing_key,
+            current_git_commit=current_git_commit,
+            guarded_cleveland_proof=test_proof,
+        )
+
     if monkeypatch is not None:
         monkeypatch.setattr(execution, "cleveland_enforce_local_windows_runtime", lambda **kwargs: None)
         monkeypatch.setattr(execution, "uci412_enforce_local_windows_runtime", lambda **kwargs: None)
+        result = _run_once()
     else:
         orig_clev = execution.cleveland_enforce_local_windows_runtime
         orig_uci = execution.uci412_enforce_local_windows_runtime
         execution.cleveland_enforce_local_windows_runtime = lambda **kwargs: None
         execution.uci412_enforce_local_windows_runtime = lambda **kwargs: None
         try:
-            return execute_authorized_research_run(
-                source_path=source_path,
-                manifest_path=manifest_path,
-                panel_id=panel_id,
-                output_bundle_dir=output_bundle_dir,
-                repo_root=repo_root,
-                training_config=training_config,
-                signing_key=signing_key,
-                current_git_commit=current_git_commit,
-                guarded_cleveland_proof=test_proof,
-            )
+            result = _run_once()
         finally:
             execution.cleveland_enforce_local_windows_runtime = orig_clev
             execution.uci412_enforce_local_windows_runtime = orig_uci
 
-    return execute_authorized_research_run(
-        source_path=source_path,
-        manifest_path=manifest_path,
-        panel_id=panel_id,
-        output_bundle_dir=output_bundle_dir,
-        repo_root=repo_root,
-        training_config=training_config,
-        signing_key=signing_key,
-        current_git_commit=current_git_commit,
-        guarded_cleveland_proof=test_proof,
-    )
+    # Mirror the guarded wrapper's post-run acceptance: a real-provenance
+    # bundle becomes loadable only once post-run success is recorded.
+    _trained_run, descriptor = result
+    auth_doc = descriptor.manifest.get("research_authorization")
+    if isinstance(auth_doc, Mapping) and auth_doc.get("expected_source_sha256"):
+        write_bundle_acceptance_marker(
+            Path(output_bundle_dir),
+            expected_source_sha256=str(auth_doc["expected_source_sha256"]),
+            accepted_by="isolated_test_simulation",
+            detail="Synthetic isolated simulation completed; mirrors wrapper post-run acceptance.",
+        )
+    return result
 
 
 def _create_valid_auth_manifest(
