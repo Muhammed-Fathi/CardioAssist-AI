@@ -166,3 +166,139 @@ If human scope decision **`D-021` (`AngioCAD`) is declined or deferred** AND **U
 ```
 
 The sole `AI2-OPERATIONAL-SCOPE-001` exception in §5.1(2) is not Step 9 multi-cohort completion and does not unblock any part of Step 9.
+
+---
+
+## 6. AI-5.1 Addendum — Genuine Local Tabular LIME (`2026-10-26`)
+
+**Status labels:** **IMPLEMENTED** (code + synthetic tests), **TESTED** (synthetic
+fixtures on Python 3.11/3.12 CI), **PROPOSED** (future real-cohort use under
+Gate PT), **UNVERIFIED** (any real-patient LIME output, clinical usefulness, or
+supervisor approval). Gate PT (`P-3`), `P-1`, `P-4` and `P-5` are unchanged.
+
+### 6.0 Quality correction (same milestone, second pass)
+
+The first AI-5.1 pass generated genuine LIME explanations but accepted any
+surrogate whose local vertex error was small: `min_weighted_r2 = 0.0` and
+`max_local_fidelity_relative_error = None` meant a surrogate explaining ~20% of
+the model's own neighborhood variation was still returned as if trustworthy.
+That is now fixed at three levels.
+
+1. **Generation and acceptance are separate.** `LimeConfig` carries only
+   generation knobs (perturbations, seed, kernel, ridge, reference scheme,
+   batching, hard numerical ceilings). All acceptance thresholds live in a new
+   `ai/lime_quality.py`: `LimeQualityPolicy` plus `LimeQualityEvidence`,
+   `LimeQualityCriterion`, `LimeQualityAssessment`,
+   `assess_lime_quality[_from_evidence]`, `certify_lime_explanation` and
+   `require_acceptable_lime_quality`. There is exactly one definition of "good
+   enough", and a permissive config can no longer relax it.
+2. **Explicit machine-readable verdicts**, with documented precedence:
+   `INVALID` > `LOW_LOCAL_FIDELITY` > `UNSTABLE` > `UNVERIFIED_STABILITY` >
+   `ACCEPTABLE_LOCAL_APPROXIMATION`. Evidence is organised in four
+   independent dimensions — `numerical_validity`, `instance_fidelity`,
+   `neighborhood_fidelity`, `stability` — each reported as PASS / FAIL /
+   NOT_ASSESSED with per-criterion observed values, thresholds and rationale.
+   Anything not accepted carries `is_reliable_for_interpretation = False`, a
+   "DO NOT RELY ON THESE FEATURE WEIGHTS" guard and actionable warnings.
+3. **The neighborhood estimand was made identifiable.** With per-field
+   *marginal* reference draws, each perturbation row mixes independent
+   reference values, adding noise that no linear surrogate can explain: the
+   measured ceiling was `weighted R² ≈ 0.38–0.53` **even for an exactly
+   additive logistic model**, and the previously reported RF+calibrated
+   relative error of `0.315` was mostly that noise. The new default
+   `fixed_background_reference` scheme (numeric background median / modal
+   registered code, per field, decoded from the same validated background)
+   makes the surrogate's estimand precise — the model along the
+   instance-versus-reference axis — and raises the same diagnostics to
+   `weighted R² ≈ 0.85–0.9997`. The classic marginal scheme remains available
+   as `sampled_background_marginals` and is now *correctly* classified as
+   low-fidelity rather than silently accepted.
+
+### 6.1 What was added
+
+`ai/lime_explainability.py` implements genuine tabular LIME from first
+principles — **no external `lime` dependency** — for the two registered model
+families (`l2_logistic_regression`, `constrained_random_forest`):
+
+1. **Interpretable representation:** one binary feature per raw clinical or
+   laboratory panel field ("keeps the instance's value" vs "takes a reference
+   value from the decoded training background").
+2. **Seeded perturbation sampling:** `num_perturbations` Bernoulli(0.5) masks
+   from `numpy.random.default_rng(seed)` plus the forced all-ones instance row.
+   Reference values come from the **decoded** training background under one of
+   two registered schemes — `fixed_background_reference` (default: numeric
+   median / modal registered code per field, giving a well-defined
+   instance-versus-reference estimand) or `sampled_background_marginals`
+   (classic per-field random draws; reference noise that no linear surrogate
+   can capture). Either way, only registered categorical codes, in-range numeric
+   measurements, and explicit optional-missing states (`NaN` → training-fold
+   imputation + `<field>__missing` indicator) ever appear in a perturbation.
+3. **Kernel:** `w_i = exp(-d_i² / kernel_width²)` with
+   `d_i = sqrt(#replaced fields)/sqrt(M)` (default `kernel_width = 0.75`).
+4. **Weighted surrogate:** kernel-weighted ridge least squares in closed form
+   (`intercept + Σ β_j·mask_j`), solved deterministically; `β_j` is the reported
+   `lime_weight`.
+5. **Diagnostics:** local fidelity of the surrogate at the explained instance
+   against an **actual model call**, kernel-weighted/unweighted R² and RMSE, a
+   seeded held-out weighted R², Kish effective sample size, design condition
+   number, model rows/calls, estimated perturbation-memory footprint, runtime,
+   and multi-seed stability (per-feature SD, max deviation, pairwise Spearman,
+   sign agreement, top-k overlap).
+
+### 6.2 Explicit scientific limits (unchanged by this milestone)
+
+* LIME is a **local weighted-linear approximation**. It is **not** additive,
+  satisfies **no** efficiency/local-accuracy guarantee, and is never presented
+  as an exact Shapley method. The exact Grouped Interventional LinearSHAP /
+  TreeSHAP engine in `ai/explainability.py` is unchanged and remains authoritative.
+* **Local error, neighborhood fidelity and seed stability are independent.**
+  Small instance-level error does not imply a faithful neighborhood account
+  (demonstrated on a real synthetic fixture: `wR2 = 0.527` with
+  `err/σ = 0.002`), and a stable set of weights can still be a poor one
+  (demonstrated: `wR2 = 0.654`, `err/σ = 0.719`, min pairwise Spearman = 1.0 →
+  `LOW_LOCAL_FIDELITY`). Neither property can substitute for the other, and
+  neither is ever inferred from the other.
+* Default LIME targets mirror the family's SHAP target
+  (`calibrated_log_odds` for calibrated logistic regression,
+  `raw_model_probability` for the forest). Any other registered target is
+  flagged, and `assert_comparable_explanation_scales` refuses numeric comparison
+  of SHAP and LIME values on incompatible scales.
+* Reference values are per-field summaries (background median for numeric
+  fields, modal registered code for categorical fields, or per-field marginal
+  draws in the sampled scheme); inter-feature correlations of the development
+  cohort are **not** preserved (a documented distributional approximation), and
+  no reference value, training statistic or patient-derived quantity is ever
+  emitted in an explanation (only a boolean "does this reference differ from
+  the instance value").
+* No real patient data, real artifact, backend route, `/v1` contract, Flutter or
+  React surface is touched. All tests and demonstrations remain synthetic-only.
+* `backend/app/artifact_admission/` still reports LIME as `not_implemented`
+  because that offline admission capability map is frozen under `M1c`; updating
+  it is a separate, unauthorised backend change.
+
+### 6.3 Measured synthetic diagnostics (deterministic fixtures)
+
+Measured on 180 synthetic DA-A2 rows (instance 2, 512 perturbations,
+`fixed_background_reference` unless stated, 3 stability seeds, single-threaded
+CPU):
+
+| Fixture | Target | `err/σ` | Weighted R² | Held-out weighted R² | Min pairwise Spearman | Verdict |
+|---|---|---|---|---|---|---|
+| `L2 LogisticRegression` + calibrator | `calibrated_log_odds` | `0.0013` | `0.9997` | `0.9994` | `1.000` | `ACCEPTABLE_LOCAL_APPROXIMATION` |
+| Same, uncalibrated | `raw_model_log_odds` | `0.0013` | `0.9997` | `0.9994` | `1.000` | `ACCEPTABLE_LOCAL_APPROXIMATION` |
+| Constrained forest | `raw_model_score` | `0.0703` | `0.8529` | `0.8471` | `0.964` | `ACCEPTABLE_LOCAL_APPROXIMATION` |
+| Constrained forest + calibrator | `calibrated_log_odds` | `0.0651` | `0.8492` | `0.8444` | `0.929` | `ACCEPTABLE_LOCAL_APPROXIMATION` |
+| Over-flexible forest (unbounded depth) | `raw_model_score` | `0.7188` | `0.6538` | `0.6713` | `1.000` | `LOW_LOCAL_FIDELITY` (instance fidelity fails; stability passes) |
+| Near-constant stump forest, 64 perturbations | `raw_model_score` | `0.0093` | `0.9846` | `0.9655` | `0.286` | `UNSTABLE` (fidelity passes; stability fails) |
+| Logistic + `sampled_background_marginals`, 512 perturbations | `calibrated_log_odds` | `0.0020` | `0.5270` | `0.4600` | `0.929` | `LOW_LOCAL_FIDELITY` (small instance error, poor neighborhood) |
+| Logistic + `sampled_background_marginals`, 128 perturbations | `calibrated_log_odds` | `0.2155` | `0.4529` | `0.4999` | `0.964` | `LOW_LOCAL_FIDELITY` |
+
+The `ai demo` end-to-end synthetic demo (`constrained_random_forest`,
+512 perturbations, seed `20261026`, seeds `20261026/27/28`) reports
+`ACCEPTABLE_LOCAL_APPROXIMATION` with `err/σ = 0.108`, weighted R² `0.921`,
+held-out R² `0.905`, min pairwise Spearman `1.000`, sign agreement `0.905`,
+top-k overlap `1.000`.
+
+These are software-verification numbers on invented rows only; they are **not**
+model-performance, transportability, or clinical evidence, and no threshold was
+adjusted to reach any verdict above.
