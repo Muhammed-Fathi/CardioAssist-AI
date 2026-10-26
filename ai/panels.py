@@ -448,6 +448,12 @@ def validate_clinical_record(
         )
 
     synthetic_flag = payload.get("synthetic")
+    if not require_synthetic and synthetic_flag is True:
+        raise ClinicalInputValidationError(
+            "synthetic_disguise_in_real_record",
+            "Record carries synthetic=True but was submitted to a real-data evaluation pipeline.",
+            field="synthetic",
+        )
     if require_synthetic and synthetic_flag is not True:
         raise ClinicalInputValidationError(
             "non_synthetic_input_rejected",

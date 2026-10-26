@@ -992,6 +992,31 @@ def train_research_model(
             field="labels",
         )
 
+    return _execute_shared_training_pipeline(
+        X,
+        y,
+        panel,
+        model_id=model_id,
+        dev_cohort=dev_cohort,
+        dev_dataset=dev_dataset,
+        config=config,
+        synthetic_only=True,
+    )
+
+
+def _execute_shared_training_pipeline(
+    X: np.ndarray,
+    y: np.ndarray,
+    panel: ResearchPanelContract,
+    *,
+    model_id: str,
+    dev_cohort: str,
+    dev_dataset: str,
+    config: ResearchTrainingConfig,
+    synthetic_only: bool = True,
+    authorization_context: Any = None,
+) -> TrainedResearchRun:
+    """Execute shared fold-contained nested CV, calibration, negative control, and refit."""
     # 1. Repeated nested-CV internal evaluation (BOTH uncalibrated AND cross-fitted calibrated)
     uncalibrated_repeat_summaries: list[dict[str, Any]] = []
     calibrated_repeat_summaries: list[dict[str, Any]] = []
@@ -1186,7 +1211,8 @@ def train_research_model(
         final_preprocessor,
         max_samples=config.shap_max_background_samples,
         seed=full_cv_seed + 4242,
-        synthetic_only=True,
+        synthetic_only=synthetic_only,
+        authorization_context=authorization_context,
     )
 
     uncal_selected_aucs = [
@@ -1294,7 +1320,7 @@ def train_research_model(
         panel=panel,
         development_cohort_id=dev_cohort,
         development_dataset_id=dev_dataset,
-        synthetic_only=True,
+        synthetic_only=synthetic_only,
         selected_model_family=selected_family,
         selected_hyperparameters=selected_params,
         preprocessor=final_preprocessor,
@@ -1305,6 +1331,7 @@ def train_research_model(
         internal_evaluation=internal_summary,
         negative_control=negative_control,
     )
+
 
 
 def evaluate_locked_external_cohort(

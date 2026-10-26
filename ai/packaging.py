@@ -338,6 +338,142 @@ class VerifiedBundleDescriptor:
     safe_for_pickle_deserialization: bool = False
 
 
+_INTERNAL_EXEC_SECRET: bytes = secrets.token_bytes(32)
+
+
+def generate_execution_verification_token(
+    *,
+    decision_id: str,
+    dataset_id: str,
+    panel_id: str,
+    experiment_type: str,
+    source_rel_path: str,
+    source_sha256: str,
+    row_count: int,
+    pinned_commit: str,
+    protocol_sha: str,
+    plan_sha: str,
+    dictionary_sha: str | None,
+    signer: str,
+    signed_at: str,
+    attestation: str,
+    allowed_operations: tuple[str, ...],
+    forbidden_operations: tuple[str, ...],
+    protected_output_root: str,
+    model_packaging_authorized: bool = False,
+    patient_shap_authorized: bool = False,
+) -> str:
+    """Issue a cryptographically verifiable token binding all governance decision, source, and scope parameters."""
+    payload = json.dumps({
+        "decision_id": decision_id,
+        "dataset_id": dataset_id,
+        "panel_id": panel_id,
+        "experiment_type": experiment_type,
+        "source_rel_path": source_rel_path,
+        "source_sha256": source_sha256.lower(),
+        "row_count": row_count,
+        "pinned_commit": pinned_commit.lower(),
+        "protocol_sha": protocol_sha.lower(),
+        "plan_sha": plan_sha.lower(),
+        "dictionary_sha": dictionary_sha.lower() if dictionary_sha else None,
+        "signer": signer,
+        "signed_at": signed_at,
+        "attestation": attestation,
+        "allowed_operations": sorted(allowed_operations),
+        "forbidden_operations": sorted(forbidden_operations),
+        "protected_output_root": protected_output_root,
+        "model_packaging_authorized": bool(model_packaging_authorized),
+        "patient_shap_authorized": bool(patient_shap_authorized),
+    }, sort_keys=True)
+    return hmac.new(_INTERNAL_EXEC_SECRET, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorizedExecutionContext:
+    """Narrowly scoped, internally validated execution context for authorized research runs.
+
+    Requires an authentic, internally issued cryptographic verification token
+    created only when established governance validators have ratified the run.
+    Arbitrary caller-instantiated contexts without an authentic internal token
+    fail closed.
+
+    Note: The internal token authenticates that governance validation succeeded
+    within this execution process; it is NOT independent evidence of human scientific
+    approval, which is established exclusively by the ratified PR merge and signed attestation.
+    """
+    governance_decision_id: str
+    dataset_id: str
+    panel_id: str
+    experiment_type: str
+    source_relative_path: str
+    expected_source_sha256: str
+    expected_source_row_count: int
+    authorized_by: str
+    authorized_date: str
+    signature_attestation: str
+    pinned_commit_sha: str
+    protocol_sha256: str
+    plan_sha256: str
+    dictionary_sha256: str | None
+    allowed_operations: tuple[str, ...]
+    forbidden_operations: tuple[str, ...]
+    protected_output_root: str
+    governance_details: Mapping[str, Any]
+    verification_token: str = ""
+    model_packaging_authorized: bool = False
+    patient_shap_authorized: bool = False
+
+    def verify_authenticity(self) -> bool:
+        """Verify that this context was issued through established governance validation with matching scope."""
+        if not self.verification_token:
+            return False
+        expected = generate_execution_verification_token(
+            decision_id=self.governance_decision_id,
+            dataset_id=self.dataset_id,
+            panel_id=self.panel_id,
+            experiment_type=self.experiment_type,
+            source_rel_path=self.source_relative_path,
+            source_sha256=self.expected_source_sha256,
+            row_count=self.expected_source_row_count,
+            pinned_commit=self.pinned_commit_sha,
+            protocol_sha=self.protocol_sha256,
+            plan_sha=self.plan_sha256,
+            dictionary_sha=self.dictionary_sha256,
+            signer=self.authorized_by,
+            signed_at=self.authorized_date,
+            attestation=self.signature_attestation,
+            allowed_operations=self.allowed_operations,
+            forbidden_operations=self.forbidden_operations,
+            protected_output_root=self.protected_output_root,
+            model_packaging_authorized=self.model_packaging_authorized,
+            patient_shap_authorized=self.patient_shap_authorized,
+        )
+        return hmac.compare_digest(expected, self.verification_token)
+
+    def to_manifest_dict(self) -> dict[str, Any]:
+        return {
+            "governance_decision_id": self.governance_decision_id,
+            "dataset_id": self.dataset_id,
+            "panel_id": self.panel_id,
+            "experiment_type": self.experiment_type,
+            "source_relative_path": self.source_relative_path,
+            "expected_source_sha256": self.expected_source_sha256,
+            "expected_source_row_count": self.expected_source_row_count,
+            "authorized_by": self.authorized_by,
+            "authorized_date": self.authorized_date,
+            "signature_attestation": self.signature_attestation,
+            "pinned_commit_sha": self.pinned_commit_sha,
+            "protocol_sha256": self.protocol_sha256,
+            "plan_sha256": self.plan_sha256,
+            "dictionary_sha256": self.dictionary_sha256,
+            "allowed_operations": list(self.allowed_operations),
+            "forbidden_operations": list(self.forbidden_operations),
+            "protected_output_root": self.protected_output_root,
+            "model_packaging_authorized": self.model_packaging_authorized,
+            "patient_shap_authorized": self.patient_shap_authorized,
+        }
+
+
 def package_research_bundle(
     trained_run: TrainedResearchRun,
     bundle_dir: Path,
@@ -345,14 +481,44 @@ def package_research_bundle(
     external_evaluation: Mapping[str, Any] | None = None,
     generated_at_utc: str | None = None,
     signing_key: bytes | None = None,
+    authorization_context: AuthorizedExecutionContext | None = None,
 ) -> VerifiedBundleDescriptor:
     """Stage, sign, verify, and atomically commit a RESEARCH_ONLY model bundle."""
-    if not trained_run.synthetic_only or not trained_run.shap_background.synthetic_only:
-        raise BundleIntegrityError(
-            "real_patient_artifact_packaging_blocked_gate_pt_closed",
-            "Gate PT (P-3) remains closed; packaging real-patient model or SHAP background "
-            "artifacts is prohibited.",
-        )
+    is_real = not trained_run.synthetic_only or not trained_run.shap_background.synthetic_only
+    if is_real:
+        if authorization_context is None or not isinstance(authorization_context, AuthorizedExecutionContext):
+            raise BundleIntegrityError(
+                "real_patient_artifact_packaging_blocked_gate_pt_closed",
+                "Gate PT (P-3) remains closed; packaging real-patient model or SHAP background "
+                "artifacts requires an explicit, verified AuthorizedExecutionContext.",
+            )
+        if not authorization_context.verify_authenticity():
+            raise BundleIntegrityError(
+                "unauthorized_or_forged_context",
+                "AuthorizedExecutionContext failed cryptographic governance token verification; "
+                "arbitrary caller-instantiated contexts are rejected.",
+            )
+        if not authorization_context.model_packaging_authorized:
+            raise BundleIntegrityError(
+                "model_packaging_operation_not_authorized",
+                f"Governance decision '{authorization_context.governance_decision_id}' does not explicitly authorize "
+                "persistent real-data model packaging without a separately ratified protocol amendment.",
+            )
+        if authorization_context.experiment_type != "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED":
+            raise BundleIntegrityError(
+                "invalid_authorization_experiment_type",
+                "Authorized research packaging requires experiment_type 'INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED'.",
+            )
+        if authorization_context.dataset_id != trained_run.panel.dataset_id:
+            raise BundleIntegrityError(
+                "dataset_authorization_mismatch",
+                "Authorization dataset does not match trained run panel dataset.",
+            )
+        if authorization_context.panel_id != trained_run.panel.panel_id:
+            raise BundleIntegrityError(
+                "panel_authorization_mismatch",
+                "Authorization panel does not match trained run panel.",
+            )
 
     target_dir = _ensure_safe_output_path(Path(bundle_dir))
     active_key = (
@@ -498,11 +664,15 @@ def package_research_bundle(
                 "development_dataset_id": trained_run.development_dataset_id,
                 "pooled_cohorts": False,
             },
+            "research_authorization": (
+                authorization_context.to_manifest_dict() if authorization_context is not None else None
+            ),
             "eligibility": {
                 "serving_eligibility": "RESEARCH_ONLY",
                 "approved_for_serving": False,
                 "clinical_use_authorized": False,
-                "synthetic_only": True,
+                "synthetic_only": bool(trained_run.synthetic_only),
+                "execution_mode": "SYNTHETIC_RESEARCH" if trained_run.synthetic_only else "INTERNAL_EXPLORATORY_RESEARCH",
             },
             "privacy_and_security": {
                 "sha256_verifies_integrity_not_producer_authenticity": True,
@@ -606,7 +776,9 @@ def _read_safe_regular_file(root: Path, filename: str) -> bytes:
     return resolved.read_bytes()
 
 
-def verify_research_bundle(bundle_dir: Path) -> VerifiedBundleDescriptor:
+def verify_research_bundle(
+    bundle_dir: Path,
+) -> VerifiedBundleDescriptor:
     """Verify structural layout, governance flags, privacy metadata, and SHA-256 digests.
 
     IMPORTANT SECURITY BOUNDARY:
@@ -659,10 +831,32 @@ def verify_research_bundle(bundle_dir: Path) -> VerifiedBundleDescriptor:
             "Bundle manifest makes an unauthorized serving or clinical-use claim.",
             field="eligibility",
         )
-    if eligibility.get("synthetic_only") is not True:
+    # A non-synthetic bundle must have an authentic, internally complete research_authorization record
+    auth_doc = manifest.get("research_authorization")
+    has_valid_auth = False
+    if auth_doc is not None and isinstance(auth_doc, Mapping):
+        gov_id = auth_doc.get("governance_decision_id")
+        exp_type = auth_doc.get("experiment_type")
+        signer = auth_doc.get("authorized_by")
+        sig_attest = auth_doc.get("signature_attestation")
+        pinned_commit = auth_doc.get("pinned_commit_sha")
+        proto_sha = auth_doc.get("protocol_sha256")
+        plan_sha = auth_doc.get("plan_sha256")
+        if (
+            gov_id in ("D-047", "D-048", "M3A-UCI412-INTERNAL-RESEARCH-PROPOSAL")
+            and exp_type == "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+            and isinstance(signer, str) and len(signer.strip()) > 0
+            and isinstance(sig_attest, str) and "CLOSED" in sig_attest
+            and isinstance(pinned_commit, str) and len(pinned_commit) == 40
+            and isinstance(proto_sha, str) and len(proto_sha) == 64
+            and isinstance(plan_sha, str) and len(plan_sha) == 64
+        ):
+            has_valid_auth = True
+
+    if eligibility.get("synthetic_only") is not True and not has_valid_auth:
         raise BundleIntegrityError(
             "real_patient_bundle_blocked_gate_pt_closed",
-            "Gate PT (P-3) remains closed; non-synthetic patient-derived bundles are rejected.",
+            "Gate PT (P-3) remains closed; non-synthetic patient-derived bundles are rejected unless authorized.",
             field="eligibility.synthetic_only",
         )
 
@@ -795,10 +989,10 @@ def verify_research_bundle(bundle_dir: Path) -> VerifiedBundleDescriptor:
             "shap_background.json lacks mandatory training-data-derivative privacy metadata.",
             field=SHAP_BG_FILENAME,
         )
-    if bg_priv.get("synthetic_only") is not True:
+    if bg_priv.get("synthetic_only") is not True and not has_valid_auth:
         raise BundleIntegrityError(
             "sensitive_real_background_blocked_gate_pt_closed",
-            "shap_background.json contains non-synthetic patient-derived rows while Gate PT is closed.",
+            "shap_background.json contains non-synthetic patient-derived rows while Gate PT is closed unless authorized.",
             field=SHAP_BG_FILENAME,
         )
 

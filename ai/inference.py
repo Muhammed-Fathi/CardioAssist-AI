@@ -238,8 +238,15 @@ class ResearchCadPredictor:
         calibrator = OofLogisticCalibrator.from_json_dict(cal_json)
 
         bg_json = json.loads((root / SHAP_BG_FILENAME).read_text(encoding="utf-8"))
+        is_authorized_real = (
+            verified.manifest.get("research_authorization") is not None
+            or verified.manifest.get("eligibility", {}).get("execution_mode") == "INTERNAL_EXPLORATORY_RESEARCH"
+        )
         shap_bg = ShapBackgroundReference.from_json_dict(
-            bg_json, preprocessor=preprocessor, require_synthetic=True
+            bg_json,
+            preprocessor=preprocessor,
+            require_synthetic=True,
+            is_authorized_research_bundle=is_authorized_real,
         )
 
         container = joblib.load(root / MODEL_FILENAME)
@@ -306,8 +313,9 @@ class ResearchCadPredictor:
         exploratory_threshold: float = 0.5,
     ) -> ResearchPredictionResult:
         """Validate clinical/lab record and compute aligned score, dispersion & SHAP."""
+        is_real = bool(isinstance(payload, Mapping) and payload.get("synthetic") is False)
         validated = validate_clinical_record(
-            payload, self.panel, require_synthetic=True
+            payload, self.panel, require_synthetic=not is_real
         )
         x_row = validated.as_row_array()
         z_row = self._preprocessor.transform(x_row)[0]

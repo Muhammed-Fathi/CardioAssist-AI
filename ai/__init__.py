@@ -22,6 +22,10 @@ planned in ``docs/research/AI_FIRST_COMPLETION_STRATEGY.md``:
 - :mod:`ai.inference` — offline ``ResearchCadPredictor`` returning explicitly
   separated raw/calibrated scores, descriptive fold dispersion, aligned SHAP
   attributions, and mandatory non-clinical limitations.
+- :mod:`ai.execution` — locally protected, auditable real-data execution
+  controller enforcing hash-bound human research authorization manifests,
+  source-specific read-only adapters, prohibited feature rejection, and Windows
+  workstation private storage.
 
 Never imported by ``backend/app/``; ``MOCK_SYNTHETIC`` remains the sole active
 FastAPI runtime provider while Gate PT (``P-3``) is closed.
@@ -44,6 +48,15 @@ from ai.errors import (
     CohortGovernanceError,
     ExplainabilityIntegrityError,
     PreprocessingContractError,
+)
+from ai.execution import (
+    DatasetAdapterIntegrityError,
+    ExecutionAuthorizationError,
+    ResearchAuthorizationContext,
+    execute_authorized_research_run,
+    load_cleveland_source_records,
+    load_uci412_source_records,
+    parse_and_validate_research_authorization,
 )
 from ai.explainability import (
     FaithfulShapExplanation,
@@ -103,6 +116,8 @@ __all__ = [
     "DA_A1_CLINICAL_CORE_LABS_PANEL",
     "DA_A2_RESTING_LABS_PANEL",
     "DA_A2_RESTING_PANEL",
+    "DatasetAdapterIntegrityError",
+    "ExecutionAuthorizationError",
     "ExplainabilityIntegrityError",
     "ExternalEvaluationLedger",
     "FaithfulShapExplanation",
@@ -113,6 +128,7 @@ __all__ = [
     "PanelFieldSpec",
     "PreprocessingContractError",
     "REGISTERED_PANELS",
+    "ResearchAuthorizationContext",
     "ResearchCadPredictor",
     "ResearchPanelContract",
     "ResearchPredictionResult",
@@ -128,10 +144,14 @@ __all__ = [
     "evaluate_comprehensive_metrics",
     "evaluate_locked_external_cohort",
     "exact_coalition_shapley_oracle",
+    "execute_authorized_research_run",
     "explain_clinical_instance",
     "get_or_create_local_signing_key",
     "get_panel_contract",
+    "load_cleveland_source_records",
+    "load_uci412_source_records",
     "package_research_bundle",
+    "parse_and_validate_research_authorization",
     "protect_private_directory",
     "protect_private_file",
     "safe_clipped_logit",
