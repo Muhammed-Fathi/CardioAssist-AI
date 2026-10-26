@@ -14,6 +14,43 @@ This package implements the reusable, offline Track A tabular CAD AI research pi
 - **`ai/packaging.py`** — Staging-directory atomic `RESEARCH_ONLY` bundle writer (`manifest.json`, `model.joblib`, `preprocessing.json`, `calibration.json`, `shap_background.json`, `evaluation_summary.json`, `protocol.md`; full cleanup on interrupted/failed writes), separating SHA-256 self-consistency (`verify_research_bundle`) from trusted-local-origin authentication (`verify_trusted_local_bundle`: `trusted_local_root` containment + POSIX `0600`/`0700` or verified Windows NTFS DACL isolation + `HMAC-SHA256` local producer attestation) required before `joblib.load`.
 - **`ai/inference.py`** — Offline `ResearchCadPredictor` enforcing `verify_trusted_local_bundle` before deserialization and returning explicitly separated `raw_model_score`, `raw_model_log_odds`, `calibrated_research_score`, `calibrated_log_odds`, descriptive fold dispersion, aligned SHAP attributions, and mandatory non-clinical limitations.
 - **`ai/validation_harness.py`** (`scripts/validate_ai_windows_compat.py`) — Self-contained 8-step synthetic validation runner for Windows Python 3.12 (NTFS) and POSIX environments.
+- **`ai/cli.py`** (`python -m ai`) — Offline synthetic-demo command-line interface (`panels`, `verify-bundle`, `predict`, `demo`) layering only argument handling, output serialization, and a synthetic-only provenance/profile guard over the existing packaging verification and `ResearchCadPredictor.predict_research_only` engine. It never deserializes before trusted verification, never predicts with real-provenance bundles or non-synthetic inputs, and never prints local paths, key material, or submitted feature values.
+
+## Local CLI usage (AI-4.1) — Windows Python 3.12
+
+All commands are offline, synthetic-only, and exit with code `2` (fail closed, structured JSON error on stderr) for invalid inputs or untrusted/compromised bundles. From the repository root in PowerShell:
+
+```powershell
+py -3.12 -m venv .venv-ai
+.\.venv-ai\Scripts\Activate.ps1
+python -m pip install -r research\experiments\requirements.txt
+python -m pip check
+
+# Registered panels, required features, input types, profile status
+python -m ai panels
+
+# Isolated end-to-end synthetic demo (train -> package -> verify -> load -> predict; temp artifacts deleted)
+python -m ai demo
+
+# Retain a demo bundle on an NTFS volume OUTSIDE the repository, then verify + predict
+$Work   = Join-Path $env:LOCALAPPDATA "CardioAssistAI\ai41-demo"   # must be a fresh directory
+python -m ai demo --work-dir $Work
+$Bundle = Join-Path $Work "trusted_bundles\synthetic_demo_bundle_v1"
+$Root   = Join-Path $Work "trusted_bundles"
+$Key    = Join-Path $Work "private_keys\local_bundle_hmac_v1.key"
+python -m ai verify-bundle --bundle-dir $Bundle --trusted-root $Root --signing-key-path $Key
+python -m ai predict --bundle-dir $Bundle --trusted-root $Root --signing-key-path $Key `
+  --input ai\examples\synthetic_da_a2_resting_labs_v1.json
+
+# Focused + pipeline regression tests
+python -m pytest tests\experiments\test_ai_cli.py tests\experiments\test_ai_research_pipeline.py -q
+
+# Cleanup (demo bundle + isolated demo signing key; never commit either)
+Remove-Item -Recurse -Force $Work
+deactivate
+```
+
+Notes: `--format text` renders the same quantities for console reading (JSON is the default). `verify-bundle --integrity-only` checks SHA-256 integrity only and never authenticates or authorizes loading. `predict` additionally accepts `--expect-panel`, `--expect-profile`, and `--expect-model-family` guards. The committed example input (`ai/examples/synthetic_da_a2_resting_labs_v1.json`) contains invented synthetic values only. Real-provenance bundles, the frozen `CLEVELAND_D047_FROZEN_V1` profile, and any input without `"synthetic": true` are rejected before deserialization; they remain reachable only through their existing guarded workflows. The same `python -m ai ...` commands work unchanged on POSIX.
 
 ## Governance, Security & Runtime Boundaries
 
