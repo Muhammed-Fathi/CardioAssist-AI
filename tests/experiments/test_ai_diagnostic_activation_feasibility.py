@@ -3,8 +3,10 @@
 This module proves the ACTIVATION PROCEDURE IS REALIZABLE, not merely that an
 in-process registry can be injected. For every case it:
 
-1. commits a synthetic approved implementation at I2 (copy of the real
-   ``ai/diagnostic_scope.py`` with an EMPTY registry);
+1. commits a synthetic approved implementation at I2 (a copy of the real
+   ``ai/diagnostic_scope.py`` whose registry value is EXPLICITLY emptied first,
+   so the same genuine unactivated baseline is built whether or not the real
+   checkout has since been activated);
 2. commits the ratified governance document at G2 (documentation only);
 3. writes the REAL registry structure (G2, I2, document hash, synthetic
    test-only bundle manifest digest) into the tracked

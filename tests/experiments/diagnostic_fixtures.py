@@ -11,6 +11,16 @@ A "ratified scope" is simulated with a GENUINE committed I2 -> G2 -> A2 Git
 history in a throwaway repository: the registry record is really written into
 ``ai/diagnostic_scope.py`` and committed at A2, and A2 is read from git only
 after that commit exists. Nothing here is a human signature or approval.
+
+Those throwaway histories are built identically in BOTH production lifecycle
+states. The synthetic I2/G2 baseline registry is always constructed EXPLICITLY
+EMPTY first, and only then is the synthetic A2 record written, so the same
+genuine unactivated -> activated transition (and every negative control) is
+exercised whether the checked-in production registry in the current checkout is
+still empty or has already been activated by a registry-only commit. The
+registry substitution reuses the production source parser, so the fixture can
+never silently relax the "exactly one literal dict assignment" or the
+"only the registry value changed" requirements.
 """
 from __future__ import annotations
 
@@ -18,7 +28,6 @@ from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
-import re
 import subprocess
 from types import SimpleNamespace
 from typing import Any
@@ -28,6 +37,7 @@ import numpy as np
 from ai.diagnostic_inference import DIAGNOSTIC_INPUT_SCHEMA_VERSION
 from ai.diagnostic_scope import (
     _parse_committed_registry,
+    _registry_value_span,
     DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH,
     DIAGNOSTIC_AUTHORIZATION_SCHEMA_VERSION,
     DIAGNOSTIC_ALLOWED_OPERATIONS,
@@ -353,14 +363,6 @@ def make_authorization_doc(
     }
 
 
-#: Exact single-line assignment that an activation commit may replace.
-_REGISTRY_ASSIGNMENT_RE = re.compile(
-    r"^RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES: dict\[str, dict\[str, Any\]\] = \{"
-    r"\}[ \t]*$",
-    flags=re.MULTILINE,
-)
-
-
 def _write_registry_source(repo: Path, source: str) -> None:
     path = repo / DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -368,17 +370,54 @@ def _write_registry_source(repo: Path, source: str) -> None:
 
 
 def _with_registry_dict(source: str, registry: dict[str, Any]) -> str:
-    replacement = (
-        "RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES: dict[str, dict[str, Any]] = "
-        + repr(registry)
+    """Return ``source`` with ONLY the trusted-registry literal value replaced.
+
+    The value span is located by the PRODUCTION parser
+    (:func:`ai.diagnostic_scope._registry_value_span`), so this fixture
+    inherits — instead of re-implementing — the exact guarantees the runtime
+    activation gate depends on:
+
+    * the source must be parseable Python holding **exactly one** top-level
+      **literal ``dict``** assignment to
+      ``RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`` (``Assign`` or ``AnnAssign``);
+      a computed value, a second assignment, or a missing symbol raises
+      ``diagnostic_registry_source_unparsable``;
+    * only the value bytes are substituted, so every other byte of the module
+      (imports, comments, docstrings, guards, ``__all__``) is untouched and the
+      production masked-source equality check still holds between the synthetic
+      baseline and the synthetic activation commit.
+
+    Unlike the previous empty-only regex, this works whether the checked-in
+    production registry is EMPTY (an unactivated ``I``/``G`` baseline) or
+    already POPULATED (an activated ``A`` revision), so the synthetic
+    ``I2 -> G2 -> A2`` history can be built in both lifecycle states.
+    """
+    raw = source.encode("utf-8")
+    _value, start, end = _registry_value_span(raw)
+    replaced = raw[:start] + repr(dict(registry)).encode("utf-8") + raw[end:]
+    new_source = replaced.decode("utf-8")
+    # Self-check with the production parser: the substitution must read back as
+    # exactly the requested plain literal registry, and nothing else moved.
+    literal, masked = _parse_committed_registry(replaced)
+    _original_literal, original_masked = _parse_committed_registry(raw)
+    assert literal == dict(registry), (
+        "the fixture must write a plain literal registry the production parser "
+        "reads back unchanged"
     )
-    new_source, count = _REGISTRY_ASSIGNMENT_RE.subn(replacement, source, count=1)
-    assert count == 1, "the real registry assignment must be present exactly once"
+    assert masked == original_masked, (
+        "the fixture must change ONLY the registry value, never other code"
+    )
     return new_source
 
 
 def _with_registry_record(source: str, record: dict[str, Any]) -> str:
     return _with_registry_dict(source, {DIAGNOSTIC_SCOPE_ID: record})
+
+
+def committed_registry_source_literal(source: str) -> dict[str, Any]:
+    """Parse the registry literal out of module SOURCE with the production parser."""
+    literal, _masked = _parse_committed_registry(source.encode("utf-8"))
+    return literal
 
 
 def committed_registry_literal(repo: Path, revision: str) -> dict[str, Any]:
@@ -413,11 +452,20 @@ def build_activation_repo(
 ) -> SimpleNamespace:
     """Create a GENUINE committed I2 -> G2 -> A2 activation history.
 
-    I2 freezes a copy of the reviewed implementation (with an empty registry).
-    G2 adds only documentation (the ratified governance document). A2 changes
-    ONLY the single registry assignment inside ``ai/diagnostic_scope.py``. A2 is
-    read from git AFTER the commit exists and is placed ONLY in the ignored
-    local operator authorization document. Nothing is self-referential.
+    I2 freezes a copy of the reviewed implementation whose trusted registry is
+    EXPLICITLY EMPTY, G2 adds only documentation (the ratified governance
+    document) and keeps that empty registry, and A2 changes ONLY the single
+    registry literal inside ``ai/diagnostic_scope.py`` from ``{}`` to exactly
+    one record. A2 is read from git AFTER the commit exists and is placed ONLY
+    in the ignored local operator authorization document. Nothing is
+    self-referential.
+
+    The empty I2/G2 baseline is constructed explicitly rather than copied from
+    the checkout, so this builder reproduces the same genuine
+    unactivated -> activated transition whether the production registry in the
+    current checkout is empty (before activation) or already populated (after
+    it). ``preexisting_registry=True`` remains the negative control that proves
+    a NON-empty baseline is refused.
     """
     repo = Path(tmp_path) / "diagnostic_activation_repo"
     repo.mkdir(parents=True, exist_ok=True)
@@ -441,11 +489,20 @@ def build_activation_repo(
     original_source = (
         REPO_ROOT / DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH
     ).read_text(encoding="utf-8")
+    # Step 1: the synthetic IMPLEMENTATION/GOVERNANCE baseline is always built
+    # with an EXPLICITLY EMPTY trusted registry, whatever the checked-in
+    # production registry holds in this checkout. The production gate requires
+    # ``baseline_literal == {}`` at G2, so the synthetic history must start from
+    # the unactivated state even when the real repository is already activated.
+    unactivated_source = _with_registry_dict(original_source, {})
+    assert (
+        committed_registry_source_literal(unactivated_source) == {}
+    ), "the synthetic I2/G2 baseline registry must be explicitly empty"
     preexisting_scope = {"PREEXISTING_SCOPE": {"unauthorized": True}}
     baseline_source = (
-        _with_registry_dict(original_source, preexisting_scope)
+        _with_registry_dict(unactivated_source, preexisting_scope)
         if preexisting_registry
-        else original_source
+        else unactivated_source
     )
     _write_registry_source(repo, baseline_source)
     inference_source = (REPO_ROOT / "ai" / "diagnostic_inference.py").read_text(
@@ -500,7 +557,9 @@ def build_activation_repo(
     if preexisting_registry:
         activated_registry.update(preexisting_scope)
     activated_registry[DIAGNOSTIC_SCOPE_ID] = record
-    activated_source = _with_registry_dict(original_source, activated_registry)
+    # Step 2: the synthetic ACTIVATION commit is built FROM that empty baseline
+    # and changes nothing but the registry literal value.
+    activated_source = _with_registry_dict(baseline_source, activated_registry)
     if extra_registry_code:
         activated_source += "\n# UNAPPROVED SECURITY LOGIC CHANGE\n"
     _write_registry_source(repo, activated_source)

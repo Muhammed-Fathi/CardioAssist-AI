@@ -5,7 +5,12 @@ maintainer comment, or human signature is present. Git evidence is produced by
 ``diagnostic_fixtures.build_activation_repo`` as a genuine committed I2 -> G2 ->
 A2 history; the dedicated feasibility suite in
 ``test_ai_diagnostic_activation_feasibility.py`` owns the full-history cases.
-The production registry is asserted EMPTY.
+
+The production trusted registry is asserted LIFECYCLE-COHERENT rather than
+empty: it must equal the literal registry committed in this checkout and hold at
+most the single reviewed scope, and the fail-closed behaviour of the UNACTIVATED
+(empty) and ACTIVATED (one record) states is each proven explicitly, so these
+regressions are valid both before and after a registry-only activation commit.
 """
 from __future__ import annotations
 
@@ -16,7 +21,7 @@ import os
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
@@ -98,16 +103,86 @@ def _install_registry(
 
 
 # --------------------------------------------------------------------------- #
-# 1. Production state: empty new registry, activated training registry, frozen A
+# 1. Production registry lifecycle: unactivated AND activated states
 # --------------------------------------------------------------------------- #
 
 
-def test_production_diagnostic_registry_is_empty_and_fails_closed(
+def _checked_in_registry_literal() -> dict[str, Any]:
+    """Trusted-registry literal in the CHECKED-IN source of this checkout."""
+    source = (REPO_ROOT / ds.DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH).read_bytes()
+    literal, _masked = ds._parse_committed_registry(source)
+    return literal
+
+
+@pytest.fixture
+def registry_state(
+    monkeypatch: pytest.MonkeyPatch, activation_env: SimpleNamespace
+) -> Callable[[str], dict[str, Any]]:
+    """Install one trusted-registry lifecycle state and return that registry.
+
+    ``production`` is whatever this checkout really contains (empty before a
+    registry-only activation, exactly one reviewed record after it);
+    ``unactivated`` and ``activated_synthetic`` pin the two states explicitly so
+    every lifecycle property below is proven in BOTH states, in every checkout,
+    without depending on the production state and without weakening any gate.
+    The activation state comes from a GENUINE committed synthetic A2 registry.
+    """
+
+    def install(state: str) -> dict[str, Any]:
+        if state == "production":
+            registry: dict[str, Any] = dict(ds.RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES)
+        elif state == "unactivated":
+            registry = {}
+        elif state == "activated_synthetic":
+            registry = deepcopy(activation_env.committed_literal)
+        else:
+            raise AssertionError(f"unknown registry lifecycle state {state!r}")
+        monkeypatch.setattr(ds, "RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES", registry)
+        return registry
+
+    return install
+
+
+def test_production_registry_equals_checked_in_source_and_is_scope_bounded() -> None:
+    """Invariant that holds BEFORE and AFTER a registry-only activation.
+
+    The in-process trusted registry must equal the literal registry committed in
+    this checkout (no runtime injection), must never carry an unknown scope and,
+    once activated, must hold exactly the single reviewed record that the
+    production defence-in-depth validator accepts, bound to the frozen governance
+    document path and to baselines that are NOT the frozen training ``G``/``A``.
+    """
+    registry = ds.RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES
+    assert dict(registry) == _checked_in_registry_literal()
+    assert set(registry) <= {ds.DIAGNOSTIC_SCOPE_ID}
+    if not registry:
+        return  # unactivated: the fail-closed proofs below cover this state
+    record = ds._validated_trusted_record(
+        registry[ds.DIAGNOSTIC_SCOPE_ID], scope_id=ds.DIAGNOSTIC_SCOPE_ID
+    )
+    assert tuple(record["approved_operations"]) == ds.DIAGNOSTIC_ALLOWED_OPERATIONS
+    assert record["governance_document_relative_path"] == (
+        ds.DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH
+    )
+    frozen_training = {ds.FROZEN_TRAINING_REVISION_A, ds.FROZEN_GOVERNANCE_MERGE_G}
+    assert record["governance_baseline_commit_sha"] not in frozen_training
+    assert record["approved_implementation_commit_sha"] not in frozen_training
+    for forbidden in (
+        "approved_code_revision",
+        "activation_merge_commit_sha",
+        "activation_revision_commit_sha",
+    ):
+        assert forbidden not in record, "A2 must never be tracked (circular SHA)"
+
+
+def test_unactivated_registry_fails_closed_before_any_bundle_work(
+    registry_state: Callable[[str], dict[str, Any]],
     activation_env: SimpleNamespace,
     bundle_env: SimpleNamespace,
     tmp_path: Path,
 ) -> None:
-    assert ds.RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES == {}
+    """EMPTY registry: refused before any bundle verification or deserialization."""
+    assert registry_state("unactivated") == {}
     with pytest.raises(ds.DiagnosticScopeError) as exc:
         ds.validate_diagnostic_scope(
             {"scope_id": ds.DIAGNOSTIC_SCOPE_ID}, repo_root=activation_env.repo
@@ -156,6 +231,120 @@ def test_production_diagnostic_registry_is_empty_and_fails_closed(
             operator_confirmation="wrong",
         )
     assert no_confirmation.value.code == "diagnostic_operator_confirmation_required"
+
+
+def test_activated_registry_still_enforces_authorization_and_git_evidence(
+    registry_state: Callable[[str], dict[str, Any]],
+    activation_env: SimpleNamespace,
+    bundle_env: SimpleNamespace,
+    tmp_path: Path,
+) -> None:
+    """POPULATED registry: no bypass of authorization, Git-history or bundle gates."""
+    registry = registry_state("activated_synthetic")
+    assert set(registry) == {ds.DIAGNOSTIC_SCOPE_ID}
+
+    # 1. A ratified scope never ratifies a DIFFERENT one.
+    with pytest.raises(ds.DiagnosticScopeError) as unknown:
+        ds.validate_diagnostic_scope(
+            {"scope_id": "CAI-SCOPE-NOT-RATIFIED-BY-ANYONE"},
+            repo_root=activation_env.repo,
+        )
+    assert unknown.value.code == "diagnostic_scope_not_ratified"
+
+    # 2. A bare scope id is not authorization: every local claim is still
+    #    compared field-for-field against the reviewed record.
+    with pytest.raises(ds.DiagnosticScopeError) as bare:
+        ds.validate_diagnostic_scope(
+            {"scope_id": ds.DIAGNOSTIC_SCOPE_ID}, repo_root=activation_env.repo
+        )
+    assert bare.value.code == "diagnostic_scope_claim_mismatch"
+
+    # 3. The Git-history binding still applies: a wrong/stale activation
+    #    revision is refused against independently resolved HEAD.
+    with pytest.raises(ds.DiagnosticScopeError) as stale:
+        ds.validate_diagnostic_scope(
+            _deep_update(
+                _auth(activation_env), {"activation_merge_commit_sha": "0" * 40}
+            ),
+            repo_root=activation_env.repo,
+        )
+    assert stale.value.code == "diagnostic_activation_revision_mismatch"
+
+    # 4. The exact operator confirmation phrase is still required first.
+    with pytest.raises(ds.DiagnosticScopeError) as no_confirmation:
+        ds.authorize_diagnostic_scope(
+            _auth(activation_env),
+            repo_root=activation_env.repo,
+            operator_confirmation=None,
+        )
+    assert no_confirmation.value.code == "diagnostic_operator_confirmation_required"
+
+    # 5. A forged ratifier or a substituted bundle digest is refused BEFORE any
+    #    bundle verification or deserialization is attempted.
+    called: list[bool] = []
+
+    def _boom(*_args: Any, **_kwargs: Any) -> Any:
+        called.append(True)
+        raise AssertionError("bundle verification must not run for a refused scope")
+
+    for changes in (
+        {"ratified_by": "FORGED RATIFIER"},
+        {"bundle_identity": {"expected_manifest_sha256": "1" * 64}},
+    ):
+        auth = _deep_update(_auth(activation_env), changes)
+        auth_path = fx.write_private_json(
+            tmp_path / "activated" / "authorization.json", auth
+        )
+        input_path = fx.write_private_json(
+            tmp_path / "activated" / "input.json", fx.make_input_doc()
+        )
+        original = di.verify_trusted_local_bundle
+        di.verify_trusted_local_bundle = _boom  # type: ignore[assignment]
+        try:
+            with pytest.raises(ds.DiagnosticScopeError) as run_exc:
+                di.run_offline_diagnostics(
+                    bundle_dir=bundle_env.bundle_dir,
+                    trusted_local_root=bundle_env.trusted_root,
+                    authorization_path=auth_path,
+                    input_path=input_path,
+                    operator_confirmation=ds.DIAGNOSTIC_OPERATOR_CONFIRMATION,
+                    signing_key=bundle_env.signing_key,
+                    repo_root=activation_env.repo,
+                )
+            assert run_exc.value.code == "diagnostic_scope_claim_mismatch"
+        finally:
+            di.verify_trusted_local_bundle = original  # type: ignore[assignment]
+    assert called == []
+
+
+@pytest.mark.parametrize(
+    "state", ["production", "unactivated", "activated_synthetic"]
+)
+def test_unknown_and_bare_scopes_fail_closed_in_every_registry_state(
+    state: str,
+    registry_state: Callable[[str], dict[str, Any]],
+    activation_env: SimpleNamespace,
+) -> None:
+    """Unratified scopes are refused whatever the lifecycle state of the registry."""
+    installed = registry_state(state)
+    with pytest.raises(ds.DiagnosticScopeError) as unknown:
+        ds.validate_diagnostic_scope(
+            {"scope_id": "CAI-SCOPE-NOT-RATIFIED-BY-ANYONE"},
+            repo_root=activation_env.repo,
+        )
+    assert unknown.value.code == "diagnostic_scope_not_ratified"
+
+    # A bare scope id fails closed in every state: at the ratification gate while
+    # unactivated, at the claim-comparison gate once a record is registered.
+    with pytest.raises(ds.DiagnosticScopeError) as bare:
+        ds.validate_diagnostic_scope(
+            {"scope_id": ds.DIAGNOSTIC_SCOPE_ID}, repo_root=activation_env.repo
+        )
+    assert bare.value.code == (
+        "diagnostic_scope_claim_mismatch"
+        if installed
+        else "diagnostic_scope_not_ratified"
+    )
 
 
 def test_frozen_bindings_match_activated_training_amendment_and_panel() -> None:
@@ -521,11 +710,35 @@ def test_registry_source_parser_rejects_computed_or_duplicate_assignments() -> N
 def test_gitignore_and_changelog_keep_activation_registry_only(
     activation_env: SimpleNamespace,
 ) -> None:
-    """The real checked-in registry is empty; only A2 may populate it."""
-    assert ds.RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES == {}
+    """Only an activation commit populates the registry; A2 stays out of Git.
+
+    Valid in both lifecycle states: the real checked-in registry is either still
+    empty (unactivated) or holds exactly the one reviewed scope, and the
+    synthetic committed history always shows the empty G2 baseline becoming
+    exactly one record at A2. The private local operator authorization that is
+    the ONLY place A2 may live stays Git-ignored in the real checkout.
+    """
+    checked_in = _checked_in_registry_literal()
+    assert dict(ds.RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES) == checked_in
+    assert set(checked_in) <= {ds.DIAGNOSTIC_SCOPE_ID}
     committed_at_a2 = fx.committed_registry_literal(activation_env.repo, activation_env.a2)
     assert set(committed_at_a2) == {ds.DIAGNOSTIC_SCOPE_ID}
     assert fx.committed_registry_literal(activation_env.repo, activation_env.g2) == {}
+    ignored = subprocess.run(
+        [
+            "git",
+            "check-ignore",
+            "-q",
+            "--",
+            "data/diagnostics/diagnostic_authorization.json",
+        ],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        check=False,
+    )
+    assert ignored.returncode == 0, (
+        "the local operator authorization carrying A2 must remain Git-ignored"
+    )
 
 
 # --------------------------------------------------------------------------- #
