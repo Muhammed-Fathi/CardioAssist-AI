@@ -1,10 +1,16 @@
 """Bounded, guarded OFFLINE diagnostic inference for ONE accepted real bundle.
 
 This module is a **development change after frozen training revision A**
-(``cardioassist.ai.bounded_offline_diagnostic_inference/v1``). It is a separate
+(``cardioassist.ai.bounded_offline_diagnostic_inference/v1.1``). It is a separate
 entry point (``python -m ai.diagnostic_inference``), NOT part of the general
 ``python -m ai`` synthetic-only CLI, which remains unchanged and still refuses
 all real-provenance bundles.
+
+Activation uses three unambiguous revisions (see :mod:`ai.diagnostic_scope`):
+``I2`` = approved implementation revision, ``G2`` = immutable governance
+baseline, ``A2`` = registry-only activation revision (HEAD). ``A2`` is never
+stored in tracked code; it is supplied by the ignored local operator
+authorization and verified against independently resolved Git HEAD.
 
 Authorization order (fail closed at the first failure; no retry)
 ---------------------------------------------------------------
@@ -13,8 +19,11 @@ Authorization order (fail closed at the first failure; no retry)
    input declaration, offline/no-serving/no-telemetry/no-upload boundary.
 3. Independent scope authorization from
    :mod:`ai.diagnostic_scope` -- an EMPTY trusted registry in production --
-   plus Git evidence (ratified governance merge, frozen document bytes, clean
-   approved execution revision).
+   plus committed Git evidence: ``I2`` (approved implementation) ancestor of
+   ``G2`` (governance baseline) with documentation-only changes in between,
+   ``G2`` ancestor of HEAD, independently resolved ``HEAD == A2``, clean tracked
+   worktree, a strictly registry-only ``G2 -> A2`` diff with masked-source
+   equality, and frozen governance-document bytes at ``G2``.
 4. Strict synthetic input declaration + five-feature schema validation
    (including explicit rejection of non-finite JSON numbers).
 5. Existing trusted-local bundle verification via

@@ -19,15 +19,45 @@ maintainer ratification and a separate registry-only activation exist::
 
     offline_synthetic_input_diagnostic_inference
 
+Three distinct revisions (no self-referential field)
+----------------------------------------------------
+The activation mechanism follows the already proven Cleveland D-047 ``G`` ->
+``A`` pattern. A commit cannot contain its own SHA-1 in tracked content, so no
+tracked field ever names the activation commit:
+
+* ``I2`` -- **approved implementation revision**: the commit at which the
+  reviewed diagnostic implementation was frozen. It is an ancestor of (or equal
+  to) ``G2``, and only documentation may change between ``I2`` and ``G2``.
+  Tracked in the registry as ``approved_implementation_commit_sha``.
+* ``G2`` -- **governance baseline**: the immutable commit whose tree contains
+  both the approved implementation and the ratified governance document. Its
+  document bytes are bound by ``frozen_governance_document_sha256``. Tracked in
+  the registry as ``governance_baseline_commit_sha``; it is the baseline for
+  the ``G2..A2`` registry-only diff.
+* ``A2`` -- **activation revision**: the registry-only commit that adds exactly
+  one reviewed entry to :data:`RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`. Its SHA is
+  known only AFTER it is merged, so it is stored ONLY in the ignored local
+  operator authorization document (``activation_merge_commit_sha``), never in
+  any tracked file. Runtime resolves HEAD independently and requires equality.
+
+At activation time the tracked registry therefore contains only previously
+known values (``I2``, ``G2``, the document hash at ``G2``, the maintainer's
+bundle manifest digest, the operation and the bundle identity). There is no
+circular dependency. Runtime additionally proves that ``G2..HEAD`` changed only
+``ai/diagnostic_scope.py`` and that the change inside that file is exactly the
+empty-registry -> one-record activation, so no training, inference, CLI,
+security or unrelated code can be introduced by the activation commit.
+
 What code can and cannot prove
 ------------------------------
 Code enforces the empty registry, exact scope/identity bindings, an explicit
 local operator authorization document, and independent local Git evidence
-(governance merge ancestry, frozen governance-document bytes, clean checked-out
-execution revision). Code CANNOT verify a human signature, maintainer intent,
-GitHub comment authenticity, NTFS ownership outside the platform API, or the
-lawfulness of external data use. Those remain human controls; see the scope
-document. Nothing in this module creates, forges, or infers approval.
+(baseline ancestry, frozen governance-document bytes, clean checked-out
+activation revision, registry-only activation diff). Code CANNOT verify a human
+signature, maintainer intent, GitHub comment authenticity, PR merged state,
+NTFS ownership outside the platform API, or the lawfulness of external data
+use. Those remain human controls; see the scope document. Nothing in this
+module creates, forges, or infers approval.
 
 The registry is EMPTY. With an empty registry every function that can lead to
 bundle loading fails closed with ``diagnostic_scope_not_ratified`` BEFORE any
@@ -35,6 +65,7 @@ bundle verification, ``joblib.load``, or inference.
 """
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
@@ -61,8 +92,11 @@ from ai.training import EXECUTION_PROFILE_CLEVELAND_D047_FROZEN_V1
 # --------------------------------------------------------------------------- #
 
 #: Development interface version. Distinct from the frozen training harness at A.
+#: v1.1 replaces the circular ``approved_code_revision == A2`` design with the
+#: realizable G2 (governance baseline / approved implementation) -> A2
+#: (registry-only activation) binding.
 DIAGNOSTIC_INTERFACE_VERSION: Final[str] = (
-    "cardioassist.ai.bounded_offline_diagnostic_inference/v1"
+    "cardioassist.ai.bounded_offline_diagnostic_inference/v1.1"
 )
 #: Frozen training activation revision (PR #58 merge). Never used as the
 #: executing revision for this development change.
@@ -85,9 +119,18 @@ DIAGNOSTIC_SCOPE_ID: Final[str] = (
 DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH: Final[str] = (
     "docs/research/gate-pt/18_bounded_offline_diagnostic_inference_scope.md"
 )
+#: v1.1 renames the two ambiguous revision fields and adds the registration
+#: path. ``activation_merge_commit_sha`` (A2) is local-only and is never part
+#: of any tracked registry record.
 DIAGNOSTIC_AUTHORIZATION_SCHEMA_VERSION: Final[str] = (
-    "cardioassist.ai.diagnostic_authorization/v1"
+    "cardioassist.ai.diagnostic_authorization/v1.1"
 )
+#: The ONLY tracked file an activation commit may change.
+DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH: Final[str] = "ai/diagnostic_scope.py"
+#: Name of the single tracked assignment an activation commit may change.
+DIAGNOSTIC_REGISTRY_SYMBOL: Final[str] = "RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES"
+#: Between I2 and G2 only documentation may change (no implementation drift).
+DIAGNOSTIC_IMPLEMENTATION_DOCUMENT_ONLY_PREFIX: Final[str] = "docs/"
 DIAGNOSTIC_OPERATOR_CONFIRMATION: Final[str] = (
     "I_CONFIRM_BOUNDED_OFFLINE_CLEVELAND_D047_DIAGNOSTIC_INFERENCE"
 )
@@ -141,17 +184,23 @@ DIAGNOSTIC_TARGET_BUNDLE: Final[Mapping[str, Any]] = MappingProxyType(
 #: registry-only, maintainer-ratified change to this dictionary (and only this
 #: dictionary) after the governance document has been ratified at ``G2``. It is
 #: intentionally not part of this engineering PR.
+#:
+#: The activation commit A2 may change ONLY this assignment. It contains the
+#: previously known I2/G2 SHAs, the document hash at G2, the maintainer-supplied
+#: bundle manifest digest, and the operation/identity bindings. It MUST NOT
+#: contain its own A2 SHA (that would be circular): A2 lives only in the
+#: ignored local operator authorization document.
 RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES: dict[str, dict[str, Any]] = {}
 
 #: Documentation-only shape of the record an activation would have to supply.
 #: It contains no approval, no signature, and no usable digest. It is NEVER read
 #: by the authorization validator; only ``RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES``
-#: is trusted.
+#: is trusted. Note the absence of any activation-revision field.
 DIAGNOSTIC_SCOPE_ACTIVATION_TEMPLATE: Final[Mapping[str, Any]] = MappingProxyType(
     {
         "governance_pr_number": None,
-        "governance_merge_commit_sha": None,  # G2, 40 lowercase hex
-        "approved_code_revision": None,  # exact clean execution revision, 40 hex
+        "governance_baseline_commit_sha": None,  # G2, immutable, 40 lowercase hex
+        "approved_implementation_commit_sha": None,  # I2, ancestor/equal G2
         "governance_document_relative_path": (
             DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH
         ),
@@ -190,12 +239,19 @@ class DiagnosticScopeError(AiPipelineError):
 
 @dataclass(frozen=True, slots=True)
 class DiagnosticScopeContext:
-    """Non-bypassable result of a successful independent scope check."""
+    """Non-bypassable result of a successful independent scope check.
+
+    ``governance_baseline_commit_sha`` is G2, ``approved_implementation_commit_sha``
+    is I2, and ``activation_merge_commit_sha`` is the independently resolved
+    HEAD (A2) declared by the ignored local operator authorization. None of
+    these is self-referential.
+    """
 
     scope_id: str
     governance_pr_number: int
-    governance_merge_commit_sha: str
-    approved_code_revision: str
+    governance_baseline_commit_sha: str
+    approved_implementation_commit_sha: str
+    activation_merge_commit_sha: str
     governance_document_relative_path: str
     frozen_governance_document_sha256: str
     ratified_by: str
@@ -217,8 +273,14 @@ class DiagnosticScopeContext:
         return {
             "scope_id": self.scope_id,
             "governance_pr_number": self.governance_pr_number,
-            "governance_merge_commit_sha": self.governance_merge_commit_sha,
-            "approved_code_revision": self.approved_code_revision,
+            "governance_baseline_commit_sha": self.governance_baseline_commit_sha,
+            "approved_implementation_commit_sha": (
+                self.approved_implementation_commit_sha
+            ),
+            "activation_merge_commit_sha": self.activation_merge_commit_sha,
+            "activation_registry_relative_path": (
+                DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH
+            ),
             "expected_bundle_dir_name": self.expected_bundle_dir_name,
             "expected_manifest_sha256": self.expected_manifest_sha256,
             "expected_dataset_id": self.expected_dataset_id,
@@ -240,9 +302,10 @@ _AUTHORIZATION_KEYS: Final[frozenset[str]] = frozenset(
         "authorization_status",
         "scope_id",
         "governance_pr_number",
-        "governance_merge_commit_sha",
-        "approved_code_revision",
-        "activation_merge_commit_sha",
+        "governance_baseline_commit_sha",       # G2, trusted + local claim
+        "approved_implementation_commit_sha",   # I2, trusted + local claim
+        "activation_merge_commit_sha",          # A2, LOCAL ONLY, never tracked
+        "activation_registry_relative_path",    # the one file A2 may change
         "governance_document_relative_path",
         "frozen_governance_document_sha256",
         "ratified_by",
@@ -577,8 +640,8 @@ def validate_local_authorization(
     )
 
     for field_name in (
-        "governance_merge_commit_sha",
-        "approved_code_revision",
+        "governance_baseline_commit_sha",
+        "approved_implementation_commit_sha",
         "activation_merge_commit_sha",
     ):
         _require(
@@ -587,6 +650,27 @@ def validate_local_authorization(
             f"'{field_name}' must be a 40-hex lowercase Git commit SHA.",
             field=field_name,
         )
+    # A2 must be distinct from the previously known baselines; otherwise the
+    # "activation" is just a renamed governance baseline and proves nothing.
+    activation_sha = _lower_sha(doc.get("activation_merge_commit_sha"))
+    _require(
+        activation_sha not in {
+            _lower_sha(doc.get("governance_baseline_commit_sha")),
+            _lower_sha(doc.get("approved_implementation_commit_sha")),
+        },
+        "diagnostic_activation_revision_malformed",
+        "activation_merge_commit_sha (A2) must be a distinct, later commit; it "
+        "cannot equal the governance baseline G2 or implementation revision I2.",
+        field="activation_merge_commit_sha",
+    )
+    _require(
+        doc.get("activation_registry_relative_path")
+        == DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH,
+        "diagnostic_activation_registry_path_mismatch",
+        "Local authorization must name exactly the one tracked file an "
+        "activation commit may change.",
+        field="activation_registry_relative_path",
+    )
     _require(
         isinstance(doc.get("governance_pr_number"), int)
         and not isinstance(doc.get("governance_pr_number"), bool)
@@ -701,8 +785,8 @@ def validate_local_authorization(
 # --------------------------------------------------------------------------- #
 
 _TRUSTED_STRING_FIELDS: Final[tuple[str, ...]] = (
-    "governance_merge_commit_sha",
-    "approved_code_revision",
+    "governance_baseline_commit_sha",
+    "approved_implementation_commit_sha",
     "governance_document_relative_path",
     "frozen_governance_document_sha256",
     "ratified_by",
@@ -747,8 +831,8 @@ def _validated_trusted_record(record: Any, *, scope_id: str) -> dict[str, Any]:
             field=name,
         )
     for name in (
-        "governance_merge_commit_sha",
-        "approved_code_revision",
+        "governance_baseline_commit_sha",
+        "approved_implementation_commit_sha",
     ):
         _require(
             bool(_GIT_SHA_RE.fullmatch(_lower_sha(record.get(name)))),
@@ -756,6 +840,22 @@ def _validated_trusted_record(record: Any, *, scope_id: str) -> dict[str, Any]:
             f"Trusted scope field '{name}' must be 40 lowercase hex.",
             field=name,
         )
+    # A tracked registry record MUST NOT name an activation revision: A2 cannot
+    # be known before the commit containing this record exists. This is the
+    # explicit guard against reintroducing the circular SHA dependency.
+    forbidden_self_reference = (
+        "approved_code_revision",
+        "activation_merge_commit_sha",
+        "activation_revision_commit_sha",
+    )
+    _require(
+        not any(name in record for name in forbidden_self_reference),
+        "diagnostic_scope_registry_self_referential",
+        "A tracked registry record must not contain its own activation commit "
+        "SHA (or any self-referential code-revision field). A2 belongs only in "
+        "the ignored local operator authorization document.",
+        field="activation_merge_commit_sha",
+    )
     for name in (
         "frozen_governance_document_sha256",
         "expected_manifest_sha256",
@@ -778,12 +878,15 @@ def _validated_trusted_record(record: Any, *, scope_id: str) -> dict[str, Any]:
     # the frozen training activation A, nor reuse its governance merge G.
     frozen_revisions = {FROZEN_TRAINING_REVISION_A, FROZEN_GOVERNANCE_MERGE_G}
     _require(
-        _lower_sha(record.get("governance_merge_commit_sha")) not in frozen_revisions
-        and _lower_sha(record.get("approved_code_revision")) not in frozen_revisions,
+        _lower_sha(record.get("governance_baseline_commit_sha"))
+        not in frozen_revisions
+        and _lower_sha(record.get("approved_implementation_commit_sha"))
+        not in frozen_revisions,
         "diagnostic_scope_reuses_training_activation",
         "A diagnostic scope cannot reuse the frozen training governance merge "
-        "or activation revision; a separate ratification and code revision are required.",
-        field="approved_code_revision",
+        "or activation revision as its G2/I2 baselines; a separate ratification "
+        "and approved implementation revision are required.",
+        field="governance_baseline_commit_sha",
     )
     _require(
         tuple(record.get("approved_operations", ())) == DIAGNOSTIC_ALLOWED_OPERATIONS,
@@ -837,23 +940,332 @@ def _git(repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[Any]:
     )
 
 
+def _git_bytes(
+    repo_root: Path, args: list[str]
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=str(repo_root),
+        capture_output=True,
+        check=False,
+    )
+
+
+def _committed_source(repo_root: Path, revision: str) -> bytes:
+    """Read the exact tracked bytes of the registry file at ``revision``."""
+    proc = _git_bytes(
+        repo_root, ["show", f"{revision}:{DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH}"]
+    )
+    _require(
+        proc.returncode == 0,
+        "diagnostic_activation_git_evidence_unavailable",
+        "Could not read the committed activation registry source via git.",
+        field=DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH,
+    )
+    return proc.stdout
+
+
+_REGISTRY_MASK: Final[bytes] = b"__DIAGNOSTIC_ACTIVATION_RECORD__"
+
+
+def _registry_value_span(source: bytes) -> tuple[ast.Dict, int, int]:
+    """Locate the single literal registry assignment and its byte span."""
+    try:
+        tree = ast.parse(source.decode("utf-8"))
+    except (UnicodeDecodeError, SyntaxError, ValueError) as exc:
+        raise DiagnosticScopeError(
+            "diagnostic_registry_source_unparsable",
+            "The committed activation registry source is not parseable Python.",
+            field=DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH,
+        ) from exc
+    found: list[ast.Dict] = []
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == DIAGNOSTIC_REGISTRY_SYMBOL
+            and isinstance(node.value, ast.Dict)
+        ):
+            found.append(node.value)
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == DIAGNOSTIC_REGISTRY_SYMBOL
+            and isinstance(node.value, ast.Dict)
+        ):
+            found.append(node.value)
+    _require(
+        len(found) == 1,
+        "diagnostic_registry_source_unparsable",
+        "The committed registry source must contain exactly one literal dict "
+        f"assignment to {DIAGNOSTIC_REGISTRY_SYMBOL}.",
+        field=DIAGNOSTIC_REGISTRY_SYMBOL,
+    )
+    value = found[0]
+    # ast line/column offsets are UTF-8 BYTE offsets, so splice on bytes.
+    lines = source.splitlines(keepends=True)
+    try:
+        start = sum(len(line) for line in lines[: value.lineno - 1]) + value.col_offset
+        end = (
+            sum(len(line) for line in lines[: value.end_lineno - 1])
+            + value.end_col_offset
+        )
+    except (IndexError, TypeError, AttributeError) as exc:
+        raise DiagnosticScopeError(
+            "diagnostic_registry_source_unparsable",
+            "Could not resolve the registry assignment source span.",
+            field=DIAGNOSTIC_REGISTRY_SYMBOL,
+        ) from exc
+    _require(
+        0 <= start < end <= len(source),
+        "diagnostic_registry_source_unparsable",
+        "The registry assignment source span is out of bounds.",
+        field=DIAGNOSTIC_REGISTRY_SYMBOL,
+    )
+    return value, start, end
+
+
+def _parse_committed_registry(source: bytes) -> tuple[dict[str, Any], bytes]:
+    """Return (literal registry, source with ONLY the registry value masked)."""
+    value, start, end = _registry_value_span(source)
+    try:
+        literal = ast.literal_eval(value)
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError) as exc:
+        raise DiagnosticScopeError(
+            "diagnostic_registry_literal_invalid",
+            "The committed activation registry must be a plain literal dict "
+            "(no names, calls, or computed values).",
+            field=DIAGNOSTIC_REGISTRY_SYMBOL,
+        ) from exc
+    _require(
+        isinstance(literal, dict),
+        "diagnostic_registry_literal_invalid",
+        "The committed activation registry literal must be a dict.",
+        field=DIAGNOSTIC_REGISTRY_SYMBOL,
+    )
+    masked = source[:start] + _REGISTRY_MASK + source[end:]
+    return literal, masked
+
+
+def _changed_paths(repo_root: Path, first: str, second: str) -> list[str]:
+    proc = _git(
+        repo_root, ["diff", "--name-only", "--no-renames", first, second, "--"]
+    )
+    _require(
+        proc.returncode == 0,
+        "diagnostic_activation_git_evidence_unavailable",
+        "Could not inspect a committed diff via git.",
+        field="repo_root",
+    )
+    return sorted(
+        line.strip().replace("\\", "/")
+        for line in proc.stdout.splitlines()
+        if line.strip()
+    )
+
+
+def _verify_activation_revision_binding(
+    *,
+    repo_root: Path,
+    governance_baseline: str,
+    implementation_revision: str,
+    activation_revision: str,
+    governance_document_relative_path: str,
+    governance_document_sha256: str,
+    scope_id: str,
+) -> str:
+    """Prove a realizable G2 -> A2 registry-only activation; return resolved HEAD.
+
+    The tracked registry at A2 contains only previously known values. A2 itself
+    is supplied by the ignored local operator authorization and is checked
+    against the independently resolved Git HEAD. No tracked field names A2.
+    """
+    root = Path(repo_root)
+
+    # 1. HEAD is resolved by git, never accepted from a caller or manifest.
+    head_proc = _git(root, ["rev-parse", "HEAD"])
+    head = head_proc.stdout.strip().lower() if head_proc.returncode == 0 else ""
+    _require(
+        bool(_GIT_SHA_RE.fullmatch(head)) and head == activation_revision,
+        "diagnostic_activation_revision_mismatch",
+        "Independently resolved HEAD does not equal the locally declared A2 "
+        "activation revision; refusing to execute.",
+        field="activation_merge_commit_sha",
+    )
+
+    # 2. Clean tracked worktree (staged, unstaged, and status).
+    status_proc = _git(root, ["status", "--porcelain", "--untracked-files=no"])
+    _require(
+        status_proc.returncode == 0 and not status_proc.stdout.strip(),
+        "diagnostic_worktree_not_clean",
+        "Tracked worktree files are not clean at the A2 activation revision.",
+        field="repo_root",
+    )
+    for args in (["diff", "--quiet"], ["diff", "--cached", "--quiet"]):
+        quiet = _git(root, args)
+        _require(
+            quiet.returncode == 0,
+            "diagnostic_worktree_not_clean",
+            "Tracked worktree or index contains uncommitted changes at A2.",
+            field="repo_root",
+        )
+
+    # 3. I2 (approved implementation) and G2 (governance baseline) exist.
+    for label, sha, missing_code in (
+        ("approved implementation revision I2", implementation_revision,
+         "diagnostic_implementation_baseline_missing"),
+        ("governance baseline G2", governance_baseline,
+         "diagnostic_governance_baseline_missing"),
+    ):
+        cat = _git(root, ["cat-file", "-e", f"{sha}^{{commit}}"])
+        _require(
+            cat.returncode == 0,
+            missing_code,
+            f"The trusted {label} is absent from local Git history.",
+            field=sha[:12],
+        )
+
+    # 4. I2 is an ancestor of G2 and only documentation changed in between:
+    #    the executing implementation is the reviewed implementation.
+    impl_ancestor = _git(
+        root, ["merge-base", "--is-ancestor", implementation_revision, governance_baseline]
+    )
+    _require(
+        impl_ancestor.returncode == 0,
+        "diagnostic_implementation_ancestry_failed",
+        "The approved implementation revision I2 is not an ancestor of the "
+        "governance baseline G2.",
+        field="approved_implementation_commit_sha",
+    )
+    impl_to_baseline = _changed_paths(root, implementation_revision, governance_baseline)
+    _require(
+        all(
+            path.startswith(DIAGNOSTIC_IMPLEMENTATION_DOCUMENT_ONLY_PREFIX)
+            for path in impl_to_baseline
+        ),
+        "diagnostic_implementation_modified_after_approval",
+        "Implementation code changed between the approved implementation "
+        "revision I2 and the governance baseline G2.",
+        field="approved_implementation_commit_sha",
+    )
+
+    # 5. G2 is an ancestor of the executing HEAD (A2).
+    ancestor = _git(root, ["merge-base", "--is-ancestor", governance_baseline, head])
+    _require(
+        ancestor.returncode == 0,
+        "diagnostic_governance_ancestry_failed",
+        "The trusted governance baseline G2 is not an ancestor of HEAD.",
+        field="governance_baseline_commit_sha",
+    )
+
+    # 6. G2 -> A2 changed ONLY ai/diagnostic_scope.py, as a modification.
+    name_status = _git(
+        root, ["diff", "--name-status", "--no-renames", governance_baseline, head, "--"]
+    )
+    _require(
+        name_status.returncode == 0,
+        "diagnostic_activation_git_evidence_unavailable",
+        "Could not inspect the governance-to-activation diff via git.",
+        field="repo_root",
+    )
+    diff_lines = [line for line in name_status.stdout.splitlines() if line.strip()]
+    _require(
+        diff_lines
+        == [f"M\t{DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH}"],
+        "diagnostic_activation_diff_not_registry_only",
+        "The G2 -> A2 diff is not exactly one modification of "
+        f"{DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH}; training, inference, "
+        "CLI, security or unrelated changes are prohibited in the activation commit.",
+        field=DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH,
+    )
+
+    # 7. The content change inside that file is EXACTLY the registry activation.
+    baseline_source = _committed_source(root, governance_baseline)
+    head_source = _committed_source(root, head)
+    baseline_literal, baseline_masked = _parse_committed_registry(baseline_source)
+    head_literal, head_masked = _parse_committed_registry(head_source)
+    _require(
+        baseline_literal == {},
+        "diagnostic_registry_baseline_not_empty",
+        "The registry at G2 must be empty; activation is a single "
+        "unactivated -> one-record transition, not a rewrite of an old scope.",
+        field="governance_baseline_commit_sha",
+    )
+    _require(
+        set(head_literal) == {scope_id},
+        "diagnostic_registry_activation_not_single_scope",
+        "The committed A2 registry must contain exactly the single ratified scope.",
+        field=DIAGNOSTIC_REGISTRY_SYMBOL,
+    )
+    _require(
+        baseline_masked == head_masked,
+        "diagnostic_registry_content_change_unapproved",
+        "The activation commit modified code other than the registry value "
+        "inside ai/diagnostic_scope.py; security/validation logic must not change.",
+        field=DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH,
+    )
+    _require(
+        dict(head_literal) == dict(RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES),
+        "diagnostic_registry_live_state_mismatch",
+        "The in-process trusted registry does not equal the literal registry "
+        "committed at HEAD; runtime registry injection is refused.",
+        field=DIAGNOSTIC_REGISTRY_SYMBOL,
+    )
+    # Belt-and-braces: the tracked registry source at A2 must not contain the
+    # A2 commit SHA anywhere (field, comment, or string). A2 is local-only.
+    _require(
+        head.encode("ascii") not in head_source,
+        "diagnostic_scope_registry_self_referential",
+        "The tracked activation registry source contains its own A2 commit "
+        "SHA; the self-referential activation design is prohibited.",
+        field=DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH,
+    )
+
+    # 8. The ratified governance document's EXACT bytes at G2.
+    doc_proc = _git_bytes(
+        root, ["show", f"{governance_baseline}:{governance_document_relative_path}"]
+    )
+    _require(
+        doc_proc.returncode == 0,
+        "diagnostic_governance_document_missing",
+        "The ratified governance document is absent at the G2 baseline commit.",
+        field="governance_document_relative_path",
+    )
+    actual_doc_sha = hashlib.sha256(doc_proc.stdout).hexdigest()
+    _require(
+        actual_doc_sha == governance_document_sha256,
+        "diagnostic_governance_document_hash_mismatch",
+        "The governance document bytes at G2 do not match the frozen ratified "
+        "SHA-256.",
+        field="frozen_governance_document_sha256",
+    )
+    return head
+
+
 def validate_diagnostic_scope(
     doc: Mapping[str, Any], *, repo_root: Path = REPOSITORY_ROOT
 ) -> DiagnosticScopeContext:
-    """Verify the independently ratified scope and return its exact bindings.
+    """Verify the independently ratified scope and its realizable activation.
 
     Fails closed FIRST on the empty trusted registry (no Git, bundle, or model
-    work is attempted). Then checks every manifest claim against the trusted
-    record, and independently verifies local Git evidence:
+    work is attempted). Then checks every local authorization claim against the
+    reviewed registry record, and independently verifies local Git evidence for
+    the G2 -> A2 registry-only activation:
 
-    * governance merge commit exists and is an ancestor of the executing HEAD;
-    * the exact ratified governance document bytes at that merge match the
-      frozen SHA-256;
-    * the independently resolved HEAD equals ``approved_code_revision`` and the
-      tracked worktree is clean.
+    * I2 (approved implementation) is an ancestor of G2 with only documentation
+      changed in between;
+    * G2 (governance baseline) exists, is an ancestor of HEAD, and carries the
+      exact ratified governance-document bytes;
+    * HEAD is resolved by git and equals A2 from the ignored local operator
+      authorization, with a clean tracked worktree;
+    * the G2 -> A2 diff modifies only ``ai/diagnostic_scope.py``, and the only
+      change inside it is the empty-registry -> one-record activation;
+    * the literal registry committed at HEAD equals the in-process registry.
 
-    GitHub comment authenticity, PR merged state, human intent, and signature
-    authority remain human-only evidence; see the scope document.
+    A2 is NEVER stored in a tracked file, so no commit needs to contain its own
+    SHA. GitHub comment authenticity, PR merged state, human intent, and
+    signature authority remain human-only evidence; see the scope document.
     """
     _require(
         isinstance(doc, Mapping),
@@ -875,18 +1287,26 @@ def validate_diagnostic_scope(
         RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES[scope_id], scope_id=scope_id
     )
 
+    # Every claim that CAN be checked against the reviewed tracked record is
+    # checked. ``activation_merge_commit_sha`` (A2) is deliberately absent: it
+    # is local-only evidence and is verified against independently resolved HEAD.
     comparisons: tuple[tuple[str, Any, Any], ...] = (
         ("governance_pr_number", doc.get("governance_pr_number"),
          trusted["governance_pr_number"]),
-        ("governance_merge_commit_sha", _lower_sha(doc.get("governance_merge_commit_sha")),
-         _lower_sha(trusted["governance_merge_commit_sha"])),
-        ("approved_code_revision", _lower_sha(doc.get("approved_code_revision")),
-         _lower_sha(trusted["approved_code_revision"])),
-        ("activation_merge_commit_sha", _lower_sha(doc.get("activation_merge_commit_sha")),
-         _lower_sha(trusted["approved_code_revision"])),
-        ("governance_document_relative_path", doc.get("governance_document_relative_path"),
+        ("governance_baseline_commit_sha",
+         _lower_sha(doc.get("governance_baseline_commit_sha")),
+         _lower_sha(trusted["governance_baseline_commit_sha"])),
+        ("approved_implementation_commit_sha",
+         _lower_sha(doc.get("approved_implementation_commit_sha")),
+         _lower_sha(trusted["approved_implementation_commit_sha"])),
+        ("activation_registry_relative_path",
+         doc.get("activation_registry_relative_path"),
+         DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH),
+        ("governance_document_relative_path",
+         doc.get("governance_document_relative_path"),
          trusted["governance_document_relative_path"]),
-        ("frozen_governance_document_sha256", _lower_sha(doc.get("frozen_governance_document_sha256")),
+        ("frozen_governance_document_sha256",
+         _lower_sha(doc.get("frozen_governance_document_sha256")),
          _lower_sha(trusted["frozen_governance_document_sha256"])),
         ("ratified_by", doc.get("ratified_by"), trusted["ratified_by"]),
         ("ratification_comment_exact", doc.get("ratification_comment_exact"),
@@ -907,68 +1327,33 @@ def validate_diagnostic_scope(
             field=name,
         )
 
-    root = Path(repo_root)
-    g_sha = _lower_sha(trusted["governance_merge_commit_sha"])
-    approved_rev = _lower_sha(trusted["approved_code_revision"])
+    g2 = _lower_sha(trusted["governance_baseline_commit_sha"])
+    i2 = _lower_sha(trusted["approved_implementation_commit_sha"])
+    a2 = _lower_sha(doc.get("activation_merge_commit_sha"))
     doc_rel = str(trusted["governance_document_relative_path"])
     doc_sha = _lower_sha(trusted["frozen_governance_document_sha256"])
-
-    cat = _git(root, ["cat-file", "-e", f"{g_sha}^{{commit}}"])
     _require(
-        cat.returncode == 0,
-        "diagnostic_governance_commit_missing",
-        "The ratified governance merge commit is absent from local Git history.",
-        field="governance_merge_commit_sha",
+        bool(_GIT_SHA_RE.fullmatch(a2)),
+        "diagnostic_git_evidence_malformed",
+        "activation_merge_commit_sha (A2) must be a 40-hex lowercase Git SHA.",
+        field="activation_merge_commit_sha",
     )
-    head_proc = _git(root, ["rev-parse", "HEAD"])
-    head = head_proc.stdout.strip().lower() if head_proc.returncode == 0 else ""
-    _require(
-        bool(_GIT_SHA_RE.fullmatch(head)) and head == approved_rev,
-        "diagnostic_execution_revision_mismatch",
-        "The independently resolved HEAD is not the reviewed, approved code "
-        "revision for this diagnostic scope; refusing to execute.",
-        field="approved_code_revision",
-    )
-    status_proc = _git(root, ["status", "--porcelain", "--untracked-files=no"])
-    _require(
-        status_proc.returncode == 0 and not status_proc.stdout.strip(),
-        "diagnostic_worktree_not_clean",
-        "Tracked worktree files are not clean at the approved code revision.",
-        field="repo_root",
-    )
-    ancestor = _git(root, ["merge-base", "--is-ancestor", g_sha, head])
-    _require(
-        ancestor.returncode == 0,
-        "diagnostic_governance_ancestry_failed",
-        "The ratified governance merge is not an ancestor of the executing HEAD.",
-        field="governance_merge_commit_sha",
-    )
-    doc_proc = subprocess.run(
-        ["git", "show", f"{g_sha}:{doc_rel}"],
-        cwd=str(root),
-        capture_output=True,
-        check=False,
-    )
-    _require(
-        doc_proc.returncode == 0,
-        "diagnostic_governance_document_missing",
-        "The ratified governance document is absent at the governance merge commit.",
-        field="governance_document_relative_path",
-    )
-    actual_doc_sha = hashlib.sha256(doc_proc.stdout).hexdigest()
-    _require(
-        actual_doc_sha == doc_sha,
-        "diagnostic_governance_document_hash_mismatch",
-        "The governance document bytes at the merge do not match the frozen "
-        "ratified SHA-256.",
-        field="frozen_governance_document_sha256",
+    head = _verify_activation_revision_binding(
+        repo_root=Path(repo_root),
+        governance_baseline=g2,
+        implementation_revision=i2,
+        activation_revision=a2,
+        governance_document_relative_path=doc_rel,
+        governance_document_sha256=doc_sha,
+        scope_id=scope_id,
     )
 
     return DiagnosticScopeContext(
         scope_id=scope_id,
         governance_pr_number=int(trusted["governance_pr_number"]),
-        governance_merge_commit_sha=g_sha,
-        approved_code_revision=approved_rev,
+        governance_baseline_commit_sha=g2,
+        approved_implementation_commit_sha=i2,
+        activation_merge_commit_sha=head,
         governance_document_relative_path=doc_rel,
         frozen_governance_document_sha256=doc_sha,
         ratified_by=str(trusted["ratified_by"]),
@@ -999,10 +1384,12 @@ def authorize_diagnostic_scope(
 
 
 __all__ = [
+    "DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH",
     "DIAGNOSTIC_ALLOWED_OPERATIONS",
     "DIAGNOSTIC_AUTHORIZATION_SCHEMA_VERSION",
     "DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH",
     "DIAGNOSTIC_INTERFACE_VERSION",
+    "DIAGNOSTIC_REGISTRY_SYMBOL",
     "DIAGNOSTIC_MAX_RECORDS",
     "DIAGNOSTIC_OPERATOR_CONFIRMATION",
     "DIAGNOSTIC_SCOPE_ACTIVATION_TEMPLATE",
