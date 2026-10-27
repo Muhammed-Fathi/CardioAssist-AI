@@ -808,10 +808,48 @@ def test_cli_predict_blocks_frozen_d047_profile_bundle(
     assert calls == []
 
 
-def test_cli_never_populates_operational_registry_or_imports_execution() -> None:
-    from ai.execution import RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS
+def test_cli_preserves_activated_training_registry_and_never_imports_execution() -> None:
+    """Post-activation sentinel: G..A changed ONLY the trusted training registry.
 
-    assert RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS == {}
+    The pre-activation assertion ``registry == {}`` is obsolete after PR #58.
+    The security-correct expectation is that exactly the ratified, hash-bound
+    training amendment is present, that it does NOT authorize inference or
+    serving, and that this synthetic-only CLI still cannot import the guarded
+    execution path or load a real-provenance bundle.
+    """
+    from ai.execution import RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS
+    from ai.diagnostic_scope import RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES
+
+    amendment_id = "CAI-AMEND-AI2-CLEVELAND-D047-V1"
+    governance_merge = "7f4b7a50d7fd423914e5bd98ed2b525bddbfc627"
+    assert set(RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS) == {amendment_id}
+    record = RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS[amendment_id]
+    assert record["governance_pr_number"] == 54
+    assert record["governance_merge_commit_sha"] == governance_merge
+    assert record["approved_code_revision"] == governance_merge
+    assert record["approved_dataset_id"] == "DA-A2"
+    assert record["approved_panel_id"] == "da_a2_resting_v1"
+    assert record["frozen_source_sha256"] == (
+        "a74b7efa387bc9d108d7d0115d831fe9b414b29ae7124f331b622b4efa0427c8"
+    )
+    assert record["frozen_protocol_sha256"] == (
+        "96c26829ff73893dab8ee091b2eaea1592479a1e0528ae6832651a9688ea3c86"
+    )
+    assert record["frozen_amendment_document_sha256"] == (
+        "4c1d595534fd9a642a895cc59c01d4d81fbf5b84cf38ec3da5edcb7dd2d82890"
+    )
+    assert record["approved_operations"] == (
+        "persistent_model_packaging",
+        "patient_level_shap_background",
+    )
+    assert record["protected_output_root"] == "data/experiments"
+    assert record["ratification_comment_exact"] == (
+        "RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION"
+    )
+    # Activation of TRAINING scope never authorizes inference or serving.
+    assert not any("infer" in op or "serv" in op for op in record["approved_operations"])
+    assert RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES == {}
+
     tree = ast.parse((REPO_ROOT / "ai" / "cli.py").read_text(encoding="utf-8"))
     imported: set[str] = set()
     for node in ast.walk(tree):
@@ -820,7 +858,26 @@ def test_cli_never_populates_operational_registry_or_imports_execution() -> None
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported.add(node.module)
     assert "ai.execution" not in imported
+    assert "ai.diagnostic_inference" not in imported
+    assert "ai.diagnostic_scope" not in imported
     assert not {m.split(".")[0] for m in imported} & {"backend", "shap", "lime"}
+
+    # The general CLI remains closed to real-provenance bundles even though the
+    # training registry is activated.
+    real_shaped_manifest = {
+        "eligibility": {
+            "synthetic_only": False,
+            "execution_mode": "INTERNAL_EXPLORATORY_RESEARCH",
+        },
+        "research_authorization": {"governance_decision_id": "D-047"},
+        "model": {"execution_profile": EXECUTION_PROFILE_AI1_GENERIC_V1},
+    }
+    assessment = bundle_provenance_assessment(real_shaped_manifest)
+    assert assessment["provenance_cli_compatible"] is False
+    assert assessment["cli_block_code"] == "cli_real_provenance_bundle_not_supported"
+    with pytest.raises(BundleIntegrityError) as exc:
+        assert_cli_predict_supported(real_shaped_manifest)
+    assert exc.value.code == "cli_real_provenance_bundle_not_supported"
 
 
 # --------------------------------------------------------------------------- #

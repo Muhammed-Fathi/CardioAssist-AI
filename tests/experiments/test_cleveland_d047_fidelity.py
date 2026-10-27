@@ -1026,8 +1026,68 @@ def test_ai1_synthetic_calibration_and_shap_regression(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_production_operational_registry_remains_empty() -> None:
-    assert execution_mod.RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS == {}
+def test_ratified_operational_registry_is_exactly_activated_training_amendment(
+    tmp_path: Path,
+) -> None:
+    """Post-activation replacement for the obsolete 'registry is empty' sentinel.
+
+    PR #58 activated exactly one ratified amendment by a registry-only change
+    at A. Security-correct expectations now are: exactly that record, every
+    frozen binding intact, no inferred inference/serving operation, no new
+    diagnostic scope, and the guarded wrapper still refusing to run without
+    its explicit operator confirmation at this (post-A) development revision.
+    """
+    registry = execution_mod.RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS
+    amendment_id = "CAI-AMEND-AI2-CLEVELAND-D047-V1"
+    g = "7f4b7a50d7fd423914e5bd98ed2b525bddbfc627"
+    a = "1c29c83cd07fcb0510ac37e185323c231b267670"
+    assert set(registry) == {amendment_id}
+    record = registry[amendment_id]
+    assert record["governance_pr_number"] == 54
+    assert record["governance_merge_commit_sha"] == g
+    assert record["approved_code_revision"] == g
+    assert record["approved_dataset_id"] == "DA-A2"
+    assert record["approved_panel_id"] == "da_a2_resting_v1"
+    assert len(record["frozen_source_sha256"]) == 64
+    assert len(record["frozen_protocol_sha256"]) == 64
+    assert len(record["frozen_amendment_document_sha256"]) == 64
+    assert record["amendment_document_relative_path"] == (
+        "docs/research/gate-pt/17_ai2_operational_scope_amendment.md"
+    )
+    assert record["approved_operations"] == (
+        "persistent_model_packaging",
+        "patient_level_shap_background",
+    )
+    assert record["protected_output_root"] == "data/experiments"
+    assert record["ratified_by"] == "Muhammed Fathi"
+    assert record["ratification_comment_exact"] == (
+        "RATIFY-AI2-OPERATIONAL-SCOPE-EXPANSION"
+    )
+    assert not any("infer" in op or "serv" in op for op in record["approved_operations"])
+
+    from ai.diagnostic_scope import (
+        FROZEN_TRAINING_REVISION_A,
+        RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES,
+    )
+
+    assert FROZEN_TRAINING_REVISION_A == a
+    # The accepted bundle remains inference-prohibited until a NEW, separately
+    # ratified and activated scope exists. Training activation is not enough.
+    assert RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES == {}
+
+    # Activation does not auto-authorize another training run either: the
+    # wrapper still requires the exact operator confirmation before preflight.
+    with pytest.raises(ExecutionAuthorizationError) as exc:
+        execute_guarded_cleveland_d047_run(
+            source_path=tmp_path / "processed.cleveland.data",
+            manifest_path=tmp_path / "manifest.json",
+            panel_id="da_a2_resting_v1",
+            output_bundle_dir=tmp_path / "out_bundle",
+            repo_root=REPO_ROOT,
+            training_config=None,
+            operator_confirmation=None,
+        )
+    assert exc.value.code == "guarded_wrapper_operator_confirmation_required"
 
 
 def test_guarded_wrapper_rejects_panel_config_and_confirmation_before_preflight(
