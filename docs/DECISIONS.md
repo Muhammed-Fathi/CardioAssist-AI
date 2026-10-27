@@ -227,73 +227,127 @@ A separate governance proposal to add a **single-dataset, source-specific** inte
 
 ---
 
-## D-049 — Proposed bounded offline diagnostic inference scope (PROPOSED; NOT AUTHORIZED)
+## D-049 — Bounded offline diagnostic inference scope (ratified at `G2` for `I2`; `G3` re-baseline PROPOSED; NOT ACTIVATED)
 
-**Proposed date:** 2026-10-27; **status:** `PROPOSED_NOT_AUTHORIZED`; **supersedes
-no prior decision and changes no existing gate status.** Details and exact
-bindings: [Gate PT doc 18](research/gate-pt/18_bounded_offline_diagnostic_inference_scope.md);
+**Originating proposal:** 2026-10-27 (PR #60). **Historical ratification:** the
+scope enumerated below was ratified by the repository owner on 2026-10-27 in PR
+#60 (exact comment
+`RATIFY-BOUNDED-OFFLINE-DIAGNOSTIC-INFERENCE-SCOPE`,
+<https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/60#issuecomment-6442269752>,
+posted 2026-10-27T12:48:25Z; PR merged 12:48:38Z), producing governance baseline
+`G2 = 44f06091602f66078726fcc3b62b6ee1305abd83`. **Current status of the `G3`
+re-baseline recorded here:** `PROPOSED_NOT_RATIFIED` — awaiting a **NEW** explicit
+owner ratification of this revised text on a new governance PR. **Activation
+status:** `NOT_ACTIVATED`; no activation revision exists and **no real-bundle
+diagnostic inference has ever been executed**. This revision supersedes no prior
+decision and changes no existing gate status. Details and exact bindings:
+[Gate PT doc 18](research/gate-pt/18_bounded_offline_diagnostic_inference_scope.md);
 security review and gated Windows procedure:
 [Gate PT doc 19](research/gate-pt/19_offline_diagnostic_inference_security_review_and_runbook.md).
 
-- **G2 preparation baseline:** AI-6.1 PR #59 is MERGED. Approved implementation
-  `I2 = 40b544be79acc9099e565a0ede183e9b376a238f`; this docs-only proposal
-  does not reopen engineering approval or grant operational permission.
-- **Exact accepted artifact:** `cai_real_cleveland_d047_20261027T070610Z_deffa577`;
-  maintainer-computed `manifest.json` SHA-256
+**Three states that must not be conflated:**
+
+1. **Historical scope decision — RATIFIED (`G2`, PR #60).** The owner really did
+   ratify the operation in §"Proposed single new operation" for the `G2`
+   document text, bound to approved implementation revision
+   `I2 = 40b544be79acc9099e565a0ede183e9b376a238f`. This is a real prior decision
+   and is recorded as such, with its evidence link above.
+2. **Test repair — MERGED (`I3`, PR #62).** Merge commit
+   `I3 = 87bccd6d3ef2331f1e2b2ba8905f34366734538d`. `G2..I3` is **tests only**
+   (six files under `tests/experiments/`); production runtime code, the frozen
+   training registry, the synthetic-only CLI, workflows, examples and the
+   diagnostic registry are unchanged, and
+   `RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES` is still `{}` at `I3`. `I3` is the new
+   approved implementation/test baseline.
+3. **`G3` re-baseline — PROPOSED (this PR).** Docs only. It proposes binding the
+   same narrow operation to `I3` and to this document's own bytes at the future
+   `G3` merge. **It is not ratified by PR #60's comment**; that comment approved
+   an earlier revision of the text and the `I2` baseline. Nothing in state 1 or 2
+   activates anything, and no `A3` exists.
+
+- **Why:** `AI2-OPERATIONAL-SCOPE-001` (ratified at `G`, activated at `A`)
+  authorized exactly `persistent_model_packaging` and
+  `patient_level_shap_background`. Its §9 prohibits any `ResearchCadPredictor` /
+  CLI / serving call on the accepted real bundle, including with synthetic
+  inputs. A training authorization is not an inference authorization; the
+  general `python -m ai` CLI stays synthetic-only.
+- **Exact accepted artifact (unchanged by this re-baseline):**
+  `cai_real_cleveland_d047_20261027T070610Z_deffa577`; maintainer-computed
+  `manifest.json` SHA-256
   `089f931be27be67606b9d2622beea54208976f1743a70909029619f50a6e5d4a`.
   Acceptance-marker presence, quarantine-marker absence, producer authentication
   and trusted local verification are maintainer-reported, not Arena-verified.
-- **Why:** `AI2-OPERATIONAL-SCOPE-001` (ratified at `G`, activated at `A`) authorized
-  exactly `persistent_model_packaging` and `patient_level_shap_background`. Its
-  §9 prohibits any `ResearchCadPredictor` / CLI / serving call on the accepted
-  real bundle, including with synthetic inputs. A training authorization is not an
-  inference authorization; the general `python -m ai` CLI stays synthetic-only.
-- **Proposed single new operation:** `offline_synthetic_input_diagnostic_inference`
-  on the ONE accepted bundle, using explicitly fabricated synthetic five-field
-  records, reusing existing validation, calibration, exact SHAP and registered
-  LIME quality checks. Maximum eight records per invocation; private Windows-local
-  offline execution only. No retraining, tuning, regeneration, serving, telemetry,
-  upload, bundle write, real patient input, or new clinical/performance claim.
-- **Independent gate:** a NEW empty trusted registry
-  (`ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`) plus a separate
-  guarded entry point. Until a separate maintainer ratification (`G2`) and a
-  separate registry-only activation (`A2`) exist, all real-bundle inference fails
-  closed with `diagnostic_scope_not_ratified`. Acceptance markers, HMAC
-  authentication, and the earlier training authorization cannot substitute.
-- **Three distinct revisions, no circular SHA:** `I2` is the approved
-  implementation revision, `G2` is the immutable governance baseline containing
-  the ratified document, and `A2` is the registry-only activation revision. A
-  commit cannot contain its own SHA-1 in tracked content, so the tracked
-  registry at `A2` contains ONLY previously known values (`I2`, `G2`, the
-  governance-document SHA-256 at `G2`, the exact operation/bundle identity and
-  the maintainer-supplied `manifest.json` SHA-256). `A2` is recorded ONLY in the
-  ignored local operator authorization document after the merge and is checked
-  at runtime against independently resolved `git rev-parse HEAD`.
-- **Two-step human activation:** (1) exact owner ratification comment and merge of
-  the governance proposal producing `G2`; (2) a separate registry-only PR
-  producing `A2` whose `G2..A2` diff modifies only
+  No bundle, key, or dataset is touched by this PR.
+- **Proposed single new operation (scope identical in `G2` and `G3`):**
+  `offline_synthetic_input_diagnostic_inference` on the ONE accepted bundle,
+  using explicitly fabricated synthetic five-field records over
+  `da_a2_resting_v1` (`age`, `sex`, `cp`, `trestbps`, `restecg`), reusing
+  existing validation, calibration, exact SHAP and registered LIME quality
+  checks. Maximum eight records per invocation; private Windows-local offline
+  `RESEARCH_ONLY` execution only. No patient inputs, retraining, tuning,
+  recalibration, regeneration, bundle mutation, serving, telemetry, upload,
+  bundle write, or new clinical/performance claim.
+- **Independent gate:** a separate trusted registry
+  (`ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`), EMPTY at
+  `I3` and required to remain EMPTY at `G3`, plus a separate guarded entry point.
+  Until a **fresh** ratification (`G3`) and a separate registry-only activation
+  (`A3`) exist, all real-bundle inference fails closed with
+  `diagnostic_scope_not_ratified`. Acceptance markers, HMAC authentication, the
+  earlier training authorization, and the PR #60 comment cannot substitute.
+- **New revision sequence, no circular SHA:** `I3` is the approved
+  implementation/test revision (`approved_implementation_commit_sha`), `G3` is
+  the immutable governance baseline whose document bytes are bound
+  (`governance_baseline_commit_sha` + `frozen_governance_document_sha256`), and
+  `A3` is the registry-only activation revision (`activation_merge_commit_sha`,
+  present ONLY in the ignored local operator authorization). These are names for
+  a revision sequence, **not new schema fields**: the v1.1 validator, its
+  interface version and its field names are unchanged. A commit cannot contain
+  its own SHA-1 in tracked content, so the tracked registry at `A3` would contain
+  ONLY previously known values (`I3`, `G3`, the recomputed governance-document
+  SHA-256 at `G3`, the exact operation/bundle identity and the
+  maintainer-supplied `manifest.json` SHA-256). `A3` is recorded only in the
+  ignored local operator authorization after its merge and is checked at runtime
+  against independently resolved `git rev-parse HEAD`. Neither `G3` nor `A3` is
+  precomputed anywhere, and doc 18's own digest is never inserted into doc 18.
+- **Two-step human activation:** (1) a **new** exact owner ratification comment
+  on the new governance PR, after reviewing its final content, and a human merge
+  producing the actual `G3`; (2) a separate future registry-only PR based on
+  `G3` producing `A3`, whose `G3..A3` diff modifies only
   `ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES` (empty ->
-  exactly one literal record). Runtime additionally requires `I2` ancestry of
-  `G2` with documentation-only changes, `G2` ancestry of HEAD, a clean tracked
+  exactly one literal record). Runtime additionally requires `I3` ancestry of
+  `G3` with documentation-only changes, `G3` ancestry of HEAD, a clean tracked
   worktree, strict masked-source equality of the registry file, and equality of
   the committed literal registry with the in-process registry. Each invocation
-  additionally needs a human local operator authorization manifest (an
-  attestation, not a cryptographic signature) and the exact operator
-  confirmation phrase. Code cannot verify human authority or GitHub evidence.
-  A genuine committed `I2 -> G2 -> A2` pytest history proves the procedure is
+  additionally needs a private local operator authorization document (an
+  **attestation**, not a cryptographic signature) and the exact operator
+  confirmation phrase. Code cannot verify human authority or GitHub evidence. A
+  genuine committed `I3 -> G3 -> A3` pytest history proves the procedure is
   realizable; no registry state is invented by monkeypatch alone.
-- **Required human decision:** only the repository maintainer may post
-  `RATIFY-BOUNDED-OFFLINE-DIAGNOSTIC-INFERENCE-SCOPE` on the governance PR
-  after reviewing its exact scope, then merge after review. The agent must not
-  post that comment, self-ratify or merge. Obtain the actual full G2 merge SHA
-  from GitHub afterward and freeze doc 18's exact committed-byte SHA-256;
-  neither G2 nor A2 is precomputed. Registry remains EMPTY throughout G2.
-  The later A2 PR must start from G2, not merely from I2.
-- **Status on this PR:** PROPOSED only. No ratification comment, activation
-  registry entry, local operator manifest, human signature, real bundle, or real
-  inference exists in the repository or Arena. All test evidence is synthetic.
-  Gate PT P-1 remains PENDING and P-3 CLOSED; no supervisor, ethics,
-  institutional, clinical, or external-validation approval is claimed.
+- **Required human decision and exact handoff:** only the repository maintainer
+  may post `RATIFY-BOUNDED-OFFLINE-DIAGNOSTIC-INFERENCE-SCOPE` on this new
+  governance PR after reviewing its exact, final scope, then merge it. The agent
+  must not post that comment, self-ratify, or merge. The PR #60 comment
+  (<https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/60#issuecomment-6442269752>)
+  is historical evidence of the earlier decision only and must not be reused. If
+  substantive changes follow the new comment, review and renewed confirmation of
+  the revised content are required before merge. Only after the merge: read the
+  actual full `G3` merge SHA from GitHub, confirm `I3..G3` is docs-only and the
+  registry is still `{}`, then compute the SHA-256 of doc 18's **raw committed
+  bytes at `G3`** with no newline/encoding conversion. The historical digest of
+  the `G2` bytes must **not** be reused. The activation record must bind `I3`,
+  `G3`, this governance PR's number, the exact document hash, the owner identity
+  and exact comment, and the unchanged artifact identity. The `A3` PR must start
+  from `G3`, and runtime must use a clean checkout of exactly `A3`. PR #61's
+  `I2`/`G2` activation record is superseded for this route and must not be
+  merged.
+- **Status on this PR:** the historical ratification and the `I3` test repair are
+  recorded facts; the `G3` binding is PROPOSED only. This PR contains no new
+  ratification comment, no activation registry entry, no local operator
+  authorization, no human signature, no real bundle action, and no real
+  inference. All test evidence is synthetic. Gate PT P-1 remains PENDING and P-3
+  CLOSED; no supervisor, ethics, institutional, clinical, or external-validation
+  approval is claimed, and the broader multi-dataset strategy is untouched and
+  outside this PR.
 
 ---
 
