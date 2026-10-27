@@ -7,15 +7,18 @@ memory, packaged with the existing secure packager, then its manifest is
 re-signed with authorization-shaped metadata plus a post-run acceptance
 sidecar. All model bytes remain the synthetic test model.
 
-Similarly, a "ratified scope" is simulated with an isolated throwaway Git
-repository and a monkeypatched in-process registry whose values are labelled
-SYNTHETIC TEST SIMULATION. Nothing here is a human signature or approval.
+A "ratified scope" is simulated with a GENUINE committed I2 -> G2 -> A2 Git
+history in a throwaway repository: the registry record is really written into
+``ai/diagnostic_scope.py`` and committed at A2, and A2 is read from git only
+after that commit exists. Nothing here is a human signature or approval.
 """
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 from types import SimpleNamespace
 from typing import Any
@@ -24,6 +27,8 @@ import numpy as np
 
 from ai.diagnostic_inference import DIAGNOSTIC_INPUT_SCHEMA_VERSION
 from ai.diagnostic_scope import (
+    _parse_committed_registry,
+    DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH,
     DIAGNOSTIC_AUTHORIZATION_SCHEMA_VERSION,
     DIAGNOSTIC_ALLOWED_OPERATIONS,
     DIAGNOSTIC_ATTESTATION_TOKENS,
@@ -46,6 +51,8 @@ from ai.training import (
     ResearchTrainingConfig,
     train_research_model,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 FAST_DIAGNOSTIC_CONFIG = ResearchTrainingConfig(
     protocol_id="CAI-D047-CLEVELAND-EXPLORATORY-V1",
@@ -246,53 +253,50 @@ def make_simulated_accepted_bundle(
     )
 
 
-def make_scope_git_repo(
-    tmp_path: Path,
-    *,
-    doc_text: str = SYNTHETIC_GOVERNANCE_DOCUMENT,
-    include_doc: bool = True,
-) -> SimpleNamespace:
-    """Create G2 (governance) -> D (approved execution revision), clean HEAD."""
-    repo = Path(tmp_path) / "diagnostic_scope_repo"
-    repo.mkdir(parents=True, exist_ok=True)
+def _deep_update(base: dict[str, Any], changes: dict[str, Any] | None) -> dict[str, Any]:
+    out = deepcopy(base)
+    for key, value in (changes or {}).items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _deep_update(out[key], value)
+        else:
+            out[key] = value
+    return out
 
-    def git(*args: str) -> str:
-        proc = subprocess.run(
-            ["git", *args], cwd=str(repo), capture_output=True, text=True, check=True
-        )
-        return proc.stdout.strip()
 
-    git("init")
-    git("config", "user.name", "Synthetic Test Runner")
-    git("config", "user.email", "synthetic@example.test")
-    (repo / ".gitignore").write_text("data/\n", encoding="utf-8")
-    doc_path = repo / DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH
-    doc_path.parent.mkdir(parents=True, exist_ok=True)
-    if include_doc:
-        doc_path.write_text(doc_text, encoding="utf-8")
-    (repo / "README.md").write_text("synthetic governance baseline G2\n", encoding="utf-8")
-    git("add", ".")
-    git("commit", "-m", "synthetic governance G2 (not a real ratification)")
-    g_sha = git("rev-parse", "HEAD").lower()
-    doc_sha = hashlib.sha256(doc_text.encode("utf-8")).hexdigest()
-    (repo / "README.md").write_text(
-        "synthetic approved execution revision D\n", encoding="utf-8"
-    )
-    git("add", ".")
-    git("commit", "-m", "synthetic development revision D")
-    d_sha = git("rev-parse", "HEAD").lower()
-    return SimpleNamespace(
-        repo=repo, g_sha=g_sha, d_sha=d_sha, doc_sha=doc_sha, doc_path=doc_path
-    )
+def make_scope_record(
+    *, manifest_sha256: str, g2: str, i2: str, doc_sha: str
+) -> dict[str, Any]:
+    """Tracked registry record: contains ONLY values known BEFORE A2 exists."""
+    target = DIAGNOSTIC_TARGET_BUNDLE
+    return {
+        "governance_pr_number": 999,
+        "governance_baseline_commit_sha": g2,
+        "approved_implementation_commit_sha": i2,
+        "governance_document_relative_path": (
+            DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH
+        ),
+        "frozen_governance_document_sha256": doc_sha,
+        "ratified_by": "SYNTHETIC TEST SIMULATION - NOT A MAINTAINER",
+        "ratification_comment_exact": "SYNTHETIC-TEST-SCOPE-COMMENT",
+        "approved_operations": DIAGNOSTIC_ALLOWED_OPERATIONS,
+        "expected_manifest_sha256": manifest_sha256,
+        "expected_bundle_dir_name": target["expected_bundle_dir_name"],
+        "expected_source_sha256": target["expected_source_sha256"],
+        "expected_dataset_id": target["expected_dataset_id"],
+        "expected_panel_id": target["expected_panel_id"],
+        "expected_execution_profile": target["expected_execution_profile"],
+        "expected_model_family": target["expected_model_family"],
+        "expected_selected_c": target["expected_selected_c"],
+        "expected_model_id": target["expected_model_id"],
+        "expected_protocol_id": target["expected_protocol_id"],
+        "expected_model_version": target["expected_model_version"],
+    }
 
 
 def make_authorization_doc(
-    *,
-    manifest_sha256: str,
-    g_sha: str,
-    d_sha: str,
-    doc_sha: str,
+    *, manifest_sha256: str, g2: str, i2: str, a2: str, doc_sha: str
 ) -> dict[str, Any]:
+    """Ignored local operator authorization: A2 is known only AFTER the merge."""
     target = DIAGNOSTIC_TARGET_BUNDLE
     attestation = "_".join(DIAGNOSTIC_ATTESTATION_TOKENS)
     return {
@@ -300,9 +304,12 @@ def make_authorization_doc(
         "authorization_status": "AUTHORIZED_BY_LOCAL_OPERATOR",
         "scope_id": DIAGNOSTIC_SCOPE_ID,
         "governance_pr_number": 999,
-        "governance_merge_commit_sha": g_sha,
-        "approved_code_revision": d_sha,
-        "activation_merge_commit_sha": d_sha,
+        "governance_baseline_commit_sha": g2,
+        "approved_implementation_commit_sha": i2,
+        "activation_merge_commit_sha": a2,
+        "activation_registry_relative_path": (
+            DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH
+        ),
         "governance_document_relative_path": (
             DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH
         ),
@@ -346,30 +353,199 @@ def make_authorization_doc(
     }
 
 
-def make_scope_record(
-    *, manifest_sha256: str, g_sha: str, d_sha: str, doc_sha: str
-) -> dict[str, Any]:
-    target = DIAGNOSTIC_TARGET_BUNDLE
-    return {
-        "governance_pr_number": 999,
-        "governance_merge_commit_sha": g_sha,
-        "approved_code_revision": d_sha,
-        "governance_document_relative_path": (
-            DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH
+#: Exact single-line assignment that an activation commit may replace.
+_REGISTRY_ASSIGNMENT_RE = re.compile(
+    r"^RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES: dict\[str, dict\[str, Any\]\] = \{"
+    r"\}[ \t]*$",
+    flags=re.MULTILINE,
+)
+
+
+def _write_registry_source(repo: Path, source: str) -> None:
+    path = repo / DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(source, encoding="utf-8")
+
+
+def _with_registry_dict(source: str, registry: dict[str, Any]) -> str:
+    replacement = (
+        "RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES: dict[str, dict[str, Any]] = "
+        + repr(registry)
+    )
+    new_source, count = _REGISTRY_ASSIGNMENT_RE.subn(replacement, source, count=1)
+    assert count == 1, "the real registry assignment must be present exactly once"
+    return new_source
+
+
+def _with_registry_record(source: str, record: dict[str, Any]) -> str:
+    return _with_registry_dict(source, {DIAGNOSTIC_SCOPE_ID: record})
+
+
+def committed_registry_literal(repo: Path, revision: str) -> dict[str, Any]:
+    """Parse the ACTUAL committed registry literal with the production parser."""
+    proc = subprocess.run(
+        [
+            "git",
+            "show",
+            f"{revision}:{DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH}",
+        ],
+        cwd=str(repo),
+        capture_output=True,
+        check=True,
+    )
+    literal, _masked = _parse_committed_registry(proc.stdout)
+    return literal
+
+
+def build_activation_repo(
+    tmp_path: Path,
+    *,
+    manifest_sha256: str,
+    doc_text: str = SYNTHETIC_GOVERNANCE_DOCUMENT,
+    record_overrides: dict[str, Any] | None = None,
+    auth_overrides: dict[str, Any] | None = None,
+    baseline_not_ancestor: bool = False,
+    extra_activation_file: bool = False,
+    extra_registry_code: bool = False,
+    preexisting_registry: bool = False,
+    stale_head: bool = False,
+    dirty_worktree: bool = False,
+) -> SimpleNamespace:
+    """Create a GENUINE committed I2 -> G2 -> A2 activation history.
+
+    I2 freezes a copy of the reviewed implementation (with an empty registry).
+    G2 adds only documentation (the ratified governance document). A2 changes
+    ONLY the single registry assignment inside ``ai/diagnostic_scope.py``. A2 is
+    read from git AFTER the commit exists and is placed ONLY in the ignored
+    local operator authorization document. Nothing is self-referential.
+    """
+    repo = Path(tmp_path) / "diagnostic_activation_repo"
+    repo.mkdir(parents=True, exist_ok=True)
+
+    def git(*args: str) -> str:
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=str(repo),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return proc.stdout.strip()
+
+    git("init")
+    git("config", "user.name", "Synthetic Test Runner")
+    git("config", "user.email", "synthetic@example.test")
+    (repo / ".gitignore").write_text(
+        "data/\n__pycache__/\n*.pyc\n", encoding="utf-8"
+    )
+    original_source = (
+        REPO_ROOT / DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH
+    ).read_text(encoding="utf-8")
+    preexisting_scope = {"PREEXISTING_SCOPE": {"unauthorized": True}}
+    baseline_source = (
+        _with_registry_dict(original_source, preexisting_scope)
+        if preexisting_registry
+        else original_source
+    )
+    _write_registry_source(repo, baseline_source)
+    inference_source = (REPO_ROOT / "ai" / "diagnostic_inference.py").read_text(
+        encoding="utf-8"
+    )
+    (repo / "ai" / "diagnostic_inference.py").write_text(
+        inference_source, encoding="utf-8"
+    )
+    (repo / "README.md").write_text(
+        "synthetic approved diagnostic implementation I2\n", encoding="utf-8"
+    )
+    git("add", ".")
+    git("commit", "-m", "I2: approved diagnostic implementation (synthetic)")
+    i2 = git("rev-parse", "HEAD").lower()
+
+    # G2: governance baseline; only documentation changes after I2.
+    doc_path = repo / DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH
+    doc_path.parent.mkdir(parents=True, exist_ok=True)
+    doc_path.write_text(doc_text, encoding="utf-8")
+    decisions = repo / "docs" / "DECISIONS.md"
+    decisions.write_text("synthetic D-049 proposal (test only)\n", encoding="utf-8")
+    git("add", ".")
+    git("commit", "-m", "G2: ratified governance document (synthetic)")
+    g2 = git("rev-parse", "HEAD").lower()
+    doc_sha = hashlib.sha256(doc_text.encode("utf-8")).hexdigest()
+
+    # A dangling root commit exists in the object DB but is NOT an ancestor of
+    # HEAD; used to prove genuine ancestry checking (not just object existence).
+    tree_sha = git("write-tree")
+    dangling = subprocess.run(
+        ["git", "commit-tree", tree_sha, "-m", "unrelated dangling root"],
+        cwd=str(repo),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip().lower()
+
+    claimed_g2 = dangling if baseline_not_ancestor else g2
+    claimed_i2 = dangling if baseline_not_ancestor else i2
+    record = _deep_update(
+        make_scope_record(
+            manifest_sha256=manifest_sha256,
+            g2=claimed_g2,
+            i2=claimed_i2,
+            doc_sha=doc_sha,
         ),
-        "frozen_governance_document_sha256": doc_sha,
-        "ratified_by": "SYNTHETIC TEST SIMULATION - NOT A MAINTAINER",
-        "ratification_comment_exact": "SYNTHETIC-TEST-SCOPE-COMMENT",
-        "approved_operations": DIAGNOSTIC_ALLOWED_OPERATIONS,
-        "expected_manifest_sha256": manifest_sha256,
-        "expected_bundle_dir_name": target["expected_bundle_dir_name"],
-        "expected_source_sha256": target["expected_source_sha256"],
-        "expected_dataset_id": target["expected_dataset_id"],
-        "expected_panel_id": target["expected_panel_id"],
-        "expected_execution_profile": target["expected_execution_profile"],
-        "expected_model_family": target["expected_model_family"],
-        "expected_selected_c": target["expected_selected_c"],
-        "expected_model_id": target["expected_model_id"],
-        "expected_protocol_id": target["expected_protocol_id"],
-        "expected_model_version": target["expected_model_version"],
-    }
+        record_overrides,
+    )
+
+    # A2: registry-only change, using ONLY previously known I2/G2/doc/digest.
+    activated_registry: dict[str, Any] = {}
+    if preexisting_registry:
+        activated_registry.update(preexisting_scope)
+    activated_registry[DIAGNOSTIC_SCOPE_ID] = record
+    activated_source = _with_registry_dict(original_source, activated_registry)
+    if extra_registry_code:
+        activated_source += "\n# UNAPPROVED SECURITY LOGIC CHANGE\n"
+    _write_registry_source(repo, activated_source)
+    if extra_activation_file:
+        (repo / "ai" / "diagnostic_inference.py").write_text(
+            inference_source + "\n# UNAPPROVED INFERENCE CHANGE\n",
+            encoding="utf-8",
+        )
+    git("add", ".")
+    git("commit", "-m", "A2: registry-only diagnostic scope activation (synthetic)")
+    a2 = git("rev-parse", "HEAD").lower()  # obtained AFTER the commit exists
+    committed_literal = committed_registry_literal(repo, a2)
+
+    auth = _deep_update(
+        make_authorization_doc(
+            manifest_sha256=manifest_sha256,
+            g2=claimed_g2,
+            i2=claimed_i2,
+            a2=a2,
+            doc_sha=doc_sha,
+        ),
+        auth_overrides,
+    )
+    auth_path = write_private_json(
+        repo / "data" / "diagnostics" / "diagnostic_authorization.json", auth
+    )
+
+    if stale_head:
+        git("reset", "--hard", g2)
+    if dirty_worktree:
+        (repo / "README.md").write_text("dirty tracked file\n", encoding="utf-8")
+
+    return SimpleNamespace(
+        repo=repo,
+        i2=i2,
+        g2=g2,
+        a2=a2,
+        dangling=dangling,
+        head=git("rev-parse", "HEAD").lower(),
+        doc_sha=doc_sha,
+        doc_path=doc_path,
+        record=record,
+        auth=auth,
+        auth_path=auth_path,
+        committed_literal=committed_literal,
+        baseline_source=baseline_source,
+        activated_source=activated_source,
+    )

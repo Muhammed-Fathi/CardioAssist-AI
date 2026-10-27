@@ -251,14 +251,28 @@ security review and gated Windows procedure:
   separate registry-only activation (`A2`) exist, all real-bundle inference fails
   closed with `diagnostic_scope_not_ratified`. Acceptance markers, HMAC
   authentication, and the earlier training authorization cannot substitute.
+- **Three distinct revisions, no circular SHA:** `I2` is the approved
+  implementation revision, `G2` is the immutable governance baseline containing
+  the ratified document, and `A2` is the registry-only activation revision. A
+  commit cannot contain its own SHA-1 in tracked content, so the tracked
+  registry at `A2` contains ONLY previously known values (`I2`, `G2`, the
+  governance-document SHA-256 at `G2`, the exact operation/bundle identity and
+  the maintainer-supplied `manifest.json` SHA-256). `A2` is recorded ONLY in the
+  ignored local operator authorization document after the merge and is checked
+  at runtime against independently resolved `git rev-parse HEAD`.
 - **Two-step human activation:** (1) exact owner ratification comment and merge of
-  the governance proposal; (2) a separate registry-only PR pinning `G2`, the
-  clean approved execution revision `A2`, the frozen governance-document SHA-256,
-  the exact accepted bundle identity, and the maintainer-supplied
-  `manifest.json` SHA-256. Each invocation additionally needs a human local
-  operator authorization manifest (an attestation, not a cryptographic
-  signature) and the exact operator confirmation phrase. Code cannot verify
-  human authority or GitHub evidence.
+  the governance proposal producing `G2`; (2) a separate registry-only PR
+  producing `A2` whose `G2..A2` diff modifies only
+  `ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES` (empty ->
+  exactly one literal record). Runtime additionally requires `I2` ancestry of
+  `G2` with documentation-only changes, `G2` ancestry of HEAD, a clean tracked
+  worktree, strict masked-source equality of the registry file, and equality of
+  the committed literal registry with the in-process registry. Each invocation
+  additionally needs a human local operator authorization manifest (an
+  attestation, not a cryptographic signature) and the exact operator
+  confirmation phrase. Code cannot verify human authority or GitHub evidence.
+  A genuine committed `I2 -> G2 -> A2` pytest history proves the procedure is
+  realizable; no registry state is invented by monkeypatch alone.
 - **Status on this PR:** PROPOSED only. No ratification comment, activation
   registry entry, local operator manifest, human signature, real bundle, or real
   inference exists in the repository or Arena. All test evidence is synthetic.

@@ -1,15 +1,16 @@
 """Independent scope-authorization regressions for bounded offline diagnostics.
 
 SYNTHETIC TEST SIMULATIONS ONLY. No real bundle, dataset, patient record,
-maintainer comment, or human signature is present. A ratified scope is
-simulated with an in-process monkeypatched registry and a throwaway Git repo.
+maintainer comment, or human signature is present. Git evidence is produced by
+``diagnostic_fixtures.build_activation_repo`` as a genuine committed I2 -> G2 ->
+A2 history; the dedicated feasibility suite in
+``test_ai_diagnostic_activation_feasibility.py`` owns the full-history cases.
 The production registry is asserted EMPTY.
 """
 from __future__ import annotations
 
 import ast
 from copy import deepcopy
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -19,18 +20,22 @@ from typing import Any
 
 import pytest
 
-from ai import diagnostic_scope as ds
 from ai import diagnostic_inference as di
+from ai import diagnostic_scope as ds
 from ai.execution import RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS
 from ai.panels import DA_A2_RESTING_PANEL
 from tests.experiments import diagnostic_fixtures as fx
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SYNTHETIC_MANIFEST_SHA256 = "a" * 64
 
 
 @pytest.fixture(scope="module")
-def git_env(tmp_path_factory: pytest.TempPathFactory) -> SimpleNamespace:
-    return fx.make_scope_git_repo(tmp_path_factory.mktemp("diag_scope_git"))
+def activation_env(tmp_path_factory: pytest.TempPathFactory) -> SimpleNamespace:
+    return fx.build_activation_repo(
+        tmp_path_factory.mktemp("diag_scope_activation"),
+        manifest_sha256=SYNTHETIC_MANIFEST_SHA256,
+    )
 
 
 @pytest.fixture(scope="module")
@@ -40,21 +45,35 @@ def bundle_env(tmp_path_factory: pytest.TempPathFactory) -> SimpleNamespace:
     )
 
 
-def _auth(git_env: SimpleNamespace, manifest_sha256: str) -> dict[str, Any]:
+@pytest.fixture
+def activated(
+    monkeypatch: pytest.MonkeyPatch, activation_env: SimpleNamespace
+) -> SimpleNamespace:
+    """Install the EXACT committed A2 registry as the in-process registry."""
+    monkeypatch.setattr(
+        ds,
+        "RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES",
+        deepcopy(activation_env.committed_literal),
+    )
+    return activation_env
+
+
+def _auth(env: SimpleNamespace) -> dict[str, Any]:
     return fx.make_authorization_doc(
-        manifest_sha256=manifest_sha256,
-        g_sha=git_env.g_sha,
-        d_sha=git_env.d_sha,
-        doc_sha=git_env.doc_sha,
+        manifest_sha256=SYNTHETIC_MANIFEST_SHA256,
+        g2=env.g2,
+        i2=env.i2,
+        a2=env.a2,
+        doc_sha=env.doc_sha,
     )
 
 
-def _record(git_env: SimpleNamespace, manifest_sha256: str) -> dict[str, Any]:
+def _record(env: SimpleNamespace) -> dict[str, Any]:
     return fx.make_scope_record(
-        manifest_sha256=manifest_sha256,
-        g_sha=git_env.g_sha,
-        d_sha=git_env.d_sha,
-        doc_sha=git_env.doc_sha,
+        manifest_sha256=SYNTHETIC_MANIFEST_SHA256,
+        g2=env.g2,
+        i2=env.i2,
+        doc_sha=env.doc_sha,
     )
 
 
@@ -84,14 +103,14 @@ def _install_registry(
 
 
 def test_production_diagnostic_registry_is_empty_and_fails_closed(
-    git_env: SimpleNamespace,
+    activation_env: SimpleNamespace,
     bundle_env: SimpleNamespace,
     tmp_path: Path,
 ) -> None:
     assert ds.RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES == {}
     with pytest.raises(ds.DiagnosticScopeError) as exc:
         ds.validate_diagnostic_scope(
-            {"scope_id": ds.DIAGNOSTIC_SCOPE_ID}, repo_root=git_env.repo
+            {"scope_id": ds.DIAGNOSTIC_SCOPE_ID}, repo_root=activation_env.repo
         )
     assert exc.value.code == "diagnostic_scope_not_ratified"
 
@@ -99,8 +118,7 @@ def test_production_diagnostic_registry_is_empty_and_fails_closed(
     # the interface while the independent registry is empty; no bundle check,
     # deserialization, or inference is reached.
     auth_path = fx.write_private_json(
-        tmp_path / "private" / "authorization.json",
-        _auth(git_env, bundle_env.manifest_sha256),
+        tmp_path / "private" / "authorization.json", _auth(activation_env)
     )
     input_path = fx.write_private_json(
         tmp_path / "private" / "input.json", fx.make_input_doc()
@@ -122,7 +140,7 @@ def test_production_diagnostic_registry_is_empty_and_fails_closed(
                 input_path=input_path,
                 operator_confirmation=ds.DIAGNOSTIC_OPERATOR_CONFIRMATION,
                 signing_key=bundle_env.signing_key,
-                repo_root=git_env.repo,
+                repo_root=activation_env.repo,
             )
         assert run_exc.value.code == "diagnostic_scope_not_ratified"
         assert called == []
@@ -161,18 +179,40 @@ def test_frozen_bindings_match_activated_training_amendment_and_panel() -> None:
         == "c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8"
     )
     assert ds.DIAGNOSTIC_TARGET_BUNDLE["expected_ordered_feature_names"] == (
-        "age",
-        "sex",
-        "cp",
-        "trestbps",
-        "restecg",
+        "age", "sex", "cp", "trestbps", "restecg"
     )
     assert len(ds.DIAGNOSTIC_TARGET_BUNDLE["expected_ordered_feature_names"]) == 5
-    assert ds.DIAGNOSTIC_INTERFACE_VERSION.startswith(
-        "cardioassist.ai.bounded_offline_diagnostic_inference/v"
+    assert ds.DIAGNOSTIC_INTERFACE_VERSION == (
+        "cardioassist.ai.bounded_offline_diagnostic_inference/v1.1"
     )
-    assert ds.DIAGNOSTIC_SCOPE_ACTIVATION_TEMPLATE["governance_pr_number"] is None
-    assert ds.DIAGNOSTIC_SCOPE_ACTIVATION_TEMPLATE["expected_manifest_sha256"] is None
+    assert ds.DIAGNOSTIC_AUTHORIZATION_SCHEMA_VERSION == (
+        "cardioassist.ai.diagnostic_authorization/v1.1"
+    )
+
+
+def test_activation_template_has_no_self_referential_revision_field() -> None:
+    template = ds.DIAGNOSTIC_SCOPE_ACTIVATION_TEMPLATE
+    assert "governance_baseline_commit_sha" in template
+    assert "approved_implementation_commit_sha" in template
+    assert "governance_document_relative_path" in template
+    assert "frozen_governance_document_sha256" in template
+    assert "expected_manifest_sha256" in template
+    assert "approved_operations" in template
+    for forbidden in (
+        "approved_code_revision",
+        "activation_merge_commit_sha",
+        "activation_revision_commit_sha",
+    ):
+        assert forbidden not in template, (
+            f"tracked template must never contain {forbidden} (A2 circular SHA)"
+        )
+    assert template["governance_baseline_commit_sha"] is None
+    assert template["approved_implementation_commit_sha"] is None
+    assert template["expected_manifest_sha256"] is None
+    assert (
+        ds.DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH
+        == "ai/diagnostic_scope.py"
+    )
 
 
 def test_new_code_is_post_activation_and_frozen_execution_file_is_unchanged() -> None:
@@ -209,11 +249,11 @@ def test_new_code_is_post_activation_and_frozen_execution_file_is_unchanged() ->
 
 
 def test_valid_local_authorization_passes_shape_checks(
-    git_env: SimpleNamespace, bundle_env: SimpleNamespace
+    activation_env: SimpleNamespace,
 ) -> None:
-    doc = _auth(git_env, bundle_env.manifest_sha256)
     ds.validate_local_authorization(
-        doc, operator_confirmation=ds.DIAGNOSTIC_OPERATOR_CONFIRMATION
+        _auth(activation_env),
+        operator_confirmation=ds.DIAGNOSTIC_OPERATOR_CONFIRMATION,
     )
 
 
@@ -231,10 +271,11 @@ def test_valid_local_authorization_passes_shape_checks(
         ({"local_signed_at_iso8601": "not-a-date"}, "diagnostic_local_attestation_incomplete"),
         ({"local_signed_at_iso8601": "2026-10-27T00:00:00"}, "diagnostic_local_attestation_incomplete"),
         ({"local_signature_attestation": "unbounded"}, "diagnostic_local_attestation_incomplete"),
-        ({"governance_merge_commit_sha": "xyz"}, "diagnostic_git_evidence_malformed"),
-        ({"approved_code_revision": "abc"}, "diagnostic_git_evidence_malformed"),
+        ({"governance_baseline_commit_sha": "xyz"}, "diagnostic_git_evidence_malformed"),
+        ({"approved_implementation_commit_sha": "abc"}, "diagnostic_git_evidence_malformed"),
         ({"activation_merge_commit_sha": "def"}, "diagnostic_git_evidence_malformed"),
         ({"governance_pr_number": 0}, "diagnostic_git_evidence_malformed"),
+        ({"activation_registry_relative_path": "ai/other.py"}, "diagnostic_activation_registry_path_mismatch"),
         ({"governance_document_relative_path": "docs/other.md"}, "diagnostic_governance_document_path_mismatch"),
         ({"frozen_governance_document_sha256": "xyz"}, "diagnostic_governance_document_hash_malformed"),
         ({"ratified_by": "PLACEHOLDER"}, "diagnostic_ratification_evidence_incomplete"),
@@ -259,12 +300,11 @@ def test_valid_local_authorization_passes_shape_checks(
     ],
 )
 def test_local_authorization_negative_cases(
-    git_env: SimpleNamespace,
-    bundle_env: SimpleNamespace,
+    activation_env: SimpleNamespace,
     changes: dict[str, Any],
     expected_code: str,
 ) -> None:
-    doc = _deep_update(_auth(git_env, bundle_env.manifest_sha256), changes)
+    doc = _deep_update(_auth(activation_env), changes)
     with pytest.raises(ds.DiagnosticScopeError) as exc:
         ds.validate_local_authorization(
             doc, operator_confirmation=ds.DIAGNOSTIC_OPERATOR_CONFIRMATION
@@ -272,12 +312,27 @@ def test_local_authorization_negative_cases(
     assert exc.value.code == expected_code
 
 
-def test_local_authorization_requires_explicit_confirmation_argument(
-    git_env: SimpleNamespace, bundle_env: SimpleNamespace
+def test_activation_revision_must_be_distinct_from_the_two_baselines(
+    activation_env: SimpleNamespace,
 ) -> None:
-    doc = _auth(git_env, bundle_env.manifest_sha256)
+    doc = _deep_update(
+        _auth(activation_env),
+        {"activation_merge_commit_sha": activation_env.g2},
+    )
     with pytest.raises(ds.DiagnosticScopeError) as exc:
-        ds.validate_local_authorization(doc, operator_confirmation=None)
+        ds.validate_local_authorization(
+            doc, operator_confirmation=ds.DIAGNOSTIC_OPERATOR_CONFIRMATION
+        )
+    assert exc.value.code == "diagnostic_activation_revision_malformed"
+
+
+def test_local_authorization_requires_explicit_confirmation_argument(
+    activation_env: SimpleNamespace,
+) -> None:
+    with pytest.raises(ds.DiagnosticScopeError) as exc:
+        ds.validate_local_authorization(
+            _auth(activation_env), operator_confirmation=None
+        )
     assert exc.value.code == "diagnostic_operator_confirmation_required"
 
 
@@ -330,46 +385,48 @@ def test_local_authorization_file_rejects_symlink_and_oversize(
 
 
 def test_local_authorization_file_inside_checkout_must_be_git_ignored(
-    git_env: SimpleNamespace, bundle_env: SimpleNamespace
+    activation_env: SimpleNamespace,
 ) -> None:
     unignored = fx.write_private_json(
-        git_env.repo / "unignored_authorization.json",
-        _auth(git_env, bundle_env.manifest_sha256),
+        activation_env.repo / "unignored_authorization.json",
+        _auth(activation_env),
     )
     with pytest.raises(ds.DiagnosticScopeError) as exc:
-        ds.load_diagnostic_authorization(unignored, repo_root=git_env.repo)
+        ds.load_diagnostic_authorization(unignored, repo_root=activation_env.repo)
     assert exc.value.code == "diagnostic_local_file_not_git_ignored"
     ignored = fx.write_private_json(
-        git_env.repo / "data" / "diagnostics" / "ignored_authorization.json",
-        _auth(git_env, bundle_env.manifest_sha256),
+        activation_env.repo / "data" / "diagnostics" / "ignored_authorization.json",
+        _auth(activation_env),
     )
-    assert ds.load_diagnostic_authorization(ignored, repo_root=git_env.repo)
+    assert ds.load_diagnostic_authorization(ignored, repo_root=activation_env.repo)
 
 
 # --------------------------------------------------------------------------- #
-# 3. Independent ratification, trusted record, and Git evidence
+# 3. Independent ratification and trusted-record validation
 # --------------------------------------------------------------------------- #
 
 
 def test_ratified_scope_happy_path_returns_exact_bindings(
-    monkeypatch: pytest.MonkeyPatch,
-    git_env: SimpleNamespace,
-    bundle_env: SimpleNamespace,
+    activated: SimpleNamespace,
 ) -> None:
-    _install_registry(monkeypatch, _record(git_env, bundle_env.manifest_sha256))
     context = ds.authorize_diagnostic_scope(
-        _auth(git_env, bundle_env.manifest_sha256),
-        repo_root=git_env.repo,
+        _auth(activated),
+        repo_root=activated.repo,
         operator_confirmation=ds.DIAGNOSTIC_OPERATOR_CONFIRMATION,
     )
     assert context.scope_id == ds.DIAGNOSTIC_SCOPE_ID
+    assert context.governance_baseline_commit_sha == activated.g2
+    assert context.approved_implementation_commit_sha == activated.i2
+    assert context.activation_merge_commit_sha == activated.a2
     assert context.approved_operations == ds.DIAGNOSTIC_ALLOWED_OPERATIONS
-    assert context.expected_manifest_sha256 == bundle_env.manifest_sha256
+    assert context.expected_manifest_sha256 == SYNTHETIC_MANIFEST_SHA256
     assert context.expected_source_sha256 == (
         ds.DIAGNOSTIC_TARGET_BUNDLE["expected_source_sha256"]
     )
     assert context.expected_selected_c == 10.0
-    assert "expected_bundle_dir_name" in context.identity()
+    assert context.identity()["activation_registry_relative_path"] == (
+        ds.DIAGNOSTIC_ACTIVATION_REGISTRY_RELATIVE_PATH
+    )
 
 
 @pytest.mark.parametrize(
@@ -378,23 +435,23 @@ def test_ratified_scope_happy_path_returns_exact_bindings(
         ({"ratified_by": "someone-else"}, "diagnostic_scope_claim_mismatch"),
         ({"ratification_comment_exact": "different"}, "diagnostic_scope_claim_mismatch"),
         ({"governance_pr_number": 1}, "diagnostic_scope_claim_mismatch"),
-        ({"approved_code_revision": "0" * 40}, "diagnostic_scope_claim_mismatch"),
-        ({"activation_merge_commit_sha": "0" * 40}, "diagnostic_scope_claim_mismatch"),
+        ({"governance_baseline_commit_sha": "0" * 40}, "diagnostic_scope_claim_mismatch"),
+        ({"approved_implementation_commit_sha": "0" * 40}, "diagnostic_scope_claim_mismatch"),
+        ({"activation_registry_relative_path": "ai/other.py"}, "diagnostic_scope_claim_mismatch"),
         ({"bundle_identity": {"expected_manifest_sha256": "0" * 64}}, "diagnostic_scope_claim_mismatch"),
         ({"frozen_governance_document_sha256": "0" * 64}, "diagnostic_scope_claim_mismatch"),
     ],
 )
 def test_manifest_claims_cannot_override_trusted_record(
     monkeypatch: pytest.MonkeyPatch,
-    git_env: SimpleNamespace,
-    bundle_env: SimpleNamespace,
+    activated: SimpleNamespace,
     auth_changes: dict[str, Any],
     expected_code: str,
 ) -> None:
-    _install_registry(monkeypatch, _record(git_env, bundle_env.manifest_sha256))
-    doc = _deep_update(_auth(git_env, bundle_env.manifest_sha256), auth_changes)
+    _install_registry(monkeypatch, _record(activated))
+    doc = _deep_update(_auth(activated), auth_changes)
     with pytest.raises(ds.DiagnosticScopeError) as exc:
-        ds.validate_diagnostic_scope(doc, repo_root=git_env.repo)
+        ds.validate_diagnostic_scope(doc, repo_root=activated.repo)
     assert exc.value.code == expected_code
 
 
@@ -407,104 +464,68 @@ def test_manifest_claims_cannot_override_trusted_record(
         ({"expected_model_family": "constrained_random_forest"}, "diagnostic_scope_registry_entry_invalid"),
         ({"expected_source_sha256": "0" * 64}, "diagnostic_scope_registry_entry_invalid"),
         ({"expected_manifest_sha256": "PLACEHOLDER"}, "diagnostic_scope_registry_entry_invalid"),
-        ({"governance_merge_commit_sha": "PLACEHOLDER"}, "diagnostic_scope_registry_entry_invalid"),
+        ({"governance_baseline_commit_sha": "PLACEHOLDER"}, "diagnostic_scope_registry_entry_invalid"),
+        ({"approved_implementation_commit_sha": "PLACEHOLDER"}, "diagnostic_scope_registry_entry_invalid"),
         ({"ratified_by": ""}, "diagnostic_scope_registry_entry_invalid"),
         ({"expected_model_id": "another-model"}, "diagnostic_scope_registry_entry_invalid"),
-        ({"approved_code_revision": ds.FROZEN_TRAINING_REVISION_A}, "diagnostic_scope_reuses_training_activation"),
-        ({"governance_merge_commit_sha": ds.FROZEN_GOVERNANCE_MERGE_G}, "diagnostic_scope_reuses_training_activation"),
+        ({"activation_merge_commit_sha": "0" * 40}, "diagnostic_scope_registry_self_referential"),
+        ({"approved_code_revision": "0" * 40}, "diagnostic_scope_registry_self_referential"),
+        ({"activation_revision_commit_sha": "0" * 40}, "diagnostic_scope_registry_self_referential"),
+        ({"governance_baseline_commit_sha": ds.FROZEN_TRAINING_REVISION_A}, "diagnostic_scope_reuses_training_activation"),
+        ({"approved_implementation_commit_sha": ds.FROZEN_GOVERNANCE_MERGE_G}, "diagnostic_scope_reuses_training_activation"),
     ],
 )
 def test_trusted_record_cannot_bind_a_different_bundle_or_operation(
     monkeypatch: pytest.MonkeyPatch,
-    git_env: SimpleNamespace,
-    bundle_env: SimpleNamespace,
+    activation_env: SimpleNamespace,
     record_changes: dict[str, Any],
     expected_code: str,
 ) -> None:
-    record = _deep_update(_record(git_env, bundle_env.manifest_sha256), record_changes)
+    record = _deep_update(_record(activation_env), record_changes)
     _install_registry(monkeypatch, record)
     with pytest.raises(ds.DiagnosticScopeError) as exc:
         ds.validate_diagnostic_scope(
-            _auth(git_env, bundle_env.manifest_sha256), repo_root=git_env.repo
+            _auth(activation_env), repo_root=activation_env.repo
         )
     assert exc.value.code == expected_code
 
 
-def test_governance_commit_absent_or_not_ancestor_fails_closed(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    git_env = fx.make_scope_git_repo(tmp_path / "git_missing")
-    manifest_sha = "a" * 64
-    record = _record(git_env, manifest_sha)
-    record["governance_merge_commit_sha"] = "f" * 40
-    _install_registry(monkeypatch, record)
-    doc = _auth(git_env, manifest_sha)
-    doc["governance_merge_commit_sha"] = "f" * 40
-    with pytest.raises(ds.DiagnosticScopeError) as exc:
-        ds.validate_diagnostic_scope(doc, repo_root=git_env.repo)
-    assert exc.value.code == "diagnostic_governance_commit_missing"
+def test_registry_source_parser_rejects_computed_or_duplicate_assignments() -> None:
+    """The committed activation record must be a single plain literal dict."""
+    good = (
+        b"RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES: dict[str, dict[str, Any]] = {}\n"
+    )
+    literal, masked = ds._parse_committed_registry(good)
+    assert literal == {} and masked != good
+    activated_src = (
+        b"RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES: dict[str, dict[str, Any]] = "
+        b"{'SCOPE': {'op': 'x'}}\n"
+    )
+    literal2, masked2 = ds._parse_committed_registry(activated_src)
+    assert literal2 == {"SCOPE": {"op": "x"}}
+    assert masked == masked2, "only the literal value may differ between G2 and A2"
 
-
-def test_document_hash_mismatch_fails_closed(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    git_env = fx.make_scope_git_repo(tmp_path / "git_hash")
-    manifest_sha = "b" * 64
-    record = _record(git_env, manifest_sha)
-    record["frozen_governance_document_sha256"] = "0" * 64
-    _install_registry(monkeypatch, record)
-    doc = _auth(git_env, manifest_sha)
-    doc["frozen_governance_document_sha256"] = "0" * 64
-    with pytest.raises(ds.DiagnosticScopeError) as exc:
-        ds.validate_diagnostic_scope(doc, repo_root=git_env.repo)
-    assert exc.value.code == "diagnostic_governance_document_hash_mismatch"
-
-
-def test_governance_document_absent_at_merge_fails_closed(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    git_env = fx.make_scope_git_repo(tmp_path / "git_doc", include_doc=False)
-    manifest_sha = "c" * 64
-    _install_registry(monkeypatch, _record(git_env, manifest_sha))
-    with pytest.raises(ds.DiagnosticScopeError) as exc:
-        ds.validate_diagnostic_scope(
-            _auth(git_env, manifest_sha), repo_root=git_env.repo
+    with pytest.raises(ds.DiagnosticScopeError) as computed:
+        ds._parse_committed_registry(
+            b"RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES = dict(SCOPE={'op': 'x'})\n"
         )
-    assert exc.value.code == "diagnostic_governance_document_missing"
+    assert computed.value.code in {
+        "diagnostic_registry_source_unparsable",
+        "diagnostic_registry_literal_invalid",
+    }
+    with pytest.raises(ds.DiagnosticScopeError) as duplicate:
+        ds._parse_committed_registry(good + good)
+    assert duplicate.value.code == "diagnostic_registry_source_unparsable"
 
 
-def test_stale_or_dirty_execution_revision_fails_closed(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+def test_gitignore_and_changelog_keep_activation_registry_only(
+    activation_env: SimpleNamespace,
 ) -> None:
-    git_env = fx.make_scope_git_repo(tmp_path / "git_rev")
-    manifest_sha = "d" * 64
-    _install_registry(monkeypatch, _record(git_env, manifest_sha))
-    doc = _auth(git_env, manifest_sha)
-
-    # Move HEAD beyond the approved revision (clean, but different code).
-    extra = git_env.repo / "EXTRA.md"
-    extra.write_text("post-approval change\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "add", "."], cwd=str(git_env.repo), check=True, capture_output=True
-    )
-    subprocess.run(
-        ["git", "commit", "-m", "unreviewed later revision"],
-        cwd=str(git_env.repo), check=True, capture_output=True,
-    )
-    with pytest.raises(ds.DiagnosticScopeError) as stale:
-        ds.validate_diagnostic_scope(doc, repo_root=git_env.repo)
-    assert stale.value.code == "diagnostic_execution_revision_mismatch"
-
-    # Restore the approved revision but dirty a tracked file.
-    subprocess.run(
-        ["git", "reset", "--hard", git_env.d_sha],
-        cwd=str(git_env.repo), check=True, capture_output=True,
-    )
-    (git_env.repo / "README.md").write_text("dirty\n", encoding="utf-8")
-    with pytest.raises(ds.DiagnosticScopeError) as dirty:
-        ds.validate_diagnostic_scope(doc, repo_root=git_env.repo)
-    assert dirty.value.code == "diagnostic_worktree_not_clean"
+    """The real checked-in registry is empty; only A2 may populate it."""
+    assert ds.RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES == {}
+    committed_at_a2 = fx.committed_registry_literal(activation_env.repo, activation_env.a2)
+    assert set(committed_at_a2) == {ds.DIAGNOSTIC_SCOPE_ID}
+    assert fx.committed_registry_literal(activation_env.repo, activation_env.g2) == {}
 
 
 # --------------------------------------------------------------------------- #

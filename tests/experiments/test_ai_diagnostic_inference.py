@@ -46,20 +46,15 @@ FAST_LIME_SEEDS = (101, 202, 303)
 
 
 @pytest.fixture(scope="module")
-def git_env(tmp_path_factory: pytest.TempPathFactory) -> SimpleNamespace:
-    return fx.make_scope_git_repo(tmp_path_factory.mktemp("diag_inf_git"))
-
-
-@pytest.fixture(scope="module")
 def bundle_env(tmp_path_factory: pytest.TempPathFactory) -> SimpleNamespace:
     return fx.make_simulated_accepted_bundle(
         tmp_path_factory.mktemp("diag_inf_bundle")
     )
 
 
-def _deep_update(base: dict[str, Any], changes: dict[str, Any]) -> dict[str, Any]:
+def _deep_update(base: dict[str, Any], changes: dict[str, Any] | None) -> dict[str, Any]:
     out = deepcopy(base)
-    for key, value in changes.items():
+    for key, value in (changes or {}).items():
         if isinstance(value, dict) and isinstance(out.get(key), dict):
             out[key] = _deep_update(out[key], value)
         else:
@@ -71,48 +66,47 @@ def _deep_update(base: dict[str, Any], changes: dict[str, Any]) -> dict[str, Any
 def env(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    git_env: SimpleNamespace,
     bundle_env: SimpleNamespace,
 ) -> Callable[..., SimpleNamespace]:
-    """Build a fully SIMULATED authorized diagnostic invocation."""
+    """Build a synthetic invocation with a GENUINE committed A2 activation.
+
+    Every build creates a real I2 -> G2 -> A2 Git history whose tracked A2
+    registry contains the requested (synthetic, test-only) bundle digest. The
+    in-process registry is set from the committed A2 literal, i.e. exactly the
+    state the imported module has at that revision.
+    """
+    counter = [0]
 
     def build(
         *,
+        manifest_sha256: str | None = None,
         auth_changes: dict[str, Any] | None = None,
-        record_changes: dict[str, Any] | None = None,
         input_doc: dict[str, Any] | None = None,
         auth_raw: str | None = None,
         input_raw: str | None = None,
         with_registry: bool = True,
+        activation_kwargs: dict[str, Any] | None = None,
     ) -> SimpleNamespace:
-        record = _deep_update(
-            fx.make_scope_record(
-                manifest_sha256=bundle_env.manifest_sha256,
-                g_sha=git_env.g_sha,
-                d_sha=git_env.d_sha,
-                doc_sha=git_env.doc_sha,
-            ),
-            record_changes or {},
+        counter[0] += 1
+        tag = f"activation_{counter[0]}"
+        digest = manifest_sha256 or bundle_env.manifest_sha256
+        activation = fx.build_activation_repo(
+            tmp_path / tag,
+            manifest_sha256=digest,
+            **(activation_kwargs or {}),
         )
         monkeypatch.setattr(
             ds,
             "RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES",
-            {ds.DIAGNOSTIC_SCOPE_ID: record} if with_registry else {},
+            deepcopy(activation.committed_literal) if with_registry else {},
         )
-        auth = _deep_update(
-            fx.make_authorization_doc(
-                manifest_sha256=bundle_env.manifest_sha256,
-                g_sha=git_env.g_sha,
-                d_sha=git_env.d_sha,
-                doc_sha=git_env.doc_sha,
-            ),
-            auth_changes or {},
-        )
+        auth = _deep_update(activation.auth, auth_changes)
+        private_dir = tmp_path / f"private_{counter[0]}"
         auth_path = fx.write_private_json(
-            tmp_path / "private" / "authorization.json", auth, raw=auth_raw
+            private_dir / "authorization.json", auth, raw=auth_raw
         )
         input_path = fx.write_private_json(
-            tmp_path / "private" / "input.json",
+            private_dir / "input.json",
             input_doc if input_doc is not None else fx.make_input_doc(),
             raw=input_raw,
         )
@@ -123,13 +117,14 @@ def env(
             "input_path": input_path,
             "operator_confirmation": ds.DIAGNOSTIC_OPERATOR_CONFIRMATION,
             "signing_key": bundle_env.signing_key,
-            "repo_root": git_env.repo,
+            "repo_root": activation.repo,
             "lime_config": FAST_LIME,
             "lime_stability_seeds": FAST_LIME_SEEDS,
         }
         return SimpleNamespace(
+            activation=activation,
             auth=auth,
-            record=record,
+            record=activation.record,
             auth_path=auth_path,
             input_path=input_path,
             kwargs=kwargs,
@@ -423,10 +418,7 @@ def test_quarantine_absent_acceptance_and_tampered_marker_fail_closed(
         detail="Synthetic post-run failure simulation.",
     )
     built = env(
-        record_changes={"expected_manifest_sha256": quarantine_sha},
-        auth_changes={
-            "bundle_identity": {"expected_manifest_sha256": quarantine_sha}
-        },
+        manifest_sha256=quarantine_sha,
     )
     with pytest.raises(BundleIntegrityError) as quarantined:
         di.run_offline_diagnostics(
@@ -443,10 +435,7 @@ def test_quarantine_absent_acceptance_and_tampered_marker_fail_closed(
     )
     (missing_dir / BUNDLE_ACCEPTANCE_MARKER_FILENAME).unlink()
     built_missing = env(
-        record_changes={"expected_manifest_sha256": missing_sha},
-        auth_changes={
-            "bundle_identity": {"expected_manifest_sha256": missing_sha}
-        },
+        manifest_sha256=missing_sha,
     )
     with pytest.raises(BundleIntegrityError) as no_marker:
         di.run_offline_diagnostics(
@@ -466,30 +455,8 @@ def test_quarantine_absent_acceptance_and_tampered_marker_fail_closed(
         signing_key=bundle_env.signing_key,
         _require_post_run_acceptance=False,
     )
-    context = ds.DiagnosticScopeContext(
-        scope_id=ds.DIAGNOSTIC_SCOPE_ID,
-        governance_pr_number=999,
-        governance_merge_commit_sha=built_missing.record["governance_merge_commit_sha"],
-        approved_code_revision=built_missing.record["approved_code_revision"],
-        governance_document_relative_path=ds.DIAGNOSTIC_GOVERNANCE_DOCUMENT_RELATIVE_PATH,
-        frozen_governance_document_sha256=built_missing.record[
-            "frozen_governance_document_sha256"
-        ],
-        ratified_by="SYNTHETIC TEST SIMULATION",
-        expected_manifest_sha256=missing_sha,
-        expected_bundle_dir_name=missing_dir.name,
-        expected_source_sha256=ds.DIAGNOSTIC_TARGET_BUNDLE["expected_source_sha256"],
-        expected_dataset_id=ds.DIAGNOSTIC_TARGET_BUNDLE["expected_dataset_id"],
-        expected_panel_id=ds.DIAGNOSTIC_TARGET_BUNDLE["expected_panel_id"],
-        expected_execution_profile=ds.DIAGNOSTIC_TARGET_BUNDLE[
-            "expected_execution_profile"
-        ],
-        expected_model_family=ds.DIAGNOSTIC_TARGET_BUNDLE["expected_model_family"],
-        expected_selected_c=10.0,
-        expected_model_id=ds.DIAGNOSTIC_TARGET_BUNDLE["expected_model_id"],
-        expected_protocol_id=ds.DIAGNOSTIC_TARGET_BUNDLE["expected_protocol_id"],
-        expected_model_version=ds.DIAGNOSTIC_TARGET_BUNDLE["expected_model_version"],
-        approved_operations=ds.DIAGNOSTIC_ALLOWED_OPERATIONS,
+    context = ds.validate_diagnostic_scope(
+        built_missing.auth, repo_root=built_missing.kwargs["repo_root"]
     )
     with pytest.raises(di.DiagnosticIntegrityError) as explicit:
         di.verify_accepted_bundle_identity(descriptor, scope=context)
@@ -504,10 +471,7 @@ def test_quarantine_absent_acceptance_and_tampered_marker_fail_closed(
     marker_path.write_text(json.dumps(marker, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     protect_private_file(marker_path)
     built_tampered = env(
-        record_changes={"expected_manifest_sha256": tampered_sha},
-        auth_changes={
-            "bundle_identity": {"expected_manifest_sha256": tampered_sha}
-        },
+        manifest_sha256=tampered_sha,
     )
     with pytest.raises(BundleIntegrityError) as bad_marker:
         di.run_offline_diagnostics(
@@ -527,8 +491,7 @@ def test_exact_bundle_identity_and_manifest_digest_mismatch_fail_closed(
 ) -> None:
     wrong_sha = "0" * 64
     built = env(
-        record_changes={"expected_manifest_sha256": wrong_sha},
-        auth_changes={"bundle_identity": {"expected_manifest_sha256": wrong_sha}},
+        manifest_sha256=wrong_sha,
     )
     with pytest.raises(di.DiagnosticIntegrityError) as digest_exc:
         di.run_offline_diagnostics(**built.kwargs)
@@ -561,10 +524,7 @@ def test_exact_bundle_identity_and_manifest_digest_mismatch_fail_closed(
             tmp_path / f"identity_case_{index}", bundle_env, mutation
         )
         built_mutated = env(
-            record_changes={"expected_manifest_sha256": new_sha},
-            auth_changes={
-                "bundle_identity": {"expected_manifest_sha256": new_sha}
-            },
+            manifest_sha256=new_sha,
         )
         with pytest.raises(Exception) as raised:
             di.run_offline_diagnostics(
@@ -583,10 +543,7 @@ def test_exact_bundle_identity_and_manifest_digest_mismatch_fail_closed(
         name="different_accepted_bundle",
     )
     built_renamed = env(
-        record_changes={"expected_manifest_sha256": renamed_sha},
-        auth_changes={
-            "bundle_identity": {"expected_manifest_sha256": renamed_sha}
-        },
+        manifest_sha256=renamed_sha,
     )
     with pytest.raises(di.DiagnosticIntegrityError) as renamed:
         di.run_offline_diagnostics(
@@ -607,12 +564,7 @@ def test_synthetic_provenance_bundle_is_not_the_accepted_real_bundle(
         tmp_path_factory.mktemp("diag_synthetic_only_bundle"), simulate_real=False
     )
     built = env(
-        record_changes={"expected_manifest_sha256": synthetic_bundle.manifest_sha256},
-        auth_changes={
-            "bundle_identity": {
-                "expected_manifest_sha256": synthetic_bundle.manifest_sha256
-            }
-        },
+        manifest_sha256=synthetic_bundle.manifest_sha256,
     )
     with pytest.raises(di.DiagnosticIntegrityError) as exc:
         di.run_offline_diagnostics(

@@ -66,8 +66,12 @@ hyperparameter, target, or claim.
   SHA-256; no quarantine marker; trusted-local-root containment, verified
   platform ACL (including native Win32 NTFS DACL), SHA-256 digests, and
   HMAC-SHA256 producer authentication before any `joblib.load`;
-- clean checkout at the reviewed `approved_code_revision`, ratified governance
-  merge ancestry, and frozen governance-document bytes at that merge;
+- a clean checkout at the real activation revision `A2` (declared only in the
+  ignored local operator authorization, never in tracked code), an approved
+  implementation revision `I2` that is an ancestor of the governance baseline
+  `G2` with only documentation changed in between, `G2` ancestry of HEAD, an
+  exactly registry-only `G2 -> A2` diff, and frozen governance-document bytes
+  at `G2`;
 - explicit local operator authorization document + exact operator confirmation
   phrase on every invocation;
 - at most 8 explicitly fabricated synthetic records per invocation, each
@@ -118,7 +122,7 @@ patient data. They are recorded here for provenance, not as validation evidence.
 
 **Does:** add two new, separately versioned modules
 (`ai/diagnostic_scope.py`, `ai/diagnostic_inference.py`,
-`cardioassist.ai.bounded_offline_diagnostic_inference/v1`), a separate CLI entry
+`cardioassist.ai.bounded_offline_diagnostic_inference/v1.1`), a separate CLI entry
 point, example templates, comprehensive synthetic-fixture and negative tests,
 this proposal, a security/failure-mode review and a gated Windows procedure, and
 replacement assertions for the two obsolete pre-activation sentinel tests. The
@@ -136,6 +140,27 @@ performance, clinical, or external-validation result.
 ## 5. Honest separation: scope authorization (`G2`) then activation (`A2`)
 
 Two independent human decisions are required. **Neither is taken by this PR.**
+
+### 5.0 Three revision names with exact, non-circular meanings
+
+| Name | Field | Where stored | Meaning |
+|---|---|---|---|
+| `I2` | `approved_implementation_commit_sha` | tracked registry at `A2` + ignored local authorization | The **approved implementation revision**: the reviewed diagnostic code, frozen before ratification. Must be an ancestor of (or equal to) `G2`, with only `docs/` changes between `I2` and `G2`. |
+| `G2` | `governance_baseline_commit_sha` | tracked registry at `A2` + ignored local authorization | The **governance baseline**: immutable commit whose tree contains both the approved implementation and the ratified governance document. Its document bytes are bound by `frozen_governance_document_sha256`; it is the baseline of the registry-only diff. |
+| `A2` | `activation_merge_commit_sha` | **ignored local operator authorization ONLY** | The **activation revision**: the registry-only commit that adds exactly one reviewed entry. Its SHA exists only after the commit and therefore CANNOT appear in any tracked file. Runtime resolves HEAD independently and requires `HEAD == A2`. |
+
+**The self-reference defect that was removed.** An earlier design put
+`approved_code_revision = A2` inside the tracked registry and required
+`HEAD == approved_code_revision`. A commit cannot contain its own SHA-1 in its
+tracked contents: writing that field changes the commit SHA. The v1.1 design
+therefore has NO tracked activation field. `RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`
+contains only previously known values (`I2`, `G2`, the document hash at `G2`,
+the maintainer's bundle manifest digest, the operation and bundle identity).
+A tracked record containing `approved_code_revision`,
+`activation_merge_commit_sha` or `activation_revision_commit_sha` is rejected
+with `diagnostic_scope_registry_self_referential`. This mirrors the already
+proven Cleveland D-047 `G -> A` pattern, where `A` is carried by the ignored
+local authorization manifest and checked against independently resolved HEAD.
 
 **Step 1 — Scope authorization (governance, human only).** The maintainer
 reviews this exact document and the engineering PR, accepts or rejects the
@@ -156,10 +181,12 @@ based on the merged engineering revision, changes **only**
 `ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`, adding exactly
 one record with:
 
-- the governance PR number, `governance_merge_commit_sha = G2`, exact owner
-  comment and signer;
-- `approved_code_revision` = the full 40-hex merge commit of the activation PR
-  (`A2`), which is the only revision at which diagnostics may run;
+- the governance PR number, `governance_baseline_commit_sha = G2`,
+  `approved_implementation_commit_sha = I2`, exact owner comment and signer;
+- **NO** `approved_code_revision`, `activation_merge_commit_sha` or any other
+  activation-revision field: `A2` is not knowable until after this commit is
+  merged, and is supplied later only by the ignored local operator
+  authorization document;
 - `governance_document_relative_path` and `frozen_governance_document_sha256`
   of this document's exact bytes at `G2`;
 - `approved_operations = ("offline_synthetic_input_diagnostic_inference",)`;
@@ -176,10 +203,22 @@ accepted `manifest.json` on Windows and confirm its
 equal the frozen identity in §2. Any mismatch stops activation and requires a
 new human decision; the registry must not be broadened to accommodate it.
 
-The `G2..A2` review must confirm a registry-only diff. Code independently
-enforces HEAD == `approved_code_revision`, a clean tracked worktree, `G2`
-ancestry, frozen document bytes, exact scope/identity bindings, and every
-custody and input gate. A malformed or over-broad registry entry fails closed.
+The `G2..A2` review must confirm that the ONLY changed path is
+`ai/diagnostic_scope.py` and that the only change inside it is the
+`RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES` value changing from `{}` to exactly one
+literal record (no computed values, no other code changes). Code independently
+enforces: `HEAD == A2` from the ignored local authorization; a clean tracked
+worktree; `I2` ancestry of `G2` with documentation-only changes in between;
+`G2` ancestry of HEAD; the `G2 -> A2` single-file diff; the strict masked-source
+equality of the registry file (so activation cannot weaken any validation,
+inference, CLI or security logic); the literal committed registry equalling the
+in-process registry; frozen governance-document bytes at `G2`; every local
+authorization claim matching the trusted record; and the exact scope/identity
+bindings and custody gates. Wrong/stale `A2`, a dirty worktree, an extra changed
+file, an extra code change in the registry file, missing `G2` ancestry, a wrong
+document hash, a forged scope or an incorrect bundle digest all fail closed. A
+genuine committed `I2 -> G2 -> A2` pytest history (not an injected dictionary
+alone) exercises the complete happy path and each negative case.
 
 **Why two steps:** ratification decides *whether* the operation may ever exist;
 activation decides *which exact reviewed code revision and which exact accepted
@@ -192,7 +231,8 @@ manifest, a CI run, an HMAC token, or a previous training authorization.
 After both steps, each invocation still requires a private, Git-ignored local
 JSON document (template:
 `ai/examples/diagnostic_authorization.template.json`) declaring: the ratified
-scope and all `G2`/`A2`/document-hash bindings, the single approved operation,
+scope and all `I2`/`G2`/`A2`/document-hash bindings (where `A2` is present only
+here, never in tracked code), the single approved operation,
 `supervisor_signoff_claimed: false`, an explicit human attestation
 (`SYNTHETIC_INPUTS_ONLY`, `NO_PATIENT_DATA`, `NO_CLINICAL_USE`, `OFFLINE_ONLY`),
 a named local signer and ISO-8601 timestamp, the exact bundle identity including
@@ -217,13 +257,22 @@ remain human responsibilities. No such evidence is fabricated by this PR.
       this document's bytes at `G2` independently verified by a human.
 - [ ] No known applicable external legal/institutional/license duty unsatisfied.
 - [ ] Separate registry-only activation PR reviewed and merged; full `A2`
-      verified; `G2..A2` diff contains only the new registry entry.
+      verified; `G2..A2` diff modifies only
+      `ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`.
 - [ ] Maintainer computed and pinned the accepted bundle's `manifest.json`
       SHA-256 on the private Windows workstation; bundle unchanged since `A`.
-- [ ] Clean checkout at `A2`; native Windows preflight/ACL/key custody confirmed;
+- [ ] Clean checkout at `A2`; `git rev-parse HEAD` equals the actual `A2`
+      written into the ignored local operator authorization; `I2`/`G2`
+      independently verified as ancestors; native Windows preflight/ACL/key
+      custody confirmed;
       `POST_RUN_ACCEPTANCE.json` present; no quarantine marker.
 - [ ] Local operator authorization document signed/attested by a human after
-      `G2` and `A2`; exact operator confirmation supplied at invocation.
+      `G2` and `A2`, carrying `governance_baseline_commit_sha = G2`,
+      `approved_implementation_commit_sha = I2`,
+      `activation_merge_commit_sha = A2`,
+      `activation_registry_relative_path = ai/diagnostic_scope.py` and the
+      pinned manifest digest; exact operator confirmation supplied at
+      invocation.
 - [ ] Input file contains only explicitly fabricated synthetic five-field records.
 - [ ] **Post-run:** report inspected; LIME weights used only when
       `feature_weights_trusted` is true; no serving, sharing, clinical claim,
