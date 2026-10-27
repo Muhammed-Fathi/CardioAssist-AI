@@ -190,7 +190,48 @@ DIAGNOSTIC_TARGET_BUNDLE: Final[Mapping[str, Any]] = MappingProxyType(
 #: bundle manifest digest, and the operation/identity bindings. It MUST NOT
 #: contain its own A2 SHA (that would be circular): A2 lives only in the
 #: ignored local operator authorization document.
-RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES: dict[str, dict[str, Any]] = {}
+RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES: dict[str, dict[str, Any]] = {
+    "CAI-SCOPE-BOUNDED-OFFLINE-DIAGNOSTIC-INFERENCE-CLEVELAND-D047-V1": {
+        "governance_pr_number": 60,
+        "governance_baseline_commit_sha": (
+            "44f06091602f66078726fcc3b62b6ee1305abd83"
+        ),
+        "approved_implementation_commit_sha": (
+            "40b544be79acc9099e565a0ede183e9b376a238f"
+        ),
+        "governance_document_relative_path": (
+            "docs/research/gate-pt/"
+            "18_bounded_offline_diagnostic_inference_scope.md"
+        ),
+        "frozen_governance_document_sha256": (
+            "2fabbcf36451ff1e1564db76b5ce7c1bffe50e0c428a847d89c475169cf90f8c"
+        ),
+        "ratified_by": "Muhammed-Fathi",
+        "ratification_comment_exact": (
+            "RATIFY-BOUNDED-OFFLINE-DIAGNOSTIC-INFERENCE-SCOPE"
+        ),
+        "approved_operations": (
+            "offline_synthetic_input_diagnostic_inference",
+        ),
+        "expected_manifest_sha256": (
+            "089f931be27be67606b9d2622beea54208976f1743a70909029619f50a6e5d4a"
+        ),
+        "expected_bundle_dir_name": (
+            "cai_real_cleveland_d047_20261027T070610Z_deffa577"
+        ),
+        "expected_source_sha256": (
+            "a74b7efa387bc9d108d7d0115d831fe9b414b29ae7124f331b622b4efa0427c8"
+        ),
+        "expected_dataset_id": "DA-A2",
+        "expected_panel_id": "da_a2_resting_v1",
+        "expected_execution_profile": "CLEVELAND_D047_FROZEN_V1",
+        "expected_model_family": "l2_logistic_regression",
+        "expected_selected_c": 10.0,
+        "expected_model_id": "cai_real_da-a2_da_a2_resting_v1",
+        "expected_protocol_id": "CAI-D047-CLEVELAND-EXPLORATORY-V1",
+        "expected_model_version": "0.2.0",
+    },
+}
 
 #: Documentation-only shape of the record an activation would have to supply.
 #: It contains no approval, no signature, and no usable digest. It is NEVER read
