@@ -1,0 +1,47 @@
+{
+  "schema_version": "cardioassist.ai.diagnostic_authorization/v1",
+  "authorization_status": "TEMPLATE_NOT_AUTHORIZED",
+  "scope_id": "CAI-SCOPE-BOUNDED-OFFLINE-DIAGNOSTIC-INFERENCE-CLEVELAND-D047-V1",
+  "governance_pr_number": 0,
+  "governance_merge_commit_sha": "0000000000000000000000000000000000000000",
+  "approved_code_revision": "0000000000000000000000000000000000000000",
+  "activation_merge_commit_sha": "0000000000000000000000000000000000000000",
+  "governance_document_relative_path": "docs/research/gate-pt/18_bounded_offline_diagnostic_inference_scope.md",
+  "frozen_governance_document_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "ratified_by": "TEMPLATE_REPLACE_WITH_HUMAN_VERIFIED_MAINTAINER_IDENTITY",
+  "ratification_comment_exact": "TEMPLATE_REPLACE_WITH_EXACT_RATIFICATION_COMMENT",
+  "approved_operations": [
+    "offline_synthetic_input_diagnostic_inference"
+  ],
+  "supervisor_signoff_claimed": false,
+  "human_attestation": "TEMPLATE_REPLACE_WITH_HUMAN_ATTESTATION_CONTAINING SYNTHETIC_INPUTS_ONLY NO_PATIENT_DATA NO_CLINICAL_USE OFFLINE_ONLY",
+  "bundle_identity": {
+    "bundle_dir_name": "cai_real_cleveland_d047_20261027T070610Z_deffa577",
+    "expected_manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "expected_source_sha256": "a74b7efa387bc9d108d7d0115d831fe9b414b29ae7124f331b622b4efa0427c8",
+    "expected_dataset_id": "DA-A2",
+    "expected_panel_id": "da_a2_resting_v1",
+    "expected_model_family": "l2_logistic_regression",
+    "expected_execution_profile": "CLEVELAND_D047_FROZEN_V1",
+    "expected_selected_c": 10.0
+  },
+  "input_declaration": {
+    "origin": "EXPLICITLY_FABRICATED",
+    "contains_patient_data": false,
+    "panel_id": "da_a2_resting_v1",
+    "records_are_synthetic": true
+  },
+  "execution_boundary": {
+    "offline_only": true,
+    "api_serving": false,
+    "telemetry": false,
+    "uploads": false,
+    "writes_bundle": false,
+    "retraining_or_tuning": false,
+    "patient_data_inputs": false
+  },
+  "local_signer": "TEMPLATE_REPLACE_WITH_ACTUAL_LOCAL_OPERATOR_NAME",
+  "local_signed_at_iso8601": "2026-10-27T00:00:00+00:00",
+  "local_signature_attestation": "TEMPLATE_NOT_A_SIGNATURE SYNTHETIC_INPUTS_ONLY NO_PATIENT_DATA NO_CLINICAL_USE OFFLINE_ONLY",
+  "operator_confirmation": "I_CONFIRM_BOUNDED_OFFLINE_CLEVELAND_D047_DIAGNOSTIC_INFERENCE"
+}

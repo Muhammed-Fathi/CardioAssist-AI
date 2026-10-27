@@ -1,0 +1,44 @@
+{
+  "schema_version": "cardioassist.ai.diagnostic_synthetic_input/v1",
+  "synthetic": true,
+  "input_declaration": {
+    "origin": "EXPLICITLY_FABRICATED",
+    "contains_patient_data": false,
+    "panel_id": "da_a2_resting_v1",
+    "records_are_synthetic": true
+  },
+  "records": [
+    {
+      "synthetic": true,
+      "panel_id": "da_a2_resting_v1",
+      "features": {
+        "age": 54,
+        "sex": 1,
+        "cp": 3,
+        "trestbps": 132,
+        "restecg": 1
+      },
+      "units": {
+        "age": "years",
+        "trestbps": "mmHg"
+      },
+      "missing_reasons": {}
+    },
+    {
+      "synthetic": true,
+      "panel_id": "da_a2_resting_v1",
+      "features": {
+        "age": 67,
+        "sex": 0,
+        "cp": 4,
+        "trestbps": 146,
+        "restecg": 0
+      },
+      "units": {
+        "age": "years",
+        "trestbps": "mmHg"
+      },
+      "missing_reasons": {}
+    }
+  ]
+}
