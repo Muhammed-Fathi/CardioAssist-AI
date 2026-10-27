@@ -817,6 +817,7 @@ def test_diagnostic_cli_happy_path_and_fail_closed_output(
     env: Callable[..., SimpleNamespace],
     bundle_env: SimpleNamespace,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     built = env()
     argv = [
@@ -838,8 +839,10 @@ def test_diagnostic_cli_happy_path_and_fail_closed_output(
     assert payload["records"][0]["all_exact_checks_passed"] is True
     assert str(built.kwargs["bundle_dir"]) not in captured.out
 
-    # Empty registry -> fail-closed structured error, no report, no path leakage.
-    ds.RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES.clear()
+    # UNACTIVATED (empty) registry -> fail-closed structured error, no report,
+    # no path leakage. monkeypatch restores whatever registry state this
+    # checkout really has instead of mutating it for the rest of the session.
+    monkeypatch.setattr(ds, "RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES", {})
     rc_bad = di.main(argv)
     captured_bad = capsys.readouterr()
     assert rc_bad == 2

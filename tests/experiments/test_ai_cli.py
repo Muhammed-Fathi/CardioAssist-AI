@@ -816,9 +816,20 @@ def test_cli_preserves_activated_training_registry_and_never_imports_execution()
     training amendment is present, that it does NOT authorize inference or
     serving, and that this synthetic-only CLI still cannot import the guarded
     execution path or load a real-provenance bundle.
+
+    The separate diagnostic registry is asserted lifecycle-coherently (empty
+    while unactivated, otherwise exactly one separately ratified scope that
+    cannot reuse the training ratification), so this sentinel stays meaningful
+    both before and after a diagnostic registry-only activation.
     """
     from ai.execution import RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS
-    from ai.diagnostic_scope import RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES
+    from ai.diagnostic_scope import (
+        DIAGNOSTIC_ALLOWED_OPERATIONS,
+        DIAGNOSTIC_SCOPE_ID,
+        FROZEN_GOVERNANCE_MERGE_G,
+        FROZEN_TRAINING_REVISION_A,
+        RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES,
+    )
 
     amendment_id = "CAI-AMEND-AI2-CLEVELAND-D047-V1"
     governance_merge = "7f4b7a50d7fd423914e5bd98ed2b525bddbfc627"
@@ -848,7 +859,32 @@ def test_cli_preserves_activated_training_registry_and_never_imports_execution()
     )
     # Activation of TRAINING scope never authorizes inference or serving.
     assert not any("infer" in op or "serv" in op for op in record["approved_operations"])
-    assert RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES == {}
+    # The NEW diagnostic registry is lifecycle-bound, not assumed empty: it is
+    # either still unactivated or holds exactly the one SEPARATELY ratified
+    # bounded offline scope, which can never reuse this training governance
+    # merge G, the frozen activation revision A, or training governance PR #54
+    # as its own ratification baseline. In BOTH states this synthetic-only
+    # general CLI stays closed: it imports neither the diagnostic interface nor
+    # the guarded execution path (asserted below) and still refuses
+    # real-provenance bundles.
+    assert set(RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES) <= {DIAGNOSTIC_SCOPE_ID}
+    for diagnostic_record in RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES.values():
+        assert tuple(diagnostic_record["approved_operations"]) == (
+            DIAGNOSTIC_ALLOWED_OPERATIONS
+        )
+        assert diagnostic_record["governance_baseline_commit_sha"] not in {
+            governance_merge,
+            FROZEN_TRAINING_REVISION_A,
+        }
+        assert diagnostic_record["approved_implementation_commit_sha"] not in {
+            governance_merge,
+            FROZEN_TRAINING_REVISION_A,
+            FROZEN_GOVERNANCE_MERGE_G,
+        }
+        assert (
+            diagnostic_record["governance_pr_number"]
+            != record["governance_pr_number"]
+        )
 
     tree = ast.parse((REPO_ROOT / "ai" / "cli.py").read_text(encoding="utf-8"))
     imported: set[str] = set()

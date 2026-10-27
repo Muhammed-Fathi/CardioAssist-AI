@@ -1033,9 +1033,11 @@ def test_ratified_operational_registry_is_exactly_activated_training_amendment(
 
     PR #58 activated exactly one ratified amendment by a registry-only change
     at A. Security-correct expectations now are: exactly that record, every
-    frozen binding intact, no inferred inference/serving operation, no new
-    diagnostic scope, and the guarded wrapper still refusing to run without
-    its explicit operator confirmation at this (post-A) development revision.
+    frozen binding intact, no inferred inference/serving operation, no separate
+    diagnostic scope reusing this training ratification (whether or not that
+    registry has since been activated by its own registry-only commit), and the
+    guarded wrapper still refusing to run without its explicit operator
+    confirmation at this (post-A) development revision.
     """
     registry = execution_mod.RATIFIED_OPERATIONAL_SCOPE_AMENDMENTS
     amendment_id = "CAI-AMEND-AI2-CLEVELAND-D047-V1"
@@ -1066,14 +1068,29 @@ def test_ratified_operational_registry_is_exactly_activated_training_amendment(
     assert not any("infer" in op or "serv" in op for op in record["approved_operations"])
 
     from ai.diagnostic_scope import (
+        DIAGNOSTIC_SCOPE_ID,
         FROZEN_TRAINING_REVISION_A,
         RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES,
     )
 
     assert FROZEN_TRAINING_REVISION_A == a
-    # The accepted bundle remains inference-prohibited until a NEW, separately
-    # ratified and activated scope exists. Training activation is not enough.
-    assert RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES == {}
+    # Training activation alone is never inference authorization. The separate
+    # diagnostic registry is lifecycle-bound rather than assumed empty: it is
+    # either still unactivated (the accepted bundle remains inference-prohibited)
+    # or holds exactly one SEPARATELY ratified scope, which can never reuse this
+    # training governance merge G, activation revision A or governance PR #54 as
+    # its own ratification baseline.
+    assert set(RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES) <= {DIAGNOSTIC_SCOPE_ID}
+    for diagnostic_record in RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES.values():
+        assert diagnostic_record["governance_baseline_commit_sha"] != g
+        assert diagnostic_record["approved_implementation_commit_sha"] not in {g, a}
+        assert (
+            diagnostic_record["governance_pr_number"]
+            != record["governance_pr_number"]
+        )
+        assert tuple(diagnostic_record["approved_operations"]) == (
+            "offline_synthetic_input_diagnostic_inference",
+        )
 
     # Activation does not auto-authorize another training run either: the
     # wrapper still requires the exact operator confirmation before preflight.
