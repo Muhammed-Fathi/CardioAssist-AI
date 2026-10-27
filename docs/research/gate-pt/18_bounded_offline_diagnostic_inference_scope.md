@@ -1,7 +1,8 @@
 # Bounded Offline Diagnostic Inference Scope — Cleveland D-047 Accepted Bundle
 
 - **Decision ID:** `CAI-SCOPE-BOUNDED-OFFLINE-DIAGNOSTIC-INFERENCE-CLEVELAND-D047-V1`
-- **Engineering PR:** AI-6.1 (this branch; OPEN for maintainer review)
+- **Engineering baseline (I2):** AI-6.1, PR #59, MERGED; `40b544be79acc9099e565a0ede183e9b376a238f`
+- **Current milestone:** G2 governance-only proposal; awaiting explicit human maintainer ratification
 - **Status:** **PROPOSED / NOT RATIFIED / NOT ACTIVATED / NO REAL-BUNDLE INFERENCE AUTHORIZED**
 - **Date:** 2026-10-27
 - **Gate PT:** P-1 PENDING; P-3 CLOSED; P-4/P-5 not opened
@@ -9,7 +10,7 @@
 
 > This document is a governance proposal, not an authorization. No maintainer
 > comment, ratification merge `G2`, activation merge `A2`, local operator
-> manifest, or human signature is created or claimed by the engineering PR. The
+> manifest, or human signature is created or claimed by this governance proposal. The
 > production diagnostic registry `ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`
 > is **EMPTY**. Until §5 completes, every real-bundle diagnostic invocation
 > fails closed with `diagnostic_scope_not_ratified` before any bundle is verified
@@ -25,8 +26,8 @@ exactly two operations on real Cleveland data: `persistent_model_packaging` and
 permitted for this real bundle, even though trusted loading is used as an
 acceptance check**. The maintainer subsequently completed exactly one guarded
 real-data run at `A`; the private bundle exists only on the maintainer's Windows
-workstation and passed producer authentication, HMAC/NTFS verification, and
-post-run acceptance.
+workstation. Producer authentication, trusted local bundle verification and
+post-run acceptance are maintainer-reported facts, not Arena-verified evidence.
 
 A training authorization is not an inference authorization. The existing
 `python -m ai` CLI is intentionally synthetic-only and rejects real-provenance
@@ -85,8 +86,8 @@ hyperparameter, target, or claim.
 
 **Still prohibited:** any real patient record as an *input*; any other bundle,
 panel, cohort or pooled evaluation; any serving/UI/FastAPI integration; clinical
-diagnosis, triage, or patient-facing use; public sharing of patient-derived
-artifacts; external-validation, clinical-validity, deployability, supervisor,
+diagnosis, triage, medical decisions, or patient-facing predictions; model
+sharing or public sharing of patient-derived artifacts; external-validation, clinical-validity, deployability, supervisor,
 ethics or institutional approval claims; any relaxation of the general
 `python -m ai` synthetic-only CLI; any relaxation of LIME quality gating; any
 automatic retry of a failed diagnostic invocation without a new human decision.
@@ -101,7 +102,15 @@ automatic retry of a failed diagnostic invocation without a new human decision.
 | Frozen source SHA-256 | `a74b7efa387bc9d108d7d0115d831fe9b414b29ae7124f331b622b4efa0427c8` |
 | Frozen protocol SHA-256 | `96c26829ff73893dab8ee091b2eaea1592479a1e0528ae6832651a9688ea3c86` |
 | Accepted bundle identifier | `cai_real_cleveland_d047_20261027T070610Z_deffa577` |
-| Accepted bundle `manifest.json` SHA-256 | **unknown in Arena; maintainer-supplied at activation** |
+| Accepted bundle `manifest.json` SHA-256 | `089f931be27be67606b9d2622beea54208976f1743a70909029619f50a6e5d4a` (maintainer-computed; not independently verified by Arena) |
+| Approved implementation revision `I2` | `40b544be79acc9099e565a0ede183e9b376a238f` (PR #59 merge) |
+
+The maintainer reports `POST_RUN_ACCEPTANCE.json` PRESENT,
+`QUARANTINED_DO_NOT_TRUST.json` ABSENT, producer authentication PASSED, and
+trusted local bundle verification PASSED. The supplied manifest digest is an
+exact proposed binding, not permission to use a different bundle if a later
+read-only Windows check disagrees. Arena has no source dataset, real bundle,
+private signing key, or patient data. The existing bundle must remain unchanged.
 
 The following are **maintainer-reported aggregate results** only. Arena did not
 reproduce, recompute, or verify them and does not possess the private bundle or
@@ -118,9 +127,9 @@ patient data. They are recorded here for provenance, not as validation evidence.
 | Calibrated ECE | 0.0486638349597261 |
 | Max permuted AUROC / ceiling / alarm | 0.5111861730128093 / 0.65 / false |
 
-## 4. What the engineering PR does and does not do
+## 4. Completed implementation versus proposed operational permission
 
-**Does:** add two new, separately versioned modules
+**Completed at I2 (PR #59):** added two new, separately versioned modules
 (`ai/diagnostic_scope.py`, `ai/diagnostic_inference.py`,
 `cardioassist.ai.bounded_offline_diagnostic_inference/v1.1`), a separate CLI entry
 point, example templates, comprehensive synthetic-fixture and negative tests,
@@ -130,8 +139,9 @@ new registry is committed **empty**. All tests use synthetic bundles trained in
 memory and re-signed with authorization-shaped metadata; no real bundle, real
 dataset, real patient record, or real signature is present.
 
-**Does not:** ratify anything; create or forge a maintainer comment, local
-operator manifest, or human signature; populate either registry with a new
+**Neither I2 approval nor this G2 proposal grants operational permission.**
+This docs-only G2 proposal does not ratify anything; create or forge a
+maintainer comment, local operator manifest, or human signature; populate either registry with a new
 record; change `ai/execution.py` (the frozen `A` training registry) or
 `ai/cli.py` (synthetic-only CLI); perform any real-bundle inference in Arena;
 retrain, tune, regenerate, or modify the accepted bundle; or claim any new
@@ -139,7 +149,10 @@ performance, clinical, or external-validation result.
 
 ## 5. Honest separation: scope authorization (`G2`) then activation (`A2`)
 
-Two independent human decisions are required. **Neither is taken by this PR.**
+Two independent human decisions are required. **Neither is taken by the agent.**
+This PR proposes the first decision only; it remains unratified until the
+maintainer explicitly accepts it. I2 implementation approval alone authorizes
+no diagnostic operation. G2 ratification alone is still insufficient to run it.
 
 ### 5.0 Three revision names with exact, non-circular meanings
 
@@ -172,12 +185,24 @@ comment string is:
 RATIFY-BOUNDED-OFFLINE-DIAGNOSTIC-INFERENCE-SCOPE
 ```
 
-The governance PR is then merged, producing `G2`. The exact comment, its
-timestamp, PR merged state, full `G2`, and the frozen SHA-256 of this document
+Only after that explicit human decision may the maintainer merge the governance
+PR, producing `G2`. The agent must not post the comment or merge the PR. A green
+CI run or a merge without the exact human decision is not ratification.
+The exact comment, its timestamp, PR merged state, full `G2`, and the frozen SHA-256 of this document
 at `G2` are human-verified evidence that code cannot obtain from GitHub.
 
-**Step 2 — Registry-only activation (separate PR, human only).** A second PR,
-based on the merged engineering revision, changes **only**
+**Post-merge evidence handoff:** obtain the actual full governance merge SHA
+from GitHub only after the human-reviewed merge; do not substitute this PR head
+or precompute `G2`. Read this document as raw committed bytes with
+`git show G2:docs/research/gate-pt/18_bounded_offline_diagnostic_inference_scope.md`
+and compute SHA-256 without text/newline conversion (including on Windows).
+Freeze that digest for the later activation; do not insert it into this same
+document as a self-hash. Confirm I2 ancestry, a docs-only `I2..G2` diff, and an
+EMPTY diagnostic registry at G2. If main acquires non-doc changes after I2,
+stop: this proposal cannot silently change I2 or bypass the compatibility guard.
+
+**Step 2 — Registry-only activation (separate PR, human only; not this session).**
+A second PR, based on the actual merged governance baseline `G2`, changes **only**
 `ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`, adding exactly
 one record with:
 
@@ -190,8 +215,9 @@ one record with:
 - `governance_document_relative_path` and `frozen_governance_document_sha256`
   of this document's exact bytes at `G2`;
 - `approved_operations = ("offline_synthetic_input_diagnostic_inference",)`;
-- `expected_manifest_sha256` computed **by the maintainer on Windows** from the
-  accepted bundle's `manifest.json` (read-only; never supplied by Arena);
+- `expected_manifest_sha256 =
+  089f931be27be67606b9d2622beea54208976f1743a70909029619f50a6e5d4a`,
+  supplied by the maintainer and reconfirmed read-only on Windows before activation;
 - the frozen bundle identity from §3.
 
 Before pinning those values, the maintainer must read (never modify) the

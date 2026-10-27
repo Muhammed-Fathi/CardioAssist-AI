@@ -235,6 +235,14 @@ bindings: [Gate PT doc 18](research/gate-pt/18_bounded_offline_diagnostic_infere
 security review and gated Windows procedure:
 [Gate PT doc 19](research/gate-pt/19_offline_diagnostic_inference_security_review_and_runbook.md).
 
+- **G2 preparation baseline:** AI-6.1 PR #59 is MERGED. Approved implementation
+  `I2 = 40b544be79acc9099e565a0ede183e9b376a238f`; this docs-only proposal
+  does not reopen engineering approval or grant operational permission.
+- **Exact accepted artifact:** `cai_real_cleveland_d047_20261027T070610Z_deffa577`;
+  maintainer-computed `manifest.json` SHA-256
+  `089f931be27be67606b9d2622beea54208976f1743a70909029619f50a6e5d4a`.
+  Acceptance-marker presence, quarantine-marker absence, producer authentication
+  and trusted local verification are maintainer-reported, not Arena-verified.
 - **Why:** `AI2-OPERATIONAL-SCOPE-001` (ratified at `G`, activated at `A`) authorized
   exactly `persistent_model_packaging` and `patient_level_shap_background`. Its
   §9 prohibits any `ResearchCadPredictor` / CLI / serving call on the accepted
@@ -242,9 +250,10 @@ security review and gated Windows procedure:
   inference authorization; the general `python -m ai` CLI stays synthetic-only.
 - **Proposed single new operation:** `offline_synthetic_input_diagnostic_inference`
   on the ONE accepted bundle, using explicitly fabricated synthetic five-field
-  records, reusing existing validation, calibration, exact SHAP and certified
-  LIME. No retraining, tuning, regeneration, serving, telemetry, upload, bundle
-  write, real patient input, or new clinical/performance claim.
+  records, reusing existing validation, calibration, exact SHAP and registered
+  LIME quality checks. Maximum eight records per invocation; private Windows-local
+  offline execution only. No retraining, tuning, regeneration, serving, telemetry,
+  upload, bundle write, real patient input, or new clinical/performance claim.
 - **Independent gate:** a NEW empty trusted registry
   (`ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`) plus a separate
   guarded entry point. Until a separate maintainer ratification (`G2`) and a
@@ -273,6 +282,13 @@ security review and gated Windows procedure:
   confirmation phrase. Code cannot verify human authority or GitHub evidence.
   A genuine committed `I2 -> G2 -> A2` pytest history proves the procedure is
   realizable; no registry state is invented by monkeypatch alone.
+- **Required human decision:** only the repository maintainer may post
+  `RATIFY-BOUNDED-OFFLINE-DIAGNOSTIC-INFERENCE-SCOPE` on the governance PR
+  after reviewing its exact scope, then merge after review. The agent must not
+  post that comment, self-ratify or merge. Obtain the actual full G2 merge SHA
+  from GitHub afterward and freeze doc 18's exact committed-byte SHA-256;
+  neither G2 nor A2 is precomputed. Registry remains EMPTY throughout G2.
+  The later A2 PR must start from G2, not merely from I2.
 - **Status on this PR:** PROPOSED only. No ratification comment, activation
   registry entry, local operator manifest, human signature, real bundle, or real
   inference exists in the repository or Arena. All test evidence is synthetic.
