@@ -227,6 +227,46 @@ A separate governance proposal to add a **single-dataset, source-specific** inte
 
 ---
 
+## D-049 — Proposed bounded offline diagnostic inference scope (PROPOSED; NOT AUTHORIZED)
+
+**Proposed date:** 2026-10-27; **status:** `PROPOSED_NOT_AUTHORIZED`; **supersedes
+no prior decision and changes no existing gate status.** Details and exact
+bindings: [Gate PT doc 18](research/gate-pt/18_bounded_offline_diagnostic_inference_scope.md);
+security review and gated Windows procedure:
+[Gate PT doc 19](research/gate-pt/19_offline_diagnostic_inference_security_review_and_runbook.md).
+
+- **Why:** `AI2-OPERATIONAL-SCOPE-001` (ratified at `G`, activated at `A`) authorized
+  exactly `persistent_model_packaging` and `patient_level_shap_background`. Its
+  §9 prohibits any `ResearchCadPredictor` / CLI / serving call on the accepted
+  real bundle, including with synthetic inputs. A training authorization is not an
+  inference authorization; the general `python -m ai` CLI stays synthetic-only.
+- **Proposed single new operation:** `offline_synthetic_input_diagnostic_inference`
+  on the ONE accepted bundle, using explicitly fabricated synthetic five-field
+  records, reusing existing validation, calibration, exact SHAP and certified
+  LIME. No retraining, tuning, regeneration, serving, telemetry, upload, bundle
+  write, real patient input, or new clinical/performance claim.
+- **Independent gate:** a NEW empty trusted registry
+  (`ai/diagnostic_scope.py::RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES`) plus a separate
+  guarded entry point. Until a separate maintainer ratification (`G2`) and a
+  separate registry-only activation (`A2`) exist, all real-bundle inference fails
+  closed with `diagnostic_scope_not_ratified`. Acceptance markers, HMAC
+  authentication, and the earlier training authorization cannot substitute.
+- **Two-step human activation:** (1) exact owner ratification comment and merge of
+  the governance proposal; (2) a separate registry-only PR pinning `G2`, the
+  clean approved execution revision `A2`, the frozen governance-document SHA-256,
+  the exact accepted bundle identity, and the maintainer-supplied
+  `manifest.json` SHA-256. Each invocation additionally needs a human local
+  operator authorization manifest (an attestation, not a cryptographic
+  signature) and the exact operator confirmation phrase. Code cannot verify
+  human authority or GitHub evidence.
+- **Status on this PR:** PROPOSED only. No ratification comment, activation
+  registry entry, local operator manifest, human signature, real bundle, or real
+  inference exists in the repository or Arena. All test evidence is synthetic.
+  Gate PT P-1 remains PENDING and P-3 CLOSED; no supervisor, ethics,
+  institutional, clinical, or external-validation approval is claimed.
+
+---
+
 ## Standing rules
 
 - Status vocabulary: **CONFIRMED** (project team), **APPROVED** (maintainer,
