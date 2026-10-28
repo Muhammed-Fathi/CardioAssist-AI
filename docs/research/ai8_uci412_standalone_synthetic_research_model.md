@@ -18,7 +18,10 @@ claim about patients.** Gate PT P-3 remains **CLOSED**, P-1 **PENDING**, P-5
 
 The blocking review identified two defects; both are fixed on this same branch
 (no new PR, no rebuild, no merge). The branch head before these corrections was
-`13430c7ca1f505b80f97bb8261b2ed3cb36af7`.
+`13430c7ca1f505b80f97bb8261b2ed3cb36af7`. The substantive final-corrections
+commit (all code, tests, runbook and this report update) is
+**`8e7fa210c58850fddee28ba719c0be3310f31029`**; the only later commit on the
+branch is the docs-only pointer that records this SHA.
 
 1. **Fail-open input-context guard (Blocker A).** The cohort validator relied
    on the shared `ai.panels` policy, which *defaults* a missing
