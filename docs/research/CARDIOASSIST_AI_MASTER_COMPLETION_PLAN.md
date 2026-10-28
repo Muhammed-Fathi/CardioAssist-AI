@@ -1,7 +1,7 @@
 # CardioAssist AI — Master AI Research & Engineering Completion Plan
 
-**Document ID:** CAI-AI-MASTER-ROADMAP-2026-10-28-V1.2  
-**Version:** 1.2 — workflow-reconciled plan with verified AI-8 PR #66 tracking and technical review gate  
+**Document ID:** CAI-AI-MASTER-ROADMAP-2026-10-28-V1.3  
+**Version:** 1.3 — workflow-reconciled roadmap with amended AI-8 PR #66 code/demo review and milestone tracking  
 **Date:** 2026-10-28  
 **Repository:** [Muhammed-Fathi/CardioAssist-AI](https://github.com/Muhammed-Fathi/CardioAssist-AI)  
 **Suggested repository location:** `docs/research/CARDIOASSIST_AI_MASTER_COMPLETION_PLAN.md`  
@@ -483,28 +483,37 @@ Do not upgrade E4 or E5 to E1/E2. Resolve contradictions in this order: binding 
 
 | Priority | Slice | Real software artifact | Proof / acceptance | Research constraint |
 |---|---|---|---|---|
-| **P0** | **Plan reconciliation + demo foundation** | Register this MD in a standalone docs PR, reference existing contracts, add a runnable offline deterministic demo orchestrator and synthetic fixtures | One command documented and run; source- and calibration-labelled research score/XAI output + fail-closed invalid-input sample; CI | **The doc PR is independent of open AI-8 PR #66; demo is NOT DELIVERED until a reviewer can execute the documented command.** Historical A3 untouched |
+| **P0** | **Plan reconciliation + demo foundation** | Register this MD in a standalone docs PR, reference existing contracts, add a runnable offline deterministic demo orchestrator and synthetic fixtures | One command documented and run; source- and calibration-labelled research score/XAI output + fail-closed invalid-input sample; CI | **Documented UCI-412 synthetic research demo now exists in OPEN PR #66 (`python -m ai uci412-demo`); code and automated CLI tests independently reviewed, maintainer-local reproduction still an acceptance step.** Historical A3 untouched |
 | **P1** | **UCI-412 model input contract** | AI-8 PR #66 includes a proposed 16-feature JSON contract, stdlib validator and live-panel binding tests | Validate schema/units/types/meaning; re-run all tests and CI at corrected PR head | **IMPLEMENTED IN OPEN PR; NOT MERGED OR CLINICALLY APPROVED.** `BP`, `PR`, chest pain, S-9 binary direction and timing remain unresolved |
-| **P1** | **UCI-412 package + local evidence handoff** | AI-8 PR #66 contains synthetic train/test + origin-labelled evaluation + authenticated offline bundle + SHAP/LIME | **Review blocker:** per-record synthetic context fails open on missing track/source and contradictory real_data; add regression tests, repair and rerun CI. Provide a reproducible local demo entry point | **OPEN PR, NOT READY TO MERGE YET.** No new real cohort training or historical M3a scope expansion |
+| **P1** | **UCI-412 package + local evidence handoff** | AI-8 PR #66 contains synthetic train/test + origin-labelled evaluation + authenticated offline bundle + SHAP/LIME | **Prior blocking review corrected in AI-8 head `3a937181`: per-record explicit context, strict real-data declaration, +27 negative cases; documented 12-stage demo added. Confirm final GitHub experiment-runner workflow and maintainer-local demo before merge | **OPEN PR; code review improvements verified. Final CI and human review remain merge prerequisites.** No new real cohort training or historical M3a scope expansion |
 | **P1** | **External cohort suitability & dataset search** | Read-only source evidence matrix + reusable metadata audit and source-level eligibility tests | Explain why each cohort helps; no hidden pooling; qualified Hungary plan and AngioCAD conditional disposition | Do not peek at locked real external outcome to tune models |
 | **P2** | **Labs incremental-value test framework** | Versioned baseline-vs-labs same-source comparison framework and feature timing/missingness guards | No false improvement claims from synthetic results; per-feature evidence and sample-size limits reported | Real lab fitting remains gated until valid source/timing/authorization |
 | **P2** | **Research model performance and calibration proof** | Aggregate evaluation/plot generator with scoring provenance, calibration slope/intercept, intervals, subgroups if supported | Clearly distinguishes synthetic, internal and external metrics; no consumer risk claim | Real-data values only from appropriately authorized local outputs |
 | **P3** | **Final research AI facade and backend contracts** | Integrate eligible packages and explanation/status responses; refuse inappropriate clinical/monitoring inputs | Repeatable demo + negative tests + versioned handoff to Backend/Mobile/OCR | Real-model serving cannot be activated from this roadmap |
 
-### AI-8 PR #66 technical review snapshot (2026-10-28)
+### AI-8 PR #66 technical review history (2026-10-28)
 
-- Current state: **OPEN / UNMERGED**; head `13430c7ca1f52f10e8f4b75cdef1b7148fbb40ac`; remote CI **4/4 successful** at this exact head; agent reported **2293 passed / 2 skipped** locally.
+- Initial review baseline: PR was **OPEN / UNMERGED** at head `13430c7ca1f52f10e8f4b75cdef1b7148fbb40ac`, with remote CI **4/4 successful** at that earlier head and agent-reported **2293 passed / 2 skipped**. This is preserved as historical evidence, not current PR status.
 - New engineering content: `ai/uci412_research.py`; source-specific JSON contract and stdlib-only validator; calibration/SHAP/LIME/bundle round-trip; corrected AI-7 historical report in the PR; **174 newly collected test cases according to agent/PR**.
-- **Blocking review:** `_assert_synthetic_track_a_context` currently defaults absent `context`/`track`/`source` to approved values, and does not reject contradictory `real_data=True` in record context. The shared panel validator also defaults track/source, so code must require explicit source/track and strict real-data flags for every input record; add negative tests and reverify CI on the amended head.
-- **Demo acceptance:** an internal Python builder and tests do not substitute a documented repeatable user-visible demo. Require a simple local synthetic research demonstration with source/panel, research-only calibrated score, explanation scale, SHAP/LIME diagnostics and invalid-input rejection, or record `DEMO=NOT_DELIVERED` until this exists.
+- **Initial blocking review (resolved in amended code):** missing `context`/`track`/`source` used to be defaulted, and a contradictory `real_data=True` could pass. Independent follow-up inspection at `3a937181` confirms a mandatory context gate, delegation to AI-7 strict context policy and 27 new regression cases.
+- **Demo review (implemented, awaiting maintainer-local reproduction):** `python -m ai uci412-demo --format text` and `--budget full` now invoke a documented 12-stage synthetic-only run, report scores and SHAP/LIME, verify research-only bundle and demonstrate genuine validator rejection; see `docs/research/ai8_uci412_research_demo_runbook.md` in PR #66.
 - **Scientific status:** all AI-8 numerical results are *synthetic software checks*. They are neither real UCI-412 CAD performance nor a clinically calibrated risk probability. No new UCI-412 real-data run is authorized by this PR.
+
+### Current amended AI-8 PR #66 acceptance snapshot (2026-10-28)
+
+- **Source:** PR [#66](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/66), **OPEN / UNMERGED**; independently inspected head `3a9371817e707cd2a8ad4254a5e873bfbc744272`, base `6ecc191800c2f505b80f97bb8261b2ed3cb36af7`.
+- **Engineering changes checked:** strict per-record synthetic context validation reusing AI-7 policy; 27 new fail-closed regression cases; `ai/uci412_demo.py`, CLI `uci412-demo`, 19 new demo tests and a full runbook; versioned field contract, SHAP/LIME, calibration, authenticated `RESEARCH_ONLY` bundle remain in scope. No research model serving or authorization change.
+- **Agent local test report:** `2339 passed, 2 skipped` under `-W error`; these are agent-measured local counts, not tests rerun by this reviewer.
+- **GitHub CI at the exact amended head, last checked 2026-10-28:** `contract-validation`, `audit-toolchain-validation`, `mock-backend-validation` **SUCCESS**; `synthetic-experiment-runner-validation` **IN_PROGRESS**. This is a snapshot, not a claim of final 4/4 success; recheck before merge.
+- **Research boundary:** complete synthetic engineering demo is **not** real UCI-412 training, calibrated individual clinical risk, clinical validation or external validation. P-1 pending; Gate PT P-3 closed; A3 frozen. Real-data completion is a distinct next scientific phase.
+- **Acceptance still open:** final experiment-runner CI success on `3a937181...`, maintainer-local execution of documented CLI and review of the intended research/clinical score language. PR #66 and this docs PR #67 must be reviewed/merged separately; do not imply either is already on `main`.
 
 ### 17.1 Machine-readable completion register proposal
 
 Add `docs/research/ai_master_progress.yaml` (or JSON) with a stable schema:
 
 ```yaml
-roadmap_version: '1.2'
+roadmap_version: '1.3'
 source_main_sha: '6ecc191800c2f505b80f97bb8261b2ed3cb36af7'
 updated_on: '2026-10-28'
 workstreams:
@@ -514,15 +523,15 @@ workstreams:
     pr: 65
     evidence: 'merged PR + successful workflows'
   AI-8:
-    engineering: IMPLEMENTED_IN_OPEN_PR_NEEDS_CORRECTION
+    engineering: IMPLEMENTED_IN_OPEN_PR_CODE_REVIEWED_FINAL_CI_PENDING
     pr: 66
-    head_sha_reviewed: 13430c7ca1f52f10e8f4b75cdef1b7148fbb40ac
-    ci_status_on_reviewed_sha: FOUR_WORKFLOWS_SUCCESS
+    head_sha_reviewed: 3a9371817e707cd2a8ad4254a5e873bfbc744272
+    ci_status_on_reviewed_sha: THREE_SUCCESS_ONE_IN_PROGRESS
     scientific_evaluation: SYNTHETIC_ONLY_NOT_CLINICAL_EVIDENCE
-    demo: NOT_DELIVERED
+    demo: DOCUMENTED_12_STAGE_SYNTHETIC_CLI_AWAITING_MAINTAINER_REPRODUCTION
     real_data_permission: SCOPED_SEPARATE_NOT_CONFERRED
-    blocking_review: EXPLICIT_TRACK_SOURCE_AND_REAL_DATA_CONTEXT_GUARD
-    evidence: AI8_open_PR_plus_GitHub_CI_and_agent_local_2293_passed
+    blocking_review: FIXED_CONTEXT_GUARD_FINAL_CI_AND_HUMAN_REVIEW_PENDING
+    evidence: AI8_open_PR_3a93718_plus_3_success_1_running_GitHub_CI_and_agent_local_2339_passed
   AI-9:
     engineering: NOT_STARTED
     scientific_evaluation: NOT_COMPLETE
