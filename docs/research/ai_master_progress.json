@@ -136,7 +136,7 @@
       "focus": "Scientific reporting, documentation and graduation research handoff."
     },
     "AI-8W": {
-      "engineering_status": "IN_PROGRESS",
+      "engineering_status": "PLANNED",
       "local_windows_acceptance": "LOCAL_VALIDATION_FAILED",
       "focus": "Repair AI-8 UCI-412 demo automatic Windows private temporary/trusted_bundles directory hardening without relaxing fail-closed ACL policies.",
       "blocking_issue_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/69",
