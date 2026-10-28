@@ -14,6 +14,36 @@ fixtures only — nothing in this document is clinical evidence or a performance
 claim about patients.** Gate PT P-3 remains **CLOSED**, P-1 **PENDING**, P-5
 **NOT MADE (prohibited)**. Do not self-approve or merge this PR.
 
+### Revision note — final corrections in response to the PR #66 review
+
+The blocking review identified two defects; both are fixed on this same branch
+(no new PR, no rebuild, no merge). The branch head before these corrections was
+`13430c7ca1f505b80f97bb8261b2ed3cb36af7`.
+
+1. **Fail-open input-context guard (Blocker A).** The cohort validator relied
+   on the shared `ai.panels` policy, which *defaults* a missing
+   track/source, so a record with no `context` block could slip through. A new
+   strict per-record gate `_assert_synthetic_track_a_context` now runs **first**
+   for every record and fails closed on any missing/malformed context. It does
+   **not** invent a second security policy: the boolean/value admission decision
+   is delegated to the already-tested AI-7 route policy
+   `_validate_synthetic_input_context` (the same function used by
+   `ai.research_routes.resolve_route`), so the source-specific guard cannot
+   quietly diverge from the route-layer contract. 27 new regression cases
+   (15 test functions) prove the old fail-open path now rejects; see §3 and §10.
+2. **No executable end-to-end demonstration (Blocker B).** A new
+   `python -m ai uci412-demo` command runs the complete source-specific
+   synthetic path as 12 observable, individually-reported stages plus a compact
+   success summary, including a *genuine* invalid-input rejection through the
+   real validator (not a hardcoded message), with both console and
+   machine-readable JSON output. See the new §9 and the companion runbook
+   `docs/research/ai8_uci412_research_demo_runbook.md`.
+
+These corrections change **no** scientific result: the full-budget
+deterministic report SHA-256 in §6 is reproduced byte-for-byte
+(`99bd76f2…119688`), and no frozen/shared pipeline, governance or A3 file is
+modified.
+
 ---
 
 ## 1. Scope and exact work implemented
@@ -86,20 +116,51 @@ not external validation on a real or independent population.
 
 `validate_uci412_synthetic_cohort` enforces, fail-closed and in order:
 
-1. synthetic Track A context (`synthetic is True`, `track == "A"`,
-   `source == "structured_synthetic_research"`);
+1. **strict synthetic Track A context via `_assert_synthetic_track_a_context`
+   (the corrected gate).** Every record is individually checked *before* the
+   shared panel validator runs. A record that is not a mapping raises
+   `malformed_payload`; a record with **no `context` block raises
+   `missing_input_context`** (the block is mandatory and is never defaulted to
+   an empty mapping — this is the exact fail-open path the review identified);
+   a non-mapping `context` raises `malformed_context`. The record's own
+   `synthetic` flag and `context.track` / `context.source` / optional
+   `context.real_data` are then normalised **without coercion or defaults** and
+   the boolean/value admission decision is delegated to the AI-7 route policy
+   `_validate_synthetic_input_context` (operation
+   `END_TO_END_EXERCISE`). Any returned code — `track_not_a`,
+   `unsupported_input_source`, `synthetic_declaration_missing_or_false`,
+   `real_data_input_context_rejected` — raises
+   `Uci412ResearchGovernanceError` with the local code
+   `uci412_synthetic_context_rejected`, the shared code(s) carried in the
+   message. This deliberately reuses one security policy rather than
+   maintaining a second, subtly different one.
 2. exact panel identity (foreign panel ids `da_a2_resting_v1`,
-   `da_a2_resting_labs_v1`, `da_a1_clinical_core_labs_v1` rejected; no
-   crosswalk);
+   `da_a2_resting_labs_v1`, `da_a1_clinical_core_labs_v1`, and any UCI-45
+   envelope, rejected before the shared validator runs; no crosswalk);
 3. the shared strict panel contract (field order, registered categorical
    encodings, numeric plausibility/units, explicit missingness, anti-leakage
    and anti-wearable rules) and a 16-feature width check.
 
-Rejected before any model work: non-synthetic records, Track B, OCR, wearable,
-simulated/patient wearable, patient monitoring, patient upload, clinician
-records, real-data/real-patient claims, unknown sources, empty cohorts,
-malformed records/context, label-length mismatch and non-binary labels. There
-is no path by which a UCI-45/Cleveland record can enter this pipeline.
+The strict gate's exact admission contract is: `synthetic` must be the boolean
+`true` (missing, `false`, and non-boolean `1/0/"true"/"false"/None/2` are
+rejected); `context.track` must be the string `"A"` (missing, non-string and
+any other track rejected); `context.source` must be the string
+`"structured_synthetic_research"` (missing and any other source rejected);
+`context.real_data`, **when present**, must be the boolean `false` — an absent
+or explicit `null` `real_data` means "not declared" and is accepted, while
+`true` and any non-boolean value are rejected. A contradictory
+`synthetic=false` with a real context, and `real_data=true` under a synthetic
+envelope, are both rejected.
+
+Rejected before any model work: records with missing/malformed context,
+non-synthetic records, Track B, OCR, wearable, simulated/patient wearable,
+patient monitoring, patient upload, clinician records, real-data/real-patient
+claims, unknown sources, empty cohorts, malformed records, label-length
+mismatch and non-binary labels. There is no path by which a UCI-45/Cleveland
+record can enter this pipeline. The 27 new strict-context regression cases
+(§10) include explicit tests that a missing `context`, missing `track` and
+missing `source` each fail closed, and that the rejection reuses the AI-7
+policy codes.
 
 ## 4. Methods — preprocessing, nested CV, calibration and negative control
 
@@ -238,42 +299,178 @@ calibrated research score 0.7009, calibrated log-odds 0.8515, SHAP sum-check
 passing — interpreted as `RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK`, never an
 individual clinical probability.
 
-## 9. Verification — tests, determinism and CI
+## 9. Executable end-to-end demo (review Blocker B)
 
-* **New tests (three files, 92 test functions → 174 collected cases):**
+A single, documented command now runs the entire source-specific synthetic path
+as an observable demonstration. It adds **no new estimator, calibrator,
+explainer or security policy** — it is a thin orchestrator over the reviewed
+AI-8 pipeline (`ai/uci412_demo.py`) wired into the existing `ai` CLI
+(`ai/cli.py`); the module never imports `shap`, `lime` or `joblib` directly (an
+AST boundary test enforces this).
+
+**Exact command (default JSON, fast smoke budget):**
+
+```
+python -m ai uci412-demo
+```
+
+Variants: `--budget full` (the default nested-CV budget, n=240/120, 4×3 folds),
+`--format text` (human console report), `--work-dir DIR` (retain the generated
+private artifacts instead of using an auto-deleted temporary directory). An
+invalid budget fails closed with argparse exit code 2. The complete
+Windows-PowerShell and bash environment, input/output examples, artifact paths
+and reproduction steps are in
+[`ai8_uci412_research_demo_runbook.md`](ai8_uci412_research_demo_runbook.md).
+
+The run reports **12 ordered stages, each individually PASSED/FAILED, followed
+by a compact stage-success summary** (the summary is a distinct payload object,
+not a numbered stage). Together they cover every required demonstration
+element:
+
+| # | Stage | What is observed |
+|---|---|---|
+| 1 | `1_synthetic_cohort_generation` | deterministic dev/test synthetic cohorts, distinct seeds, evidence marker |
+| 2 | `2_route_and_panel_binding` | route id, exact 16-feature panel, ordered names, panel contract SHA-256 |
+| 3 | `3_feature_contract_validation` | intake field-contract review (`NO_RESULT_NO_CAD_PROBABILITY_COMPUTED`) and panel matrix `[n,16]` |
+| 4 | `4_research_model_identity` | model id/version, selected family, execution profile, preprocessing contract |
+| 5 | `5_raw_model_score` | raw model score and the scale SHAP actually explains |
+| 6 | `6_calibrated_research_score` | calibrated score + calibrated log-odds + `RESEARCH_ONLY` interpretation; no clinically approved threshold |
+| 7 | `7_prediction_provenance_and_target` | target id/definition hash, ≥50% boundary, serving/clinical flags all false |
+| 8 | `8_shap_explanation` | genuine model-based TreeSHAP, truthful `raw_model_probability` scale, sum-check, `additive_on_calibrated_probability=false` |
+| 9 | `9_lime_explanation` | real LIME quality verdict, weighted R², hold-out R², local fidelity, stability |
+| 10 | `10_bundle_verification` | authenticated RESEARCH_ONLY bundle, 6 verified files, `producer_authenticated=true`, `pooled_cohorts=false` |
+| 11 | `11_invalid_input_rejection` | a **real** validator rejection (see below) |
+| 12 | `12_held_out_synthetic_evidence` | origin-labelled held-out synthetic metrics, explicitly not external validation |
+| — | `summary` | `stages_succeeded`/`stages_total`, succeeded-stage list, `stages_failed=0` |
+
+**Genuine invalid-input rejection (not hardcoded).** Stage 11 builds an
+otherwise-valid synthetic fixture, mutates it by **removing
+`context.source`**, and calls the real `validate_uci412_synthetic_cohort`. The
+strict guard raises `Uci412ResearchGovernanceError` with code
+`uci412_synthetic_context_rejected` (shared token `unsupported_input_source`
+carried in the message). The demo captures the live exception type/code/message;
+if the validator ever *accepted* the malformed record, the demo itself raises
+`demo_invalid_input_was_not_rejected`. The rejection payload contains no
+`cad_probability` key — no result is produced for rejected intake.
+
+**Banners and truthful labelling.** Every payload carries
+`evidence_marker = SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE` and
+`research_only_interpretation = RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK`.
+Synthetic outputs are never called patient risk or independent clinical
+validation. Both banners also appear verbatim in the text renderer, which ends
+with the explicit statement that the run is not clinical evidence and not an
+individual patient's medical risk or external validation.
+
+**Deterministic, machine-readable, path-free output.** The JSON payload is
+serializable with `allow_nan=False`; it contains no absolute filesystem path,
+no secret and no key material (a test greps for `/home/`, `/tmp/`,
+`trusted_bundles` and `.key`). Both budgets are deterministic and reproduce a
+fixed `report_deterministic_sha256`:
+
+| Budget | n dev/held | report SHA-256 | raw | calibrated | held-out AUROC / AP / Brier |
+|---|---|---|---|---|---|
+| smoke | 120 / 60 | `6e5707bedb3c360aa605c8e0640fbeed7fe880c1c6bfc297187200a2f35656ec` | 0.755186 | 0.738384 | 0.606019 / 0.766513 / 0.221781 |
+| full | 240 / 120 | `99bd76f2b7604f793e93fd80f031ee010ce94c9b277f4f1c23339a52e8119688` | 0.731299 | 0.700888 | 0.549837 / 0.778482 / 0.201389 |
+
+The full-budget hash is identical to the §6 evaluation hash, proving the demo
+executes the same deterministic pipeline rather than a parallel
+reimplementation. Smoke-budget explanation checks on the same run: SHAP
+max-abs sum discrepancy 1.11×10⁻¹⁶ over 16 attributions with
+`additive_on_calibrated_probability=false`; LIME weighted R² 0.925898,
+hold-out R² 0.907556, local-fidelity abs error 0.000335, verdict
+`ACCEPTABLE_LOCAL_APPROXIMATION`. In retained mode (`--work-dir`) the private
+HMAC key and seven bundle files are written only under the caller's directory;
+the default mode creates and removes its own temporary directory and sets
+`work_artifacts_retained=false`.
+
+## 10. Verification — tests, determinism and CI
+
+* **AI-8 test inventory (four files, 220 collected cases, all passing):**
   `tests/audit/test_uci412_field_contract.py` (44 functions → 116 parametrized
   cases, **stdlib-only so it runs in the dependency-minimal audit CI job with
   numpy/scikit-learn absent**),
-  `tests/experiments/test_uci412_field_contract_panel_binding.py` (6 functions,
+  `tests/experiments/test_uci412_field_contract_panel_binding.py` (6 cases,
   live registered-panel hash/order/encoding cross-check that needs the ML
-  stack), and `tests/experiments/test_uci412_research_model.py` (42 functions →
-  52 cases). Together they cover the required negative matrix — non-synthetic,
-  Track B/OCR/wearable/patient-upload/real-patient sources, foreign panels and
-  sources, wrong order/encoding/unit/range, prohibited acquisition channels,
-  empty/malformed payloads, bad labels, plus bundle wrong-key/untrusted-root/
-  tamper and config validation.
-* **Full repository:** **2293 passed, 2 skipped** (pre-existing
+  stack),
+  `tests/experiments/test_uci412_research_model.py` (now **79 cases** — was 52;
+  the **27 new strict-context cases** described in §3, covering missing
+  context/track/source, non-boolean `synthetic`/`real_data`, contradictory
+  flags, non-mapping context and AI-7 policy-code reuse, each written to fail
+  against the previous fail-open implementation), and the new
+  `tests/experiments/test_uci412_demo.py` (**19 cases**): the 12-stage contract,
+  panel SHA equality, serving/clinical flags false, raw-scale SHAP truthfulness,
+  honest LIME verdict, the genuine rejection, the no-result-on-intake guarantee,
+  cross-run hash reproducibility, no-path/no-secret leakage, work-dir retention,
+  full-budget n=240/120, text markers, an AST import-boundary guard, subprocess
+  JSON+text execution and bad-budget exit code 2. The earlier negative matrix
+  (non-synthetic, Track B/OCR/wearable/patient-upload/real-patient sources,
+  foreign panels, wrong order/encoding/unit/range, prohibited channels,
+  empty/malformed payloads, bad labels, bundle wrong-key/untrusted-root/tamper,
+  config validation) is unchanged and green.
+* **Full repository:** **2339 passed, 2 skipped** (pre-existing
   platform-specific skips) under `python -m pytest -W error`; collection totals
-  2295. `git diff --check` is clean and no `.pkl/.joblib/.csv/.xlsx/.data`
-  artifact is committed; all synthetic outputs are created only in private temp
-  directories.
+  2341 — the prior 2293-passing baseline plus the 46 new cases (27
+  strict-context + 19 demo). `git diff --check` is clean, pyflakes reports no
+  unused imports or undefined names on every changed file, and no
+  `.pkl/.joblib/.csv/.xlsx/.data` artifact is committed; all synthetic outputs
+  are created only in private temp directories or a caller-supplied work dir.
+* **Per-workflow scopes re-created locally under `-W error` (exact results):**
+  audit job `tests/audit` → **546 passed**; contracts job `tests/contracts` →
+  **249 passed**; backend job `tests/backend` → **581 passed**;
+  experiment-runner job `tests/experiments tests/audit` → **1135 passed,
+  2 skipped**; UCI-412 job `tests/uci412` → **374 passed**. `pip check`
+  reports no broken requirements. With `numpy`/`scikit-learn`/`ai` blocked at
+  import time, the stdlib-only audit field-contract suite still passes
+  (116 cases), proving the dependency-isolated job does not silently need the ML
+  stack.
 * **Determinism:** two builds from identical configs in separate roots produce
-  identical report SHA-256; the hash excludes timing fields and local paths.
-* **CI:** no workflow file is added or modified, so the four existing pinned
-  workflows (`audit-ci`, `backend-ci`, `contracts-ci`,
-  `experiment-runner-ci`) pick up the new tests automatically; nothing requires
-  elevated workflow permissions. Budget for this milestone was **$0** using only
-  free, pinned, offline tooling.
+  identical report SHA-256; the hash excludes timing fields and local paths, and
+  the smoke/full demo hashes in §9 reproduce across processes.
+* **CI (reported truthfully, never assumed):** no workflow file is added or
+  modified, so the four existing pinned workflows (`audit-ci`, `backend-ci`,
+  `contracts-ci`, `experiment-runner-ci`) pick up the new tests automatically;
+  nothing requires elevated workflow permissions. The PR #66 human review
+  attested **4/4 workflows green on the parent head `13430c7`**. The automation
+  token available here receives **HTTP 403** on the check-runs/statuses API, so
+  the remote status of the new correction commit cannot be independently polled
+  from this environment; the per-scope results above are the local re-creation
+  of every workflow's pytest invocation, and the authoritative remote result
+  must be read directly on the PR. Budget for this milestone was **$0** using
+  only free, pinned, offline tooling.
 
-## 10. Status register, limitations and next steps
+## 11. Status register, limitations and next steps
+
+### 11.1 The three statuses are distinct and must not be collapsed
+
+* **Engineering-complete on synthetic data — ESTABLISHED.** The source-specific
+  UCI-412 synthetic route, the strict fail-closed input-context guard and the
+  executable demo are implemented and verified by automated tests
+  (§10). This is a software/correctness statement about deterministic synthetic
+  fixtures only.
+* **Research-scientifically evaluated on real data — NOT ESTABLISHED.** No real
+  UCI-412 record has ever entered the pipeline; every metric in §6 is a property
+  of a generative process, not of patients. This status can only be reached
+  after human-authorized real-data work behind Gate PT P-3, with the reporting
+  and sample-size discipline named below.
+* **Clinically validated — NOT ESTABLISHED (and not currently permitted).** No
+  individual clinical probability, clinical utility, net-benefit or
+  external-validation claim is made or supportable; Gate P-5 is prohibited. The
+  calibrated research score is explicitly
+  `RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK`.
+
+### 11.2 Evidence and authorization register
 
 **IMPLEMENTED and TESTED (synthetic only):** the 16-feature source-specific
-pipeline; fold-contained nested-CV selection; cross-fitted OOF calibration;
-label-shuffle negative control; independently seeded held-out synthetic
-evaluation with four origin-labelled blocks; SHAP additivity and LIME
-fidelity/stability; the full RESEARCH_ONLY bundle round-trip with authenticated
-fail-closed load; the versioned field contract and its no-result validator; the
-AI-7 documentation corrections; deterministic JSON-clean reporting.
+pipeline; the corrected strict synthetic Track A context guard that delegates
+its admission decision to the AI-7 route policy and fails closed on missing
+context/track/source (27 new regression cases); fold-contained nested-CV
+selection; cross-fitted OOF calibration; label-shuffle negative control;
+independently seeded held-out synthetic evaluation with four origin-labelled
+blocks; SHAP additivity and LIME fidelity/stability; the full RESEARCH_ONLY
+bundle round-trip with authenticated fail-closed load; the versioned field
+contract and its no-result validator; the AI-7 documentation corrections; the
+executable `uci412-demo` command with console + JSON output and a genuine
+invalid-input rejection (19 new tests); deterministic JSON-clean reporting.
 
 **PROPOSED (not approved, no authorization granted):** the field contract
 itself and every future application/OCR acquisition mapping; BMI via any
@@ -288,18 +485,59 @@ chest-pain semantics; the S-9 binary direction; external or cross-population
 validity; any clinical utility or net benefit; real-bundle inference and
 serving. Real UCI-412 fitting remains blocked by Gate PT P-3.
 
-**Limitations.** Results characterize a deterministic synthetic software
-exercise, not patients; held-out data share the development generative process;
-the small sample and modest synthetic signal yield weak, near-chance held-out
-discrimination; the 0.5 threshold is exploratory; fold dispersion is
-descriptive, not validated uncertainty; sample size versus model complexity for
-any future real study would need a Riley et al. (2021) calculation before
-development.
+### 11.3 Limitations
 
-**Next steps (each gated, none started):** human review of the field contract
-and the unresolved register; a TRIPOD+AI (BMJ 2024;385:e078378) / PROBAST+AI
-(BMJ 2025;388:e082505) reporting pack if a real-data study is proposed; a
-separately authorized external-validation plan; only then any consideration of
+Results characterize a deterministic synthetic software exercise, not patients;
+held-out data share the development generative process; the small sample and
+modest synthetic signal yield weak, near-chance held-out discrimination; the
+0.5 threshold is exploratory; fold dispersion is descriptive, not validated
+uncertainty; sample size versus model complexity for any future real study would
+need a Riley et al. (2021) calculation before development. The demo does not
+widen this execution scope — it exercises the same synthetic-only path and
+cannot accept or score real patient input.
+
+### 11.4 Alignment with the Master Completion Plan (v1.2)
+
+The plan keeps engineering completion, research evaluation and clinical
+validation separate and names AI-8's two P1 package blockers (the context-guard
+bug and the missing runnable demo). Row-by-row status against its elements:
+
+| Master-Plan element | Plan expectation | AI-8 status on this PR |
+|---|---|---|
+| Source-specific research route | AI-7 route resolution reused, no second framework; UCI-412 kept separate from Cleveland/UCI-411 | **IMPLEMENTED / TESTED (synthetic)** — binds the registered UCI-412 route via the shared machinery; Cleveland profile asserted absent; no pooling/crosswalk |
+| 16-field input contract | P1 blocker: a pinned, versioned basic-clinical intake contract with fail-closed validation | **IMPLEMENTED as artifact, PROPOSED_NOT_APPROVED for intake** — v0.1 JSON + stdlib no-result validator; authorizes no auto-population |
+| Calibration and evaluation | Fold-contained nested CV, cross-fitted calibration, origin-separated metrics, no leakage | **IMPLEMENTED / TESTED (synthetic)** — four never-merged blocks, OOF calibration, negative control; real-data evaluation **not started** |
+| SHAP / LIME explainability | Truthful explained scale, additivity, real fidelity/quality verdict | **IMPLEMENTED / TESTED (synthetic)** — raw-scale TreeSHAP with `additive_on_calibrated_probability=false`; LIME verdict with measured fidelity/stability |
+| Authenticated research bundle | RESEARCH_ONLY, producer-authenticated, fail-closed load, cannot enable serving | **IMPLEMENTED / TESTED** — HMAC trusted-local bundle, wrong-key/root/tamper rejected, serving/clinical flags hard-false |
+| Runnable visible demo | §16 checklist: one documented reproducible command, negative case, labelled scores, SHAP+LIME scale/quality, bundle integrity, no real data/keys | **IMPLEMENTED / TESTED** — `python -m ai uci412-demo`, 12 stages + summary, genuine rejection, JSON+text, runbook (the plan's P1 demo blocker) |
+| Real UCI-412 model | A model fit on authorized real UCI-412 data | **NOT STARTED — BLOCKED by Gate PT P-3**; no real data in the repo; remains the plan's gated next milestone |
+| Clinical probability / validation | Clinically valid individual risk; external validation; P-5 | **NOT ESTABLISHED / PROHIBITED** — research scores are never individual clinical risk; no external validation (UCI-411 is the same 303 participants) |
+
+### 11.5 Smallest useful next real-data milestone (no broad synthetic-only work)
+
+The smallest step that produces genuinely new *research* evidence — rather than
+more synthetic machinery — is a **human-authorized, single-cohort real UCI-412
+feasibility reproduction that reuses the frozen pipeline unchanged**:
+
+1. a human issues the exact activation comment
+   `AUTHORIZE-M3A-UCI412-INTERNAL-RESEARCH`, merges the authorization and
+   supplies a git-ignored local data manifest (none exists today), with the real
+   dataset kept out of version control and no PHI or key committed;
+2. the existing, already-reviewed pipeline is run **without code changes** on the
+   real 303-record basic-clinical panel to verify the 16-field contract parses
+   the real source with no silent unit/encoding coercion (resolving the S-1–S-9/
+   U-6 register against the actual files);
+3. it emits the first **origin-labelled real-data metrics block** under the same
+   fold-containment and cross-fitted calibration rules, alongside a pre-specified
+   Riley et al. (2021) sample-size adequacy check for the candidate complexity.
+
+This is deliberately *not* external validation (UCI-411 is the same
+participants), not model serving and not clinical validation; it cannot be
+started without the human authorization and a compliant data-handling path.
+Other gated, not-started steps remain: human review of the field contract and
+the unresolved register; a TRIPOD+AI (BMJ 2024;385:e078378) / PROBAST+AI
+(BMJ 2025;388:e082505) reporting pack for any real-data study; a separately
+authorized external-validation plan; only then any consideration of
 clinical-readiness work (P-5, currently prohibited).
 
 ### References (standards and in-repository record only; no results fabricated)

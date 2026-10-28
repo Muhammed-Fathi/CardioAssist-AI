@@ -83,6 +83,7 @@ from ai.research_routes import (
     OP_END_TO_END_EXERCISE,
     ResearchRouteDescriptor,
     RouteResolutionError,
+    _validate_synthetic_input_context,
     assert_route_eligible,
     build_synthetic_uci412_basic_clinical_cohort,
     get_route_descriptor,
@@ -145,28 +146,11 @@ ORIGIN_HELD_OUT_SYNTHETIC_TEST: Final[str] = (
     "HELD_OUT_INDEPENDENT_SYNTHETIC_TEST_FROZEN_MODEL"
 )
 
-#: The only input source this synthetic orchestration accepts.
+#: The only input source this synthetic orchestration accepts. The authoritative
+#: admission policy (exact source match, Track A only, strict synthetic/real-data
+#: booleans) is the already-tested AI-7 ``_validate_synthetic_input_context``;
+#: this module deliberately keeps no duplicate/prohibition list that could drift.
 STRUCTURED_SYNTHETIC_SOURCE: Final[str] = "structured_synthetic_research"
-
-#: Inputs that can never populate a Track A UCI-412 model input in this module.
-#: This is deliberately wider than the panel-level wearable set so OCR,
-#: patient-upload and real-data claims are rejected at the source-specific
-#: boundary as well as at the route resolver.
-PROHIBITED_INPUT_SOURCES: Final[frozenset[str]] = frozenset(
-    {
-        "track_b",
-        "wearable",
-        "simulated_wearable",
-        "patient_wearable",
-        "patient_monitoring",
-        "patient_upload",
-        "clinician_record",
-        "ocr_document",
-        "ocr",
-        "real_data",
-        "real_patient",
-    }
-)
 
 #: Panels/datasets that are explicitly foreign to this source-specific module.
 FOREIGN_PANEL_IDS: Final[frozenset[str]] = frozenset(
@@ -310,42 +294,100 @@ def _bound_route_and_panel() -> tuple[ResearchRouteDescriptor, ResearchPanelCont
     return descriptor, panel
 
 
+#: Readable explanations for the AI-7 rejection codes emitted by
+#: ``_validate_synthetic_input_context``. The admission decision itself is
+#: entirely delegated to that already-tested policy; this map only renders its
+#: machine-readable codes into a reviewer-friendly message.
+_CONTEXT_REJECTION_MESSAGES: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "track_not_a": (
+            "context.track must be explicitly the string 'A'; Track B and any "
+            "other, missing or non-string track are rejected."
+        ),
+        "unsupported_input_source": (
+            "context.source must be explicitly 'structured_synthetic_research'; "
+            "OCR documents, wearables, Track B, patient upload, clinician records "
+            "and real-data/real-patient sources are rejected."
+        ),
+        "synthetic_declaration_missing_or_false": (
+            "the record must explicitly declare synthetic as the boolean true; "
+            "missing, false or non-boolean (1/0/'true') declarations are rejected."
+        ),
+        "real_data_input_context_rejected": (
+            "context.real_data, when provided, must be exactly the boolean false; "
+            "real_data=true and non-boolean flags are rejected."
+        ),
+    }
+)
+
+
 def _assert_synthetic_track_a_context(record: Mapping[str, Any]) -> None:
-    """Reject non-synthetic, OCR, wearable, Track B or real-data sources."""
+    """Strictly validate one executable synthetic Track A UCI-412 record.
+
+    Fail-closed, no implicit defaults: every executable record must explicitly
+    declare a boolean ``synthetic=true`` envelope flag and a mapping ``context``
+    containing exactly ``track='A'`` and
+    ``source='structured_synthetic_research'``; an optional
+    ``context.real_data`` must be the boolean ``false``. Missing or malformed
+    context/track/source, wrong booleans, contradictory real-data metadata,
+    Track B, wearable, OCR, patient-upload and clinician/real-patient sources
+    are all rejected.
+
+    The boolean and value admission decision is delegated to the same tested
+    AI-7 policy used by :func:`ai.research_routes.resolve_route` so this
+    source-specific guard cannot quietly diverge from the route-layer security
+    contract. The shared ``ai.panels`` validator still defaults missing
+    track/source, which is why this stricter gate runs first for every record.
+    """
     if not isinstance(record, Mapping):
         raise ClinicalInputValidationError(
             "malformed_payload", "UCI-412 record must be a mapping."
-        )
-    if record.get("synthetic") is not True:
-        raise Uci412ResearchGovernanceError(
-            "non_synthetic_uci412_input_rejected",
-            "Only explicitly synthetic UCI-412 fixtures are accepted; Gate PT is closed.",
         )
     if record.get("panel_id") not in (None, UCI412_PANEL_ID):
         raise Uci412ResearchGovernanceError(
             "uci412_panel_id_mismatch",
             "Record panel_id does not match da_a1_basic_clinical_v1.",
         )
-    context = record.get("context", {})
+
+    # The context block is mandatory; a missing block is never defaulted to an
+    # empty mapping (the previous fail-open behaviour the review identified).
+    if "context" not in record:
+        raise Uci412ResearchGovernanceError(
+            "missing_input_context",
+            "Every executable UCI-412 record must explicitly declare a context "
+            "block with track and source; missing context is not defaulted.",
+        )
+    context = record["context"]
     if not isinstance(context, Mapping):
         raise ClinicalInputValidationError(
-            "malformed_context", "UCI-412 context metadata must be a mapping."
+            "malformed_context",
+            "UCI-412 context metadata must be a mapping; lists and scalar "
+            "string/numeric context values are rejected.",
         )
-    if context.get("track", "A") != "A":
-        raise Uci412ResearchGovernanceError(
-            "track_b_uci412_input_rejected",
-            "Track B observations are prohibited for Track A UCI-412 inference.",
+
+    # Normalize the per-record envelope into the flat context shape the AI-7
+    # route policy expects, preserving the exact caller-supplied values (no
+    # coercion, no defaults). The synthetic flag lives at the envelope top
+    # level; real_data, if present, lives inside context.
+    normalized_context = {
+        "track": context.get("track"),
+        "source": context.get("source"),
+        "synthetic": record.get("synthetic"),
+        "real_data": context.get("real_data"),
+    }
+    rejection_codes = _validate_synthetic_input_context(
+        declared_input_context=normalized_context,
+        operation=OP_END_TO_END_EXERCISE,
+    )
+    if rejection_codes:
+        detail = "; ".join(
+            f"{code}: {_CONTEXT_REJECTION_MESSAGES.get(code, code)}"
+            for code in rejection_codes
         )
-    source = str(context.get("source", STRUCTURED_SYNTHETIC_SOURCE)).lower()
-    if source in PROHIBITED_INPUT_SOURCES or "wearable" in source or "ocr" in source:
         raise Uci412ResearchGovernanceError(
-            "prohibited_uci412_input_source",
-            "OCR, wearable, patient-upload or real-data sources are rejected.",
-        )
-    if source != STRUCTURED_SYNTHETIC_SOURCE:
-        raise Uci412ResearchGovernanceError(
-            "unsupported_uci412_input_source",
-            "Only structured_synthetic_research fixtures are accepted.",
+            "uci412_synthetic_context_rejected",
+            "Strict synthetic input-context validation rejected the UCI-412 "
+            f"record -> {detail}",
         )
 
 

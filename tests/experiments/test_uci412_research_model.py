@@ -221,6 +221,143 @@ def test_non_binary_label_is_rejected(cohort):
 
 
 # --------------------------------------------------------------------------- #
+# Strict per-record synthetic context contract (AI-8 review blocker A)       #
+# These cases fail closed now but were accepted by the previous defaulting   #
+# guard; each would FAIL against the pre-fix implementation.                 #
+# --------------------------------------------------------------------------- #
+
+
+def test_explicitly_declared_synthetic_fixture_is_accepted(cohort):
+    records, labels = cohort
+    # The builder already declares synthetic=true and context {track A, source
+    # structured_synthetic_research}; an explicit real_data=false must also pass.
+    records[0]["context"]["real_data"] = False
+    X, _, _ = validate_uci412_synthetic_cohort(records, labels)
+    assert X.shape[1] == 16
+
+
+def test_missing_context_block_is_rejected(cohort):
+    records, labels = cohort
+    records[0].pop("context")  # previous guard silently defaulted this to {}.
+    with pytest.raises(Uci412ResearchGovernanceError) as exc:
+        validate_uci412_synthetic_cohort(records, labels)
+    assert exc.value.code == "missing_input_context"
+
+
+def test_missing_track_is_rejected(cohort):
+    records, labels = cohort
+    records[0]["context"].pop("track")  # previous guard defaulted track to "A".
+    with pytest.raises(Uci412ResearchGovernanceError, match="track_not_a"):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+def test_missing_source_is_rejected(cohort):
+    records, labels = cohort
+    records[0]["context"].pop("source")  # previous guard defaulted the source.
+    with pytest.raises(
+        Uci412ResearchGovernanceError, match="unsupported_input_source"
+    ):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+@pytest.mark.parametrize("bad_real_data", [True, 1, 0, "false", "true", 2])
+def test_invalid_real_data_declaration_is_rejected(cohort, bad_real_data):
+    records, labels = cohort
+    records[0]["context"]["real_data"] = bad_real_data
+    with pytest.raises(
+        Uci412ResearchGovernanceError, match="real_data_input_context_rejected"
+    ):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+def test_boolean_false_real_data_declaration_is_accepted(cohort):
+    records, labels = cohort
+    records[0]["context"]["real_data"] = False
+    X, _, _ = validate_uci412_synthetic_cohort(records, labels)
+    assert X.shape[0] == len(records)
+
+
+def test_null_or_absent_real_data_is_treated_as_not_declared(cohort):
+    # The reused AI-7 policy treats an explicit JSON null / missing key as
+    # "not declared"; only an actual contradictory value is rejected.
+    records, labels = cohort
+    records[0]["context"]["real_data"] = None
+    X, _, _ = validate_uci412_synthetic_cohort(records, labels)
+    assert X.shape[1] == 16
+
+
+@pytest.mark.parametrize("bad_synthetic", [1, 0, "true", "false", None, 2])
+def test_non_boolean_synthetic_declaration_is_rejected(cohort, bad_synthetic):
+    records, labels = cohort
+    records[0]["synthetic"] = bad_synthetic
+    with pytest.raises(
+        Uci412ResearchGovernanceError,
+        match="synthetic_declaration_missing_or_false",
+    ):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+def test_contradictory_synthetic_false_with_real_context_is_rejected(cohort):
+    records, labels = cohort
+    records[0]["synthetic"] = False
+    with pytest.raises(
+        Uci412ResearchGovernanceError,
+        match="synthetic_declaration_missing_or_false",
+    ):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+def test_contradictory_real_data_true_under_synthetic_envelope_is_rejected(cohort):
+    records, labels = cohort
+    records[0]["context"]["real_data"] = True  # synthetic=true but real_data=true.
+    with pytest.raises(
+        Uci412ResearchGovernanceError, match="real_data_input_context_rejected"
+    ):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+@pytest.mark.parametrize("malformed_context", [["A", "x"], "track-a", 42])
+def test_non_mapping_context_is_rejected(cohort, malformed_context):
+    records, labels = cohort
+    records[0]["context"] = malformed_context
+    with pytest.raises(ClinicalInputValidationError, match="mapping"):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+def test_missing_context_is_rejected_by_code_not_message(cohort):
+    records, labels = cohort
+    records[0].pop("context")
+    with pytest.raises(Uci412ResearchGovernanceError) as exc:
+        validate_uci412_synthetic_cohort(records, labels)
+    assert exc.value.code == "missing_input_context"
+
+
+def test_non_string_track_value_is_rejected(cohort):
+    records, labels = cohort
+    records[0]["context"]["track"] = {"value": "A"}
+    with pytest.raises(Uci412ResearchGovernanceError, match="track_not_a"):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+def test_non_string_source_value_is_rejected(cohort):
+    records, labels = cohort
+    records[0]["context"]["source"] = ["structured_synthetic_research"]
+    with pytest.raises(
+        Uci412ResearchGovernanceError, match="unsupported_input_source"
+    ):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+def test_guard_reuses_the_ai7_route_context_policy_codes(cohort):
+    """The source-specific guard must surface the same rejection vocabulary as
+    the AI-7 route resolver rather than inventing a parallel policy."""
+    records, labels = cohort
+    records[0]["context"]["track"] = "B"
+    with pytest.raises(Uci412ResearchGovernanceError, match="track_not_a"):
+        validate_uci412_synthetic_cohort(records, labels)
+
+
+# --------------------------------------------------------------------------- #
 # Origin-labelled metrics contract                                           #
 # --------------------------------------------------------------------------- #
 

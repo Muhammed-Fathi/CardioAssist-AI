@@ -93,6 +93,10 @@ from ai.training import (
     ResearchTrainingConfig,
     train_research_model,
 )
+from ai.uci412_demo import (
+    render_uci412_demo_text,
+    run_uci412_research_demo,
+)
 from ai.validation_harness import _make_synthetic_cohort
 
 CLI_SUPPORTED_EXECUTION_PROFILE: Final[str] = EXECUTION_PROFILE_AI1_GENERIC_V1
@@ -1050,6 +1054,8 @@ def render_payload(command: str, payload: Mapping[str, Any], *, fmt: str) -> str
         return _render_prediction_text(payload)
     if command == "demo":
         return _render_demo_text(payload)
+    if command == "uci412-demo":
+        return render_uci412_demo_text(payload)
     raise AiPipelineError("cli_unknown_command", f"Unknown command '{command}'.")
 
 
@@ -1255,6 +1261,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     demo_cmd.add_argument("--format", choices=("json", "text"), default="json")
 
+    uci412_cmd = commands.add_parser(
+        "uci412-demo",
+        help=(
+            "run the source-specific UCI-412 (da_a1_basic_clinical_v1) synthetic "
+            "research demo: validation, research-only score, SHAP/LIME and a "
+            "genuine invalid-input rejection"
+        ),
+    )
+    uci412_cmd.add_argument(
+        "--budget",
+        choices=("smoke", "full"),
+        default="smoke",
+        help="smoke = reduced fast nested-CV budget (default); full = default budget",
+    )
+    uci412_cmd.add_argument(
+        "--work-dir", type=Path, default=None,
+        help="retain demo artifacts in this private directory (default: temporary, deleted)",
+    )
+    uci412_cmd.add_argument("--format", choices=("json", "text"), default="json")
+
     return parser
 
 
@@ -1357,6 +1383,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "demo":
             payload = run_demo(work_dir=args.work_dir)
+        elif args.command == "uci412-demo":
+            payload = run_uci412_research_demo(
+                budget=str(args.budget), work_dir=args.work_dir
+            )
         else:  # pragma: no cover - argparse restricts command choices
             raise AiPipelineError(
                 "cli_unknown_command", f"Unknown command '{args.command}'."
