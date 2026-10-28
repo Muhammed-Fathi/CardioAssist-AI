@@ -14,7 +14,7 @@ Run in PowerShell from a separate, clean local clone of `Muhammed-Fathi/CardioAs
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-$prNumber = PR_NUMBER
+$prNumber = 71
 
 if ((git status --porcelain).Length -ne 0) { throw 'Checkout is not clean.' }
 $drive = (Get-Location).Drive.Name
