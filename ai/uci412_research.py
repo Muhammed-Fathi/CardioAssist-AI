@@ -42,7 +42,7 @@ remains prohibited.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
@@ -62,7 +62,7 @@ from ai.errors import (
     CohortGovernanceError,
 )
 from ai.explainability import explain_clinical_instance
-from ai.inference import ResearchCadPredictor, ResearchPredictionResult
+from ai.inference import ResearchCadPredictor
 from ai.lime_explainability import (
     DEFAULT_LIME_STABILITY_SEEDS,
     LimeConfig,
@@ -692,7 +692,7 @@ def _package_and_load(
         trusted_root
         / f"synthetic_research_bundle_da_a1_basic_clinical_v1_{uuid.uuid4().hex[:12]}"
     )
-    packaged = package_research_bundle(run, bundle_dir, signing_key=signing_key)
+    package_research_bundle(run, bundle_dir, signing_key=signing_key)
     trusted = verify_trusted_local_bundle(
         bundle_dir, trusted_local_root=trusted_root, signing_key=signing_key
     )
