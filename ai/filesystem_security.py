@@ -935,6 +935,47 @@ def ensure_private_directory(path: Path) -> Path:
     return target
 
 
+def create_or_verify_private_directory(
+    path: Path, *, strict_private: bool = True
+) -> Path:
+    """Create and harden a missing private directory, or verify an existing one.
+
+    Unlike :func:`ensure_private_directory`, this never rewrites permissions on
+    an existing directory. It is intended for caller-supplied work roots and
+    generated child paths where an insecure pre-existing directory must be
+    rejected rather than silently repaired. ``strict_private=False`` is
+    available for POSIX container roots whose established policy forbids
+    group/world writes but permits non-private read/execute bits.
+    """
+    target = Path(path)
+    if is_reparse_or_symlink(target):
+        raise OSError(f"Directory path '{target}' must not be a symlink or junction.")
+
+    created = False
+    try:
+        target.mkdir(parents=True, exist_ok=False, mode=0o700)
+        created = True
+    except FileExistsError:
+        pass
+
+    if is_reparse_or_symlink(target) or not target.is_dir():
+        raise OSError(f"Target '{target}' is not a regular non-reparse directory.")
+
+    if created:
+        # Leave a newly created path in place on failure for caller inspection;
+        # do not delete it because another process may already have populated it.
+        protect_private_directory(target)
+
+    check = verify_access_control(
+        target, expect_directory=True, strict_private=strict_private
+    )
+    if not check.ok:
+        raise OSError(
+            f"Directory '{target}' failed private access-control verification: {check.detail}"
+        )
+    return target
+
+
 def verify_access_control(
     path: Path,
     *,

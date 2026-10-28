@@ -33,6 +33,11 @@ from ai.uci412_research import (
     validate_uci412_synthetic_cohort,
 )
 from ai.errors import ClinicalInputValidationError
+from ai.filesystem_security import (
+    create_or_verify_private_directory,
+    ensure_private_directory,
+    is_windows_runtime,
+)
 from ai.research_routes import build_synthetic_uci412_basic_clinical_cohort
 from research.intake.uci412_field_contract import (
     CONTRACT_ID,
@@ -154,7 +159,8 @@ def run_uci412_research_demo(
     """
     owns_temp = work_dir is None
     base_dir = (
-        # mirrors the established CLI demo lifecycle for private artifacts
+        # tempfile.mkdtemp allocates a unique path but does not guarantee that
+        # inherited Windows ACLs meet this application's private-root policy.
         tempfile.mkdtemp(prefix="cardioassist_ai8_uci412_demo_")
         if owns_temp
         else str(work_dir)
@@ -164,6 +170,15 @@ def run_uci412_research_demo(
     work_root = Path(base_dir)
     stages: list[dict[str, Any]] = []
     try:
+        if owns_temp:
+            # Harden the automatically-created root before any bundle/key
+            # directories are made beneath it.
+            ensure_private_directory(work_root)
+        else:
+            # Existing caller-owned roots are verified, never silently changed.
+            create_or_verify_private_directory(
+                work_root, strict_private=is_windows_runtime()
+            )
         config = _config_for_budget(budget, work_root)
 
         # Stage 1 — deterministic synthetic cohorts (observed independently).

@@ -17,6 +17,7 @@ import sys
 import pytest
 
 from ai import ensure_private_directory
+from ai.filesystem_security import verify_access_control
 from ai.panels import DA_A1_BASIC_CLINICAL_PANEL
 from ai.uci412_demo import (
     DEMO_COMMAND_SMOKE,
@@ -214,6 +215,12 @@ def test_retained_work_dir_keeps_artifacts_but_payload_stays_path_free(tmp_path)
     assert bundle_root.exists()
     model_files = list(bundle_root.rglob("model.joblib"))
     assert model_files, "a packaged model artifact should be retained"
+    private_paths = (bundle_root, work_dir / "private_keys", model_files[0].parent)
+    for path in private_paths:
+        check = verify_access_control(
+            path, expect_directory=True, strict_private=True
+        )
+        assert check.ok, f"{path.name} is not private: {check.detail}"
     assert str(work_dir) not in json.dumps(payload)
 
 
@@ -264,7 +271,7 @@ def test_demo_module_does_not_touch_frozen_a3_or_serving_runtime():
 # --------------------------------------------------------------------------- #
 
 
-def test_uci412_demo_cli_subprocess_json_and_text():
+def test_uci412_demo_cli_subprocess_json_and_text(tmp_path):
     run = subprocess.run(
         [sys.executable, "-m", "ai", "uci412-demo", "--format", "json"],
         cwd=REPO_ROOT,
@@ -287,6 +294,29 @@ def test_uci412_demo_cli_subprocess_json_and_text():
     )
     assert text_run.returncode == 0, text_run.stderr
     assert SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE in text_run.stdout
+
+    explicit_root = ensure_private_directory(tmp_path / "cli_explicit_private")
+    explicit_run = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "ai",
+            "uci412-demo",
+            "--work-dir",
+            str(explicit_root),
+            "--format",
+            "json",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert explicit_run.returncode == 0, explicit_run.stderr
+    explicit_payload = json.loads(explicit_run.stdout)
+    assert explicit_payload["status"] == "PASSED"
+    assert explicit_payload["reproduction"]["work_artifacts_retained"] is True
+    assert str(explicit_root) not in explicit_run.stdout
 
 
 def test_uci412_demo_cli_rejects_unknown_budget():
