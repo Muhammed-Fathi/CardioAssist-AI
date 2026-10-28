@@ -678,10 +678,19 @@ class RouteEligibilityResult:
 
 
 def _context_track_source(
-    declared_input_context: Mapping[str, Any] | None,
+    context: Mapping[str, Any],
 ) -> tuple[Any, Any]:
-    context = dict(declared_input_context or {})
+    """Extract track/source from an already-validated input-context Mapping.
+
+    No ``dict()`` conversion is performed here; callers must validate that the
+    input context is a Mapping before constructing this context.
+    """
     return context.get("track"), context.get("source")
+
+
+def _is_bool(value: Any) -> bool:
+    """Return True only for an actual Python ``bool`` (not int/str/etc.)."""
+    return isinstance(value, bool)
 
 
 def _validate_synthetic_input_context(
@@ -709,26 +718,40 @@ def _validate_synthetic_input_context(
     synthetic = context.get("synthetic")
     real_data = context.get("real_data")
 
+    # Explicit type validation before any membership or authorization decision.
+    # Unhashable / unexpected / contradictory values are rejected structurally
+    # instead of raising TypeError/ValueError.
+    track_malformed = track is not None and not isinstance(track, str)
+    source_malformed = source is not None and not isinstance(source, str)
+    synthetic_malformed = synthetic is not None and not _is_bool(synthetic)
+    real_data_malformed = real_data is not None and not _is_bool(real_data)
+
     if operation in EXECUTABLE_SYNTHETIC_OPERATIONS:
         # Executable operations require an explicit, strictly validated
         # synthetic context.
-        if track != "A":
+        if track_malformed or track != "A":
             rejections.append("track_not_a")
-        if source not in SUPPORTED_SYNTHETIC_INPUT_SOURCES:
+        if source_malformed or source not in SUPPORTED_SYNTHETIC_INPUT_SOURCES:
             rejections.append("unsupported_input_source")
-        if synthetic is not True:
+        if synthetic_malformed or synthetic is not True:
             rejections.append("synthetic_declaration_missing_or_false")
-        if real_data is True:
+        # real_data, when provided, must be exactly Boolean False. Integers,
+        # strings and other types are rejected; not provided is acceptable.
+        if real_data is not None and (
+            real_data_malformed or real_data is not False
+        ):
             rejections.append("real_data_input_context_rejected")
     else:
         # route_contract_query is metadata-only inspection: it may inspect
         # registered routes but must never authorize an executable operation.
-        # Still reject clearly hostile contexts.
-        if track not in (None, "A"):
+        # Still reject clearly hostile or malformed contexts.
+        if track_malformed or track not in (None, "A"):
             rejections.append("track_not_a")
-        if source in PROHIBITED_INPUT_SOURCES:
+        if source_malformed or source in PROHIBITED_INPUT_SOURCES:
             rejections.append("prohibited_input_source")
-        if real_data is True:
+        if real_data is not None and (
+            real_data_malformed or real_data is not False
+        ):
             rejections.append("real_data_input_context_rejected")
 
     return tuple(rejections)
@@ -785,17 +808,49 @@ def resolve_route(
             route for route in candidates if route.source_family == source_family
         ]
 
+    # Validate the input context is a Mapping before any dict conversion.
+    if declared_input_context is not None and not isinstance(
+        declared_input_context, Mapping
+    ):
+        return RouteEligibilityResult(
+            eligible=False,
+            decision="ROUTE_REJECTED",
+            route=None,
+            route_id=None,
+            operation=str(operation) if isinstance(operation, str) else "",
+            rejections=("missing_input_context",),
+        )
     context = dict(declared_input_context or {})
-    declared_external_target = (
-        context.get("external_cohort_id")
-        if context.get("external_cohort_id") is not None
-        else context.get("declared_external_target")
+
+    # Reject conflicting external_cohort_id / declared_external_target
+    # selectors rather than silently preferring one.
+    external_cohort_id = context.get("external_cohort_id")
+    declared_external_target = context.get("declared_external_target")
+    if external_cohort_id is not None and declared_external_target is not None:
+        if external_cohort_id != declared_external_target:
+            return RouteEligibilityResult(
+                eligible=False,
+                decision="ROUTE_REJECTED",
+                route=None,
+                route_id=None,
+                operation=operation,
+                rejections=(
+                    "conflicting_external_target_selectors",
+                    "external_cohort_id and declared_external_target conflict; "
+                    "provide at most one consistent external-target selector.",
+                ),
+            )
+    resolved_external_target = (
+        external_cohort_id
+        if external_cohort_id is not None
+        else declared_external_target
     )
-    if declared_external_target is not None:
+
+    if resolved_external_target is not None:
         candidates = [
             route
             for route in candidates
-            if route.declared_external_target == declared_external_target
+            if route.declared_external_target == resolved_external_target
         ]
     else:
         candidates = [

@@ -991,3 +991,247 @@ def test_descriptor_fingerprint_changes_with_bound_restrictions() -> None:
 
     # Same route id reproduces the same fingerprint (determinism).
     assert route.descriptor_sha256 == get_route_descriptor("da_a2_resting_v1").descriptor_sha256
+
+
+# --------------------------------------------------------------------------- #
+# Finding 2 hardening: strict synthetic input context (malformed values)      #
+# Fail-closed on unhashable, unexpected, contradictory or malformed context.  #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "malformed_context",
+    [
+        [1, 2, 3],                              # list instead of mapping
+        "not_a_mapping",                        # string instead of mapping
+        42,                                     # int instead of mapping
+        None,                                   # explicitly missing
+    ],
+)
+def test_resolve_malformed_input_context_rejected(malformed_context) -> None:
+    """Non-Mapping / missing input context fails closed with missing_input_context."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_SYNTHETIC_TRAINING,
+        declared_input_context=malformed_context,
+    )
+    assert result.eligible is False
+    assert result.decision == "ROUTE_REJECTED"
+    assert "missing_input_context" in result.rejections
+
+
+@pytest.mark.parametrize(
+    "bad_source",
+    [
+        ["structured_synthetic_research"],  # list as source (unhashable for set `in`)
+        {"x": 1},                            # dict as source
+        5,                                   # int as source
+        True,                                # bool as source
+    ],
+)
+def test_resolve_unhashable_or_unexpected_source_rejected(bad_source) -> None:
+    """List/dict/int/bool source values are rejected structurally, not via TypeError."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_SYNTHETIC_TRAINING,
+        declared_input_context={
+            "track": "A",
+            "source": bad_source,
+            "synthetic": True,
+        },
+    )
+    assert result.eligible is False
+    assert "unsupported_input_source" in result.rejections
+
+
+@pytest.mark.parametrize(
+    "bad_real_data",
+    [
+        1,           # int true-ish
+        0,           # int false-ish but not bool False
+        "false",     # string
+        "0",         # string
+        True,        # bool True
+        ["false"],   # list
+    ],
+)
+def test_resolve_non_bool_real_data_rejected(bad_real_data) -> None:
+    """real_data, when provided, must be exactly Boolean False; other types rejected."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_SYNTHETIC_TRAINING,
+        declared_input_context={
+            "track": "A",
+            "source": "structured_synthetic_research",
+            "synthetic": True,
+            "real_data": bad_real_data,
+        },
+    )
+    assert result.eligible is False
+    assert "real_data_input_context_rejected" in result.rejections
+
+
+def test_resolve_real_data_bool_false_accepted() -> None:
+    """real_data=False (exact bool) is accepted for synthetic execution."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_SYNTHETIC_TRAINING,
+        declared_input_context={
+            "track": "A",
+            "source": "structured_synthetic_research",
+            "synthetic": True,
+            "real_data": False,
+        },
+    )
+    assert result.eligible is True
+    assert result.decision == "ROUTE_RESOLVED"
+    assert result.route_id == "da_a2_resting_v1"
+
+
+def test_resolve_conflicting_external_target_selectors_rejected() -> None:
+    """Conflicting external_cohort_id and declared_external_target are rejected."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_ROUTE_CONTRACT_QUERY,
+        declared_input_context={
+            "track": "A",
+            "source": "structured_synthetic_research",
+            "synthetic": True,
+            "external_cohort_id": "Hungary_locked",
+            "declared_external_target": "not_hungary",
+        },
+    )
+    assert result.eligible is False
+    assert "conflicting_external_target_selectors" in result.rejections
+
+
+def test_resolve_external_target_selector_still_routes_when_consistent() -> None:
+    """external_cohort_id alone (consistent) still routes to the Hungary transportability route."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_ROUTE_CONTRACT_QUERY,
+        declared_input_context={
+            "track": "A",
+            "source": "structured_synthetic_research",
+            "synthetic": True,
+            "external_cohort_id": "Hungary_locked",
+        },
+    )
+    assert result.eligible is True
+    assert result.route_id == "da_a2_hungary_locked_transportability_v1"
+
+    # declared_external_target alone (consistent) also routes.
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_ROUTE_CONTRACT_QUERY,
+        declared_input_context={
+            "track": "A",
+            "source": "structured_synthetic_research",
+            "synthetic": True,
+            "declared_external_target": "Hungary_locked",
+        },
+    )
+    assert result.eligible is True
+    assert result.route_id == "da_a2_hungary_locked_transportability_v1"
+
+
+@pytest.mark.parametrize(
+    "bad_track",
+    [
+        5,              # int
+        ["A"],          # list
+        {"x": 1},       # dict
+        "B",            # wrong track string
+        None,           # missing for executable op
+    ],
+)
+def test_resolve_malformed_or_wrong_track_rejected(bad_track) -> None:
+    """Malformed or non-A track values are rejected for executable synthetic ops."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_SYNTHETIC_TRAINING,
+        declared_input_context={
+            "track": bad_track,
+            "source": "structured_synthetic_research",
+            "synthetic": True,
+        },
+    )
+    assert result.eligible is False
+    assert "track_not_a" in result.rejections
+
+
+@pytest.mark.parametrize(
+    "bad_synthetic",
+    [
+        1,              # int true-ish
+        0,              # int false-ish
+        "true",         # string
+        "false",        # string
+        ["true"],       # list
+        None,           # missing
+    ],
+)
+def test_resolve_non_bool_true_synthetic_rejected(bad_synthetic) -> None:
+    """synthetic must be exactly Boolean True; other types rejected."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_SYNTHETIC_TRAINING,
+        declared_input_context={
+            "track": "A",
+            "source": "structured_synthetic_research",
+            "synthetic": bad_synthetic,
+        },
+    )
+    assert result.eligible is False
+    assert "synthetic_declaration_missing_or_false" in result.rejections
+
+
+# --------------------------------------------------------------------------- #
+# Finding 2 hardening: contract-query metadata-only path stays safe           #
+# --------------------------------------------------------------------------- #
+
+
+def test_resolve_contract_query_malformed_context_still_rejected() -> None:
+    """route_contract_query inspects metadata but rejects malformed/hostile context."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_ROUTE_CONTRACT_QUERY,
+        declared_input_context={
+            "track": "B",               # hostile track
+            "source": "patient_upload", # prohibited source
+            "synthetic": True,
+            "real_data": 1,             # non-bool real_data
+        },
+    )
+    assert result.eligible is False
+    assert result.rejections
+
+
+def test_resolve_contract_query_valid_context_inspects_without_authorizing() -> None:
+    """route_contract_query resolves metadata but is not an executable operation."""
+    result = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_ROUTE_CONTRACT_QUERY,
+        declared_input_context=SYNTHETIC_CTX,
+    )
+    assert result.eligible is True
+    assert result.route_id == "da_a2_resting_v1"
+    # The contract query does not itself authorize the end-to-end exercise.
+    exercise = resolve_route(
+        dataset_id="DA-A2",
+        panel_id="da_a2_resting_v1",
+        operation=OP_END_TO_END_EXERCISE,
+        declared_input_context=SYNTHETIC_CTX,
+    )
+    assert exercise.eligible is True
