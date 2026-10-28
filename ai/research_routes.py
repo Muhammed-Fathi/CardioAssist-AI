@@ -64,6 +64,11 @@ from ai.calibration import (
     evaluate_comprehensive_metrics,
 )
 from ai.errors import CohortGovernanceError
+from ai.filesystem_security import (
+    create_or_verify_private_directory,
+    ensure_private_directory,
+    is_windows_runtime,
+)
 from ai.explainability import explain_clinical_instance
 from ai.inference import ResearchCadPredictor, ResearchPredictionResult
 from ai.lime_explainability import (
@@ -1452,6 +1457,21 @@ def _predict_on_matrix(
     return p_raw, raw_logits, p_cal
 
 
+def _prepare_bundle_work_root(work_root: Path | None) -> Path:
+    """Secure an automatic AI-7 work root or verify the caller's existing root.
+
+    The automatic ignored work location may be hardened because it is selected
+    by this module. A caller-provided existing directory is only verified and
+    is never silently rewritten.
+    """
+    if work_root is None:
+        work_root = Path(__file__).resolve().parents[1] / "data" / ".ai7_synthetic_work"
+        return ensure_private_directory(work_root)
+    return create_or_verify_private_directory(
+        Path(work_root), strict_private=is_windows_runtime()
+    )
+
+
 def _run_bundle_round_trip(
     run: TrainedResearchRun,
     work_root: Path,
@@ -1465,10 +1485,11 @@ def _run_bundle_round_trip(
     synthetic bundle. It never touches the accepted real Cleveland bundle and
     never engages ai.diagnostic_scope (which is frozen at A3).
     """
-    trusted_root = Path(work_root) / "trusted_bundles"
-    key_dir = Path(work_root) / "private_keys"
-    trusted_root.mkdir(parents=True, exist_ok=True)
-    key_dir.mkdir(parents=True, exist_ok=True)
+    # Verify the caller/automatic work root without weakening an existing ACL;
+    # create and harden only new private children before writing the HMAC key.
+    work_root = _prepare_bundle_work_root(Path(work_root))
+    trusted_root = create_or_verify_private_directory(work_root / "trusted_bundles")
+    key_dir = create_or_verify_private_directory(work_root / "private_keys")
     signing_key = get_or_create_local_signing_key(key_dir / "local_bundle_hmac_v1.key")
 
     bundle_dir = trusted_root / f"synthetic_research_bundle_{route_id}"
@@ -1574,6 +1595,12 @@ def execute_synthetic_route_exercise(
             "source": "structured_synthetic_research",
             "synthetic": True,
         },
+    )
+
+    bundle_work_root = (
+        _prepare_bundle_work_root(config.work_root)
+        if config.include_bundle_round_trip
+        else None
     )
 
     dev_records, dev_labels = build_synthetic_cohort_for_route(
@@ -1729,15 +1756,10 @@ def execute_synthetic_route_exercise(
 
     bundle_round_trip: dict[str, Any] | None = None
     if config.include_bundle_round_trip:
-        work_root = (
-            config.work_root
-            if config.work_root is not None
-            else Path(__file__).resolve().parents[1] / "data" / ".ai7_synthetic_work"
-        )
-        work_root = Path(work_root)
+        assert bundle_work_root is not None
         sample_payload = test_records[0]
         bundle_round_trip = _run_bundle_round_trip(
-            run, work_root, route_id, sample_payload, panel
+            run, bundle_work_root, route_id, sample_payload, panel
         )
 
     exercise_id = f"ai7-synthetic-{route.route_id}-{int(config.seed)}"

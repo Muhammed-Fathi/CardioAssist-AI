@@ -6,7 +6,13 @@
 
 The default demo's `tempfile.mkdtemp()` created a temporary root but left its inherited Windows DACL untouched. `Path.mkdir()` then created `trusted_bundles` and `private_keys` as children, inheriting the resulting ACL, including an OWNER RIGHTS (`S-1-3-4`) allow ACE with mask `0x001f01ff`. Strict trusted-root verification correctly rejected that ACE before bundle deserialization. Setting `TEMP`, `TMP`, and `TMPDIR` only selected a different parent: it did not harden the newly created `mkdtemp` root or its subsequently created children, so the inherited ACE was still present.
 
-AI-8W now applies the existing protected Windows DACL utility to automatically created temporary roots and newly created private child directories, then verifies the ACL before key or bundle contents are written. Caller-supplied existing work roots are verified without being rewritten; insecure roots fail closed. OWNER RIGHTS is not whitelisted, ACL verification is unchanged, HMAC verification and pre-deserialization checks remain in place, and no machine-wide security setting is changed. POSIX private modes and the existing trusted-root policy remain supported.
+AI-8W applies the existing protected Windows DACL utility to automatically created temporary roots and newly created private child directories, then verifies the ACL before key or bundle contents are written. Caller-supplied existing work roots are verified without being rewritten; insecure roots fail closed. OWNER RIGHTS is not whitelisted, ACL verification is unchanged, HMAC verification and pre-deserialization checks remain in place, and no machine-wide security setting is changed. POSIX private modes and the existing trusted-root policy remain supported.
+
+### Follow-up fixes after native Windows full-suite results
+
+The maintainer's Windows full suite on the prior head exposed a second caller of the same unsafe `Path.mkdir()` pattern in AI-7 `ai.research_routes._run_bundle_round_trip`. Its `trusted_bundles` and `private_keys` children were not hardened. AI-7 now prepares the automatic work root privately, verifies caller-supplied existing roots without rewriting them, and creates/verifies the bundle and key children before key generation. The bundle-round-trip fixture now secures the `tempfile.mkdtemp()` root before passing it into production code. An insecure caller-owned root remains rejected without mutation; the native OWNER RIGHTS test exercises this AI-7 fail-closed path.
+
+The prior frozen-A test incorrectly diffed the entire `ai/cli.py` against revision A (`1c29c83`). Merged `main` had already added the UCI-412 CLI command before this PR. The corrected test pins the frozen `ai/execution.py` byte hash, frozen diagnostic CLI function fingerprints, the original parser/options, and original `main`/render dispatch branches. It permits later additive CLI commands while detecting changes to the protected diagnostic boundary. Neither `ai/execution.py` nor the diagnostic CLI paths are weakened or rewritten.
 
 ## Preconditions and clean PR-head checkout (before merge)
 
@@ -99,9 +105,19 @@ if ($nativeExit -ne 0) { throw 'Native Windows ACL regression failed.' }
 
 ## Targeted and complete repository test suites
 
-The targeted AI-8 suite is expected to collect 98 tests on this head. Run exactly with warnings treated as errors, then the complete applicable repository suite:
+On the updated PR head, first rerun the two previously failing nodes together. Then run the AI-7 bundle-round-trip, inherited ACL, and frozen-boundary suites, followed by the unchanged 98-test AI-8 target and the complete repository suite. The native OWNER RIGHTS case must execute on Windows/NTFS; it must not skip.
 
 ```powershell
+python -m pytest -W error -v tests/experiments/test_research_routes.py::test_synthetic_bundle_round_trip_not_approved_for_serving tests/experiments/test_ai_diagnostic_scope.py::test_new_code_is_post_activation_and_frozen_execution_file_is_unchanged
+$focusedExit = $LASTEXITCODE
+"previously failing focused tests exit code: $focusedExit"
+if ($focusedExit -ne 0) { throw 'Previously failing focused tests failed.' }
+
+python -m pytest -W error tests/experiments/test_research_routes.py tests/experiments/test_private_directory_creation_regression.py tests/experiments/test_ai_diagnostic_scope.py
+$securityExit = $LASTEXITCODE
+"AI-7/ACL/frozen-boundary suite exit code: $securityExit"
+if ($securityExit -ne 0) { throw 'AI-7/ACL/frozen-boundary suite failed.' }
+
 python -m pytest -W error tests/experiments/test_uci412_demo.py tests/experiments/test_uci412_research_model.py
 $targetedExit = $LASTEXITCODE
 "targeted AI-8 test exit code: $targetedExit"

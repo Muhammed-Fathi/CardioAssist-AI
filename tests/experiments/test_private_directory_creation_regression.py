@@ -119,6 +119,19 @@ def test_inherited_owner_rights_ace_is_removed_before_private_children_are_used(
         create_or_verify_private_directory(unprotected_child)
     with pytest.raises(OSError, match="failed private access-control verification"):
         run_uci412_research_demo(budget="smoke", work_dir=unprotected_child)
+
+    from ai.research_routes import (
+        SyntheticRouteExerciseConfig,
+        execute_synthetic_route_exercise,
+    )
+
+    ai7_config = SyntheticRouteExerciseConfig(
+        include_bundle_round_trip=True,
+        work_root=unprotected_child,
+    )
+    with pytest.raises(OSError, match="failed private access-control verification"):
+        execute_synthetic_route_exercise("da_a2_resting_v1", config=ai7_config)
+    assert not (unprotected_child / "trusted_bundles").exists()
     assert not verify_access_control(
         unprotected_child, expect_directory=True, strict_private=True
     ).ok

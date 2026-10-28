@@ -13,6 +13,7 @@ bundle are never touched by these tests.
 from __future__ import annotations
 
 from copy import deepcopy
+import os
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +47,7 @@ from ai import (
     validate_clinical_record,
 )
 from ai.calibration import compute_fold_prediction_dispersion
+from ai.filesystem_security import ensure_private_directory, verify_access_control
 from ai.training import (
     _estimator_input_matrix,
     _positive_proba_and_optional_logit,
@@ -520,10 +522,11 @@ def test_blocked_routes_are_not_exercisable() -> None:
 def test_synthetic_bundle_round_trip_not_approved_for_serving() -> None:
     from tempfile import mkdtemp
 
+    work_root = ensure_private_directory(Path(mkdtemp(prefix="ai7_bundle_")))
     cfg = SyntheticRouteExerciseConfig(
         n_development=60, n_test=30, seed=20261030, outer_folds=2, inner_folds=2,
         bootstrap_resamples=40, shap_max_background_samples=16, lime_num_perturbations=80,
-        include_bundle_round_trip=True, work_root=Path(mkdtemp(prefix="ai7_bundle_")),
+        include_bundle_round_trip=True, work_root=work_root,
     )
     result = execute_synthetic_route_exercise("da_a2_resting_v1", config=cfg)
     bt = result.bundle_round_trip
@@ -537,6 +540,36 @@ def test_synthetic_bundle_round_trip_not_approved_for_serving() -> None:
     assert bt["prediction_serving_eligibility"] == "RESEARCH_ONLY"
     assert bt["predictor_panel_id"] == "da_a2_resting_v1"
     assert bt["artifact_hashes"]
+
+    bundle_root = work_root / "trusted_bundles"
+    key_root = work_root / "private_keys"
+    bundle_dir = bundle_root / "synthetic_research_bundle_da_a2_resting_v1"
+    for private_dir in (work_root, bundle_root, key_root, bundle_dir):
+        acl = verify_access_control(
+            private_dir,
+            expect_directory=True,
+            strict_private=True,
+        )
+        assert acl.ok, f"AI-7 directory {private_dir.name} is not private: {acl.detail}"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Native Windows insecure ACL case is covered separately.")
+def test_ai7_round_trip_rejects_insecure_existing_work_root_without_rewriting(
+    tmp_path: Path,
+) -> None:
+    work_root = tmp_path / "insecure_ai7_work_root"
+    work_root.mkdir()
+    work_root.chmod(0o777)
+    original_mode = work_root.stat().st_mode
+    cfg = SyntheticRouteExerciseConfig(
+        include_bundle_round_trip=True,
+        work_root=work_root,
+    )
+
+    with pytest.raises(OSError, match="failed private access-control verification"):
+        execute_synthetic_route_exercise("da_a2_resting_v1", config=cfg)
+
+    assert work_root.stat().st_mode == original_mode
 
 
 # --------------------------------------------------------------------------- #
