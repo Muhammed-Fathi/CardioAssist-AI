@@ -1,7 +1,7 @@
 # CardioAssist AI — Master AI Research & Engineering Completion Plan
 
-**Document ID:** CAI-AI-MASTER-ROADMAP-2026-10-28-V1.4  
-**Version:** 1.4 — merged AI-8 engineering completion and evidence-gated AI-8R follow-up, with live milestone register  
+**Document ID:** CAI-AI-MASTER-ROADMAP-2026-10-28-V1.5  
+**Version:** 1.5 — mandatory Windows local acceptance after every milestone; AI-8W regression fix before AI-8R  
 **Date:** 2026-10-28  
 **Repository:** [Muhammed-Fathi/CardioAssist-AI](https://github.com/Muhammed-Fathi/CardioAssist-AI)  
 **Canonical repository path:** `docs/research/CARDIOASSIST_AI_MASTER_COMPLETION_PLAN.md`  
@@ -310,7 +310,7 @@ A reliable paper can motivate the **engineering design** but cannot by itself ve
 
 ## 11. Mandatory PR and milestone quality gates
 
-A milestone is **not** complete simply because files were added or pytest reports are green.
+A milestone is **not** fully accepted simply because files were added or GitHub/Linux CI is green. **A real, reproducible local check on the maintainer's Windows computer is a mandatory acceptance gate for every applicable milestone.** Preserve engineering-merged versus local-accepted statuses separately.
 
 1. **Scope** — one bounded PR, exact baseline and full HEAD SHA; no unauthorized modifications to frozen protocols or real-bundle gates.
 2. **Working system** — executable path demonstrated, source-specific feature validation, route selection and reliable error cases.
@@ -320,16 +320,20 @@ A milestone is **not** complete simply because files were added or pytest report
 6. **Calibration** — evaluated on genuine data if claiming meaningful probabilities; no unearned risk language.
 7. **Explainability** — SHAP scale/additivity and LIME local quality checked; limitations and non-causal language preserved.
 8. **Safety** — no dataset pooling leakage, no premature deployment, no patient data in repo/tests, no unauthorized run.
-9. **Software tests** — relevant `pytest -W error`, security/integrity regression, negative scenarios, source checks, `git diff --check`, applicable GitHub CI green.
-10. **Output** — model card, feature acquisition contract, evaluation report, evidence table, explicit blocker list, next executable handoff.
+9. **Software tests** — relevant `pytest -W error`, security/integrity regression, negative scenarios, source checks, `git diff --check`, applicable GitHub CI green **and mandatory maintainer-local Windows verification at the exact reviewed/merged SHA**. A Linux CI pass does not substitute for Windows local tests.
+10. **Output** — model card, feature acquisition contract, evaluation report, evidence table, explicit blocker list, next executable handoff, and the local acceptance report with actual exit codes and failures/skip counts.
+11. **Local acceptance before stage closure** — after any implementation milestone is merged, update the existing Windows checkout safely (`git status --short`; `git fetch`; `git pull --ff-only`), confirm the exact HEAD, run the applicable CLI/demo, focused tests, security/negative tests, and the complete relevant repository suite when dependencies and authorization allow; preserve stdout/stderr/JSON summary and versions locally. Compare to the PR's CI. If relevant cases fail, register `LOCAL_VALIDATION_FAILED` and open a focused repair before declaring `LOCALLY_ACCEPTED`. Never modify NTFS permissions globally or bypass fail-closed checks to force green. For documentation-only stages, perform local Markdown/link/JSON parsing/checks; if executable tests truly do not apply, record `NOT_APPLICABLE_WITH_REASON`, not an invented pass.
+12. **Evidence provenance** — record `OS`, Python/toolchain version, local HEAD SHA, exact commands, actual 0/nonzero exit, passed/failed/error/skipped counts, issue link and any securely stored local logs. Local Windows runs only: an external agent or CI may provide commands but **cannot claim to have executed them on the maintainer's laptop**.
 
-**Review verdicts:** `READY_FOR_REVIEW`, `REVISION_REQUIRED`, `RESEARCH_ONLY_COMPLETE`, `INSUFFICIENT_EVIDENCE`, `CLINICAL_USE_NOT_AUTHORIZED`. A software-complete but medically unqualified route must be reported as such.
+**Review verdicts:** `READY_FOR_REVIEW`, `MERGED_AWAITING_LOCAL_VALIDATION`, `LOCALLY_ACCEPTED_ENGINEERING_ONLY`, `LOCAL_VALIDATION_FAILED`, `REVISION_REQUIRED`, `INSUFFICIENT_EVIDENCE`, `CLINICAL_USE_NOT_AUTHORIZED`. A merged software-complete but locally failing or medically unqualified route must be reported honestly, with each status separately.
 
 ---
 
-## 12. Immediate next implementation brief — AI-8R (AFTER AI-8 MERGE)
+## 12. Next implementation sequence — repair AI-8 Windows regression, then AI-8R
 
-**Baseline:** merged AI-8 commit `fda2e70138dae523e5f19fa0a4ebbd2e81f2ed94` and the approved code in `ai/uci412_research.py`, `ai/uci412_demo.py`, `research/uci412/**` and `research/intake/**`. Do not build another duplicate trainer or general synthetic architecture milestone.
+**Immediate P0 / AI-8W blocker:** Before AI-8R, resolve [Windows Issue #69](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/69). The maintainer's Windows Python 3.12.9 and pytest 9.0.3 collected 98 targeted tests: **83 passed, 2 failed, 13 errors** with `insecure_trusted_root_permissions` for NTFS `OWNER RIGHTS` SID `S-1-3-4`, including when `TEMP`, `TMP`, and `TMPDIR` point to a verified private parent. The manually secured `--work-dir` CLI **PASSED 12/12** twice with identical Windows report SHA-256 `2f31c6049fba52d2ecd1f36fbe1abf1e8ce2e1129529853b3ce8059befcfafb5`. This demonstrates software success under protected explicit paths, **not** Windows default-temp acceptance. Fix inner auto-created directory security using established helpers rather than weakening trusted bundle ACL verification. Repeat the targeted and full relevant Windows suites at the repair PR commit and again on merged `main` before `AI-8W=LOCALLY_ACCEPTED`.
+
+**Following scientific milestone: AI-8R (PLANNED, NOT STARTED).** Baseline remains merged AI-8 commit `fda2e70138dae523e5f19fa0a4ebbd2e81f2ed94` plus subsequent verified repair merges. Use approved code in `ai/uci412_research.py`, `ai/uci412_demo.py`, `research/uci412/**` and `research/intake/**`; do not build another duplicate trainer or general synthetic architecture milestone.
 
 **Primary scientific objective:** determine whether UCI-412's registered 16 features can legitimately represent a *pre-reference-test* research predictor; make every unresolved source meaning/timing question evidence-linked, and prepare a guarded reproducible Windows-local real-cohort workflow. A negative eligibility decision is a legitimate scientific result and must lead to a documented alternative rather than silent clinical assumptions.
 
@@ -342,7 +346,7 @@ A milestone is **not** complete simply because files were added or pytest report
 
 **Completion rule:** AI-8R engineering readiness may be complete without a real fit; do not mark `REAL_DATA_MODEL_EVALUATED` or `CLINICALLY_VALIDATED` until the specific evidence exists. No patient-risk percentage claim follows from synthetic or single-centre internal metrics.
 
-**Release discipline:** work on latest `main`, one focused PR, human review/merge, then update this MD and `docs/research/ai_master_progress.json` in a follow-up tracking change. Keep the roadmap authoritative and historical review records intact.
+**Release discipline:** work on latest `main`, one focused PR, human review/merge, **mandatory local Windows tests/demo after sync**, then update this MD and `docs/research/ai_master_progress.json` in a follow-up tracking change. A coding-agent Linux CI result does not close the maintainer-local gate. Keep the roadmap authoritative and historical review records intact.
 
 ---
 
@@ -445,7 +449,7 @@ Do not upgrade E4 or E5 to E1/E2. Resolve contradictions in this order: binding 
 
 ## 16. Visible demonstration acceptance — AI-8 synthetic demo delivered, product flows still pending
 
-**Progress as of AI-8 merge:** The documented research CLI `python -m ai uci412-demo --format text` is in `main` with 12 observable synthetic stages, genuine rejected-input example and automated tests. The agent reported its execution; this roadmap author did not rerun that local CLI on the user's Windows machine. The CLI is **not** a real-patient app and cannot imply approved clinical serving. Separate monitoring/product-flow demo D3 remains pending.
+**Progress as of 2026-10-28 local validation:** The documented research CLI `python -m ai uci412-demo --format text` is in `main` with 12 observable synthetic stages, genuine rejected-input example and automated tests. The maintainer **ran it successfully on Windows with a pre-secured explicit `--work-dir` (12/12), then independently repeated it with the same deterministic report SHA-256**. But default temp paths and 15/98 targeted Windows tests still fail because of NTFS ACL inherited `OWNER RIGHTS`; see Issue #69. **AI-8 is merged engineering complete but local Windows acceptance is OPEN.** The CLI is not a clinical patient app; product/monitoring demo D3 remains pending.
 
 ### Scenario D1 — Cleveland research score on a synthetic patient (already technically feasible)
 
@@ -468,7 +472,7 @@ Do not upgrade E4 or E5 to E1/E2. Resolve contradictions in this order: binding 
 
 ### Visible acceptance checklist
 
-- [x] One UCI-412 synthetic research CLI with exact command in the merged runbook; **maintainer Windows-local reproduction not yet recorded**.
+- [x] One UCI-412 synthetic research CLI with exact command in the merged runbook; **maintainer Windows-local `--work-dir` 12/12 PASSED twice with matching report SHA**. Default-temp Windows CLI and test-suite path **NOT ACCEPTED**.
 - [ ] Source-specific valid examples and >=3 negative cases.
 - [x] Merged UCI-412 CLI labels raw/calibrated research scores as **synthetic, non-clinical**.
 - [x] Merged UCI-412 CLI includes SHAP explained scale/additivity and LIME quality/fidelity diagnostic.
@@ -477,7 +481,7 @@ Do not upgrade E4 or E5 to E1/E2. Resolve contradictions in this order: binding 
 - [ ] Aggregate model evidence and limitations provided independently from individual test predictions.
 - [ ] No real patient spreadsheet, keys, private bundle, patient-level derivative or unauthorized data use in GitHub, CI, Arena or screenshots.
 
-**End-user acceptance question:** Can the maintainer run the documented CLI on their own Windows environment, observe a transparent **synthetic research** score and its genuine SHAP/LIME explanations and meaningful rejections, and accurately state the medical evidence limitations? This has an implemented and tested path (AI-8), but the user-local demo is not yet independently recorded; the broader patient/doctor/monitoring product workflow is a separate downstream milestone.
+**End-user acceptance question:** Can the maintainer run the documented CLI on their own Windows environment, observe a transparent **synthetic research** score and its genuine SHAP/LIME explanations and meaningful rejections, and accurately state the medical evidence limitations? This has an implemented and **maintainer-observed successful protected-path** (AI-8), but the default Windows temp-path and suite currently fail and must be repaired under AI-8W before local acceptance. The broader patient/doctor/monitoring product workflow is a separate downstream milestone.
 
 ---
 
@@ -487,10 +491,11 @@ Do not upgrade E4 or E5 to E1/E2. Resolve contradictions in this order: binding 
 
 | Priority | Slice | Status as reviewed | Evidence / acceptance still needed |
 |---|---|---|---|
-| **P0** | Working master roadmap + one synthetic research demo | **DONE ENGINEERING:** PR #67 and PR #66 merged | Maintainer-local Windows demo execution optional confirmation; no clinical inference |
+| **P0** | Working roadmap + UCI-412 synthetic research demo | **MERGED ENGINEERING COMPLETE / LOCAL ACCEPTANCE PARTIAL** | Maintainer ran secured `--work-dir` demo **12/12 PASSED** with identical two-run hash; default temp and pytest remain failing; no clinical inference |
 | **P1** | UCI-412 16-field input contract | **MERGED ENGINEERING COMPLETE; CLINICAL ACQUISITION PROPOSED** | Resolve BP/PR/chest pain/0-1 encoding/temporal meaning before adopting clinical questionnaire |
 | **P1** | UCI-412 synthetic bundle + XAI/calibration + negative tests | **MERGED ENGINEERING COMPLETE SYNTHETIC ONLY** | Real-model training/calibration and independent validation are not established |
-| **P1 NEXT** | **AI-8R source admissibility + local real-research readiness** | **PLANNED** | First source-evidence PR with strict local preflight; no fabricated real-data execution |
+| **P0 NEXT** | **AI-8W: Windows local regression repair (Issue #69)** | **BLOCKED / CODE FIX REQUIRED** | Restore default-temp CLI and all 98 targeted Windows tests **without weakening ACL policy**; run relevant complete local pytest and record exact SHA/evidence |
+| **P1 AFTER FIX** | **AI-8R source admissibility + local real-research readiness** | **PLANNED / NOT STARTED** | Send agent AI-8R prompt only after Windows repair and local acceptance; source evidence and protected local real research preflight, never invented authorization |
 | **P1 PARALLEL** | Hungary locked external suitability + independent dataset source search | **RESEARCH PENDING** | Respect one-shot, sample-size, overlap and source-protocol conditions |
 | **P2** | AI-9 same-source clinical-vs-labs incremental-value framework | **NOT STARTED** | No lab-panel real fitting until feature eligibility proven |
 | **P3** | AI-10/11/12 external research evidence, integrated facade and handoff | **NOT STARTED** | Versioned evidence, trustworthy metrics, explicit research-only use |
@@ -499,11 +504,11 @@ Do not upgrade E4 or E5 to E1/E2. Resolve contradictions in this order: binding 
 
 Canonical companion: [`docs/research/ai_master_progress.json`](ai_master_progress.json). Its current schema and keys explicitly distinguish **merged synthetic engineering**, **real scientific evaluation**, **clinical validation**, **documented demo** and **user-local demo confirmation**.
 
-**Rule:** Updating the roadmap/JSON is a *tracking action*, never a way to grant a research protocol or data-use permission. `AI-8R` is a new bounded working milestone, not an authorized activation of D-048. Do not change frozen code or prior authorization decisions to make statuses green.
+**Rule:** Updating the roadmap/JSON is a *tracking action*, never a way to grant a research protocol or data-use permission. `AI-8R` remains planned, not an authorized activation of D-048. **No stage is marked `LOCALLY_ACCEPTED` while relevant Windows tests fail**. Do not change frozen code or prior authorization decisions to make statuses green.
 
 ### 17.2 Required stage-close checklist
 
-For every completed stage, record its exact PR and merge SHA; source/head SHA; code/features changed; tests and GitHub CI at exact reviewed SHA; observable CLI/demo with evidence; dataset/provenance; all open source-semantic questions; real evaluation status; whether the milestone is engineering complete, research evaluated or clinically validated; and **NEXT_EXECUTABLE_STEP**. Update both files in a reviewable docs PR after the relevant implementation PR merges.
+For every completed stage, record its exact PR and merge SHA; source/head SHA; code/features changed; tests and GitHub CI at exact reviewed SHA; **the maintainer's actual local Windows test matrix and demo evidence on the updated checkout**; OS/Python/pytest versions; exact commands and exit codes; any failed, error or skipped tests; dataset/provenance; medical/scientific limitations; and **NEXT_EXECUTABLE_STEP**. Stage-close sequence: **agent implementation → focused CI → review/merge → safe local sync → local demo/test execution → explicit local verdict → MD/JSON status update and docs PR**. Failed applicable local checks create a repair milestone and block local acceptance, even if Linux CI is green. Docs-only changes require an applicable local validation or a justified non-applicability record.
 
 ### 17.3 Review rules for Arena
 
@@ -512,6 +517,7 @@ For every completed stage, record its exact PR and merge SHA; source/head SHA; c
 - Do not invent newer real UCI-412 metrics. Label any legacy aggregate `HISTORICAL_INTERNAL_EXPLORATORY` and do not compare it numerically to Cleveland.
 - Require evidence per field before updating clinical acquisition mapping. Admit no outcome-derived or post-diagnosis features.
 - Prove negative cases and data-protection constraints with synthetic fixtures. No uploading real patient records to Arena/GitHub.
+- Supply a specific **Windows PowerShell local verification runbook** with reproducible commands for every executable milestone. Agent tests are not labeled `MAINTAINER_LOCAL_PASSED`. Respect local paths, keys and non-uploadable artifacts.
 - Record `BLOCKED_WITH_NAMED_CAUSE` as a scientifically legitimate output, not a reason to silently bypass controls or produce more unrelated synthetic code.
 
 ---
@@ -578,6 +584,6 @@ For every completed stage, record its exact PR and merge SHA; source/head SHA; c
 | Clinical supervisor | Clinical target/protocol acceptance (separate act) | — | — |
 | Data/research governance owner | Scoped data access and study operation (separate act) | — | — |
 
-**Next review trigger:** Completion/merge of the bounded AI-8R source-admissibility and local preflight milestone; any independently verified new source evidence changing predictor timing/target semantics, a separately ratified scoped real-data authorization, or an eligible independent validation cohort. After each milestone, update both this MD and `docs/research/ai_master_progress.json` in a docs PR.
+**Next review trigger:** AI-8W Windows NTFS default-temp bug fix PR for Issue #69, followed by **actual maintainer-local post-merge Windows test evidence**. Then AI-8R source admissibility/local preflight starts. Any new independently verified clinical/source evidence is recorded without granting approval. **Every subsequent milestone must be tested locally and have MD + JSON tracking updated** in a reviewable docs PR.
 
-**Version 1.4 change summary (2026-10-28):** Confirms the actual merged AI-8 PR #66 and Master Plan PR #67 SHAs; records 4/4 GitHub Actions passing at the final AI-8 source head, preserves agent-reported test provenance, closes AI-8 **engineering-only** status, adds permanent machine-readable milestone tracking, and sets AI-8R as the next bounded source-science/local preflight milestone. Prior draft review notes are treated as history, not active blockers. No clinical approval, research protocol, real-data permission or A3 frozen scope was changed.
+**Version 1.5 change summary (2026-10-28):** Adopts mandatory maintainer-local Windows acceptance for each applicable milestone, documents observed protected-path AI-8 12/12 demo reproducibility and failed 98-case Windows suite (`83 passed, 2 failed, 13 errors`), records Issue #69 as next AI-8W fix, and holds AI-8R until that regression is verified fixed. Engineering merge status remains separate from local acceptance and clinical validity. No clinical approval, research protocol, real-data permission or A3 frozen scope was changed.
