@@ -1,15 +1,18 @@
 {
   "schema": "cardioassist.ai_master_progress/v1",
-  "roadmap_version": "1.4",
+  "roadmap_version": "1.5",
   "updated_on": "2026-10-28",
-  "source_main_commit_at_review": "fda2e70138dae523e5f19fa0a4ebbd2e81f2ed94",
+  "source_main_commit_at_review": "ad885a259037259da9fd09c80d5698f3bc042b68",
   "purpose": "Track actual completed engineering versus real scientific evidence; do not infer clinical readiness from synthetic tests.",
   "status_vocabulary": [
     "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
     "PLANNED",
     "IN_PROGRESS",
     "BLOCKED_RESEARCH_EXECUTION",
-    "NOT_STARTED"
+    "NOT_STARTED",
+    "MERGED_AWAITING_LOCAL_VALIDATION",
+    "LOCAL_VALIDATION_FAILED",
+    "LOCALLY_ACCEPTED_ENGINEERING_ONLY"
   ],
   "milestones": {
     "AI-7": {
@@ -54,15 +57,45 @@
       "demo": {
         "command": "python -m ai uci412-demo --format text",
         "status": "MERGED_CLI_AND_AUTOMATED_TESTS",
-        "maintainer_local_reproduction": "NOT_RECORDED"
+        "maintainer_local_reproduction": "PASSED_TWICE_WITH_EXPLICIT_PRESECURED_WORK_DIR",
+        "local_windows_report_sha256": "2f31c6049fba52d2ecd1f36fbe1abf1e8ce2e1129529853b3ce8059befcfafb5"
       },
       "remaining": [
         "UCI-412 source-field semantics and availability-at-prediction-time unresolved",
         "D-048 real-data research authorization not established by AI-8",
         "No model probability validated for real individual patient risk",
-        "No eligible UCI-412 independent external validation established"
+        "No eligible UCI-412 independent external validation established",
+        "Windows automatic temp/trusted-root ACL bug #69: 15 of 98 targeted local tests failed/errors; full local acceptance pending."
       ],
-      "evidence_grade": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+      "evidence_grade": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+      "local_windows_verification": {
+        "status": "LOCAL_VALIDATION_FAILED_WITH_PROTECTED_PATH_DEMO_PASSED",
+        "observed_on": "2026-10-28",
+        "repo_commit_sha": "ad885a259037259da9fd09c80d5698f3bc042b68",
+        "platform": "Windows (win32)",
+        "python": "3.12.9",
+        "pytest": "9.0.3",
+        "passing_demo": {
+          "command": "python -m ai uci412-demo --work-dir <presecured-user-private-dir> --format text",
+          "stages_passed": 12,
+          "stages_total": 12,
+          "repeated_sha256_match": true
+        },
+        "failing_targeted_test": {
+          "command": "python -m pytest -W error tests/experiments/test_uci412_demo.py tests/experiments/test_uci412_research_model.py",
+          "collected": 98,
+          "passed": 83,
+          "failed": 2,
+          "errors": 13,
+          "skipped": 0,
+          "issue_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/69",
+          "error_code": "insecure_trusted_root_permissions",
+          "cause": "Nested auto-created Windows temporary trusted_bundles directory inherits disallowed OWNER RIGHTS SID S-1-3-4 ACL; fail-closed security correctly refuses bundle."
+        },
+        "temporary_parent_workaround": "FAILED_TO_REPAIR_AUTO_CREATED_INNER_DIRECTORY_ACL",
+        "overall_acceptance": "BLOCKED_PENDING_AI-8W_REPAIR_AND_LOCAL_RETEST",
+        "data_grade": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+      }
     },
     "AI-8R": {
       "engineering_status": "PLANNED",
@@ -79,7 +112,8 @@
         "UCI-412 semantic/timing gaps",
         "D-048 local execution conditions and scientific review not fulfilled"
       ],
-      "next_executable_step": "Build verifiable source-admissibility matrix and fail-closed Windows-local preflight with synthetic fixtures; do not claim real performance."
+      "next_executable_step": "AFTER AI-8W: Build verifiable source-admissibility matrix and guarded local preflight, with mandatory local Windows acceptance.",
+      "precondition": "AI-8W Windows local suite is passed/accepted; do not start AI-8R agent task yet."
     },
     "AI-9": {
       "engineering_status": "NOT_STARTED",
@@ -100,15 +134,55 @@
       "engineering_status": "NOT_STARTED",
       "research_evaluation_status": "NOT_ESTABLISHED",
       "focus": "Scientific reporting, documentation and graduation research handoff."
+    },
+    "AI-8W": {
+      "engineering_status": "IN_PROGRESS",
+      "local_windows_acceptance": "LOCAL_VALIDATION_FAILED",
+      "focus": "Repair AI-8 UCI-412 demo automatic Windows private temporary/trusted_bundles directory hardening without relaxing fail-closed ACL policies.",
+      "blocking_issue_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/69",
+      "baseline_commit_sha": "ad885a259037259da9fd09c80d5698f3bc042b68",
+      "measured_local_baseline": {
+        "targeted_pytest_total": 98,
+        "passed": 83,
+        "failed": 2,
+        "errors": 13,
+        "secure_work_dir_demo_stages": "12/12",
+        "default_demo_status": "FAIL_CLOSED"
+      },
+      "exit_criteria": [
+        "`python -m ai uci412-demo --format text` passes with no manual --work-dir on maintainer Windows.",
+        "98 targeted cases and relevant full repository pytest -W error pass locally or any remaining failures are analyzed with actual evidence.",
+        "Windows ACL security/owner and symlink negative controls stay fail closed.",
+        "Linux GitHub Actions pass at exact reviewed PR head; repair PR merged.",
+        "Post-merge Windows checkout is safely updated, tests and both default and explicit secured-path CLI rerun and logged.",
+        "Only then update roadmap and JSON statuses to LOCALLY_ACCEPTED_ENGINEERING_ONLY."
+      ],
+      "next_executable_step": "Arena implements focused Windows ACL repair for Issue #69 in new PR; maintainer executes local commands after review/merge."
     }
   },
   "change_control": {
-    "for_each_completed_stage": "Record PR, merged_sha, tests, exact CI head, actual demo result, engineering status, real-data evidence status, open clinical/source blockers, NEXT_EXECUTABLE_STEP.",
+    "for_each_completed_stage": "Record PR, merged_sha, exact CI SHA/status, maintainer's Windows HEAD/version, exact local commands and results (including errors and skips), demo output, engineering status, real-data evidence status, unresolved medical/source blockers, NEXT_EXECUTABLE_STEP. Never mark locally accepted without local evidence.",
     "update_route": "Focused documentation PR, human review, merge; never silently rewrite historical approval records.",
     "restrictions": [
       "Do not change approvals/gates by updating this file",
       "No real patient records, keys, model artifacts, or private source derivatives committed",
       "Research score is not a clinically validated individual risk probability"
-    ]
+    ],
+    "local_validation_policy": {
+      "mandatory": "Every milestone requires applicable maintainer-local post-merge Windows verification, in addition to code review and GitHub CI.",
+      "workflow": [
+        "Arena PR + Linux CI",
+        "Human review/merge",
+        "On Windows: check clean state and git pull --ff-only",
+        "Verify exact HEAD",
+        "Run relevant demo/CLI, negative/security tests and pytest -W error scope",
+        "Run full applicable repository suite where safely executable",
+        "Record command, version, status/exit, pass/fail/error/skip and repro evidence",
+        "Update MD + progress JSON via reviewable tracking PR"
+      ],
+      "failed_tests": "Record LOCAL_VALIDATION_FAILED and repair before local acceptance; engineering merged remains separately truthful.",
+      "docs_only": "Use local parse/format/link/data-schema checks; record NOT_APPLICABLE_WITH_REASON only when genuinely no executable checks apply.",
+      "safety": "No protected patient data/keys/bundles in GitHub CI, chats or repo; no weakening ACL verification or bypassing authorization."
+    }
   }
 }
