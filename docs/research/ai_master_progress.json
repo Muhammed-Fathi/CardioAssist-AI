@@ -1,0 +1,114 @@
+{
+  "schema": "cardioassist.ai_master_progress/v1",
+  "roadmap_version": "1.4",
+  "updated_on": "2026-10-28",
+  "source_main_commit_at_review": "fda2e70138dae523e5f19fa0a4ebbd2e81f2ed94",
+  "purpose": "Track actual completed engineering versus real scientific evidence; do not infer clinical readiness from synthetic tests.",
+  "status_vocabulary": [
+    "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
+    "PLANNED",
+    "IN_PROGRESS",
+    "BLOCKED_RESEARCH_EXECUTION",
+    "NOT_STARTED"
+  ],
+  "milestones": {
+    "AI-7": {
+      "engineering_status": "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
+      "research_evaluation_status": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+      "pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/65",
+      "merge_sha": "6ecc191800c2f505b80f97bb8261b2ed3cb36af7",
+      "evidence": [
+        "Five source-specific routes implemented",
+        "AI-7 synthetic route exercise and regression suite"
+      ],
+      "remaining": [
+        "External validation on a suitable independently assessed real cohort not performed"
+      ]
+    },
+    "AI-8": {
+      "engineering_status": "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
+      "research_evaluation_status": "NOT_ESTABLISHED_BY_AI8_REAL_DATA",
+      "clinical_validation_status": "NOT_ESTABLISHED",
+      "pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/66",
+      "source_head_sha": "3a9371817e707cd2a8ad4254a5e873bfbc744272",
+      "merge_sha": "fda2e70138dae523e5f19fa0a4ebbd2e81f2ed94",
+      "ci_on_head": {
+        "contract_validation": "success",
+        "audit_toolchain_validation": "success",
+        "mock_backend_validation": "success",
+        "synthetic_experiment_runner_validation": "success"
+      },
+      "local_pytest_agent_report": {
+        "passed": 2339,
+        "skipped": 2,
+        "verified_by_this_review": false
+      },
+      "implemented": [
+        "UCI-412 source-specific 16-field synthetic research route",
+        "Strict per-record synthetic source and context validation",
+        "Fold-contained nested CV and cross-fitted calibration",
+        "RESEARCH_ONLY authenticated offline bundle; SHAP/LIME on correct explained scale",
+        "Machine-readable source/acquisition field contract",
+        "12-stage synthetic CLI demo with invalid-input rejection"
+      ],
+      "demo": {
+        "command": "python -m ai uci412-demo --format text",
+        "status": "MERGED_CLI_AND_AUTOMATED_TESTS",
+        "maintainer_local_reproduction": "NOT_RECORDED"
+      },
+      "remaining": [
+        "UCI-412 source-field semantics and availability-at-prediction-time unresolved",
+        "D-048 real-data research authorization not established by AI-8",
+        "No model probability validated for real individual patient risk",
+        "No eligible UCI-412 independent external validation established"
+      ],
+      "evidence_grade": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    "AI-8R": {
+      "engineering_status": "PLANNED",
+      "research_evaluation_status": "BLOCKED_RESEARCH_EXECUTION",
+      "focus": "Feature-level source admissibility resolution and protected Windows-local real UCI-412 research handoff; research-only, no unapproved fitting.",
+      "acceptance": [
+        "Evidence-linked field-by-field eligibility and unresolved register",
+        "Routable source-specific adapter reuses AI-8 implementation",
+        "Actual local preflight/CLI commands and manifest checks",
+        "Synthetic integration tests, exact CI, no private data in Git",
+        "Explicit executable next step for scoped real research once separately authorized"
+      ],
+      "blocker": [
+        "UCI-412 semantic/timing gaps",
+        "D-048 local execution conditions and scientific review not fulfilled"
+      ],
+      "next_executable_step": "Build verifiable source-admissibility matrix and fail-closed Windows-local preflight with synthetic fixtures; do not claim real performance."
+    },
+    "AI-9": {
+      "engineering_status": "NOT_STARTED",
+      "research_evaluation_status": "NOT_ESTABLISHED",
+      "focus": "Clinical vs routine-labs same-source incremental value only where admissible."
+    },
+    "AI-10": {
+      "engineering_status": "NOT_STARTED",
+      "research_evaluation_status": "NOT_ESTABLISHED",
+      "focus": "Prespecified locked external transportability (Cleveland to Hungary) and independent source suitability."
+    },
+    "AI-11": {
+      "engineering_status": "NOT_STARTED",
+      "research_evaluation_status": "NOT_ESTABLISHED",
+      "focus": "Integrated offline multi-model research interface and versioned backend handoff."
+    },
+    "AI-12": {
+      "engineering_status": "NOT_STARTED",
+      "research_evaluation_status": "NOT_ESTABLISHED",
+      "focus": "Scientific reporting, documentation and graduation research handoff."
+    }
+  },
+  "change_control": {
+    "for_each_completed_stage": "Record PR, merged_sha, tests, exact CI head, actual demo result, engineering status, real-data evidence status, open clinical/source blockers, NEXT_EXECUTABLE_STEP.",
+    "update_route": "Focused documentation PR, human review, merge; never silently rewrite historical approval records.",
+    "restrictions": [
+      "Do not change approvals/gates by updating this file",
+      "No real patient records, keys, model artifacts, or private source derivatives committed",
+      "Research score is not a clinically validated individual risk probability"
+    ]
+  }
+}
