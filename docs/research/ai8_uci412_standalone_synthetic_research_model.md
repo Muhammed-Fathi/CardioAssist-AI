@@ -4,7 +4,11 @@
 [#66](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/66) on branch
 `arena/01367b08-cardioassist-ai`.
 **Baseline `main` SHA:** `6ecc191800c2f505b80f97bb8261b2ed3cb36af7`.
-**Implementation commit SHA:** `e8c0cc499c3c296579d790c15837a2825ecb9da6`.
+**Primary implementation commit SHA:** `e8c0cc499c3c296579d790c15837a2825ecb9da6`.
+The same PR also carries follow-up commits that add this report, the
+dependency-isolated test split, and a pyflakes cleanup; none of them change the
+pipeline's runtime behaviour (the deterministic report SHA-256 in §6 is
+reproduced identically on the branch head).
 **Classification:** engineering artifact + scientific record. **Synthetic
 fixtures only — nothing in this document is clinical evidence or a performance
 claim about patients.** Gate PT P-3 remains **CLOSED**, P-1 **PENDING**, P-5
