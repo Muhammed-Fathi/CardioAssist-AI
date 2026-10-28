@@ -1,12 +1,12 @@
 # CardioAssist AI — Master AI Research & Engineering Completion Plan
 
-**Document ID:** CAI-AI-MASTER-ROADMAP-2026-10-28-V1.3  
-**Version:** 1.3 — workflow-reconciled roadmap with amended AI-8 PR #66 code/demo review and milestone tracking  
+**Document ID:** CAI-AI-MASTER-ROADMAP-2026-10-28-V1.4  
+**Version:** 1.4 — merged AI-8 engineering completion and evidence-gated AI-8R follow-up, with live milestone register  
 **Date:** 2026-10-28  
 **Repository:** [Muhammed-Fathi/CardioAssist-AI](https://github.com/Muhammed-Fathi/CardioAssist-AI)  
-**Suggested repository location:** `docs/research/CARDIOASSIST_AI_MASTER_COMPLETION_PLAN.md`  
+**Canonical repository path:** `docs/research/CARDIOASSIST_AI_MASTER_COMPLETION_PLAN.md`  
 **Owner:** Project maintainer and AI team  
-**Status:** **TEAM WORKING EXECUTION PLAN / RESEARCH-ONLY; submitted through a reviewable documentation PR, not a clinical approval, authorization for new real-patient processing, or regulatory clearance.**
+**Status:** **TEAM WORKING EXECUTION PLAN / RESEARCH-ONLY; adopted on `main` through merged PR #67, updated only via reviewable PRs. Neither adoption nor status updates grant clinical approval, protected real-data access, or regulatory clearance.**
 
 > **Purpose.** Deliver a technically reliable, medically defensible, reproducible, multi-source coronary artery disease (CAD) **research AI system** whose input acquisition is compatible with its actual validated features, whose output probabilities are calibrated and honestly scoped, whose explanations faithfully describe model behavior, and whose real-world limitations are explicit. Code completeness and high AUROC alone do not satisfy this goal.
 
@@ -64,19 +64,19 @@ This roadmap is the **working strategy for completing the AI workstream**. It su
 
 ## 2. Starting point: what is actually done vs not yet established
 
-**Verified repository snapshot (2026-10-28):** `main` at `6ecc191800c2f505b80f97bb8261b2ed3cb36af7` following merged AI-7 PR [#65](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/65). **AI-8 is implemented in OPEN, UNMERGED [PR #66](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/66), head `13430c7ca1f52f10e8f4b75cdef1b7148fbb40ac` as reviewed.** All four remote GitHub Actions workflows were independently observed successful on that head. The agent reports local `2293 passed, 2 skipped`, not independently rerun by the plan author. This roadmap does not treat an open PR as merged. Recheck SHAs/status before acting.
+**Verified repository snapshot (2026-10-28):** `main` at `fda2e70138dae523e5f19fa0a4ebbd2e81f2ed94` after [AI-8 PR #66](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/66) **MERGED** at that commit and [Master Plan PR #67](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/67) **MERGED** at `4889f58492ff1ea8aa4c79801d833729194d741d`. AI-8 final source head `3a9371817e707cd2a8ad4254a5e873bfbc744272` has **4/4 GitHub Actions workflows completed successfully** as independently observed. Arena reports full-local `2339 passed, 2 skipped` under `pytest -W error` (report, not independently rerun by this document author). These results establish the synthetic engineering milestone, **not** clinical validation or a new real-data run.
 
 | Workstream | Evidence / implementation state | What it does **not** establish |
 |---|---|---|
 | AI-7 research routes | Merged route catalog with five source-specific routes, strict synthetic routing and synthetic end-to-end Cleveland/UCI-412 exercises | No permission to run real patient records or deploy a model |
 | Shared AI engineering | Panel validation, fold-safe preprocessing, nested CV, model selection, calibration, SHAP/LIME, evaluation, authenticated research-only bundling and inference are implemented in varying established scopes | These components do not validate a new medical cohort or a new intended-use population |
 | Cleveland D-047 | A locally accepted real-data research bundle exists; maintainer reported successful offline inference on two **synthetic** inputs, including calibration and explainability engineering checks | No proof from those two outputs of real-world predictive accuracy, independent validation or clinical use |
-| UCI-412 M3a / AI-8 | Prior exploratory real-data aggregate OOF AUROC approximately `0.9107` remains separately documented. AI-8 PR #66 implements synthetic 16-field source-specific training, independent synthetic holdout, calibration, SHAP/LIME, secure research-only bundle and field-contract tests; **PR is open** | Not a merged milestone, real-data fit, accepted real-model package, independent clinical validation, or eligible patient-facing risk model; **strict per-record context guard needs correction before merge** |
+| UCI-412 M3a / AI-8 | **MERGED / ENGINEERING_COMPLETE_SYNTHETIC_ONLY** in PR #66: source-specific 16-field route, strict per-record context guard, synthetic held-out test, cross-fitted calibration, genuine SHAP/LIME, authenticated research bundle, field contract and documented 12-stage CLI `python -m ai uci412-demo`; prior exploratory real-data OOF AUROC ~`0.9107` is separate historical aggregate evidence | AI-8 did **not** train/package a new real UCI-412 model, establish clinical calibration, validate an independent UCI-412 cohort, or authorize patient-facing risk claims |
 | Clinical + lab models | Proposed/registered contracts and engineering scaffolding | No justified real-data fit or proof that extra labs improve decisions |
 | Hungary | Conditional source-compatibility documentation and locked external-evaluation architecture | No completed independent locked transportability evaluation |
-| Patient mobile / OCR / doctor dashboard | Requirements and product blueprint present, including F13/F14/F15. AI-8 PR #66 introduces a proposed UCI-412 16-field acquisition contract, bound to existing panel/dictionary | OCR extraction is not model-input authorization; mappings remain PROPOSED, and no interactive patient/doctor interface or visible reproducible demo was delivered by AI-8 PR #66 |
+| Patient mobile / OCR / doctor dashboard | Requirements and product blueprint F13/F14/F15 present; merged AI-8 source contract ties UCI-412 to its feature dictionary and **delivers a reproducible offline CLI research demo** | OCR remains separate from model eligibility; acquisition mappings PROPOSED; no Flutter/React user-facing interface or clinical AI serving is delivered by the CLI |
 
-**Important:** Existing scientific reports contain historical proposals, some stale implementation descriptions, and unresolved recommendations. AI-8 PR #66 proposes corrections to the historical AI-7 report, but these are not on `main` until that PR merges. Actual code and independently verified dataset evidence are authoritative for their respective technical/source claims. This roadmap creates no new legal/clinical approval.
+**Important:** Existing scientific reports contain historical proposals and some stale claims. AI-8 PR #66 has **merged its factual AI-7 report corrections**; historical approval, dataset definitions, feature uncertainty and scientific limitations remain separately binding. Actual code and independently verified dataset evidence are authoritative for their respective technical/source claims. This roadmap creates no new legal/clinical approval.
 
 ---
 
@@ -257,7 +257,8 @@ Evaluate an established clinical reference such as the **2024 ESC RF-CL** *only 
 | Milestone | Engineering deliverable | Real scientific deliverable | Exit criteria |
 |---|---|---|---|
 | **AI-7 (DONE)** | Five-route catalog, strict synthetic router and E2E exercises | Correctly bounded synthetic research evidence | PR #65 merged; four GitHub workflows passed on final PR head; research-only |
-| **AI-8: Input & real-research readiness + UCI-412 completion** | Finalize source-specific 16-field contract, acquisition provenance matrix, robust UCI-412 training/package/verification adapter, negative tests, local execution handoff | Resolve or clearly label BP/PR/chest-pain/timing/encoding uncertainties; document exact eligibility, baseline CV and any permitted real experiment | A tested UCI-412 research bundle **when separately authorized and scientifically admissible**; otherwise a complete synthetic-engineered route plus evidence-qualified, explicit non-completion of real model |
+| **AI-8 (ENGINEERING COMPLETE; real evidence outstanding)** | Finalize source-specific 16-field contract, acquisition provenance matrix, robust UCI-412 training/package/verification adapter, negative tests, local execution handoff | Resolve or clearly label BP/PR/chest-pain/timing/encoding uncertainties; document exact eligibility, baseline CV and any permitted real experiment | A tested UCI-412 research bundle **when separately authorized and scientifically admissible**; otherwise a complete synthetic-engineered route plus evidence-qualified, explicit non-completion of real model |
+| **AI-8R (NEXT: source semantics + protected local real-research readiness)** | Evidence-linked adjudication of UCI-412 source encoding, BP/PR/chest-pain and timing; protected preflight/local runner reusing merged AI-8 code; no duplicate trainer | If and only if separately scoped conditions are satisfied, produce a real internal research evaluation with honest provenance; otherwise explicit actionable no-go plus eligible alternative research route | No synthetic-only claim of clinical performance, no fabricated authorization, no UCI-411 reuse as independent validation |
 | **AI-9: Clinical + routine labs** | Stage-compatible panel/model tooling, missingness policy, versioned bundle and comparison harness | Same-source incremental-value evaluation (discrimination **and** calibration), feature timing review and complexity/sample-size budget | Keep or reject each lab extension on evidence; no automatic rollout |
 | **AI-10: Independent evaluation + source expansion** | Protected locked-site evaluation runner, audit/ledger, site-drift and missingness diagnostics; AngioCAD/other-source suitability tooling | Frozen-model Cleveland→Hungary evaluation where authorized, with CIs, limitations and no test-set tuning; evidence-based acceptance/rejection of new sources | Transport conclusion constrained to the evaluated site and prespecified protocol, or honest insufficient-evidence outcome |
 | **AI-11: Research system integration** | Versioned multi-model registry, feature acquisition contracts, offline research inference facade, validation, verified calibration/XAI, typed status/error results and backend handoff | Reproducibility pack and research model cards; TRIPOD+AI reporting; PROBAST+AI structured appraisal | End-to-end local research demonstration; all eligible operations and explicit refusal paths tested; clinical serving still gated |
@@ -326,19 +327,22 @@ A milestone is **not** complete simply because files were added or pytest report
 
 ---
 
-## 12. Immediate next implementation brief (AI-8)
+## 12. Immediate next implementation brief — AI-8R (AFTER AI-8 MERGE)
 
-The next coding-agent PR should **not** be another general documentation pass or duplicate AI-7's two synthetic E2E exercises. Instead:
+**Baseline:** merged AI-8 commit `fda2e70138dae523e5f19fa0a4ebbd2e81f2ed94` and the approved code in `ai/uci412_research.py`, `ai/uci412_demo.py`, `research/uci412/**` and `research/intake/**`. Do not build another duplicate trainer or general synthetic architecture milestone.
 
-1. **Audit exact current UCI-412 code, panels, aggregate results, governance and real-bundle gap.** Reconcile the current scientific `HOLD` with the older AI-First proposal without altering history.
-2. **Create versioned per-field `Model Input ↔ Clinical Acquisition` contracts** for Cleveland and UCI-412, with raw→canonical coding, units, source, temporal admissibility and verification requirements. Any patient/app/OCR mapping without evidence remains clearly `PROPOSED`.
-3. **Implement new negative-control and contract tests** for source mismatch, units, timing, source coding, non-equivalence, disallowed OCR/wearable routes and missing fields. Preserve existing feature schema as sole authority.
-4. **Complete source-specific UCI-412 research packaging/inference integration on synthetic fixtures** by reusing existing AI components; do not duplicate a training framework. Demonstrate verified `RESEARCH_ONLY` bundle, calibration and XAI contracts.
-5. **Produce a runnable, protected Windows-local real-model handoff** listing exact named prerequisites, authorized scope and deterministic commands; do not trigger or falsify authorization. If approval is not in scope, engineering can be done while real model remains explicitly unfinished.
-6. **Research outstanding UCI-412 owner documentation and independent candidate cohorts** from primary scientific sources. Include a candidate decision matrix with evidence level and download restrictions.
-7. **Record actual measured progress**: PR, changed files, regression counts, CI, features fixed, clinical uncertainties, what remains for a truly calibrated percentage.
+**Primary scientific objective:** determine whether UCI-412's registered 16 features can legitimately represent a *pre-reference-test* research predictor; make every unresolved source meaning/timing question evidence-linked, and prepare a guarded reproducible Windows-local real-cohort workflow. A negative eligibility decision is a legitimate scientific result and must lead to a documented alternative rather than silent clinical assumptions.
 
-**AI-8 exit target:** a concrete engineering advance toward a medically defensible real-model system **plus** a source-grounded, machine-readable app-input handoff. **Do not call it a clinically completed model if evidence/authorization is missing.**
+1. **Document primary-source evidence for each of the 16 fields.** Specific issues: `BP` quantity/unit and measurement conditions; `PR` quantity/unit; elicitation/exclusivity of chest-pain indicators; six binary 0/1 directions (S-9); per-field pre-angiography timing (U-6); UCI-412 `≥50%` versus UCI-45 `>50%`; UCI-411 participant overlap. Cite owner-authored codebook/release/primary papers, exact page/table/URL, evidence grade and retrieval date. Do not infer unverified fields from ranges or SHAP patterns.
+2. **Produce a strict eligibility table and decision.** Per field: `VERIFIED / CONDITIONALLY_SUPPORTED / UNRESOLVED / INADMISSIBLE`; source vs proposed app acquisition, timing, units, evidence link, potential leakage, fallback. Keep `da_a1_clinical_core_labs_v1` blocked unless independently proven eligible. Distinguish methods-benchmark suitability from patient-clinical workflow suitability.
+3. **Reuse existing UCI-412 real research harness and merged AI-8 pipeline** instead of writing a second framework. Build a non-destructive, fail-closed Windows-local preflight/handoff connecting source integrity, registered schema, exact authorized protocol, local ignored data path, D-048 scope and intended test outcomes. Test all failure paths with generated fixtures only. If it cannot be wired without changing ratified scope, record the precise missing interface or decision rather than bypassing it.
+4. **Produce an executable handoff and a non-synthetic blocker report.** Provide exact PowerShell commands for source-only preflight and, separately, the conditional real research command when the named prerequisites are satisfied. Do not execute any new real-data fitting without its separately required authorization. Never commit private files or local derived patient-level output.
+5. **Assess independent-candidate datasets separately:** preserve Hungary as an untested locked external cohort for Cleveland; assess new official source candidates only against outcome equivalence, temporal admissibility, independence, missingness and sample-size. Do not use Hungary outcomes to tune or fit models.
+6. **Report a concrete outcome:** `READY_FOR_SCOPED_LOCAL_RESEARCH / BLOCKED_WITH_NAMED_CAUSE / SCIENTIFIC_HOLD` with reproducible tests, CI, source traceability, exact next execution step and evidence grade. Preserve prior UCI-412 0.9107 aggregate as historical, not new AI-8R model performance.
+
+**Completion rule:** AI-8R engineering readiness may be complete without a real fit; do not mark `REAL_DATA_MODEL_EVALUATED` or `CLINICALLY_VALIDATED` until the specific evidence exists. No patient-risk percentage claim follows from synthetic or single-centre internal metrics.
+
+**Release discipline:** work on latest `main`, one focused PR, human review/merge, then update this MD and `docs/research/ai_master_progress.json` in a follow-up tracking change. Keep the roadmap authoritative and historical review records intact.
 
 ---
 
@@ -439,9 +443,9 @@ Do not upgrade E4 or E5 to E1/E2. Resolve contradictions in this order: binding 
 
 ---
 
-## 16. A concrete, visible demonstration before broad AI-8 expansion
+## 16. Visible demonstration acceptance — AI-8 synthetic demo delivered, product flows still pending
 
-**User-facing academic progress requirement:** before counting another general AI implementation milestone as complete, deliver a **repeatable local AI research demo** whose output is understandable beyond pytest logs. The demo may be a CLI + generated Markdown/HTML report or lightweight offline viewer; it is **not** a real-patient app and must not imply approved clinical serving.
+**Progress as of AI-8 merge:** The documented research CLI `python -m ai uci412-demo --format text` is in `main` with 12 observable synthetic stages, genuine rejected-input example and automated tests. The agent reported its execution; this roadmap author did not rerun that local CLI on the user's Windows machine. The CLI is **not** a real-patient app and cannot imply approved clinical serving. Separate monitoring/product-flow demo D3 remains pending.
 
 ### Scenario D1 — Cleveland research score on a synthetic patient (already technically feasible)
 
@@ -464,92 +468,51 @@ Do not upgrade E4 or E5 to E1/E2. Resolve contradictions in this order: binding 
 
 ### Visible acceptance checklist
 
-- [ ] One reproducible entry point with exact commands shown in the README; **do not invent a CLI command before it exists**.
+- [x] One UCI-412 synthetic research CLI with exact command in the merged runbook; **maintainer Windows-local reproduction not yet recorded**.
 - [ ] Source-specific valid examples and >=3 negative cases.
-- [ ] Calibrated research score is marked by study/model status; synthetic numbers are **not presented as clinical performance**.
-- [ ] At least one SHAP and one LIME explanation with scale and quality verdict, and safe fallback when unavailable.
-- [ ] Model bundle integrity, manifest, panel/route version and source evidence shown.
+- [x] Merged UCI-412 CLI labels raw/calibrated research scores as **synthetic, non-clinical**.
+- [x] Merged UCI-412 CLI includes SHAP explained scale/additivity and LIME quality/fidelity diagnostic.
+- [x] Merged UCI-412 CLI verifies RESEARCH_ONLY bundle, source/route/panel identity; **source admissibility questions remain open**.
 - [ ] Separate, simulated doctor-review/monitoring-flow story demonstrates **no CAD auto-reprediction**.
 - [ ] Aggregate model evidence and limitations provided independently from individual test predictions.
 - [ ] No real patient spreadsheet, keys, private bundle, patient-level derivative or unauthorized data use in GitHub, CI, Arena or screenshots.
 
-**End-user acceptance question:** Can the maintainer start the demo, enter/choose a synthetic sample, observe a transparent research result, see valid explanations and meaningful rejections, and explain what dataset evidence supports (or does not support) the output? If not, AI-8 cannot be claimed end-to-end complete.
+**End-user acceptance question:** Can the maintainer run the documented CLI on their own Windows environment, observe a transparent **synthetic research** score and its genuine SHAP/LIME explanations and meaningful rejections, and accurately state the medical evidence limitations? This has an implemented and tested path (AI-8), but the user-local demo is not yet independently recorded; the broader patient/doctor/monitoring product workflow is a separate downstream milestone.
 
 ---
 
 ## 17. Near-term executable PR slices and no-drift progress register
 
-**Work on the latest merged `main`; each task creates a focused, reviewable PR.** Do not bundle an enormous rewrite or spend multiple PRs generating only governance reports. Preserve all existing controls.
+**Verified merge history, 2026-10-28:** [AI-7 PR #65](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/65) merged at `6ecc191800c2f505b80f97bb8261b2ed3cb36af7`; [master-plan PR #67](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/67) merged at `4889f58492ff1ea8aa4c79801d833729194d741d`; [AI-8 PR #66](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/66) merged at `fda2e70138dae523e5f19fa0a4ebbd2e81f2ed94` (source head `3a9371817e707cd2a8ad4254a5e873bfbc744272`). The four GitHub Actions at AI-8 source head all completed **SUCCESS**. Arena reported `2339 passed, 2 skipped` locally; the roadmap reviewer did not rerun pytest.
 
-| Priority | Slice | Real software artifact | Proof / acceptance | Research constraint |
-|---|---|---|---|---|
-| **P0** | **Plan reconciliation + demo foundation** | Register this MD in a standalone docs PR, reference existing contracts, add a runnable offline deterministic demo orchestrator and synthetic fixtures | One command documented and run; source- and calibration-labelled research score/XAI output + fail-closed invalid-input sample; CI | **Documented UCI-412 synthetic research demo now exists in OPEN PR #66 (`python -m ai uci412-demo`); code and automated CLI tests independently reviewed, maintainer-local reproduction still an acceptance step.** Historical A3 untouched |
-| **P1** | **UCI-412 model input contract** | AI-8 PR #66 includes a proposed 16-feature JSON contract, stdlib validator and live-panel binding tests | Validate schema/units/types/meaning; re-run all tests and CI at corrected PR head | **IMPLEMENTED IN OPEN PR; NOT MERGED OR CLINICALLY APPROVED.** `BP`, `PR`, chest pain, S-9 binary direction and timing remain unresolved |
-| **P1** | **UCI-412 package + local evidence handoff** | AI-8 PR #66 contains synthetic train/test + origin-labelled evaluation + authenticated offline bundle + SHAP/LIME | **Prior blocking review corrected in AI-8 head `3a937181`: per-record explicit context, strict real-data declaration, +27 negative cases; documented 12-stage demo added. Confirm final GitHub experiment-runner workflow and maintainer-local demo before merge | **OPEN PR; code review improvements verified. Final CI and human review remain merge prerequisites.** No new real cohort training or historical M3a scope expansion |
-| **P1** | **External cohort suitability & dataset search** | Read-only source evidence matrix + reusable metadata audit and source-level eligibility tests | Explain why each cohort helps; no hidden pooling; qualified Hungary plan and AngioCAD conditional disposition | Do not peek at locked real external outcome to tune models |
-| **P2** | **Labs incremental-value test framework** | Versioned baseline-vs-labs same-source comparison framework and feature timing/missingness guards | No false improvement claims from synthetic results; per-feature evidence and sample-size limits reported | Real lab fitting remains gated until valid source/timing/authorization |
-| **P2** | **Research model performance and calibration proof** | Aggregate evaluation/plot generator with scoring provenance, calibration slope/intercept, intervals, subgroups if supported | Clearly distinguishes synthetic, internal and external metrics; no consumer risk claim | Real-data values only from appropriately authorized local outputs |
-| **P3** | **Final research AI facade and backend contracts** | Integrate eligible packages and explanation/status responses; refuse inappropriate clinical/monitoring inputs | Repeatable demo + negative tests + versioned handoff to Backend/Mobile/OCR | Real-model serving cannot be activated from this roadmap |
+| Priority | Slice | Status as reviewed | Evidence / acceptance still needed |
+|---|---|---|---|
+| **P0** | Working master roadmap + one synthetic research demo | **DONE ENGINEERING:** PR #67 and PR #66 merged | Maintainer-local Windows demo execution optional confirmation; no clinical inference |
+| **P1** | UCI-412 16-field input contract | **MERGED ENGINEERING COMPLETE; CLINICAL ACQUISITION PROPOSED** | Resolve BP/PR/chest pain/0-1 encoding/temporal meaning before adopting clinical questionnaire |
+| **P1** | UCI-412 synthetic bundle + XAI/calibration + negative tests | **MERGED ENGINEERING COMPLETE SYNTHETIC ONLY** | Real-model training/calibration and independent validation are not established |
+| **P1 NEXT** | **AI-8R source admissibility + local real-research readiness** | **PLANNED** | First source-evidence PR with strict local preflight; no fabricated real-data execution |
+| **P1 PARALLEL** | Hungary locked external suitability + independent dataset source search | **RESEARCH PENDING** | Respect one-shot, sample-size, overlap and source-protocol conditions |
+| **P2** | AI-9 same-source clinical-vs-labs incremental-value framework | **NOT STARTED** | No lab-panel real fitting until feature eligibility proven |
+| **P3** | AI-10/11/12 external research evidence, integrated facade and handoff | **NOT STARTED** | Versioned evidence, trustworthy metrics, explicit research-only use |
 
-### AI-8 PR #66 technical review history (2026-10-28)
+### 17.1 Machine-readable completion register — IMPLEMENTED
 
-- Initial review baseline: PR was **OPEN / UNMERGED** at head `13430c7ca1f52f10e8f4b75cdef1b7148fbb40ac`, with remote CI **4/4 successful** at that earlier head and agent-reported **2293 passed / 2 skipped**. This is preserved as historical evidence, not current PR status.
-- New engineering content: `ai/uci412_research.py`; source-specific JSON contract and stdlib-only validator; calibration/SHAP/LIME/bundle round-trip; corrected AI-7 historical report in the PR; **174 newly collected test cases according to agent/PR**.
-- **Initial blocking review (resolved in amended code):** missing `context`/`track`/`source` used to be defaulted, and a contradictory `real_data=True` could pass. Independent follow-up inspection at `3a937181` confirms a mandatory context gate, delegation to AI-7 strict context policy and 27 new regression cases.
-- **Demo review (implemented, awaiting maintainer-local reproduction):** `python -m ai uci412-demo --format text` and `--budget full` now invoke a documented 12-stage synthetic-only run, report scores and SHAP/LIME, verify research-only bundle and demonstrate genuine validator rejection; see `docs/research/ai8_uci412_research_demo_runbook.md` in PR #66.
-- **Scientific status:** all AI-8 numerical results are *synthetic software checks*. They are neither real UCI-412 CAD performance nor a clinically calibrated risk probability. No new UCI-412 real-data run is authorized by this PR.
+Canonical companion: [`docs/research/ai_master_progress.json`](ai_master_progress.json). Its current schema and keys explicitly distinguish **merged synthetic engineering**, **real scientific evaluation**, **clinical validation**, **documented demo** and **user-local demo confirmation**.
 
-### Current amended AI-8 PR #66 acceptance snapshot (2026-10-28)
+**Rule:** Updating the roadmap/JSON is a *tracking action*, never a way to grant a research protocol or data-use permission. `AI-8R` is a new bounded working milestone, not an authorized activation of D-048. Do not change frozen code or prior authorization decisions to make statuses green.
 
-- **Source:** PR [#66](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/66), **OPEN / UNMERGED**; independently inspected head `3a9371817e707cd2a8ad4254a5e873bfbc744272`, base `6ecc191800c2f505b80f97bb8261b2ed3cb36af7`.
-- **Engineering changes checked:** strict per-record synthetic context validation reusing AI-7 policy; 27 new fail-closed regression cases; `ai/uci412_demo.py`, CLI `uci412-demo`, 19 new demo tests and a full runbook; versioned field contract, SHAP/LIME, calibration, authenticated `RESEARCH_ONLY` bundle remain in scope. No research model serving or authorization change.
-- **Agent local test report:** `2339 passed, 2 skipped` under `-W error`; these are agent-measured local counts, not tests rerun by this reviewer.
-- **GitHub CI at the exact amended head, last checked 2026-10-28:** `contract-validation`, `audit-toolchain-validation`, `mock-backend-validation` **SUCCESS**; `synthetic-experiment-runner-validation` **IN_PROGRESS**. This is a snapshot, not a claim of final 4/4 success; recheck before merge.
-- **Research boundary:** complete synthetic engineering demo is **not** real UCI-412 training, calibrated individual clinical risk, clinical validation or external validation. P-1 pending; Gate PT P-3 closed; A3 frozen. Real-data completion is a distinct next scientific phase.
-- **Acceptance still open:** final experiment-runner CI success on `3a937181...`, maintainer-local execution of documented CLI and review of the intended research/clinical score language. PR #66 and this docs PR #67 must be reviewed/merged separately; do not imply either is already on `main`.
+### 17.2 Required stage-close checklist
 
-### 17.1 Machine-readable completion register proposal
+For every completed stage, record its exact PR and merge SHA; source/head SHA; code/features changed; tests and GitHub CI at exact reviewed SHA; observable CLI/demo with evidence; dataset/provenance; all open source-semantic questions; real evaluation status; whether the milestone is engineering complete, research evaluated or clinically validated; and **NEXT_EXECUTABLE_STEP**. Update both files in a reviewable docs PR after the relevant implementation PR merges.
 
-Add `docs/research/ai_master_progress.yaml` (or JSON) with a stable schema:
+### 17.3 Review rules for Arena
 
-```yaml
-roadmap_version: '1.3'
-source_main_sha: '6ecc191800c2f505b80f97bb8261b2ed3cb36af7'
-updated_on: '2026-10-28'
-workstreams:
-  AI-7:
-    engineering: DONE
-    scientific_evaluation: SYNTHETIC_ONLY
-    pr: 65
-    evidence: 'merged PR + successful workflows'
-  AI-8:
-    engineering: IMPLEMENTED_IN_OPEN_PR_CODE_REVIEWED_FINAL_CI_PENDING
-    pr: 66
-    head_sha_reviewed: 3a9371817e707cd2a8ad4254a5e873bfbc744272
-    ci_status_on_reviewed_sha: THREE_SUCCESS_ONE_IN_PROGRESS
-    scientific_evaluation: SYNTHETIC_ONLY_NOT_CLINICAL_EVIDENCE
-    demo: DOCUMENTED_12_STAGE_SYNTHETIC_CLI_AWAITING_MAINTAINER_REPRODUCTION
-    real_data_permission: SCOPED_SEPARATE_NOT_CONFERRED
-    blocking_review: FIXED_CONTEXT_GUARD_FINAL_CI_AND_HUMAN_REVIEW_PENDING
-    evidence: AI8_open_PR_3a93718_plus_3_success_1_running_GitHub_CI_and_agent_local_2339_passed
-  AI-9:
-    engineering: NOT_STARTED
-    scientific_evaluation: NOT_COMPLETE
-  AI-10:
-    engineering: NOT_STARTED
-    scientific_evaluation: NOT_COMPLETE
-```
-
-Each milestone update must include: `base_sha`, `head_sha`, PR URL, actual command/demo output, unit/CI results, files changed, evidence grade, real-data scope, unresolved medical assertions, and a specific `NEXT_EXECUTABLE_STEP`. Never mark `SCIENTIFIC_EVALUATION=DONE` merely because the synthetic pipeline passes.
-
-### 17.2 Review rules for working with Arena
-
-- The agent first reads this roadmap, actual `main`, `AGENTS.md`, ratified decisions, all relevant panels, recent PRs, source documentation and scoped tests.
-- It must propose a **minimal implementation delta** against existing code and enumerate what will be reused; no replacement of working pipelines without a measured necessity.
-- The agent must research field semantics and independent external sources, but never promote unverifiable data definitions to known facts.
-- Every PR handoff contains concrete demonstration output, scientific evidence, test metrics and blocking conditions, including any test skipped or remote CI still pending.
-- If merged descriptions disagree with code, maintain a **documentation-correction PR** or the narrowly scoped next implementation PR, not a silent rewrite of history.
-- Immediate sequence: repair the AI-8 PR #66 strict-context blocker, verify CI at the new head, merge only after review, then deliver a runnable visible research demo (and preserve the source-linked input contracts). Do not substitute another generic architecture report.
+- Read this roadmap, merged `main`, `AGENTS.md`, `docs/DECISIONS.md`, source dictionaries, exact PR history and ratified/frozen artefacts.
+- Propose the smallest implementation delta; reuse `research/uci412/**`, `ai/uci412_research.py`, `ai/panels.py`, the merged CLI and the strict research-only router.
+- Do not invent newer real UCI-412 metrics. Label any legacy aggregate `HISTORICAL_INTERNAL_EXPLORATORY` and do not compare it numerically to Cleveland.
+- Require evidence per field before updating clinical acquisition mapping. Admit no outcome-derived or post-diagnosis features.
+- Prove negative cases and data-protection constraints with synthetic fixtures. No uploading real patient records to Arena/GitHub.
+- Record `BLOCKED_WITH_NAMED_CAUSE` as a scientifically legitimate output, not a reason to silently bypass controls or produce more unrelated synthetic code.
 
 ---
 
@@ -615,6 +578,6 @@ Each milestone update must include: `base_sha`, `head_sha`, PR URL, actual comma
 | Clinical supervisor | Clinical target/protocol acceptance (separate act) | — | — |
 | Data/research governance owner | Scoped data access and study operation (separate act) | — | — |
 
-**Next review trigger:** AI-8 PR #66 receives a new commit addressing per-record context validation and providing a reproducible demo; then check all CI at the new head and determine merge readiness. Also review any authoritative source evidence that changes predictor timing/target definitions, scoped real-data authorization, or discovery of an independent validation cohort.
+**Next review trigger:** Completion/merge of the bounded AI-8R source-admissibility and local preflight milestone; any independently verified new source evidence changing predictor timing/target semantics, a separately ratified scoped real-data authorization, or an eligible independent validation cohort. After each milestone, update both this MD and `docs/research/ai_master_progress.json` in a docs PR.
 
-**Version 1.2 change summary:** Retains all v1.1 workflow, source-evidence, feature-acquisition, monitoring and dataset decisions; tracks AI-8 PR #66 as **open** rather than merged; records verified 4/4 GitHub CI and separately attributed local test counts; and gates its merge on explicit synthetic context/real-data flag rejection plus an observable demo handoff. No real-data permission, clinical deployment, supervisor gate, research-protocol decision, or frozen A3 revision was altered.
+**Version 1.4 change summary (2026-10-28):** Confirms the actual merged AI-8 PR #66 and Master Plan PR #67 SHAs; records 4/4 GitHub Actions passing at the final AI-8 source head, preserves agent-reported test provenance, closes AI-8 **engineering-only** status, adds permanent machine-readable milestone tracking, and sets AI-8R as the next bounded source-science/local preflight milestone. Prior draft review notes are treated as history, not active blockers. No clinical approval, research protocol, real-data permission or A3 frozen scope was changed.
