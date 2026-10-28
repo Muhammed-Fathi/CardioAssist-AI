@@ -12,7 +12,10 @@ from typing import Any
 
 import pytest
 
-from ai.panels import DA_A1_BASIC_CLINICAL_PANEL
+# This module is intentionally importable in the minimal audit CI environment
+# (openpyxl + pytest only): it must not import numpy, scikit-learn or the `ai`
+# package. The live registered-panel cross-check that needs the ML stack lives
+# in tests/experiments/test_uci412_field_contract_panel_binding.py.
 from research.intake import uci412_field_contract as contract_module
 from research.intake.uci412_field_contract import (
     ACQUISITION_CHANNELS,
@@ -54,11 +57,18 @@ def test_contract_document_loads_with_frozen_identity():
     assert contract.panel_version == "1.1.0"
 
 
-def test_sixteen_fields_match_registered_panel_order_exactly():
+def test_sixteen_fields_match_contract_panel_binding_order_exactly():
     contract = load_field_contract()
     assert tuple(contract.ordered_fields) == tuple(FIELD_ORDER)
-    assert tuple(FIELD_ORDER) == tuple(DA_A1_BASIC_CLINICAL_PANEL.feature_names)
     assert len(FIELD_ORDER) == 16
+    document = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    panel_binding = document["panel_binding"]
+    assert panel_binding["panel_id"] == "da_a1_basic_clinical_v1"
+    assert panel_binding["encoded_parameter_count"] == 16
+    assert panel_binding["field_order_is_contract"] is True
+    assert tuple(panel_binding["ordered_feature_names"]) == tuple(FIELD_ORDER)
+    # The live registered-panel equality (which needs numpy/sklearn) is
+    # asserted separately in tests/experiments.
 
 
 def test_field_kinds_partition_the_panel_without_overlap():

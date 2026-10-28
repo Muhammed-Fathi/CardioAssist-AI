@@ -236,17 +236,21 @@ individual clinical probability.
 
 ## 9. Verification — tests, determinism and CI
 
-* **New tests:** `tests/audit/test_uci412_field_contract.py` (44 functions →
-  116 parametrized cases) and
-  `tests/experiments/test_uci412_research_model.py` (42 functions → 52 cases):
-  **86 new test functions / 168 collected cases**, including the required
-  negative matrix — non-synthetic, Track B/OCR/wearable/patient-upload/
-  real-patient sources, foreign panels and sources, wrong order/encoding/unit/
-  range, prohibited acquisition channels, empty/malformed payloads, bad labels,
-  plus bundle wrong-key/untrusted-root/tamper and config validation.
-* **Full repository:** **2287 passed, 2 skipped** (pre-existing
+* **New tests (three files, 92 test functions → 174 collected cases):**
+  `tests/audit/test_uci412_field_contract.py` (44 functions → 116 parametrized
+  cases, **stdlib-only so it runs in the dependency-minimal audit CI job with
+  numpy/scikit-learn absent**),
+  `tests/experiments/test_uci412_field_contract_panel_binding.py` (6 functions,
+  live registered-panel hash/order/encoding cross-check that needs the ML
+  stack), and `tests/experiments/test_uci412_research_model.py` (42 functions →
+  52 cases). Together they cover the required negative matrix — non-synthetic,
+  Track B/OCR/wearable/patient-upload/real-patient sources, foreign panels and
+  sources, wrong order/encoding/unit/range, prohibited acquisition channels,
+  empty/malformed payloads, bad labels, plus bundle wrong-key/untrusted-root/
+  tamper and config validation.
+* **Full repository:** **2293 passed, 2 skipped** (pre-existing
   platform-specific skips) under `python -m pytest -W error`; collection totals
-  2289. `git diff --check` is clean and no `.pkl/.joblib/.csv/.xlsx/.data`
+  2295. `git diff --check` is clean and no `.pkl/.joblib/.csv/.xlsx/.data`
   artifact is committed; all synthetic outputs are created only in private temp
   directories.
 * **Determinism:** two builds from identical configs in separate roots produce
