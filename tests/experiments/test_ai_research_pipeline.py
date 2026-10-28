@@ -1771,7 +1771,26 @@ def test_windows_binary_sid_acl_and_dacl_policy_engine() -> None:
     )
     assert not null_dacl_res.ok and null_dacl_res.reason_category == "permissions"
 
-    # 5. BUILTIN\Users or Everyone read access (even INHERIT_ONLY) fails strict_private
+    # OWNER RIGHTS (S-1-3-4) is never accepted as an exception, including the
+    # inherited full-control ACE observed in the Windows temp-directory regression.
+    owner_rights_aces = (
+        *roundtrip_aces,
+        ParsedWindowsAce(ACCESS_ALLOWED_ACE_TYPE, 0, GENERIC_ALL_ACCESS, "S-1-3-4"),
+    )
+    owner_rights_res = evaluate_windows_dacl_policy(
+        owner_sid=user_sid,
+        current_user_sid=user_sid,
+        caller_is_admin=False,
+        persistent_acls_supported=True,
+        dacl_present=True,
+        dacl_is_null=False,
+        aces=owner_rights_aces,
+        strict_private=True,
+    )
+    assert not owner_rights_res.ok
+    assert "S-1-3-4" in owner_rights_res.detail
+
+    # 5. BUILTIN\\Users or Everyone read access (even INHERIT_ONLY) fails strict_private
     for bad_principal, flags in (
         (SID_BUILTIN_USERS, 0),
         (everyone_sid, 0),
