@@ -1,0 +1,690 @@
+{
+  "schema_id": "uci412_basic_clinical_field_contract",
+  "schema_version": "0.1.0",
+  "contract_id": "uci412_basic_clinical_field_contract.v0.1",
+  "artifact_kind": "SYNTHETIC_ONLY_RESEARCH_INPUT_FIELD_CONTRACT",
+  "status": "PROPOSED_NOT_APPROVED",
+  "status_statement": "This document is a versioned, explicitly PROPOSED source-specific machine-readable field contract for the registered UCI-412 (DA-A1) 16-feature basic clinical panel, intended as a technical handoff for future application and OCR development. It is not an approved clinical intake contract, not a model input schema that auto-populates patient data, not a harmonized cross-dataset schema, not a dataset-selection decision, not model training or inference authorization, and not supervisor, ethics or institutional approval. The companion validator accepts SYNTHETIC SOFTWARE FIXTURES ONLY, never reads any dataset file, is offline, and never computes a CAD probability. Gate PT P-3 remains CLOSED; P-1 remains PENDING; P-5 remains NOT MADE - prohibited. No mapping in this contract authorizes auto-population of model inputs from patient documents.",
+  "governance_context": {
+    "gate_pt_p1_target_population_moment": "PENDING",
+    "gate_pt_p3_formal_research": "CLOSED",
+    "gate_pt_p5_clinical_readiness_claims": "NOT_MADE_PROHIBITED",
+    "d046": "read-only local dataset audit only",
+    "d047": "Cleveland-only internal exploratory benchmark; saved no reusable research model for this source",
+    "d048_m3a": "UCI-412-only internal exploratory benchmark; PROPOSED; no real-data run authorized by this contract",
+    "relationship_to_frozen_protocols": "This contract modifies no frozen protocol, registered plan, feature dictionary (uci412_research_feature_dictionary 1.1.0), runner, adapter or result. research/uci412/** and ai/diagnostic_scope.py are untouched. It documents the already-registered da_a1_basic_clinical_v1 panel; it admits no new predictor.",
+    "a3_diagnostic_registry": "The ratified A3 Cleveland diagnostic registry and its exact-revision, HMAC/NTFS and offline-authorization guards are separate and are not extended, replaced or bypassed by this UCI-412 contract."
+  },
+  "registered_source": {
+    "source_id": "UCI-412",
+    "dataset_id": "DA-A1",
+    "source_title": "Z-Alizadeh Sani (UCI Machine Learning Repository, id 412)",
+    "source_doi": "10.24432/C5Q31T",
+    "canonical_url": "https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani",
+    "license_spdx": "CC-BY-4.0",
+    "track": "A",
+    "expected_records": 303,
+    "expected_positive_cad": 216,
+    "expected_negative_normal": 87,
+    "same_participants_as_uci411": true,
+    "independence_statement": "UCI-411 is the same 303 participants and is never an independent cohort or a validation set for UCI-412."
+  },
+  "panel_binding": {
+    "panel_id": "da_a1_basic_clinical_v1",
+    "research_panel_id": "uci412_basic_clinical_v1",
+    "panel_version": "1.1.0",
+    "feature_dictionary_schema_id": "uci412_research_feature_dictionary",
+    "feature_dictionary_version": "1.1.0",
+    "amendment": "M3A-AMENDMENT-A1 (numeric 0/1 source encoding for six admitted binary columns)",
+    "ordered_feature_names": [
+      "Age",
+      "Sex",
+      "BMI",
+      "DM",
+      "HTN",
+      "Current Smoker",
+      "EX-Smoker",
+      "FH",
+      "DLP",
+      "BP",
+      "PR",
+      "Typical Chest Pain",
+      "Atypical",
+      "Nonanginal",
+      "Exertional CP",
+      "Dyspnea"
+    ],
+    "encoded_parameter_count": 16,
+    "field_order_is_contract": true,
+    "field_order_statement": "The 16 columns are an ordered allowlist. A payload that supplies the same set in a different order is rejected; access is positional after name-based validation and the order is bound to the panel contract SHA-256."
+  },
+  "target_binding": {
+    "target_id": "t1.uci412.angiographic_cad_ge50.v1",
+    "target_column": "Cath",
+    "positive_token": "Cad",
+    "negative_token": "Normal",
+    "target_definition": "Cross-sectional angiographic CAD presence: Cath='Cad' means diameter narrowing greater than or equal to 50% in at least one major coronary artery; 'Normal' otherwise.",
+    "threshold_boundary": "GREATER_THAN_OR_EQUAL_50_PERCENT",
+    "non_equivalence_statement": "UCI-412 uses a >=50% boundary. UCI-45/Cleveland uses a >50% boundary (num 0 vs 1-4). The two targets are related-but-not-identical and are never treated as equivalent, pooled, or cross-walked. Exactly-50% records cannot be identified in either released file (visual estimate, categorical release).",
+    "outcome_construct": "Cross-sectional angiography-referenced CAD presence in a referral cohort. Never a 30-day or future cardiovascular event horizon and never a clinical risk score."
+  },
+  "acquisition_source_taxonomy": {
+    "channels": [
+      {
+        "channel": "structured_history",
+        "definition": "A structured, clinician- or patient-entered historical field in the future application (demographics, risk-factor history, reported symptoms). No document OCR involved."
+      },
+      {
+        "channel": "clinician_assessment",
+        "definition": "A value recorded directly by a clinician during assessment (symptom characterization or examination finding)."
+      },
+      {
+        "channel": "measurement",
+        "definition": "A measured vital sign or anthropometric value entered as a structured measurement with an explicit unit."
+      },
+      {
+        "channel": "laboratory_document",
+        "definition": "A value extracted from a laboratory report document. For this 16-feature panel no field is laboratory-sourced; routine labs belong to the separately blocked da_a1_clinical_core_labs_v1 panel."
+      }
+    ],
+    "mapping_status_vocabulary": [
+      "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+      "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+      "NOT_APPLICABLE"
+    ],
+    "global_rules": [
+      "VERIFIED_REGISTERED_SOURCE_DOMAIN means the channel matches the source_domain/input_owner already recorded in the frozen feature dictionary 1.1.0; it verifies the dataset's recorded domain, not any future application screen or OCR pipeline.",
+      "Every future-application or OCR acquisition mapping is PROPOSED_FUTURE_ACQUISITION_CHANNEL. None is verified against an owner codebook and none authorizes auto-population.",
+      "OCR-derived patient-document input is rejected by the synthetic executor in this milestone; an OCR channel may only be listed as a proposed future channel, never as a confirmed source.",
+      "Wearable / Track B / patient-monitoring streams are prohibited for every field and have no proposed channel here.",
+      "No silent unit conversion is permitted; a measured value must carry the exact registered unit token or be rejected."
+    ]
+  },
+  "prediction_time_evidence": {
+    "registered_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY",
+    "evidence_grade": "WORKFLOW_INFERENCE_NOT_SOURCE_FACT",
+    "statement": "The UCI-412 landing page and accessible owner literature state no per-field acquisition time. EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY is an inference from feature group and clinical workflow, not a documented pre-angiography prediction moment (Gate PT doc 15, U-6: UNRESOLVED). Any future intake must treat prediction-time availability as unverified."
+  },
+  "fields": [
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.age.v1",
+      "source_name": "Age",
+      "panel_position": 0,
+      "type": "numeric",
+      "kind": "continuous",
+      "source_encoding": {
+        "encoding_kind": "numeric_measurement",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": null
+      },
+      "unit": "years",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "accepted_range": [1.0, 120.0],
+      "accepted_values": null,
+      "strictly_positive": true,
+      "missing_value_semantics": "Source reports no missing values. A blank is an undocumented gap (NaN), imputed inside training folds only; '?' and '-9' are rejected as wrong-source markers. This panel field is required (non-null) at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Patient age at assessment.",
+      "unresolved_uncertainties": [
+        "S-timing: age at angiography vs at first assessment is not documented by the source."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be confirmed during intake; no owner documentation of capture method."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measured vital sign."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.sex.v1",
+      "source_name": "Sex",
+      "panel_position": 1,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "text_categorical",
+        "registered_text_vocabulary": {"Male": 1, "Fmale": 0, "Female": 0},
+        "numeric_binary_encoding_id": null
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": ["Male", "Fmale", "Female"],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Source reports no missing values. Text tokens only; booleans and numeric cells are rejected. Required (non-null) at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Recorded sex (source token, not gender identity). Reference coding Male=1, Fmale/Female=0 is arbitrary and documented.",
+      "unresolved_uncertainties": [
+        "S-1: exact delivered tokens, including the reported 'Fmale' spelling, are not verified against an owner codebook.",
+        "No crosswalk to UCI-45 numeric sex 0/1 is defined or permitted."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be confirmed at intake; token spelling remains unverified."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.bmi.v1",
+      "source_name": "BMI",
+      "panel_position": 2,
+      "type": "numeric",
+      "kind": "continuous",
+      "source_encoding": {
+        "encoding_kind": "numeric_measurement",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": null
+      },
+      "unit": "kg/m^2",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "accepted_range": [10.0, 80.0],
+      "accepted_values": null,
+      "strictly_positive": true,
+      "missing_value_semantics": "Source reports no missing values. A blank is an undocumented gap (NaN), fold-imputed only. Required (non-null) at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Body-mass index.",
+      "unresolved_uncertainties": [
+        "Whether BMI is recorded directly or derived (and the derivation) is undocumented.",
+        "Unit token kg/m^2 is secondary-source, not owner-confirmed."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "measurement", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=physical_examination, input_owner=clinician."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Anthropometric measurement could be entered by a clinician; recorded-vs-derived status unresolved."},
+        {"channel": "structured_history", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be carried as a structured historical value; derivation unverified."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a laboratory analyte."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.dm.v1",
+      "source_name": "DM",
+      "panel_position": 3,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "numeric_binary",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": "numeric_binary_0_1_v1",
+        "absent_source_value": 0,
+        "present_source_value": 1,
+        "absent_model_code": 0,
+        "present_model_code": 1,
+        "direction_evidence_status": "PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK"
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": [0, 1],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Delivered cells are numeric 0/1 (human SHA-256-verified read-only audit of all 303 records, 2026-10-24). Text ('0','1','Y','N'), booleans and non-binary numbers fail closed. No blanks observed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "History of diabetes mellitus.",
+      "unresolved_uncertainties": [
+        "S-9: 0=absent/1=present direction is secondary-literature supported (Tao et al. 2025 Table 1) but not owner-codebook verified; requires explicit human acceptance.",
+        "Defining clinical criteria (duration, treatment status) are undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history; numeric 0/1 representation audited."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be confirmed from clinician-coded history; defining criteria undocumented."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Binary history, not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "History flag; glucose assays belong to the blocked lab panel."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.htn.v1",
+      "source_name": "HTN",
+      "panel_position": 4,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "numeric_binary",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": "numeric_binary_0_1_v1",
+        "absent_source_value": 0,
+        "present_source_value": 1,
+        "absent_model_code": 0,
+        "present_model_code": 1,
+        "direction_evidence_status": "PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK"
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": [0, 1],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Numeric 0/1 audited; text and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "History of hypertension.",
+      "unresolved_uncertainties": [
+        "S-9: numeric-binary direction provisional (no owner codebook).",
+        "Defining criteria (threshold, treatment status) are undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be clinician-coded; criteria undocumented."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Binary history, not a BP measurement (BP is a separate field)."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.current_smoker.v1",
+      "source_name": "Current Smoker",
+      "panel_position": 5,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "numeric_binary",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": "numeric_binary_0_1_v1",
+        "absent_source_value": 0,
+        "present_source_value": 1,
+        "absent_model_code": 0,
+        "present_model_code": 1,
+        "direction_evidence_status": "PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK"
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": [0, 1],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Numeric 0/1 audited; text and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Current smoking status at assessment.",
+      "unresolved_uncertainties": [
+        "S-9: numeric-binary direction provisional.",
+        "Smoking-definition criteria (quantity, recency) are undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be clinician-confirmed history; criteria undocumented."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.ex_smoker.v1",
+      "source_name": "EX-Smoker",
+      "panel_position": 6,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "numeric_binary",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": "numeric_binary_0_1_v1",
+        "absent_source_value": 0,
+        "present_source_value": 1,
+        "absent_model_code": 0,
+        "present_model_code": 1,
+        "direction_evidence_status": "PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK"
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": [0, 1],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Numeric 0/1 audited; text and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Former smoking history.",
+      "unresolved_uncertainties": [
+        "S-9: numeric-binary direction provisional.",
+        "Relationship and mutual exclusivity with Current Smoker are undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be clinician-confirmed history."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.fh.v1",
+      "source_name": "FH",
+      "panel_position": 7,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "numeric_binary",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": "numeric_binary_0_1_v1",
+        "absent_source_value": 0,
+        "present_source_value": 1,
+        "absent_model_code": 0,
+        "present_model_code": 1,
+        "direction_evidence_status": "PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK"
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": [0, 1],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Numeric 0/1 audited; text and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Family history of coronary artery disease.",
+      "unresolved_uncertainties": [
+        "S-9: numeric-binary direction provisional.",
+        "Degree-of-relation definition is undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be clinician-confirmed family history."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.dlp.v1",
+      "source_name": "DLP",
+      "panel_position": 8,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "text_categorical",
+        "registered_text_vocabulary": {"Y": 1, "N": 0, "Yes": 1, "No": 0},
+        "numeric_binary_encoding_id": null
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": ["Y", "N", "Yes", "No"],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Text tokens only; numeric cells and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "History of dyslipidaemia.",
+      "unresolved_uncertainties": [
+        "S-1: exact delivered text tokens unverified against an owner codebook.",
+        "Whether this is a recorded diagnosis or a laboratory-threshold label is undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be clinician-coded; diagnosis-vs-threshold semantics unresolved."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Binary history, not a lipid measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Lipid assays belong to the blocked lab panel; this is a history flag."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.bp.v1",
+      "source_name": "BP",
+      "panel_position": 9,
+      "type": "numeric",
+      "kind": "continuous",
+      "source_encoding": {
+        "encoding_kind": "numeric_measurement",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": null
+      },
+      "unit": "mmHg",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "accepted_range": [40.0, 300.0],
+      "accepted_values": null,
+      "strictly_positive": true,
+      "missing_value_semantics": "Source reports no missing values. A measured 0 is rejected as an unavailable/invalid measurement (not imputed). A blank is fold-imputed only. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Blood pressure recorded at assessment; a single value.",
+      "unresolved_uncertainties": [
+        "S-2: whether BP is systolic, diastolic, or a single recorded value is not stated by the official source; author-associated 2012 ranges (90-190) imply a systolic-like value.",
+        "Measurement conditions (rest, arm, repeat, averaging) are undocumented.",
+        "Must never be mapped to Cleveland trestbps or treated as equivalent; no unit conversion."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "measurement", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=vital_signs, input_owner=clinician."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be a clinician-measured vital; measured quantity (systolic vs other) unresolved."},
+        {"channel": "structured_history", "mapping_status": "NOT_APPLICABLE", "rationale": "A measured vital, not a historical flag."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Vital sign, not a laboratory analyte."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.pr.v1",
+      "source_name": "PR",
+      "panel_position": 10,
+      "type": "numeric",
+      "kind": "continuous",
+      "source_encoding": {
+        "encoding_kind": "numeric_measurement",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": null
+      },
+      "unit": "beats/min",
+      "unit_evidence_status": "SECONDARY_SOURCE_UNVERIFIED",
+      "accepted_range": [20.0, 250.0],
+      "accepted_values": null,
+      "strictly_positive": true,
+      "missing_value_semantics": "Source reports no missing values. A measured 0 is rejected as unavailable/invalid. A blank is fold-imputed only. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Pulse rate recorded at assessment.",
+      "unresolved_uncertainties": [
+        "S-3: secondary tables label the unit 'ppm'; beats/min is the coherent reading but the official source is silent on the unit token.",
+        "Resting/averaged/device-derived measurement conditions are undocumented.",
+        "No UCI-45 counterpart exists; never cross-walked."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "measurement", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=vital_signs, input_owner=clinician."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Could be a clinician-measured pulse; unit token unverified."},
+        {"channel": "structured_history", "mapping_status": "NOT_APPLICABLE", "rationale": "A measured vital, not a historical flag."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Vital sign, not a laboratory analyte."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.typical_chest_pain.v1",
+      "source_name": "Typical Chest Pain",
+      "panel_position": 11,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "numeric_binary",
+        "registered_text_vocabulary": null,
+        "numeric_binary_encoding_id": "numeric_binary_0_1_v1",
+        "absent_source_value": 0,
+        "present_source_value": 1,
+        "absent_model_code": 0,
+        "present_model_code": 1,
+        "direction_evidence_status": "PROVISIONAL_DIRECTION_STATED_BY_PEER_REVIEWED_SECONDARY_LITERATURE_NOT_OFFICIAL_CODEBOOK"
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": [0, 1],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Numeric 0/1 audited; text and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Typical-angina chest-pain descriptor flag.",
+      "unresolved_uncertainties": [
+        "S-9: numeric-binary direction provisional.",
+        "S-4/S-5a: elicitation definition and mutual exclusivity with Atypical/Nonanginal are undocumented.",
+        "No conversion to UCI-45 cp 1-4 is possible or proposed."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Symptom characterization could be clinician-recorded; elicitation definition unresolved."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.atypical.v1",
+      "source_name": "Atypical",
+      "panel_position": 12,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "text_categorical",
+        "registered_text_vocabulary": {"Y": 1, "N": 0, "Yes": 1, "No": 0},
+        "numeric_binary_encoding_id": null
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": ["Y", "N", "Yes", "No"],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Text tokens only; numeric cells and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Atypical chest-pain descriptor flag.",
+      "unresolved_uncertainties": [
+        "S-1: exact delivered tokens unverified.",
+        "S-4/S-5a: elicitation definition and mutual exclusivity undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Symptom flag could be clinician-recorded; definition unresolved."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.nonanginal.v1",
+      "source_name": "Nonanginal",
+      "panel_position": 13,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "text_categorical",
+        "registered_text_vocabulary": {"Y": 1, "N": 0, "Yes": 1, "No": 0},
+        "numeric_binary_encoding_id": null
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": ["Y", "N", "Yes", "No"],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Text tokens only; numeric cells and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Non-anginal chest-pain descriptor flag.",
+      "unresolved_uncertainties": [
+        "S-1: exact delivered tokens unverified.",
+        "S-4/S-5a: elicitation definition and mutual exclusivity undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Symptom flag could be clinician-recorded; definition unresolved."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.exertional_cp.v1",
+      "source_name": "Exertional CP",
+      "panel_position": 14,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "text_categorical",
+        "registered_text_vocabulary": {"Y": 1, "N": 0, "Yes": 1, "No": 0},
+        "numeric_binary_encoding_id": null
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": ["Y", "N", "Yes", "No"],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Text tokens only; numeric cells and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Exertional chest-pain descriptor flag.",
+      "unresolved_uncertainties": [
+        "S-1: exact delivered tokens unverified.",
+        "S-4/S-5a: elicitation definition and mutual exclusivity undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Symptom flag could be clinician-recorded; definition unresolved."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    },
+    {
+      "feature_id": "uci412.da_a1_basic_clinical.dyspnea.v1",
+      "source_name": "Dyspnea",
+      "panel_position": 15,
+      "type": "categorical",
+      "kind": "binary",
+      "source_encoding": {
+        "encoding_kind": "text_categorical",
+        "registered_text_vocabulary": {"Y": 1, "N": 0, "Yes": 1, "No": 0},
+        "numeric_binary_encoding_id": null
+      },
+      "unit": null,
+      "unit_evidence_status": "NOT_APPLICABLE_BINARY",
+      "accepted_range": null,
+      "accepted_values": ["Y", "N", "Yes", "No"],
+      "model_codes": [0, 1],
+      "strictly_positive": false,
+      "missing_value_semantics": "Text tokens only; numeric cells and booleans fail closed. Required at the validated record level.",
+      "prediction_time_evidence_status": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY (workflow inference; source timing undocumented)",
+      "clinical_meaning": "Dyspnea reported at assessment.",
+      "unresolved_uncertainties": [
+        "S-1: exact delivered tokens unverified.",
+        "Symptom elicitation definition is undocumented."
+      ],
+      "leakage_risk": "NONE_EXPECTED",
+      "acquisition_source_mapping": [
+        {"channel": "structured_history", "mapping_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN", "rationale": "Frozen dictionary source_domain=patient_history."},
+        {"channel": "clinician_assessment", "mapping_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL", "rationale": "Symptom could be clinician-recorded; elicitation unresolved."},
+        {"channel": "measurement", "mapping_status": "NOT_APPLICABLE", "rationale": "Not a measurement."},
+        {"channel": "laboratory_document", "mapping_status": "NOT_APPLICABLE", "rationale": "Never laboratory-sourced."}
+      ]
+    }
+  ],
+  "prohibited_acquisition": {
+    "track_b_wearable": "Wearable, patient-monitoring and Track B streams are prohibited for every field and are rejected.",
+    "ocr_auto_population": "OCR-derived patient-document values are not an accepted acquisition source in this milestone. Any future OCR channel is PROPOSED only and must never auto-populate a model input without separate human authorization and a verified per-field extraction contract.",
+    "post_angiography_fields": "Cath, LAD, LCX, RCA, echocardiography (EF-TTE, Region RWMA, VHD), identifiers and administrative fields are outcome-derived, post-outcome or prohibited and are absent from this contract.",
+    "cross_source_fields": "UCI-45/Cleveland fields (age, sex, cp, trestbps, restecg, ...) are other-dataset sources and are rejected; no crosswalk exists."
+  },
+  "missingness_policy": {
+    "source_reports_missing": false,
+    "record_level_rule": "All 16 fields are required (non-null) in a validated da_a1_basic_clinical_v1 record; the panel declares no optional fields.",
+    "training_rule": "If a blank is ever encountered it is NaN and is imputed strictly inside a training fold, with a missingness indicator; no global imputation or value repair is performed.",
+    "wrong_source_tokens_rejected": ["?", "-9", "-9.0"]
+  },
+  "no_result_contract": {
+    "result_state": "NO_RESULT_NO_CAD_PROBABILITY_COMPUTED",
+    "mapping_status": "ACCEPTED_SYNTHETIC_FIXTURE_CONTRACT_ONLY",
+    "statement": "This contract and its validator never compute, return or imply a CAD probability, risk score, diagnosis, or threshold decision. It validates field provenance and coding only."
+  },
+  "envelope_contract": {
+    "required_payload_keys": [
+      "contract_version",
+      "synthetic",
+      "source",
+      "feature_order",
+      "features",
+      "units",
+      "missing_reasons",
+      "acquisition_sources"
+    ],
+    "source_block_keys": ["source_id", "dataset_id", "track"],
+    "acquisition_source_block_keys": ["channel", "mapping_status"]
+  },
+  "unresolved_question_register": [
+    {"code": "S-1", "question": "Exact delivered text tokens for the six text-binary columns (incl. Sex 'Fmale') are unverified against an owner codebook."},
+    {"code": "S-2", "question": "BP measured quantity (systolic/diastolic/single) and measurement conditions are undocumented; unit mmHg is secondary-source."},
+    {"code": "S-3", "question": "PR unit token ('ppm' vs beats/min) is owner-unconfirmed; measurement conditions undocumented."},
+    {"code": "S-4", "question": "Chest-pain flag mutual exclusivity and elicitation definitions are undocumented."},
+    {"code": "S-9", "question": "Numeric 0/1 direction (0=absent, 1=present) for six columns is secondary-literature supported, not owner-codebook verified; requires explicit human acceptance."},
+    {"code": "U-6", "question": "Per-field acquisition time relative to angiography is undocumented for all 16 fields; pre-angiography availability is workflow inference only."},
+    {"code": "H-01", "question": "UCI-412 >=50% vs UCI-45 >50% target boundary differs; exactly-50% records are unidentifiable; disposition is related-but-not-identical."}
+  ]
+}

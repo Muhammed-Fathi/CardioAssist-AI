@@ -13,8 +13,8 @@
 
 | Path | Role |
 |------|------|
-| `ai/research_routes.py` | Route catalog (`RESEARCH_ROUTE_CATALOG_V1`: 5 routes), `resolve_research_route`, `execute_synthetic_route_exercise`, `_run_bundle_round_trip`, typed contracts (`SyntheticRouteExerciseConfig`, `SyntheticRouteExerciseResult`), `RouteNotExercisableError`, `_strip_timing` (recursive timing removal for deterministic SHA-256). ~900 lines. |
-| `tests/experiments/test_research_routes.py` | 39 tests: catalog contents, resolver positive/negative controls, end-to-end synthetic exercises for `da_a2_resting_v1` and `da_a1_basic_clinical_v1`, determinism (reproducible SHA-256 across repeats), bundle round-trip serving-eligibility contract, governance rejections, A3 frozen-registry regression. |
+| `ai/research_routes.py` | Route catalog (`RESEARCH_ROUTE_CATALOG`: 5 routes), `resolve_route`, `describe_route_catalog`, `get_route_descriptor`, `assert_route_eligible`, `execute_synthetic_route_exercise`, `_run_bundle_round_trip`, typed contracts (`SyntheticRouteExerciseConfig`, `SyntheticRouteExerciseResult`), `RouteResolutionError`/`RouteNotExercisableError`, `_strip_timing` (recursive timing removal for deterministic SHA-256). 1,862 lines. |
+| `tests/experiments/test_research_routes.py` | 57 test functions (82 collected cases once parametrization is expanded): catalog contents, resolver positive/negative controls, end-to-end synthetic exercises for `da_a2_resting_v1` and `da_a1_basic_clinical_v1`, determinism (reproducible SHA-256 across repeats), bundle round-trip serving-eligibility contract, governance rejections, A3 frozen-registry regression. |
 
 **Edited files**
 
@@ -24,7 +24,7 @@
 
 **Not touched (standing constraints):** `ai/diagnostic_scope.py` (frozen A3 registry, `HEAD == A3`), diagnostic registry contents, FastAPI real-model fail-closed boundary, protocol/source-dictionary/governance files, accepted Cleveland bundle. No real-bundle inference/training/external validation/secret access. No pooling across datasets (UCI-45+UCI-412, UCI-412+UCI-411, Cleveland+Statlog, UCI-412+AngioCAD, VA/Switzerland into Cleveland). No UCI-412 `BP`→`trestbps` conversion, no chest-pain binary→`cp` conversion, no assumed target equivalence. `>=50% vs >50%` and prediction-time feature availability remain explicitly unresolved (see §4).
 
-**Route catalog (`RESEARCH_ROUTE_CATALOG_V1`, all `SYNTHETIC_TEST`):**
+**Route catalog (`RESEARCH_ROUTE_CATALOG`, all `SYNTHETIC_TEST`):**
 
 | Route | Source panel | Panel contract | Status |
 |-------|-------------|----------------|--------|
@@ -32,19 +32,19 @@
 | `da_a2_resting_labs_v1` | UCI-45 resting + labs | `da_a2_resting_labs_v1` | synthetic only; real-data blocked (`BLOCKED_EXTENDED_PANELS`) |
 | `da_a1_basic_clinical_v1` | UCI-412 Z-Alizadeh Sani | `da_a1_basic_clinical_v1` | synthetic only |
 | `da_a1_clinical_core_labs_v1` | UCI-412 core labs | `da_a1_clinical_core_labs_v1` | synthetic only; real-data blocked |
-| `da_a2_resting_angio_v1` | contract-only (AngioCAD-gated under D-021) | contract descriptor | `contract_only` — not exercisable |
+| `da_a2_hungary_locked_transportability_v1` | UCI-45 Cleveland → locked Hungary target site (one-shot transport, never trained) | `da_a2_resting_v1`, Cleveland D-047 frozen profile | contract/query only — locked external target, `EVAL_NOT_AUTHORIZED` |
 
-Resolver accepts valid synthetic operations (`ROUTE_EXERCISE`, `ROUTE_TRAIN`, `ROUTE_EXPLAIN`, `ROUTE_BUNDLE`) for exercisable routes and rejects: unknown route IDs, non-synthetic statuses, contract-only routes, blocked operations, and cross-dataset pooling requests. Orchestrator guards contract-only routes with `RouteNotExercisableError` before any resolver call.
+The resolver's operation vocabulary is the `OP_*` constants in `ai/research_routes.py`: synthetic operations `synthetic_training`, `synthetic_prediction`, `synthetic_external_evaluation`, `shap_attribution`, `lime_assessment`, `bundle_packaging`, `route_contract_query`, `synthetic_end_to_end_exercise`, with the real-data operations `real_data_training`, `real_external_evaluation`, `real_bundle_inference`, `clinical_serving` blocked while Gate PT is closed. `resolve_route`/`assert_route_eligible` accept valid synthetic operations for exercisable routes and reject unknown route IDs, non-synthetic statuses, contract/query-only routes, blocked operations, and cross-dataset pooling requests. Orchestrator guards non-exercisable routes with `RouteNotExercisableError` before any resolver call.
 
 ## 2. Dataset / route × panel matrix
 
 | Route id | Source dataset (UCI) | N | Target definition | Feature groups | Timing restriction | Real-data status |
 |----------|----------------------|---|-------------------|----------------|--------------------|------------------|
-| `da_a2_resting_v1` | UCI-45 Heart Disease (Detrano et al. 1989; Cleveland resting subset) | 303 (repository-level; Cleveland sub-cohort per bundle) | Diameter narrowing ≥50% (obstructive CAD) per repository convention | Resting clinical + ECG | Resting-state record only; no labs | synthetic only in this PR |
-| `da_a2_resting_labs_v1` | UCI-45 + lab measurements | same cohort | as above | resting + lab panel (incl. cholesterol) | Resting-state record only | blocked from real-data execution |
-| `da_a1_basic_clinical_v1` | UCI-412 Z-Alizadeh Sani | 303 | Diameter narrowing ≥50% → CAD vs Normal | demographic, symptom/examination, ECG, laboratory/echo | angiography referral-time panel | synthetic only in this PR |
-| `da_a1_clinical_core_labs_v1` | UCI-412 core labs | 303 | as above | laboratory core subset | angiography referral-time panel | blocked from real-data execution |
-| `da_a2_resting_angio_v1` | contract descriptor (AngioCAD) | contract-only | not defined in this PR | angiographic panel | procedure-time | contract-only; gated under D-021 |
+| `da_a2_resting_v1` | UCI-45 Heart Disease (Detrano et al. 1989; Cleveland resting subset) | 303 (repository-level; Cleveland sub-cohort per bundle) | Diameter narrowing >50% (obstructive CAD; Cleveland `num ∈ {1,2,3,4}` ⇒ >50%, target `t1.uci45.angiographic_cad_gt50`) | Resting clinical + ECG | Resting-state record only; no labs | synthetic only in this PR |
+| `da_a2_resting_labs_v1` | UCI-45 + lab measurements | same cohort | as above (>50%) | resting + lab panel (incl. cholesterol) | Resting-state record only | blocked from real-data execution |
+| `da_a1_basic_clinical_v1` | UCI-412 Z-Alizadeh Sani | 303 | Diameter narrowing ≥50% → CAD vs Normal (target `t1.uci412.angiographic_cad_ge50`; related-but-not-identical to the Cleveland >50% target) | demographic, symptom/examination, ECG, laboratory/echo | angiography referral-time panel | synthetic only in this PR |
+| `da_a1_clinical_core_labs_v1` | UCI-412 core labs | 303 | as above (≥50%) | laboratory core subset | angiography referral-time panel | blocked from real-data execution |
+| `da_a2_hungary_locked_transportability_v1` | UCI-45 Cleveland → locked Hungary external target site (never trained or tuned on) | locked external, one-shot transport | >50% (Hungary `num >50%`, target `t1.uci45.angiographic_cad_gt50`) | Cleveland `da_a2_resting_v1` features under the D-047 frozen profile | `LOCKED_EXTERNAL_TARGET_NEVER_TRAIN` | not authorized; requires Gate PT P-3 plus separate dataset/ledger approval |
 
 Timing: all routes require the input record timestamp to match the panel's timing domain (resting vs referral-time). Lab-timing verification rejects zero/missing required lab values (e.g. zero cholesterol in an unverified lab panel). Source dictionaries are not modified.
 
@@ -135,8 +135,8 @@ No PROBAST+AI assessment is performed or claimed by this PR; any downstream stud
 
 - Python 3.11+; `numpy`, `scipy`, `scikit-learn`, `joblib`, `threadpoolctl`, `pytest`, `openpyxl`, `et-xmlfile` (pinned in the project `.venv`, git-ignored).
 - `ai/` package imports cleanly (`ai.research_routes` imports verified).
-- Test command: `python -m pytest tests/experiments/test_research_routes.py -q -W error` (39 passed).
-- Regression: full suite baseline was 2037 passed / 2 skipped at `2b85bdf` with `-W error`; post-change full suite run in progress at report time.
+- Test command: `python -m pytest tests/experiments/test_research_routes.py -q -W error` (57 test functions; 82 collected cases once parametrization is expanded, all passing under `-W error`).
+- Regression: the repository-wide count is produced by the four pinned CI workflows (`audit-ci`, `backend-ci`, `contracts-ci`, `experiment-runner-ci`) rather than hard-coded in this report. Regenerate it with `python -m pytest -q -W error` after installing each workflow's pinned requirements; an earlier draft's "2037 passed / 2 skipped at `2b85bdf`" figure could not be re-verified against the committed tree and has been removed. The AI-8 report records the count verified for its own branch.
 
 ## 10. Next two implementation milestones (after this PR)
 
