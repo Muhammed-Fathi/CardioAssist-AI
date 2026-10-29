@@ -1,8 +1,8 @@
 {
   "schema": "cardioassist.ai_master_progress/v1",
-  "roadmap_version": "1.5",
-  "updated_on": "2026-10-28",
-  "source_main_commit_at_review": "ad885a259037259da9fd09c80d5698f3bc042b68",
+  "roadmap_version": "1.6",
+  "updated_on": "2026-10-29",
+  "source_main_commit_at_review": "322b9749808113047525866c176ac4e34d5382a2",
   "purpose": "Track actual completed engineering versus real scientific evidence; do not infer clinical readiness from synthetic tests.",
   "status_vocabulary": [
     "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
@@ -57,7 +57,7 @@
       "demo": {
         "command": "python -m ai uci412-demo --format text",
         "status": "MERGED_CLI_AND_AUTOMATED_TESTS",
-        "maintainer_local_reproduction": "PASSED_TWICE_WITH_EXPLICIT_PRESECURED_WORK_DIR",
+        "maintainer_local_reproduction": "PRE_AND_POST_MERGE_WINDOWS_DEFAULT_AND_EXPLICIT_PATHS_PASSED_VIA_AI8W",
         "local_windows_report_sha256": "2f31c6049fba52d2ecd1f36fbe1abf1e8ce2e1129529853b3ce8059befcfafb5"
       },
       "remaining": [
@@ -65,11 +65,11 @@
         "D-048 real-data research authorization not established by AI-8",
         "No model probability validated for real individual patient risk",
         "No eligible UCI-412 independent external validation established",
-        "Windows automatic temp/trusted-root ACL bug #69: 15 of 98 targeted local tests failed/errors; full local acceptance pending."
+        "Original checkout local M3a manifest can cause one suite test's absence assumption to fail; isolated post-merge Windows full suite passed without changing protected local data."
       ],
       "evidence_grade": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
       "local_windows_verification": {
-        "status": "LOCAL_VALIDATION_FAILED_WITH_PROTECTED_PATH_DEMO_PASSED",
+        "status": "LOCALLY_ACCEPTED_ENGINEERING_ONLY",
         "observed_on": "2026-10-28",
         "repo_commit_sha": "ad885a259037259da9fd09c80d5698f3bc042b68",
         "platform": "Windows (win32)",
@@ -93,8 +93,12 @@
           "cause": "Nested auto-created Windows temporary trusted_bundles directory inherits disallowed OWNER RIGHTS SID S-1-3-4 ACL; fail-closed security correctly refuses bundle."
         },
         "temporary_parent_workaround": "FAILED_TO_REPAIR_AUTO_CREATED_INNER_DIRECTORY_ACL",
-        "overall_acceptance": "BLOCKED_PENDING_AI-8W_REPAIR_AND_LOCAL_RETEST",
-        "data_grade": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+        "overall_acceptance": "LOCALLY_ACCEPTED_ENGINEERING_ONLY_VIA_AI8W_AT_MERGE_322b9749808113047525866c176ac4e34d5382a2",
+        "data_grade": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "initial_baseline_status": "LOCAL_VALIDATION_FAILED_WITH_PROTECTED_PATH_DEMO_PASSED",
+        "initial_baseline_overall_acceptance": "BLOCKED_PENDING_AI-8W_REPAIR_AND_LOCAL_RETEST",
+        "post_repair_milestone": "AI-8W",
+        "post_repair_merge_sha": "322b9749808113047525866c176ac4e34d5382a2"
       }
     },
     "AI-8R": {
@@ -112,8 +116,8 @@
         "UCI-412 semantic/timing gaps",
         "D-048 local execution conditions and scientific review not fulfilled"
       ],
-      "next_executable_step": "AFTER AI-8W: Build verifiable source-admissibility matrix and guarded local preflight, with mandatory local Windows acceptance.",
-      "precondition": "AI-8W Windows local suite is passed/accepted; do not start AI-8R agent task yet."
+      "next_executable_step": "NEXT: evidence-linked UCI-412 16-field source and time-of-availability admissibility matrix, plus non-destructive guarded Windows-local preflight; no unapproved patient-data fitting.",
+      "precondition": "AI-8W synthetic engineering local acceptance fulfilled at merge SHA 322b9749808113047525866c176ac4e34d5382a2; field/source/clinical authorizations and real-data fitting remain separately gated."
     },
     "AI-9": {
       "engineering_status": "NOT_STARTED",
@@ -136,8 +140,8 @@
       "focus": "Scientific reporting, documentation and graduation research handoff."
     },
     "AI-8W": {
-      "engineering_status": "PLANNED",
-      "local_windows_acceptance": "LOCAL_VALIDATION_FAILED",
+      "engineering_status": "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
+      "local_windows_acceptance": "LOCALLY_ACCEPTED_ENGINEERING_ONLY",
       "focus": "Repair AI-8 UCI-412 demo automatic Windows private temporary/trusted_bundles directory hardening without relaxing fail-closed ACL policies.",
       "blocking_issue_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/69",
       "baseline_commit_sha": "ad885a259037259da9fd09c80d5698f3bc042b68",
@@ -157,7 +161,118 @@
         "Post-merge Windows checkout is safely updated, tests and both default and explicit secured-path CLI rerun and logged.",
         "Only then update roadmap and JSON statuses to LOCALLY_ACCEPTED_ENGINEERING_ONLY."
       ],
-      "next_executable_step": "Arena implements focused Windows ACL repair for Issue #69 in new PR; maintainer executes local commands after review/merge."
+      "next_executable_step": "AI-8R source-admissibility and safe local preflight engineering may start, without unapproved real-data training; preserve separate ignored-M3a-manifest test-isolation follow-up.",
+      "pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/71",
+      "source_head_sha": "994b7e44c33a0a3c9d3cf45308163577d0a9bfda",
+      "merge_sha": "322b9749808113047525866c176ac4e34d5382a2",
+      "ci_on_head": {
+        "contract_validation": "success",
+        "audit_toolchain_validation": "success",
+        "mock_backend_validation": "success",
+        "synthetic_experiment_runner_validation": "success"
+      },
+      "evidence_grade": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+      "maintainer_windows_verification": {
+        "platform": "Windows win32 / NTFS",
+        "python": "3.12.9",
+        "pytest": "9.0.3",
+        "pr_head_sha": "994b7e44c33a0a3c9d3cf45308163577d0a9bfda",
+        "post_merge_main_sha": "322b9749808113047525866c176ac4e34d5382a2",
+        "pre_merge": {
+          "targeted_uci412": {
+            "collected": 98,
+            "passed": 98,
+            "failed": 0,
+            "errors": 0,
+            "exit_code": 0
+          },
+          "previous_failure_nodes": {
+            "collected": 2,
+            "passed": 2,
+            "exit_code": 0
+          },
+          "ai7_security_frozen_a": {
+            "collected": 174,
+            "passed": 171,
+            "skipped": 3,
+            "exit_code": 0
+          },
+          "full_suite_twice": {
+            "collected": 2347,
+            "passed": 2344,
+            "skipped": 3,
+            "failed": 0,
+            "exit_code_each": 0
+          },
+          "native_owner_rights_tests": "PASSED (not skipped)",
+          "default_cli": "12/12 twice with matching hash",
+          "explicit_private_root": "PASSED HMAC, safe pre-deserialization, input rejection, privacy"
+        },
+        "post_merge": {
+          "native_security_regressions": {
+            "collected": 4,
+            "passed": 4,
+            "skipped": 0,
+            "exit_code": 0
+          },
+          "full_suite_clean_isolated_worktree": {
+            "command": "python -m pytest -W error --tb=short",
+            "collected": 2347,
+            "passed": 2344,
+            "failed": 0,
+            "errors": 0,
+            "skipped": 3,
+            "exit_code": 0,
+            "notes": "Exact merge SHA; isolated Windows worktree with no local M3a manifest."
+          },
+          "original_checkout_full_suite": {
+            "collected": 2347,
+            "passed": 2343,
+            "failed": 1,
+            "errors": 0,
+            "skipped": 3,
+            "exit_code": 1,
+            "failure_node": "tests/uci412/test_safety.py::test_checked_in_authorization_template_authorizes_nothing",
+            "cause": "Assumes ignored local M3a authorization file must not exist; file exists in maintainer's original checkout.",
+            "data_protection": "Local manifest untouched and never inspected, committed, or uploaded."
+          },
+          "dependency_check": {
+            "command": "python -m pip check",
+            "result": "PASSED",
+            "exit_code": 0
+          },
+          "source_integrity_check": {
+            "command": "python scripts/verify_sources.py",
+            "result": "PASSED",
+            "exit_code": 0
+          },
+          "default_cli": {
+            "command": "python -m ai uci412-demo --format text",
+            "runs": 2,
+            "stages_each": "12/12",
+            "exit_codes": [
+              0,
+              0
+            ],
+            "report_sha256": "2f31c6049fba52d2ecd1f36fbe1abf1e8ce2e1129529853b3ce8059befcfafb5",
+            "hashes_match": true
+          },
+          "explicit_private_root": {
+            "command": "python -m ai uci412-demo --work-dir <secured-private-local-path> --format json",
+            "exit_code": 0,
+            "producer_authenticated": true,
+            "safe_for_pickle_deserialization": true,
+            "attestation_scheme": "hmac-sha256-local-producer-v1",
+            "malformed_input_rejected": true,
+            "local_path_not_disclosed": true
+          }
+        },
+        "limitations": [
+          "All demo/training data used for this acceptance are synthetic: no real CAD accuracy, calibration, clinical approval or serving authorization established.",
+          "Original checkout full suite has one known test-isolation conflict from a protected ignored local M3a manifest; clean isolated Windows worktree full suite passes on same merge SHA.",
+          "3 skipped cases on Windows are expected POSIX-only cases; native OWNER RIGHTS cases were run and passed."
+        ]
+      }
     }
   },
   "change_control": {
@@ -183,6 +298,8 @@
       "failed_tests": "Record LOCAL_VALIDATION_FAILED and repair before local acceptance; engineering merged remains separately truthful.",
       "docs_only": "Use local parse/format/link/data-schema checks; record NOT_APPLICABLE_WITH_REASON only when genuinely no executable checks apply.",
       "safety": "No protected patient data/keys/bundles in GitHub CI, chats or repo; no weakening ACL verification or bypassing authorization."
-    }
+    },
+    "last_locally_accepted_engineering_milestone": "AI-8W",
+    "last_locally_accepted_main_sha": "322b9749808113047525866c176ac4e34d5382a2"
   }
 }
