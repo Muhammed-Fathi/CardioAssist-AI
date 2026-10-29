@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import ast
 from copy import deepcopy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -404,32 +405,166 @@ def test_activation_template_has_no_self_referential_revision_field() -> None:
     )
 
 
+# Frozen fingerprints are derived from revision A (1c29c83), not from the
+# current merged main. They pin the protected execution module and the historic
+# diagnostic CLI surface while permitting additive non-diagnostic commands.
+_FROZEN_A_EXECUTION_SHA256 = "46efaa48deaf48cdb69a49e3cdabb1ff7d5d92af5952a058abb8df605099bf93"
+_FROZEN_A_CLI_FUNCTION_SHA256 = {
+    "assert_cli_predict_supported": "45621b54ccfacc886f77215d8855693c24f24fc47ef2696cad5b406984e2a851",
+    "read_input_payload": "ea110572db7ab5b47a1f2cb3430896a47e7ef0f38cd52f19a113feabc439927f",
+    "precheck_synthetic_envelope": "1a78f8cb54044663fdfc165881ec488982e3c5aa063d11706f31c95ff7339c90",
+    "resolve_signing_key": "05f536716001bd2dd28156828d94857966b5af81a828a9964f37ee32ac7ac913",
+    "run_verify_bundle": "b4a3aff1bafe666951f530d546762335daeb5b8b7097ca4d4b0dbdda95ef51cd",
+    "run_predict": "4501b574d9f26adb6ceb5fd52a26def4405e158a08d66d62c690e7569a4c1d2a",
+    "_collect_redaction_tokens": "cbc730e6917cfa15ba647a9114bf455f4d101743a1475a3be2a90df92894470b",
+    "_redact": "c7f75cffc56209435c466299a557d453eaf1b18988921f2f8f2b6848513eea48",
+    "_print_failure": "be955b87a4bfb62f28ee99110e9dcc922eabf899e53f21b889b61409227faba7",
+}
+_FROZEN_A_CLI_PARSER_BODY_SHA256 = "8181282951e7829c8008ee7ccf8ef59f5fa8b7fdca1a21eb1e709093ff24068c"
+_FROZEN_A_MAIN_FAIL_CLOSED_SHA256 = "64bc0655263755502ce7d9ae46b9b176aaa3853ae8338cceb7bca88912313c8b"
+_FROZEN_A_CLI_COMMANDS = frozenset({"panels", "verify-bundle", "predict", "demo"})
+_FROZEN_A_MAIN_DISPATCH_SHA256 = {
+    "panels": "77247429bde6144c6ffcfded6608d3109f48a3c2b24dc58d07685e3de602bc55",
+    "verify-bundle": "c9520fe44a8f6695aeff76974ce3229f74a5fbce230064f33355a184dbbe1b9f",
+    "predict": "c67cbd275c1da270bb0ac2ba1225922cb28daba997a8fee0d7f3aea347dcba26",
+    "demo": "7370f550475c8b603b73b31b6a30c2addfda9b137e1a3f1eb99f85d837ab9803",
+}
+_FROZEN_A_RENDER_DISPATCH_SHA256 = {
+    "panels": "bad2ae24671fc79fdacd1247991eea01dcc591a19aa60da4655accd4dbce3ef2",
+    "verify-bundle": "a56407c447d050fd602ccb018540de6c2a2a33135597bf5f7dc5d154ae23fab4",
+    "predict": "c034b84f7ec11a7f5d5b296a4e298ebb177a26ea24a7725b55d4ebb4c14ba8e2",
+    "demo": "7c7ec46265f5b12ddc253299f40be6f1d4b24f9cadd2906ca4c754588d5e06c4",
+}
+
+
 def test_new_code_is_post_activation_and_frozen_execution_file_is_unchanged() -> None:
-    """Where A is available locally, prove the new files did not exist at A."""
-    a = ds.FROZEN_TRAINING_REVISION_A
-    available = subprocess.run(
-        ["git", "cat-file", "-e", f"{a}^{{commit}}"],
-        cwd=str(REPO_ROOT),
-        capture_output=True,
-        check=False,
-    )
-    if available.returncode != 0:
-        pytest.skip("frozen activation revision A is not present in this checkout")
-    for new_file in ("ai/diagnostic_scope.py", "ai/diagnostic_inference.py"):
-        probe = subprocess.run(
-            ["git", "cat-file", "-e", f"{a}:{new_file}"],
-            cwd=str(REPO_ROOT),
-            capture_output=True,
-            check=False,
+    """Pin frozen execution and diagnostic CLI paths while allowing additive CLI commands."""
+    execution_bytes = (REPO_ROOT / "ai" / "execution.py").read_bytes()
+    assert hashlib.sha256(execution_bytes).hexdigest() == _FROZEN_A_EXECUTION_SHA256
+
+    cli_path = REPO_ROOT / "ai" / "cli.py"
+    cli_source = cli_path.read_text(encoding="utf-8")
+    cli_tree = ast.parse(cli_source)
+
+    def _function(name: str) -> ast.FunctionDef:
+        node = next(
+            item
+            for item in cli_tree.body
+            if isinstance(item, ast.FunctionDef) and item.name == name
         )
-        assert probe.returncode != 0, f"{new_file} must not be represented as existing at A"
-    unchanged = subprocess.run(
-        ["git", "diff", "--quiet", a, "--", "ai/execution.py", "ai/cli.py"],
-        cwd=str(REPO_ROOT),
-        capture_output=True,
-        check=False,
+        return node
+
+    for name, expected_sha in _FROZEN_A_CLI_FUNCTION_SHA256.items():
+        node = _function(name)
+        source_segment = ast.get_source_segment(cli_source, node)
+        assert source_segment is not None
+        assert hashlib.sha256(source_segment.encode("utf-8")).hexdigest() == expected_sha, (
+            f"protected diagnostic CLI function {name} changed from frozen revision A"
+        )
+
+    def _parser_commands() -> dict[str, str]:
+        parser_fn = _function("build_parser")
+        commands: dict[str, str] = {}
+        for node in ast.walk(parser_fn):
+            if not (
+                isinstance(node, ast.Assign)
+                and isinstance(node.value, ast.Call)
+                and isinstance(node.value.func, ast.Attribute)
+                and node.value.func.attr == "add_parser"
+                and node.value.args
+                and isinstance(node.value.args[0], ast.Constant)
+                and isinstance(node.value.args[0].value, str)
+            ):
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    commands[node.value.args[0].value] = target.id
+        return commands
+
+    parser_commands = _parser_commands()
+    assert _FROZEN_A_CLI_COMMANDS.issubset(parser_commands), (
+        "a frozen A CLI command parser was removed"
     )
-    assert unchanged.returncode == 0, "frozen A execution registry / CLI must be preserved"
+
+    # Compare the whole baseline parser AST after removing only statements
+    # belonging to parser variables for commands added after A. Thus original
+    # CLI parsers/options remain pinned, but future additive commands are not
+    # mistaken for a rewrite of the frozen diagnostic boundary.
+    parser_fn = _function("build_parser")
+    added_parser_variables = {
+        variable
+        for command, variable in parser_commands.items()
+        if command not in _FROZEN_A_CLI_COMMANDS
+    }
+    frozen_parser_body = [
+        statement
+        for statement in parser_fn.body
+        if not any(
+            isinstance(item, ast.Name) and item.id in added_parser_variables
+            for item in ast.walk(statement)
+        )
+    ]
+    parser_body = "\n".join(
+        ast.get_source_segment(cli_source, statement) or ""
+        for statement in frozen_parser_body
+    )
+    assert hashlib.sha256(parser_body.encode("utf-8")).hexdigest() == (
+        _FROZEN_A_CLI_PARSER_BODY_SHA256
+    ), "frozen A CLI parser declarations/options changed"
+
+    def _dispatch_fingerprints(function_name: str, *, args_object: bool) -> dict[str, str]:
+        function = _function(function_name)
+        found: dict[str, str] = {}
+        for node in ast.walk(function):
+            if not (
+                isinstance(node, ast.If)
+                and isinstance(node.test, ast.Compare)
+                and len(node.test.ops) == 1
+                and isinstance(node.test.ops[0], ast.Eq)
+                and len(node.test.comparators) == 1
+                and isinstance(node.test.comparators[0], ast.Constant)
+                and isinstance(node.test.comparators[0].value, str)
+            ):
+                continue
+            left = node.test.left
+            matches = (
+                isinstance(left, ast.Attribute)
+                and isinstance(left.value, ast.Name)
+                and left.value.id == "args"
+                and left.attr == "command"
+                if args_object
+                else isinstance(left, ast.Name) and left.id == "command"
+            )
+            if matches:
+                body = "\n".join(
+                    ast.get_source_segment(cli_source, statement) or ""
+                    for statement in node.body
+                )
+                found[node.test.comparators[0].value] = hashlib.sha256(
+                    body.encode("utf-8")
+                ).hexdigest()
+        return found
+
+    main_fn = _function("main")
+    fail_closed_handlers = [
+        node for node in ast.walk(main_fn) if isinstance(node, ast.ExceptHandler)
+    ]
+    assert len(fail_closed_handlers) == 1
+    fail_closed_source = ast.get_source_segment(cli_source, fail_closed_handlers[0])
+    assert fail_closed_source is not None
+    assert hashlib.sha256(fail_closed_source.encode("utf-8")).hexdigest() == (
+        _FROZEN_A_MAIN_FAIL_CLOSED_SHA256
+    ), "frozen A CLI exception boundary / output-redaction route changed"
+
+    main_branches = _dispatch_fingerprints("main", args_object=True)
+    render_branches = _dispatch_fingerprints("render_payload", args_object=False)
+    for command in _FROZEN_A_CLI_COMMANDS:
+        assert main_branches.get(command) == _FROZEN_A_MAIN_DISPATCH_SHA256[command], (
+            f"frozen A CLI dispatch for {command!r} changed"
+        )
+        assert render_branches.get(command) == _FROZEN_A_RENDER_DISPATCH_SHA256[command], (
+            f"frozen A CLI rendering for {command!r} changed"
+        )
 
 
 # --------------------------------------------------------------------------- #

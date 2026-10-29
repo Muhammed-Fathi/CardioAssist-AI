@@ -63,6 +63,11 @@ from ai.errors import (
 )
 from ai.explainability import explain_clinical_instance
 from ai.inference import ResearchCadPredictor
+from ai.filesystem_security import (
+    create_or_verify_private_directory,
+    ensure_private_directory,
+    is_windows_runtime,
+)
 from ai.lime_explainability import (
     DEFAULT_LIME_STABILITY_SEEDS,
     LimeConfig,
@@ -712,16 +717,21 @@ def _package_and_load(
     sample_payload: Mapping[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any], Path, Path, Path, ResearchCadPredictor]:
     if config.work_root is not None:
-        work_root = Path(config.work_root)
+        # Caller-supplied roots are never silently chmod'ed / ACL-rewritten.
+        # Create a missing root privately, but only verify an existing root.
+        work_root = create_or_verify_private_directory(
+            Path(config.work_root), strict_private=is_windows_runtime()
+        )
     else:
         import tempfile
 
-        work_root = Path(tempfile.mkdtemp(prefix="cai_ai8_uci412_"))
-    work_root.mkdir(parents=True, exist_ok=True)
-    trusted_root = work_root / "trusted_bundles"
-    key_dir = work_root / "private_keys"
-    trusted_root.mkdir(parents=True, exist_ok=True)
-    key_dir.mkdir(parents=True, exist_ok=True)
+        # mkdtemp creates an exclusive path, but Windows inherits the parent
+        # DACL. Replace and verify that inherited ACL before creating children.
+        work_root = ensure_private_directory(
+            Path(tempfile.mkdtemp(prefix="cai_ai8_uci412_"))
+        )
+    trusted_root = create_or_verify_private_directory(work_root / "trusted_bundles")
+    key_dir = create_or_verify_private_directory(work_root / "private_keys")
     key_path = key_dir / "local_bundle_hmac_v1.key"
     signing_key = get_or_create_local_signing_key(key_path)
 
