@@ -17,6 +17,7 @@ from research.uci412.feature_schema import describe_panels
 from research.uci412.runner import run_authorized_local_experiment, run_synthetic_dry_run
 from research.uci412.safety import run_preflight
 from research.uci412.sample_size import planning_summary
+from research.uci412.readiness import assess_readiness
 
 CONFIRMATION_PHRASE = "RUN M3A UCI412 LOCALLY"
 
@@ -42,6 +43,7 @@ def _parser() -> argparse.ArgumentParser:
         "preflight",
         help="check local authorization/provenance/storage without opening workbook rows",
     )
+    commands.add_parser("readiness", help="evidence-only AI-8R review; never grants authorization")
     commands.add_parser("run", help="prompt a human, then run the authorized local benchmark")
     return parser
 
@@ -107,6 +109,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = run_synthetic_dry_run()
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
+        if args.command == "readiness":
+            result = assess_readiness(repo_root=REPOSITORY_ROOT)
+            print(json.dumps(result, indent=2, sort_keys=True))
+            # Readiness is an evidence-only diagnostic, never a green light to run.
+            # Exit 2 even for a future reviewed panel + successful local preflight:
+            # authorization and actual execution remain separate human actions.
+            return 2
         if args.command == "preflight":
             preflight = run_preflight(repo_root=REPOSITORY_ROOT, config=DEFAULT_CONFIG)
             print(

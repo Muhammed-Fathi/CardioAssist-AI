@@ -1,0 +1,316 @@
+{
+  "schema_id": "uci412_ai8r_eligibility_register",
+  "schema_version": "1.0.0",
+  "status": "EVIDENCE_ONLY_NOT_AUTHORIZATION",
+  "source_id": "UCI-412",
+  "panel_id": "uci412_basic_clinical_v1",
+  "panel_version": "1.1.0",
+  "dictionary_version": "1.1.0",
+  "retrieved_utc_date": "2026-10-29",
+  "fields": [
+    {
+      "name": "Age",
+      "source_position": 1,
+      "definition": "Patient age at assessment.",
+      "registered_encoding": "numeric continuous",
+      "unit": "years",
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Exact recording convention (age at angiography vs age at first assessment) is not documented in the official source. Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    },
+    {
+      "name": "Sex",
+      "source_position": 4,
+      "definition": "Recorded sex.",
+      "registered_encoding": "text: Male, Fmale, Female",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "The delivered workbook is widely reported to contain the token 'Fmale' rather than 'Female'; exact source tokens are unverified. Both are registered with an explicit, reported mapping (Male=1, Fmale/Female=0). Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    },
+    {
+      "name": "BMI",
+      "source_position": 5,
+      "definition": "Body-mass index.",
+      "registered_encoding": "numeric continuous",
+      "unit": "kg/m^2",
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Whether the source value is recorded or derived, and the exact derivation, is undocumented. Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    },
+    {
+      "name": "DM",
+      "source_position": 6,
+      "definition": "History of diabetes mellitus.",
+      "registered_encoding": "numeric 0/1; direction provisional (0=absent, 1=present)",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "TAO_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    },
+    {
+      "name": "HTN",
+      "source_position": 7,
+      "definition": "History of hypertension.",
+      "registered_encoding": "numeric 0/1; direction provisional (0=absent, 1=present)",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "TAO_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    },
+    {
+      "name": "Current Smoker",
+      "source_position": 8,
+      "definition": "Current smoking at assessment.",
+      "registered_encoding": "numeric 0/1; direction provisional (0=absent, 1=present)",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "TAO_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    },
+    {
+      "name": "EX-Smoker",
+      "source_position": 9,
+      "definition": "Former smoking history.",
+      "registered_encoding": "numeric 0/1; direction provisional (0=absent, 1=present)",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "TAO_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    },
+    {
+      "name": "FH",
+      "source_position": 10,
+      "definition": "Family history of coronary artery disease.",
+      "registered_encoding": "numeric 0/1; direction provisional (0=absent, 1=present)",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "TAO_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    },
+    {
+      "name": "DLP",
+      "source_position": 17,
+      "definition": "History of dyslipidaemia.",
+      "registered_encoding": "text: Y, N, Yes, No",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Whether this reflects a recorded diagnosis or a laboratory threshold is undocumented. Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    },
+    {
+      "name": "BP",
+      "source_position": 18,
+      "definition": "Blood pressure recorded at assessment.",
+      "registered_encoding": "numeric continuous",
+      "unit": "mmHg",
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Ambiguous measurement or symptom classification; post-outcome entry possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Whether this is systolic, diastolic, or a single recorded value is not stated in the official source; public summaries imply a single systolic-like value. Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "UNRESOLVED"
+    },
+    {
+      "name": "PR",
+      "source_position": 19,
+      "definition": "Pulse rate recorded at assessment.",
+      "registered_encoding": "numeric continuous",
+      "unit": "beats/min",
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Ambiguous measurement or symptom classification; post-outcome entry possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Some secondary tables label the unit 'ppm'; the intended unit is beats per minute but the official source is silent. Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "UNRESOLVED"
+    },
+    {
+      "name": "Typical Chest Pain",
+      "source_position": 25,
+      "definition": "Typical/typical-angina chest pain descriptor.",
+      "registered_encoding": "numeric 0/1; direction provisional (0=absent, 1=present)",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Ambiguous measurement or symptom classification; post-outcome entry possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "TAO_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "UNRESOLVED"
+    },
+    {
+      "name": "Atypical",
+      "source_position": 28,
+      "definition": "Atypical chest pain descriptor.",
+      "registered_encoding": "text: Y, N, Yes, No",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Ambiguous measurement or symptom classification; post-outcome entry possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "UNRESOLVED"
+    },
+    {
+      "name": "Nonanginal",
+      "source_position": 29,
+      "definition": "Non-anginal chest pain descriptor.",
+      "registered_encoding": "text: Y, N, Yes, No",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Ambiguous measurement or symptom classification; post-outcome entry possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "UNRESOLVED"
+    },
+    {
+      "name": "Exertional CP",
+      "source_position": 30,
+      "definition": "Exertional chest pain descriptor.",
+      "registered_encoding": "text: Y, N, Yes, No",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Ambiguous measurement or symptom classification; post-outcome entry possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "UNRESOLVED"
+    },
+    {
+      "name": "Dyspnea",
+      "source_position": 26,
+      "definition": "Dyspnea reported at assessment.",
+      "registered_encoding": "text: Y, N, Yes, No",
+      "unit": null,
+      "collection_method": "UNDOCUMENTED (history/examination inferred from source group; not a verified acquisition protocol)",
+      "pre_angiography": "UNVERIFIED",
+      "proposed_workflow": "POSSIBLE_WITH_CLINICIAN_REVIEW_NOT_APPROVED",
+      "leakage_or_timing_risk": "Timing unverified; retrospective chart abstraction possible",
+      "evidence": [
+        "UCI412_PRIMARY",
+        "REGISTERED_DICTIONARY",
+        "REPOSITORY_SECONDARY"
+      ],
+      "evidence_quality": "Primary source confirms dataset/group/target, not per-field operational definition or timing; secondary descriptions and repository assumptions only",
+      "unresolved": "Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography acquisition and original collection method not established.",
+      "eligibility": "CONDITIONALLY_SUPPORTED"
+    }
+  ]
+}
