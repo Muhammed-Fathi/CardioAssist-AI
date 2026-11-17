@@ -14,21 +14,41 @@
 
 All steps $0, local CPU; no paid accounts/services. Each PR states exact source revision, Python/dependency versions, execution environment, command, result/exit, skips, evidence and claim level. Keep credentials, records, local authorization manifests, real bundles and patient-derived backgrounds outside Git/CI. Never delete or inspect ignored authorizations to make tests pass. Avoid changing files bound into frozen governance or hashes.
 
-**Windows PowerShell** (maintainer after merge, clean isolated worktree, Python 3.12, NTFS for applicable security tests):
+**Windows PowerShell** (maintainer after merge, clean isolated worktree, Python 3.12, NTFS for applicable security tests). **Proposed, not a claimed executed fresh-venv verification.** Create the virtual environment **outside the Git worktree**: the repository's actual `.gitignore` does not ignore `.venv-ai/` inside it. Use the already validated external Windows full-suite environment if available, or provision a fresh external environment with both research and backend development dependencies. Run from the exact intended SHA; do not copy local ignored manifests, datasets or signing keys:
 
 ```powershell
-git status --short
-git rev-parse HEAD
-py -3.12 -m venv .venv-ai
-.\.venv-ai\Scripts\Activate.ps1
-python -m pip install -r research\experiments\requirements.txt
-python -m pip check
-python scripts\verify_sources.py
-python -m pytest -W error tests\experiments tests\uci412 -q
-python -m ai uci412-demo --format text
-# Run the new PR's exact focused test files and, if safe, the full suite:
-python -m pytest -W error --tb=short
+$ErrorActionPreference = 'Stop'
+$ExpectedSHA = '<EXACT_REVIEWED_MERGE_SHA>'
+if ((git rev-parse HEAD).Trim() -ne $ExpectedSHA) { throw 'Unexpected HEAD' }
+if (git status --porcelain --untracked-files=all) {
+    throw 'Checkout is dirty; use a fresh isolated worktree, do not delete files'
+}
+$Venv = Join-Path $env:LOCALAPPDATA 'CardioAssist_AI\AI11_Research_Venv'
+if (Test-Path -LiteralPath $Venv) {
+    throw 'External venv path exists; choose a separate new path or use an already validated environment'
+}
+py -3.12 -m venv $Venv
+if ($LASTEXITCODE -ne 0) { throw 'Python 3.12 environment creation failed' }
+$Python = Join-Path $Venv 'Scripts\python.exe'
+& $Python -m pip install -r research/uci412/requirements.txt -r backend/requirements-dev.txt
+if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+& $Python -m pip check
+if ($LASTEXITCODE -ne 0) { throw 'Dependency consistency failed' }
+& $Python scripts/verify_sources.py
+if ($LASTEXITCODE -ne 0) { throw 'Source integrity failed' }
+& $Python -m pytest -W error -q tests/uci412 tests/experiments
+if ($LASTEXITCODE -ne 0) { throw 'Focused research tests failed' }
+# Run new PR-specific tests, then the complementary or monolithic suite as warranted.
+& $Python -m pytest -W error -q --tb=short --ignore=tests/experiments --ignore=tests/uci412
+if ($LASTEXITCODE -ne 0) { throw 'Complementary tests failed' }
+& $Python -m ai uci412-demo --format text
+if ($LASTEXITCODE -ne 0) { throw 'Synthetic demo failed' }
+if (git status --porcelain --untracked-files=all) {
+    throw 'Worktree became dirty; investigate without deleting protected files'
+}
 ```
+
+The two pytest invocations above are **segmented test coverage**, not a successful *single* monolithic run. For a future AI-11 implementation PR, add its **new focused test module(s)** to the runbook and execute them explicitly. If monolithic full-suite acceptance is required for a specific release, run and record it separately; never relabel an interrupted run as success. Report actual local outcomes/exit codes and any skipped cases rather than assuming this snippet was executed.
 
 Record failures/skips, Windows security/ACL cases actually executed and any known ignored-manifest isolation conflict; no blanket local acceptance if failures remain. Test installation availability may vary; no patient data or model uploads. For any retained synthetic demo output use a fresh private NTFS path outside repository; remove **only that explicit synthetic path** after verifying it is correct, never protected folders. `python -m ai demo` is also a synthetic CLI option. GitHub CI must run focused tests plus applicable existing contract, synthetic runner, audit, mock backend and source-integrity workflows; do not add private secrets/datasets. CI and native Windows results are separate. For docs-only work use Markdown link/JSON checks, source verification and `git diff --check` where applicable.
 
