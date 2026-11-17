@@ -75,17 +75,25 @@ from ai.cli import assert_cli_predict_supported
 from ai.errors import AiPipelineError, ClinicalInputValidationError
 from ai.explainability import ADDITIVITY_TOLERANCE
 from ai.inference import MANDATORY_LIMITATIONS, ResearchCadPredictor
-from ai.lime_explainability import LimeConfig
+from ai.lime_explainability import (
+    ALLOWED_LIME_REFERENCE_SCHEMES,
+    MAX_LIME_PERTURBATIONS,
+    LimeConfig,
+)
 from ai.packaging import (
     CALIBRATION_FILENAME,
     SHAP_BG_FILENAME,
     VerifiedBundleDescriptor,
     verify_trusted_local_bundle,
 )
-from ai.panels import ResearchPanelContract, validate_clinical_record
+from ai.panels import REGISTERED_PANELS, ResearchPanelContract, validate_clinical_record
 from ai.research_registry import (
     ADMISSIBLE_SYNTHETIC_PROVENANCE_DECLARATIONS,
+    KNOWN_OPERATIONS,
     MAX_RECORDS_CEILING,
+    RESEARCH_MODEL_REGISTRY,
+    SAFE_DATASET_ID_RE,
+    SHA256_RE,
     ArtifactCapabilities,
     ResearchModelEntry,
     ResearchRegistryError,
@@ -98,7 +106,7 @@ from ai.research_registry import (
     registry_digest_sha256,
     resolve_registered_model,
 )
-from ai.research_routes import OP_SYNTHETIC_PREDICTION, resolve_route
+from ai.research_routes import OP_SYNTHETIC_PREDICTION, RESEARCH_ROUTE_CATALOG, resolve_route
 
 REQUEST_SCHEMA_VERSION: Final[str] = "cardioassist.ai.research_inference_request/v1"
 RESPONSE_SCHEMA_VERSION: Final[str] = "cardioassist.ai.research_inference_response/v1"
@@ -523,24 +531,19 @@ class ResearchInferenceRequest:
         return len(self.records)
 
     def to_safe_dict(self) -> dict[str, Any]:
-        """Request summary with no record content and no filesystem path."""
-        return {
-            "request_schema_version": self.request_schema_version,
-            "operation": self.operation,
-            "route_id": self.route_id,
-            "route_version": self.route_version,
-            "model_id": self.model_id,
-            "model_version": self.model_version,
-            "panel_id": self.panel_id,
-            "panel_version": self.panel_version,
-            "panel_contract_sha256": self.panel_contract_sha256,
-            "dataset_id": self.dataset_id,
-            "record_count": self.record_count,
-            "record_refs": [record.record_ref for record in self.records],
-            "exploratory_threshold": self.exploratory_threshold,
-            "explainability": self.explainability.to_dict(),
-            "model_source": self.model_source.safe_descriptor(),
-        }
+        """Request summary with no record content and no filesystem path.
+
+        The projection is *validated*, not merely copied: an identifier is
+        echoed only when it resolves against the registry, route catalog, panel
+        registry or operation vocabulary, and a version or hash only when it
+        matches its grammar. A request constructed directly (bypassing
+        :func:`parse_inference_request`) can therefore never place an
+        unvalidated identifier, path or nested object in a response — such a
+        value becomes ``None`` and its field name is listed in
+        ``redacted_fields`` instead. Record references keep their correlation
+        value only when they match the registered reference grammar.
+        """
+        return build_request_summary(self)
 
 
 # --------------------------------------------------------------------------- #
@@ -1037,6 +1040,15 @@ def parse_inference_request(
             "'records' must be a non-empty sequence of record documents.",
             field="records",
         )
+    # The ceiling is checked on the raw sequence *before* parsing, so an
+    # oversized document cannot spend work (or memory) on per-record validation
+    # before being refused.
+    if len(records) > MAX_RECORDS_CEILING:
+        raise ResearchRegistryError(
+            "record_count_exceeds_ceiling",
+            "The request exceeds the registered per-invocation record ceiling.",
+            field="records",
+        )
     parsed = tuple(parse_feature_record(item) for item in records)
     explainability_document = document.get("explainability")
     if explainability_document is None:
@@ -1208,6 +1220,286 @@ def _sanitize_field(
         return value
     return None
 
+
+# --------------------------------------------------------------------------- #
+# Request-summary sanitization                                                 #
+# --------------------------------------------------------------------------- #
+
+#: Structural grammars a value must satisfy before it may be echoed into a
+#: response. Identity fields additionally have to be *registered*: the
+#: allowlists are the registry, route catalog, panel registry and operation
+#: vocabulary, never the request. Everything else is reported as redacted by
+#: field name only, so a refused request can never reflect a submitted path,
+#: key, value, nested object or unregistered identifier.
+_VERSION_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9]{1,4}(?:\.[0-9]{1,4}){1,3}$")
+
+#: Upper bound on the record count reported for a request that was refused
+#: before its own ceiling check could run.
+_SUMMARY_RECORD_BOUND: Final[int] = MAX_RECORDS_CEILING + 1
+
+_SUMMARY_IDENTITY_FIELDS: Final[tuple[str, ...]] = (
+    "request_schema_version",
+    "operation",
+    "route_id",
+    "route_version",
+    "model_id",
+    "model_version",
+    "panel_id",
+    "panel_version",
+    "panel_contract_sha256",
+    "dataset_id",
+)
+
+
+def _plain_mapping(value: Any) -> Mapping[str, Any] | None:
+    """Return ``value`` only when it is a plain ``dict``.
+
+    Reading a refused request must not execute caller code or walk a proxy, so
+    only the concrete mapping type that JSON decoding produces is introspected.
+    """
+    return value if type(value) is dict else None
+
+
+def _echoes_field(name: str, value: Any, fields: Mapping[str, Any]) -> bool:
+    """True when a raw request value is safe to place in a response summary.
+
+    Identity fields must resolve to a *registered* entry (registry, route
+    catalog, panel registry, operation vocabulary); shape fields must match
+    their grammar. Any other value is withheld and named in ``redacted_fields``,
+    so a refused request can never reflect a path, secret, nested object or
+    unregistered identifier.
+    """
+    if not isinstance(value, str):
+        return False
+    if name == "request_schema_version":
+        return value == REQUEST_SCHEMA_VERSION
+    if name == "operation":
+        return value in KNOWN_OPERATIONS
+    if name == "route_id":
+        return value in RESEARCH_ROUTE_CATALOG
+    if name == "panel_id":
+        return value in REGISTERED_PANELS
+    if name in ("model_id", "model_version"):
+        # Both halves must agree with a registered model identity, so a guessed
+        # or path-shaped id/version pair is never echoed.
+        return (fields.get("model_id"), fields.get("model_version")) in _registered_model_keys()
+    if name in ("route_version", "panel_version"):
+        return bool(_VERSION_RE.fullmatch(value))
+    if name == "panel_contract_sha256":
+        return bool(SHA256_RE.fullmatch(value))
+    if name == "dataset_id":
+        return bool(SAFE_DATASET_ID_RE.fullmatch(value))
+    return False
+
+
+def _registered_model_keys() -> frozenset[tuple[str, str]]:
+    """The (model_id, model_version) pairs this registry actually knows."""
+    return frozenset(
+        (entry.model_id, entry.model_version) for entry in RESEARCH_MODEL_REGISTRY.values()
+    )
+
+
+def _safe_threshold(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) and 0.0 < number < 1.0 else None
+
+
+def _safe_bounded_count(value: Any) -> int:
+    """A record count that is a bounded non-negative int, never a hostile call.
+
+    ``len`` is only taken on the concrete ``tuple``/``list``/``dict`` types JSON
+    decoding produces; anything else reports 0 rather than introspecting.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    return max(0, min(int(value), _SUMMARY_RECORD_BOUND))
+
+
+def _summary_records(raw: Any) -> tuple[int, list[str], int]:
+    """(count, grammar-valid refs, redacted-ref count) from a raw records value."""
+    if type(raw) not in (list, tuple):
+        return 0, [], 0
+    count = len(raw)
+    refs: list[str] = []
+    redacted = 0
+    for item in raw[:_SUMMARY_RECORD_BOUND]:
+        candidate: Any
+        if type(item) is dict:
+            candidate = item.get("record_ref")
+        elif type(item) is ResearchFeatureRecord:
+            candidate = item.record_ref
+        else:
+            candidate = None
+        if isinstance(candidate, str) and SAFE_RECORD_REF_RE.fullmatch(candidate):
+            refs.append(candidate)
+        else:
+            redacted += 1
+    return min(count, _SUMMARY_RECORD_BOUND), refs, redacted
+
+
+def _summary_explainability(options: Any) -> dict[str, Any]:
+    """Value-free explainability shape, safe for a refused request to echo."""
+    if type(options) is not ExplainabilityOptions:
+        return {
+            "include_shap": False,
+            "include_lime": False,
+            "lime_reference_scheme": None,
+            "lime_num_perturbations": None,
+            "lime_seed": None,
+            "lime_require_acceptable_quality": False,
+            "options_type_accepted": False,
+        }
+    scheme = options.lime_reference_scheme
+    count = options.lime_num_perturbations
+    seed = options.lime_seed
+    return {
+        "include_shap": bool(options.include_shap),
+        "include_lime": bool(options.include_lime),
+        "lime_reference_scheme": (
+            scheme
+            if isinstance(scheme, str) and scheme in ALLOWED_LIME_REFERENCE_SCHEMES
+            else None
+        ),
+        "lime_num_perturbations": (
+            int(count)
+            if isinstance(count, int)
+            and not isinstance(count, bool)
+            and 0 <= count <= MAX_LIME_PERTURBATIONS
+            else None
+        ),
+        "lime_seed": (
+            int(seed)
+            if isinstance(seed, int)
+            and not isinstance(seed, bool)
+            and 0 <= seed <= 2**63 - 1
+            else None
+        ),
+        "lime_require_acceptable_quality": bool(options.lime_require_acceptable_quality),
+        "options_type_accepted": True,
+    }
+
+
+def _summary_model_source(source: Any) -> dict[str, Any]:
+    if type(source) is not LocalSyntheticBundleSource:
+        return {
+            "artifact_kind": ARTIFACT_KIND_LABEL,
+            "bundle_dir_name": None,
+            "signing_key_provided": False,
+            "remote_or_url_source_supported": False,
+            "source_type_accepted": False,
+        }
+    return {**source.safe_descriptor(), "source_type_accepted": True}
+
+
+def build_request_summary(
+    request: Any, *, fields: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
+    """Build the request summary a response may carry, for any input shape.
+
+    Used on every path — successful and refused — so an error response can never
+    be more permissive than a success: only registered identities, grammar-valid
+    versions and hashes, bounded counts, grammar-valid record references and
+    primitive explainability/source flags are emitted, and only as
+    JSON-serializable primitives. A request that is not the registered typed
+    request object is never introspected, and raw document values are only ever
+    read through the ``fields`` projection that :func:`safe_document_summary`
+    builds from a plain ``dict``.
+    """
+    accepted = type(request) is ResearchInferenceRequest
+    resolved: dict[str, Any] = {}
+    if fields is not None:
+        resolved.update(fields)
+    elif accepted:
+        for name in _SUMMARY_IDENTITY_FIELDS:
+            resolved[name] = getattr(request, name)
+        resolved["records"] = request.records
+        resolved["exploratory_threshold"] = request.exploratory_threshold
+        resolved["explainability"] = request.explainability
+        resolved["model_source"] = request.model_source
+    summary: dict[str, Any] = {}
+    redacted: list[str] = []
+    for name in _SUMMARY_IDENTITY_FIELDS:
+        value = resolved.get(name)
+        if _echoes_field(name, value, resolved):
+            summary[name] = str(value)
+        else:
+            summary[name] = None
+            redacted.append(name)
+    count, refs, redacted_refs = _summary_records(resolved.get("records"))
+    summary["record_count"] = count
+    summary["record_refs"] = refs
+    summary["exploratory_threshold"] = _safe_threshold(resolved.get("exploratory_threshold"))
+    summary["explainability"] = _summary_explainability(resolved.get("explainability"))
+    summary["model_source"] = _summary_model_source(resolved.get("model_source"))
+    summary["request_type_accepted"] = accepted
+    summary["record_refs_redacted"] = redacted_refs
+    summary["redacted_fields"] = sorted(set(redacted))
+    summary["unvalidated_values_redacted"] = bool(redacted or redacted_refs) or not accepted
+    return summary
+
+
+def _universal_refusal_summary() -> dict[str, Any]:
+    """The constant, value-free summary carried when nothing can be reported.
+
+    It has exactly the shape of every other summary, with every identifier
+    ``None``, so a refusal never carries a partial or unvalidated echo and never
+    differs structurally from the success-path schema.
+    """
+    return {
+        "request_schema_version": None,
+        "operation": None,
+        "route_id": None,
+        "route_version": None,
+        "model_id": None,
+        "model_version": None,
+        "panel_id": None,
+        "panel_version": None,
+        "panel_contract_sha256": None,
+        "dataset_id": None,
+        "record_count": 0,
+        "record_refs": [],
+        "exploratory_threshold": None,
+        "explainability": _summary_explainability(None),
+        "model_source": _summary_model_source(None),
+        "request_type_accepted": False,
+        "record_refs_redacted": 0,
+        "redacted_fields": sorted(_SUMMARY_IDENTITY_FIELDS),
+        "unvalidated_values_redacted": True,
+    }
+
+
+def safe_request_summary(request: Any) -> dict[str, Any]:
+    """``build_request_summary`` with a total failure fallback.
+
+    Summarizing a request must never be able to raise: if the sanitizer itself
+    ever fails, the response carries the constant, value-free refusal summary
+    instead of escaping the boundary.
+    """
+    try:
+        summary = build_request_summary(request)
+        json.dumps(summary, allow_nan=False, ensure_ascii=True)
+    except Exception:  # noqa: BLE001 - the boundary never leaks or re-raises
+        return _universal_refusal_summary()
+    return summary
+
+
+def safe_document_summary(document: Any) -> dict[str, Any]:
+    """Refusal summary for a request *document* that failed its grammar.
+
+    Only a plain ``dict`` is read, only allowlisted keys are considered, and a
+    value is echoed only when it passes its own registered grammar — so a
+    path-shaped ``record_ref`` or a nested object is never reflected.
+    """
+    mapping = _plain_mapping(document)
+    if mapping is None:
+        return _universal_refusal_summary()
+    projected: dict[str, Any] = {name: mapping.get(name) for name in _SUMMARY_IDENTITY_FIELDS}
+    projected["records"] = mapping.get("records")
+    projected["exploratory_threshold"] = mapping.get("exploratory_threshold")
+    projected["explainability"] = mapping.get("explainability")
+    return build_request_summary(None, fields=projected)
 
 # --------------------------------------------------------------------------- #
 # Internal refusal carrier                                                     #
@@ -1930,7 +2222,7 @@ def run_offline_research_inference(
     safe_summary: Mapping[str, Any] = {}
     try:
         validated_request = _validate_request_shape(request)
-        safe_summary = validated_request.to_safe_dict()
+        safe_summary = safe_request_summary(validated_request)
         binding = _resolve_binding(validated_request)
         panel = binding.panel
         artifact = _load_artifact(validated_request, binding, panel)
@@ -1946,12 +2238,12 @@ def run_offline_research_inference(
             binding = exc.binding
         forced = exc.status
         if not safe_summary:
-            safe_summary = _partial_summary(request)
+            safe_summary = safe_request_summary(request)
     except Exception:  # noqa: BLE001 - the boundary never leaks internals
         refusal = _Refusal("request_unexpected_error", stage="request").detail
         forced = ResearchFacadeStatus.ERROR
         if not safe_summary:
-            safe_summary = _partial_summary(request)
+            safe_summary = safe_request_summary(request)
 
     status = forced if forced is not None else _roll_up(outcomes)
     provenance = {
@@ -2012,13 +2304,6 @@ def _document_refusal_response(
     if exc.code in _UNAVAILABLE_REGISTRY_CODES and exc.entry is not None:
         status = ResearchFacadeStatus.UNAVAILABLE
         binding = binding_for_entry(exc.entry)
-    record_refs: list[Any] = []
-    if isinstance(document, Mapping):
-        raw_records = document.get("records")
-        if isinstance(raw_records, Sequence) and not isinstance(raw_records, (str, bytes)):
-            record_refs = [
-                item.get("record_ref") for item in raw_records if isinstance(item, Mapping)
-            ]
     return ResearchInferenceResponse(
         status=status,
         binding=binding,
@@ -2027,17 +2312,11 @@ def _document_refusal_response(
         artifact=None,
         error=FacadeErrorDetail(
             code=exc.code,
-            message=_ERROR_MESSAGES.get(
-                exc.code, "The request document was refused by a registered fail-closed check."
-            ),
+            message=_ERROR_MESSAGES.get(exc.code, GENERIC_ERROR_MESSAGE),
             field_name=_sanitize_field(exc.field),
             stage="request",
         ),
-        request_summary={
-            "record_count": len(record_refs),
-            "record_refs": list(record_refs),
-            "model_source": {"artifact_kind": "opaque", "paths_disclosed": False},
-        },
+        request_summary=safe_document_summary(document),
         provenance={
             "input_provenance": SYNTHETIC_PROVENANCE_DECLARATION,
             "input_provenance_basis": "not established: the request document was refused",
@@ -2124,26 +2403,6 @@ def _roll_up(outcomes: Sequence[RecordOutcome]) -> ResearchFacadeStatus:
     return ResearchFacadeStatus.ERROR  # pragma: no cover - every status is listed
 
 
-def _partial_summary(request: Any) -> dict[str, Any]:
-    """Identifier summary for a request too malformed to be fully parsed."""
-    records = getattr(request, "records", None) or ()
-    return {
-        "request_schema_version": getattr(request, "request_schema_version", None),
-        "operation": getattr(request, "operation", None),
-        "route_id": getattr(request, "route_id", None),
-        "route_version": getattr(request, "route_version", None),
-        "model_id": getattr(request, "model_id", None),
-        "model_version": getattr(request, "model_version", None),
-        "panel_id": getattr(request, "panel_id", None),
-        "panel_version": getattr(request, "panel_version", None),
-        "panel_contract_sha256": getattr(request, "panel_contract_sha256", None),
-        "dataset_id": getattr(request, "dataset_id", None),
-        "record_count": len(records),
-        "record_refs": [getattr(record, "record_ref", None) for record in records],
-        "model_source": {"artifact_kind": "opaque", "paths_disclosed": False},
-    }
-
-
 def is_registered_static_error_message(message: str) -> bool:
     """True when ``message`` is one of the facade's static refusal reasons.
 
@@ -2187,4 +2446,7 @@ __all__ = [
     "parse_synthetic_provenance",
     "run_offline_research_inference",
     "run_offline_research_inference_from_document",
+    "build_request_summary",
+    "safe_document_summary",
+    "safe_request_summary",
 ]

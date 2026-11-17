@@ -28,6 +28,7 @@ involved, and nothing here authorizes serving any model.
 from __future__ import annotations
 
 import copy
+import dataclasses
 from dataclasses import FrozenInstanceError
 import json
 from pathlib import Path
@@ -66,8 +67,11 @@ from ai.research_facade import (
     LocalSyntheticBundleSource,
     ResearchFacadeStatus,
     ResearchInferenceRequest,
+    ResearchInferenceResponse,
     SyntheticFixtureProvenance,
+    build_request_summary,
     canonical_response_digest,
+    safe_document_summary,
     is_registered_static_error_message,
     parse_feature_record,
     parse_inference_request,
@@ -91,6 +95,7 @@ from ai.research_registry import (
     RESEARCH_MODEL_REGISTRY,
     SYNTHETIC_PROVENANCE_DECLARATION,
     ResearchRegistryError,
+    SAFE_RECORD_REF_RE,
     get_model_entry,
     registry_contract,
     registry_digest_sha256,
@@ -1739,6 +1744,388 @@ def test_status_enum_is_exactly_the_four_registered_results() -> None:
         ResearchFacadeStatus.ERROR,
     ):
         assert status.produced_a_score is False
+
+
+# --------------------------------------------------------------------------- #
+# Malformed-input redaction: the no-echo guarantee under hostile input         #
+# --------------------------------------------------------------------------- #
+
+#: Markers that must never reappear anywhere in a refusal payload. Each one is
+#: deliberately placed where a naive implementation would `str()`-echo the raw
+#: value (a summary built from `getattr`, or from `record.get("record_ref")`).
+SECRET_STRINGS = (
+    "synthetic-fake-secret",
+    "secret_bundle",
+    "nested-secret",
+    "hostile-introspection",
+    "C:\\Users\\victim",
+    "/home/leak",
+    "..\\..\\windows",
+)
+
+
+class Hostile:
+    """Any attribute or item access raises: introspection must not be attempted."""
+
+    def __getattr__(self, name: str):
+        raise RuntimeError("hostile-introspection")
+
+    def __getitem__(self, key):
+        raise RuntimeError("hostile-introspection")
+
+    def to_dict(self):
+        raise RuntimeError("hostile-introspection")
+
+    def safe_descriptor(self):
+        raise RuntimeError("hostile-introspection")
+
+
+def _assert_clean(response) -> dict:
+    """Serialize a refusal and assert it carries neither secrets nor NaN/Infinity."""
+    payload = response.to_dict()
+    text = json.dumps(payload, allow_nan=False, ensure_ascii=True, sort_keys=True)
+    for needle in SECRET_STRINGS:
+        assert needle not in text, f"{needle!r} leaked into {text[:400]}"
+    for needle in ("NaN", "Infinity"):
+        assert needle not in text, f"{needle} reached the serializer"
+    return payload
+
+
+def test_a_path_shaped_record_ref_in_a_refused_document_is_never_echoed(source, records) -> None:
+    """Reviewer repro 1: wrong schema version + a Windows-path ``record_ref``."""
+    document = mutate(
+        _base_document(
+            [
+                {
+                    "record_ref": "C:\\synthetic-fake-secret\\key.txt",
+                    "note": "nested-secret",
+                }
+            ]
+        ),
+        request_schema_version="cardioassist.ai.research_inference_request/v0",
+    )
+    assert document["records"][0]["record_ref"].startswith("C:\\")
+    response = run_offline_research_inference_from_document(document, model_source=source)
+    assert response.status is ResearchFacadeStatus.ERROR
+    detail = error_of(response)
+    assert detail.code == "request_schema_version_unsupported"
+    assert detail.stage == "request"
+    assert response.outcomes == ()
+    payload = _assert_clean(response)
+    summary = payload["request_summary"]
+    # Structure is reported, values are not: one refused record, nothing echoed.
+    assert summary["record_count"] == 1
+    assert summary["record_refs"] == []
+    assert summary["record_refs_redacted"] == 1
+    assert isinstance(summary["redacted_fields"], list)
+    assert summary["unvalidated_values_redacted"] is True
+    assert is_registered_static_error_message(detail.message)
+
+
+def test_a_nested_mapping_record_ref_is_typed_error_and_never_reflected(
+    source, records
+) -> None:
+    """Reviewer repro 2: a nested object where a reference string belongs."""
+    document = _base_document([records[0]])
+    document["records"][0]["record_ref"] = {
+        "path": "/home/leak/secret_bundle.json",
+        "note": "nested-secret",
+    }
+    response = run_offline_research_inference_from_document(document, model_source=source)
+    assert response.status is ResearchFacadeStatus.ERROR
+    detail = error_of(response)
+    assert detail.code == "invalid_record_ref"
+    payload = _assert_clean(response)
+    assert payload["request_summary"]["record_refs"] == []
+    assert payload["request_summary"]["record_refs_redacted"] == 1
+    assert canonical_response_digest(payload)
+
+
+def test_an_oversized_or_oddly_shaped_record_list_is_bounded(source, records) -> None:
+    """No per-record work, and no introspection, before the ceiling refusal."""
+    document = mutate(
+        _base_document([doc(records[0])]),
+        records=[Hostile() for _ in range(2048)],
+    )
+    response = run_offline_research_inference_from_document(document, model_source=source)
+    assert response.status is ResearchFacadeStatus.ERROR
+    assert error_of(response).code == "record_count_exceeds_ceiling"
+    payload = _assert_clean(response)
+    assert 0 <= payload["request_summary"]["record_count"] <= MAX_RECORDS_CEILING + 1
+    assert payload["request_summary"]["record_refs"] == []
+
+    for odd in ({"path": "/home/leak/secret_bundle.json"}, "C:\\synthetic-fake-secret", 7, None):
+        refused = run_offline_research_inference_from_document(
+            mutate(_base_document([doc(records[0])]), records=odd), model_source=source
+        )
+        assert refused.status is ResearchFacadeStatus.ERROR
+        assert error_of(refused).code == "empty_record_set"
+        clean = _assert_clean(refused)
+        assert clean["request_summary"]["record_count"] == 0
+
+
+def test_a_path_shaped_or_unregistered_model_identity_is_not_echoed(source, records) -> None:
+    """Reviewer repro 3: valid-shaped document, unvalidated identifiers."""
+    for field, value in (
+        ("model_id", "/home/leak/secret_bundle.json"),
+        ("model_id", "C:\\synthetic-fake-secret\\model.json"),
+        ("model_version", "1.0.0-nested-secret"),
+        ("route_id", "..\\..\\windows\\route"),
+        ("panel_id", "/home/leak/panel"),
+        ("panel_contract_sha256", "z" * 64),
+        ("dataset_id", "DA-../../leak"),
+        ("request_schema_version", "v9-nested-secret"),
+    ):
+        response = call(source, [doc(records[0])], **{field: value})
+        assert response.status is ResearchFacadeStatus.ERROR, (field, response.status)
+        payload = _assert_clean(response)
+        summary = payload["request_summary"]
+        assert summary[field] is None, (field, summary[field])
+        assert field in summary["redacted_fields"]
+        # The registered counterpart of the pair is withheld too, so a refusal
+        # never leaks "this half is real" as an oracle.
+        if field == "model_id":
+            assert summary["model_version"] is None
+            assert "model_version" in summary["redacted_fields"]
+        # A refused request never reaches the artifact, whatever the summary says.
+        assert payload["artifact"] is None and response.outcomes == ()
+
+    # A guessed-but-well-formed id is withheld for the same reason: it is not
+    # registered, so echoing it would only confirm the caller's guess.
+    refused = call(source, [doc(records[0])], model_id="synth_unregistered_v1")
+    assert _assert_clean(refused)["request_summary"]["model_id"] is None
+
+
+def test_ordinary_registered_identifiers_and_refs_are_still_echoed(source, records) -> None:
+    """The fix must not blind the summary: valid ids keep their diagnostic value."""
+    parsed = parse_inference_request(_base_document(list(records)), model_source=source)
+    summary = build_request_summary(parsed)
+    entry = RESEARCH_MODEL_REGISTRY[DEMO_KEY]
+    panel = REGISTERED_PANELS[DEMO_PANEL_ID]
+    assert summary["request_schema_version"] == REQUEST_SCHEMA_VERSION
+    assert summary["operation"] == FACADE_OPERATION
+    assert summary["route_id"] == DEMO_ROUTE_ID
+    assert summary["route_version"] == entry.route_version
+    assert summary["model_id"] == DEMO_MODEL_ID
+    assert summary["model_version"] == entry.model_version
+    assert summary["panel_id"] == DEMO_PANEL_ID
+    assert summary["panel_version"] == panel.panel_version
+    assert summary["panel_contract_sha256"] == panel.contract_sha256
+    assert summary["dataset_id"] == DEMO_DATASET_ID
+    assert summary["record_count"] == len(records)
+    assert summary["record_refs"] == [record.record_ref for record in records]
+    assert all(SAFE_RECORD_REF_RE.fullmatch(ref) for ref in summary["record_refs"])
+    assert summary["redacted_fields"] == []
+    assert summary["record_refs_redacted"] == 0
+    assert summary["unvalidated_values_redacted"] is False
+    assert summary["request_type_accepted"] is True
+    assert summary["exploratory_threshold"] == 0.5
+    # The same projection the response carries, and a success is not more
+    # permissive than it used to be: only the redaction bookkeeping is added.
+    response = run_offline_research_inference(parsed)
+    assert response.status is ResearchFacadeStatus.SYNTHETIC_RESULT
+    assert response.to_dict()["request_summary"] == summary
+    assert summary["model_source"]["source_type_accepted"] is True
+    assert summary["explainability"]["options_type_accepted"] is True
+
+
+def test_a_malformed_typed_request_still_serializes_to_value_free_json(
+    source, records
+) -> None:
+    """Reviewer repro 4: ``to_json()`` on a request that never passed the grammar."""
+    hostile_ref = "C:\\synthetic-fake-secret\\key.txt"
+    request = ResearchInferenceRequest(
+        request_schema_version="v9-nested-secret",
+        operation="not_an_operation",
+        route_id="/home/leak/secret_bundle.json",
+        route_version="../..",
+        model_id="evil",
+        model_version="1",
+        panel_id="P",
+        panel_version="p",
+        panel_contract_sha256="zz",
+        dataset_id="DA-!!nested-secret",
+        records=(
+            dataclasses.replace(parse_feature_record(doc(records[0])), record_ref=hostile_ref),
+        ),
+        exploratory_threshold=float("nan"),
+        model_source=source,
+    )
+    summary_text = json.dumps(
+        request.to_safe_dict(), sort_keys=True, ensure_ascii=True, allow_nan=False
+    )
+    for needle in SECRET_STRINGS:
+        assert needle not in summary_text
+    assert "NaN" not in summary_text
+    summary = json.loads(summary_text)
+    assert summary["record_refs"] == []
+    assert summary["record_refs_redacted"] == 1
+    assert summary["unvalidated_values_redacted"] is True
+    assert summary["request_type_accepted"] is True
+    assert summary["exploratory_threshold"] is None
+    assert sorted(summary["redacted_fields"]) == [
+        "dataset_id",
+        "model_id",
+        "model_version",
+        "operation",
+        "panel_contract_sha256",
+        "panel_id",
+        "panel_version",
+        "request_schema_version",
+        "route_id",
+        "route_version",
+    ]
+    # The same request through the typed entry point is a typed refusal whose
+    # whole payload — not only its summary — is JSON-clean and value-free.
+    response = run_offline_research_inference(request)
+    assert response.status is ResearchFacadeStatus.ERROR
+    assert response.outcomes == ()
+    assert response.binding is None
+    text = response.to_json()
+    for needle in SECRET_STRINGS:
+        assert needle not in text
+    payload = json.loads(text)
+    assert payload["request_summary"] == summary
+    assert payload["artifact"] is None
+    assert is_registered_static_error_message(payload["error"]["message"])
+    # A response built from a summary of a hostile object also serializes: the
+    # fallback is reached before the serializer, not by chance.
+    orphan = ResearchInferenceResponse(
+        status=ResearchFacadeStatus.ERROR,
+        binding=None,
+        capabilities=None,
+        outcomes=(),
+        artifact=None,
+        error=FacadeErrorDetail(
+            code=GENERIC_ERROR_CODE, message="", field_name=None, stage="request"
+        ),
+        request_summary=safe_document_summary(Hostile()),
+        provenance={},
+        governance={},
+        limitations=(),
+    )
+    assert json.loads(orphan.to_json())["request_summary"]["unvalidated_values_redacted"] is True
+    assert canonical_response_digest(orphan.to_dict())
+
+
+def test_a_hostile_request_object_is_never_introspected(source) -> None:
+    """A non-request object handed to either entry point yields a typed refusal."""
+    for candidate in (Hostile(), object(), 7, "not-a-mapping", None):
+        response = run_offline_research_inference_from_document(candidate, model_source=source)
+        assert response.status is ResearchFacadeStatus.ERROR
+        detail = error_of(response)
+        reported = detail.to_dict()
+        assert reported["input_values_echoed"] is False
+        assert reported["local_paths_echoed"] is False
+        clean = _assert_clean(response)
+        summary = safe_document_summary(candidate)
+        assert clean["request_summary"] == summary
+        # Nothing can be reported about an object that is not a request at all.
+        for field in (
+            "route_id",
+            "model_id",
+            "model_version",
+            "panel_id",
+            "panel_version",
+            "panel_contract_sha256",
+            "dataset_id",
+            "operation",
+            "request_schema_version",
+            "route_version",
+        ):
+            assert summary[field] is None, field
+        assert summary["request_type_accepted"] is False
+        assert summary["unvalidated_values_redacted"] is True
+        assert summary["record_count"] == 0
+
+
+def test_a_rejected_model_source_argument_echoes_no_path(source, records) -> None:
+    """The *artifact source* is caller-supplied too, and equally unechoed."""
+    document = _base_document([doc(records[0])])
+    hostile_sources = (
+        Hostile(),
+        "/home/leak/secret_bundle.json",
+        "C:\\synthetic-fake-secret\\bundle",
+        {"bundle_dir": "/home/leak/secret_bundle.json", "signing_key": "nested-secret"},
+        None,
+    )
+    for candidate in hostile_sources:
+        response = run_offline_research_inference_from_document(document, model_source=candidate)
+        assert response.status is ResearchFacadeStatus.ERROR
+        assert error_of(response).code == "model_source_not_allowed"
+        summary = _assert_clean(response)["request_summary"]
+        assert summary["model_source"]["source_type_accepted"] is False
+        assert summary["model_source"]["bundle_dir_name"] is None
+        assert summary["model_source"]["signing_key_provided"] is False
+    # The accepted source still reports its registered, path-free descriptor.
+    accepted = run_offline_research_inference_from_document(document, model_source=source)
+    assert accepted.to_dict()["request_summary"]["model_source"] == {
+        **source.safe_descriptor(),
+        "source_type_accepted": True,
+    }
+    descriptor = json.dumps(accepted.to_dict()["request_summary"]["model_source"])
+    assert "bundle_dir\"" not in descriptor and "trusted_local_root" not in descriptor
+    assert "/" not in descriptor and "\\" not in descriptor
+
+
+def test_the_summary_schema_is_identical_on_success_and_on_every_refusal(
+    source, records
+) -> None:
+    """One summary shape everywhere, built only from JSON primitives."""
+    success = run_offline_research_inference(
+        parse_inference_request(_base_document(list(records)), model_source=source)
+    ).to_dict()["request_summary"]
+
+    def walk(value) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                assert isinstance(key, str) and len(key) <= 64
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+        else:
+            assert value is None or isinstance(value, (bool, int, float, str)), type(value)
+            if isinstance(value, str):
+                assert len(value) <= 128
+
+    walk(success)
+    refusals = [
+        call(source, [doc(records[0])], model_id="evil-nested-secret"),
+        run_offline_research_inference_from_document(Hostile(), model_source=source),
+        run_offline_research_inference_from_document(
+            _base_document([{"record_ref": "/home/leak/x"}]), model_source=source
+        ),
+        run_offline_research_inference(
+            ResearchInferenceRequest(
+                request_schema_version="x",
+                operation="x",
+                route_id="x",
+                route_version="x",
+                model_id="x",
+                model_version="x",
+                panel_id="x",
+                panel_version="x",
+                panel_contract_sha256="x",
+                dataset_id="x",
+                records=(),
+                model_source=source,
+            )
+        ),
+    ]
+    assert refusals
+    for response in refusals:
+        assert response.status in {
+            ResearchFacadeStatus.ERROR,
+            ResearchFacadeStatus.UNAVAILABLE,
+            ResearchFacadeStatus.ABSTAIN,
+        }
+        summary = response.to_dict()["request_summary"]
+        assert set(summary) == set(success), json.dumps(sorted(set(summary) ^ set(success)))
+        assert set(summary["explainability"]) == set(success["explainability"])
+        assert set(summary["model_source"]) == set(success["model_source"])
+        walk(summary)
+        _assert_clean(response)
 
 
 # --------------------------------------------------------------------------- #

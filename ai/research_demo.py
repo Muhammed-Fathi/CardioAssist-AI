@@ -57,6 +57,7 @@ from ai.research_facade import (
     run_offline_research_inference_from_document,
 )
 from ai.research_registry import (
+    MAX_RECORDS_CEILING,
     REGISTRY_DIGEST_SHA256,
     RESEARCH_MODEL_REGISTRY,
     SYNTHETIC_PROVENANCE_DECLARATION,
@@ -984,12 +985,99 @@ def run_research_facade_demo(
             ),
             ["untrusted_bundle_producer_signature", "bundle_verification_failed"],
         )
+        # Malformed and hostile-shaped input. These cases exist because a
+        # refusal must stay a *typed*, value-free answer: an echoed path, secret
+        # or unvalidated identifier would turn the error channel into a probe of
+        # what the caller submitted. Each case is therefore checked twice — once
+        # for its status/code, once for the absence of any submitted text.
+        submitted_markers = (
+            "synthetic-fake-secret",
+            "secret_bundle",
+            "nested-secret",
+            "hostile",
+            "C:\\Users",
+            "/home/leak",
+        )
+
+        unechoed_cases: list[str] = []
+
+        def refuse_unechoed(label: str, document: Any, codes: Sequence[str]) -> None:
+            unechoed_cases.append(label)
+            response = run_offline_research_inference_from_document(
+                document, model_source=source
+            )
+            error_cases.append(
+                _refusal_expectation(
+                    label, response, status=ResearchFacadeStatus.ERROR, codes=codes
+                )
+            )
+            serialized = json.dumps(response.to_dict(), allow_nan=False, ensure_ascii=True)
+            leaked = sorted(needle for needle in submitted_markers if needle in serialized)
+            _expect(
+                not leaked,
+                "demo_malformed_input_echo",
+                f"Refusal case '{label}' reflected submitted text back to the caller.",
+            )
+            summary = response.to_dict()["request_summary"]
+            _expect(
+                isinstance(summary, dict)
+                and 0 <= int(summary["record_count"]) <= MAX_RECORDS_CEILING + 1,
+                "demo_malformed_input_count_unbounded",
+                "A malformed request reported an unbounded structural record count.",
+            )
+
+        hostile_ref_document = mutate_record(first, record_ref="C:\\synthetic-fake-secret\\key.txt")
+        refuse_unechoed(
+            "path_shaped_record_ref_with_wrong_schema_version",
+            {
+                **_base_document([hostile_ref_document]),
+                "request_schema_version": "cardioassist.ai.research_inference_request/v0",
+            },
+            ["request_schema_version_unsupported"],
+        )
+        refuse_unechoed(
+            "nested_mapping_record_ref",
+            _base_document(
+                [
+                    mutate_record(
+                        first,
+                        record_ref={
+                            "path": "/home/leak/secret_bundle.json",
+                            "note": "nested-secret",
+                        },
+                    )
+                ]
+            ),
+            ["invalid_record_ref"],
+        )
+        oversized = _base_document([first])
+        oversized["records"] = [
+            {"record_ref": f"C:\\synthetic-fake-secret\\key{i}.txt"} for i in range(2048)
+        ]
+        refuse_unechoed("oversized_record_list", oversized, ["record_count_exceeds_ceiling"])
+        refuse_unechoed(
+            "unexpected_request_key",
+            {
+                **_base_document([first]),
+                "record_ref": "C:\\synthetic-fake-secret\\key.txt",
+            },
+            ["unexpected_request_key"],
+        )
+        for unreadable in (None, 7, "not-a-mapping", [{"record_ref": "/home/leak/secret_bundle"}]):
+            refuse_unechoed(
+                f"unreadable_request_document_{type(unreadable).__name__}",
+                unreadable,
+                ["request_malformed"],
+            )
+
         stages.append(
             _stage(
                 "7_typed_error_refusals",
                 {
                     "cases": error_cases,
                     "case_count": len(error_cases),
+                    "malformed_input_cases_no_echo_verified": len(unechoed_cases),
+                    "malformed_input_cases": sorted(unechoed_cases),
                     "any_case_produced_a_score": any(case["score_produced"] for case in error_cases),
                     "distinct_codes": sorted({str(case["code"]) for case in error_cases}),
                 },
