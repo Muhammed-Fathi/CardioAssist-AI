@@ -30,6 +30,7 @@ def test_register_and_scientific_hold(monkeypatch):
     lambda d: d['fields'][0].update(unit='furlongs'),
     lambda d: d['fields'][0].update(registered_encoding='text: 0, 1'),
     lambda d: d['fields'][0].update(eligibility='VERIFIED'),
+    lambda d: d['fields'][0].update(eligibility='VERIFIED', pre_angiography='DOCUMENTED_PRE_ANGIOGRAPHY'),
     lambda d: d['fields'][0].update(eligibility='AUTHORIZED'),
     lambda d: d['fields'][0].update(evidence=[]),
     lambda d: d['fields'][0].update(source_position=99),
@@ -52,31 +53,73 @@ def test_duplicate_keys_rejected(tmp_path):
         readiness.load_eligibility(path)
 
 
-@pytest.mark.parametrize('failure', [ProvenanceError, StorageProtectionError, AuthorizationError])
-def test_no_local_failure_can_activate(tmp_path, monkeypatch, failure):
-    data = readiness.load_eligibility()
-    for field in data['fields']:
-        field['eligibility'] = 'VERIFIED'  # synthetic future evidence state, not an approval
+def _future_reviewed_metadata(monkeypatch):
+    """Mock *code review* only; the real loader rejects these metadata-only edits."""
+    original = readiness.load_eligibility()
+    for field in original['fields']:
+        field['eligibility'] = 'VERIFIED'
         field['pre_angiography'] = 'DOCUMENTED_PRE_ANGIOGRAPHY'
-    path = tmp_path / 'register.json'
-    path.write_text(json.dumps(data), encoding='utf-8')
+    monkeypatch.setattr(readiness, 'load_eligibility', lambda path=readiness.REGISTER: original)
+
+
+@pytest.mark.parametrize('failure', [ProvenanceError, StorageProtectionError, AuthorizationError])
+def test_no_local_failure_can_activate(monkeypatch, failure):
+    _future_reviewed_metadata(monkeypatch)
     monkeypatch.setattr(readiness, 'run_preflight', lambda **kw: (_ for _ in ()).throw(failure('sensitive path')))
-    result = readiness.assess_readiness(register=path)
+    result = readiness.assess_readiness()
     assert result['status'] == 'LOCAL_GATE_PENDING'
     assert result['local_gate'] == 'REJECTED_' + failure.__name__
     assert result['execution_permitted_by_readiness'] is False
     assert 'sensitive' not in str(result)
 
 
-def test_even_successful_existing_gate_is_not_execution_permission(tmp_path, monkeypatch):
-    data = readiness.load_eligibility()
-    for field in data['fields']:
-        field['eligibility'] = 'VERIFIED'
-        field['pre_angiography'] = 'DOCUMENTED_PRE_ANGIOGRAPHY'
-    path = tmp_path / 'register.json'
-    path.write_text(json.dumps(data), encoding='utf-8')
+def test_even_successful_existing_gate_is_not_execution_permission(monkeypatch):
+    _future_reviewed_metadata(monkeypatch)
     monkeypatch.setattr(readiness, 'run_preflight', lambda **kw: object())
-    result = readiness.assess_readiness(register=path)
+    result = readiness.assess_readiness()
     assert result['local_gate'] == 'EXISTING_PREFLIGHT_PASS_NOT_EXECUTION_PERMISSION'
     assert result['authorization_granted_by_readiness'] is False
     assert result['execution_permitted_by_readiness'] is False
+
+
+@pytest.mark.parametrize('scenario', [
+    'scientific_hold', 'malformed', 'rejected_authorization',
+    'future_reviewed_rejected', 'future_reviewed_pass',
+])
+def test_cli_exit_2_never_authorizes(monkeypatch, capsys, tmp_path, scenario):
+    """Exercise the real CLI dispatch with synthetic local gates; no workbook I/O."""
+    from research.uci412 import cli
+
+    if scenario == 'malformed':
+        data = readiness.load_eligibility()
+        for field in data['fields']:
+            field['eligibility'] = 'VERIFIED'
+            field['pre_angiography'] = 'DOCUMENTED_PRE_ANGIOGRAPHY'
+        path = tmp_path / 'tampered.json'
+        path.write_text(json.dumps(data), encoding='utf-8')
+        original_loader = readiness.load_eligibility
+        monkeypatch.setattr(readiness, 'load_eligibility', lambda register=readiness.REGISTER: original_loader(path))
+        monkeypatch.setattr(readiness, 'run_preflight', lambda **kw: pytest.fail('local gate reached'))
+    elif scenario.startswith('future_reviewed'):
+        _future_reviewed_metadata(monkeypatch)
+    if scenario in ('scientific_hold', 'future_reviewed_pass'):
+        monkeypatch.setattr(readiness, 'run_preflight', lambda **kw: object())
+    elif scenario != 'malformed':
+        monkeypatch.setattr(readiness, 'run_preflight', lambda **kw: (_ for _ in ()).throw(AuthorizationError('sensitive')))
+    assert cli.main(['readiness']) == 2
+    captured = capsys.readouterr()
+    assert 'sensitive' not in captured.out + captured.err
+    if scenario == 'malformed':
+        assert 'FAIL CLOSED' in captured.err
+        assert not captured.out
+    else:
+        data = json.loads(captured.out)
+        assert data['execution_permitted_by_readiness'] is False
+        assert data['authorization_granted_by_readiness'] is False
+        assert data['source_rows_parsed'] is False
+        assert data['model_fitting_started'] is False
+        assert data['status'] == ('LOCAL_GATE_PENDING' if scenario.startswith('future_reviewed') else 'SCIENTIFIC_HOLD')
+        if scenario == 'future_reviewed_pass':
+            assert data['local_gate'] == 'EXISTING_PREFLIGHT_PASS_NOT_EXECUTION_PERMISSION'
+        elif scenario in ('rejected_authorization', 'future_reviewed_rejected'):
+            assert data['local_gate'] == 'REJECTED_AuthorizationError'

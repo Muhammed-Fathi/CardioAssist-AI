@@ -14,7 +14,17 @@ from research.uci412.feature_schema import (
 from research.uci412.safety import run_preflight
 
 REGISTER = Path(__file__).parent / 'schemas' / 'ai8r_eligibility.v1.json'
-ALLOWED = frozenset({'VERIFIED', 'CONDITIONALLY_SUPPORTED', 'UNRESOLVED', 'INADMISSIBLE'})
+# A JSON-only edit cannot promote a field to VERIFIED (or relabel its timing).
+# A future scientific adjudication requires a reviewed code AND evidence change;
+# even that would not authorize fitting or replace the signed local preflight.
+REVIEWED_ELIGIBILITY = (
+    'CONDITIONALLY_SUPPORTED', 'CONDITIONALLY_SUPPORTED', 'CONDITIONALLY_SUPPORTED',
+    'CONDITIONALLY_SUPPORTED', 'CONDITIONALLY_SUPPORTED', 'CONDITIONALLY_SUPPORTED',
+    'CONDITIONALLY_SUPPORTED', 'CONDITIONALLY_SUPPORTED', 'CONDITIONALLY_SUPPORTED',
+    'UNRESOLVED', 'UNRESOLVED', 'UNRESOLVED', 'UNRESOLVED', 'UNRESOLVED',
+    'UNRESOLVED', 'CONDITIONALLY_SUPPORTED',
+)
+REVIEWED_TIMING = 'UNVERIFIED'
 
 
 def load_eligibility(path: Path = REGISTER) -> dict[str, Any]:
@@ -46,7 +56,9 @@ def load_eligibility(path: Path = REGISTER) -> dict[str, Any]:
     numeric_binary = frozenset({
         'DM', 'HTN', 'Current Smoker', 'EX-Smoker', 'FH', 'Typical Chest Pain'
     })
-    for name, field in zip(PRIMARY_PANEL_COLUMNS, fields, strict=True):
+    for name, reviewed_status, field in zip(
+        PRIMARY_PANEL_COLUMNS, REVIEWED_ELIGIBILITY, fields, strict=True
+    ):
         if not isinstance(field, dict) or set(field) != {
             'name', 'source_position', 'definition', 'registered_encoding', 'unit',
             'collection_method', 'pre_angiography', 'proposed_workflow',
@@ -62,10 +74,8 @@ def load_eligibility(path: Path = REGISTER) -> dict[str, Any]:
             'text: ' + ', '.join(spec.vocabulary)
         )
         if (field['unit'] != spec.unit or field['registered_encoding'] != encoding
-                or field['eligibility'] not in ALLOWED
-                or field['pre_angiography'] not in {'UNVERIFIED', 'DOCUMENTED_PRE_ANGIOGRAPHY'}
-                or (field['eligibility'] == 'VERIFIED'
-                    and field['pre_angiography'] != 'DOCUMENTED_PRE_ANGIOGRAPHY')):
+                or field['eligibility'] != reviewed_status
+                or field['pre_angiography'] != REVIEWED_TIMING):
             raise ValueError('Eligibility register contract/timing/status mismatch')
         if any(not isinstance(field[k], str) or not field[k].strip() for k in (
             'definition', 'registered_encoding', 'collection_method', 'pre_angiography',
@@ -80,8 +90,9 @@ def load_eligibility(path: Path = REGISTER) -> dict[str, Any]:
 def assess_readiness(*, repo_root: Path = REPOSITORY_ROOT, register: Path = REGISTER) -> dict[str, Any]:
     """No patient row reads; local gates delegated exclusively to the existing preflight.
 
-    Even a future all-VERIFIED register cannot grant execution: signed local
-    authorization, protected provenance, paths and protocol are independently checked.
+    JSON-only promotion to VERIFIED is rejected. Even after future reviewed
+    source evidence changes the code binding, signed local authorization,
+    protected provenance, paths and protocol must still be checked separately.
     """
     data = load_eligibility(register)
     blockers = [f['name'] for f in data['fields'] if f['eligibility'] != 'VERIFIED']
@@ -90,6 +101,7 @@ def assess_readiness(*, repo_root: Path = REPOSITORY_ROOT, register: Path = REGI
         'source_identity': 'UCI-412/DA-A1; bytes checked only by protected local preflight',
         'feature_contract': 'uci412_basic_clinical_v1/1.1.0; 16 ordered fields',
         'unverified_fields': blockers,
+        'scientific_evidence_review': 'NOT_INDEPENDENT_AUTHORIZATION',
         'local_gate': 'NOT_EVALUATED',
         'authorization_granted_by_readiness': False,
         'execution_permitted_by_readiness': False,

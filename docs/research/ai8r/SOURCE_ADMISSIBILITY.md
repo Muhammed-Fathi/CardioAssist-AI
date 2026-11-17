@@ -1,6 +1,6 @@
 # AI-8R — UCI-412 source admissibility (research evidence, NOT approval)
 
-**2026-10-29; baseline `081d86ca63883fce06eb3314dd8415505d94c8f1`; decision: SCIENTIFIC_HOLD.** This is a literature/documentation review, not an audit of protected workbook rows. No patient-level data was accessed. The machine-readable [register](../../../research/uci412/schemas/ai8r_eligibility.v1.json) carries each field's clinical description, registered encoding and units, proposed acquisition channel, evidence quality, timing/leakage concern, unresolved question and eligibility. “Definition” below is a *registered working description*, not a source-owner operational case definition. Likewise a possible doctor/patient input is **not** an approved workflow. No field is VERIFIED. All 16 lack documented per-field acquisition timing before angiography (U-6).
+**2026-10-29; baseline `081d86ca63883fce06eb3314dd8415505d94c8f1`; decision: SCIENTIFIC_HOLD.** This is a literature/documentation review, not an audit of protected workbook rows. No patient-level data was accessed. The machine-readable [register](../../../research/uci412/schemas/ai8r_eligibility.v1.json) carries each field's clinical description, registered encoding and units, proposed acquisition channel, evidence quality, timing/leakage concern, unresolved question and eligibility. “Definition” below is a *registered working description*, not a source-owner operational case definition. Likewise a possible doctor/patient input is **not** an approved workflow. No field is VERIFIED. All 16 lack documented per-field acquisition timing before angiography (U-6). The checked-in validator **hard-binds each of the 16 reviewed eligibility classifications and UNVERIFIED timing separately from JSON**: editing metadata alone to say VERIFIED/DOCUMENTED_PRE_ANGIOGRAPHY fails validation before local preflight. A future elevation requires independently reviewed primary evidence, a separately reviewed code-and-evidence change and all independent authorization gates; the validator cannot establish clinical truth or approve a protocol by itself.
 
 ## Source hierarchy and traceability
 
@@ -18,22 +18,22 @@ Here “possible” means a clinician could in principle collect a history/measu
 
 | # | Field | Registered meaning; source representation / units | Proposed collection (not approved) | Specific unresolved issue | Eligibility |
 |---|---|---|---|---|---|
-| 1 | Age | Patient age at assessment. numeric continuous; years | Possible via reviewed history/examination; exact source method unknown | Exact recording convention (age at angiography vs age at first assessment) is not documented in the official source. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
-| 2 | Sex | Recorded sex. text: Male, Fmale, Female; unit n/a | Possible via reviewed history/examination; exact source method unknown | The delivered workbook is widely reported to contain the token 'Fmale' rather than 'Female'; exact source tokens are unverified. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
-| 3 | BMI | Body-mass index. numeric continuous; kg/m^2 | Possible via reviewed history/examination; exact source method unknown | Whether the source value is recorded or derived, and the exact derivation, is undocumented. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
-| 4 | DM | History of diabetes mellitus. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
-| 5 | HTN | History of hypertension. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
-| 6 | Current Smoker | Current smoking at assessment. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
-| 7 | EX-Smoker | Former smoking history. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
-| 8 | FH | Family history of coronary artery disease. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
-| 9 | DLP | History of dyslipidaemia. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether this reflects a recorded diagnosis or a laboratory threshold is undocumented. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
-| 10 | BP | Blood pressure recorded at assessment. numeric continuous; mmHg | Possible via reviewed history/examination; exact source method unknown | Whether this is systolic, diastolic, or a single recorded value is not stated in the official source; public summaries imply a single systolic-like value. Pre-angiography timing unverified. | UNRESOLVED |
-| 11 | PR | Pulse rate recorded at assessment. numeric continuous; beats/min | Possible via reviewed history/examination; exact source method unknown | Some secondary tables label the unit 'ppm'; the intended unit is beats per minute but the official source is silent. Pre-angiography timing unverified. | UNRESOLVED |
-| 12 | Typical Chest Pain | Typical/typical-angina chest pain descriptor. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography timing unverified. | UNRESOLVED |
-| 13 | Atypical | Atypical chest pain descriptor. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography timing unverified. | UNRESOLVED |
-| 14 | Nonanginal | Non-anginal chest pain descriptor. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography timing unverified. | UNRESOLVED |
-| 15 | Exertional CP | Exertional chest pain descriptor. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography timing unverified. | UNRESOLVED |
-| 16 | Dyspnea | Dyspnea reported at assessment. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography timing unverified. | CONDITIONALLY_SUPPORTED |
+| 1 | Age | Patient age at assessment. numeric continuous; years | Possible via reviewed history/examination; exact source method unknown | Exact recording convention (age at angiography vs age at first assessment) is not documented in the official source. Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
+| 2 | Sex | Recorded sex. text: Male, Fmale, Female; unit n/a | Possible via reviewed history/examination; exact source method unknown | The delivered workbook is widely reported to contain the token 'Fmale' rather than 'Female'; exact source tokens are unverified. Both are registered with an explicit, reported mapping (Male=1, Fmale/Female=0). Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
+| 3 | BMI | Body-mass index. numeric continuous; kg/m^2 | Possible via reviewed history/examination; exact source method unknown | Whether the source value is recorded or derived, and the exact derivation, is undocumented. Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
+| 4 | DM | History of diabetes mellitus. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
+| 5 | HTN | History of hypertension. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
+| 6 | Current Smoker | Current smoking at assessment. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
+| 7 | EX-Smoker | Former smoking history. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
+| 8 | FH | Family history of coronary artery disease. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Self-report/recorded history; the source does not document the defining criteria (e.g. duration, treatment status). Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
+| 9 | DLP | History of dyslipidaemia. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether this reflects a recorded diagnosis or a laboratory threshold is undocumented. Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
+| 10 | BP | Blood pressure recorded at assessment. numeric continuous; mmHg | Possible via reviewed history/examination; exact source method unknown | Whether this is systolic, diastolic, or a single recorded value is not stated in the official source; public summaries imply a single systolic-like value. Pre-angiography acquisition and original collection method not established. | UNRESOLVED |
+| 11 | PR | Pulse rate recorded at assessment. numeric continuous; beats/min | Possible via reviewed history/examination; exact source method unknown | Some secondary tables label the unit 'ppm'; the intended unit is beats per minute but the official source is silent. Pre-angiography acquisition and original collection method not established. | UNRESOLVED |
+| 12 | Typical Chest Pain | Typical/typical-angina chest pain descriptor. numeric 0/1; direction provisional (0=absent, 1=present); unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Source encoding corrected by Amendment A-1: the delivered cells are numeric 0/1 (not Y/N). 0 = absent/false and 1 = present/true is a provisional reading; the dataset publishes no per-column codebook (S-9). Pre-angiography acquisition and original collection method not established. | UNRESOLVED |
+| 13 | Atypical | Atypical chest pain descriptor. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography acquisition and original collection method not established. | UNRESOLVED |
+| 14 | Nonanginal | Non-anginal chest pain descriptor. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography acquisition and original collection method not established. | UNRESOLVED |
+| 15 | Exertional CP | Exertional chest pain descriptor. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography acquisition and original collection method not established. | UNRESOLVED |
+| 16 | Dyspnea | Dyspnea reported at assessment. text: Y, N, Yes, No; unit n/a | Possible via reviewed history/examination; exact source method unknown | Whether Typical/Atypical/Nonanginal are mutually exclusive categories or independent flags is undocumented; all three are registered exactly as delivered rather than re-derived. Pre-angiography acquisition and original collection method not established. | CONDITIONALLY_SUPPORTED |
 
 ## Adjudication, not activation
 
@@ -46,24 +46,54 @@ Here “possible” means a clinician could in principle collect a history/measu
 
 ## Windows maintainer handoff (clean *isolated* checkout; no local protected files copied)
 
+From an existing checkout on native Windows with GitHub CLI (`gh`) installed, create a **detached worktree at the live PR #74 head** and keep the venv **outside** every repository/worktree. Stop on any unexpected status; never copy local manifests, workbooks, keys, or other protected files. The paths below must be on a locally controlled NTFS volume with appropriate owner-only protection; they are not a place for patient data.
+
 ```powershell
-py -3.12 -m venv .venv-uci412
-.\.venv-uci412\Scripts\Activate.ps1
-python -m pip install -r research/uci412/requirements.txt -r backend/requirements-dev.txt
-python -m pip check
-python -m pytest -W error -q tests/uci412 tests/experiments
-python -m pytest -W error -q
-python -m research.uci412 readiness
-$LASTEXITCODE  # expected 2: SCIENTIFIC_HOLD; local gate REJECTED_* absent valid local authorization
-python -m research.uci412 preflight
-$LASTEXITCODE  # expected 2 without separately valid Windows-local signed authorization
-python -m research.uci412 describe
-# source verification (tracked source only; do NOT print/read protected manifests)
-git status --short
+$ErrorActionPreference = 'Stop'
+$repo = (Get-Location).Path
+$root = Join-Path $env:LOCALAPPDATA 'CardioAssist_AI'
+$worktree = Join-Path $root 'AI8R_PR74_Worktree'
+$venv = Join-Path $root 'AI8R_Test_Venv'
+if (Test-Path $worktree) { throw 'Use a new clean isolated worktree path; do not reuse an existing checkout.' }
+New-Item -ItemType Directory -Force $root | Out-Null
+git -C $repo fetch origin refs/pull/74/head
+if ($LASTEXITCODE -ne 0) { throw 'PR fetch failed' }
+$prHead = (gh pr view 74 --json headRefOid --jq '.headRefOid').Trim()
+if ($LASTEXITCODE -ne 0) { throw 'PR head lookup failed' }
+$fetchedHead = (git -C $repo rev-parse FETCH_HEAD).Trim()
+if ($fetchedHead -ne $prHead) { throw 'PR head moved during fetch; retry from scratch' }
+git -C $repo worktree add --detach $worktree $prHead
+if ($LASTEXITCODE -ne 0) { throw 'Isolated worktree creation failed' }
+Set-Location $worktree
+if ((git rev-parse HEAD).Trim() -ne $prHead) { throw 'Worktree does not match exact PR head' }
+if (git status --porcelain --untracked-files=all) { throw 'Worktree is not clean; do not run preflight' }
+py -3.12 -m venv $venv  # external; .venv-uci412 inside the worktree is NOT ignored
+if ($LASTEXITCODE -ne 0) { throw 'Python venv creation failed' }
+$python = Join-Path $venv 'Scripts\python.exe'
+& $python -m pip install -r research/uci412/requirements.txt -r backend/requirements-dev.txt
+if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+& $python -m pip check
+if ($LASTEXITCODE -ne 0) { throw 'Dependency check failed' }
+& $python -m pytest -W error -q tests/uci412 tests/experiments
+if ($LASTEXITCODE -ne 0) { throw 'Targeted tests failed' }
+& $python -m pytest -W error -q
+if ($LASTEXITCODE -ne 0) { throw 'Full tests failed' }
+if (git status --porcelain --untracked-files=all) { throw 'Worktree became dirty' }
+& $python -m research.uci412 readiness
+$readinessExit = $LASTEXITCODE  # expect 2: SCIENTIFIC_HOLD; local_gate REJECTED_*
+if ($readinessExit -ne 2) { throw 'Unexpected readiness exit; investigate without running training' }
+& $python -m research.uci412 preflight
+$preflightExit = $LASTEXITCODE  # expect 2: FAIL CLOSED without separate local authorization
+if ($preflightExit -ne 2) { throw 'Unexpected preflight exit; do not run training' }
+& $python scripts/verify_sources.py
+if ($LASTEXITCODE -ne 0) { throw 'Source verification failed' }
 git diff --check
+if ($LASTEXITCODE -ne 0) { throw 'Diff check failed' }
+if (git status --porcelain --untracked-files=all) { throw 'Worktree became dirty' }
+$prHead; $readinessExit; $preflightExit
 ```
 
-A safety rejection is **success of the guard**, not a successful authorized run. Do **not** execute `run` or generate/sign local manifests based on this report. `readiness` calls the existing no-row `run_preflight` and reports a sanitized error class; even if existing preflight passes, the CLI does not launch fitting. The existing `preflight` has a distinct `PREFLIGHT_PASS` only on a clean, Windows-local, independently ratified and hash-bound protocol/provenance/source. Neither a Linux test nor synthetic dry-run is Windows acceptance. Issue #73's ignored original-checkout manifest is unrelated: test only in a clean isolated worktree; do not inspect/delete/copy the maintainer's local authorization file. After human scientific review, submit a **separate** proposed tracking PR for plan/progress and record post-merge native Windows results; AI-8R stays unaccepted now.
+For this isolated, manifest-free worktree, `readiness` must print `SCIENTIFIC_HOLD` with 16 unverified fields and `local_gate: REJECTED_*` (ordinarily missing local M3a authorization; an earlier protected-path/ACL rejection is also possible); **exit 2 in every case**. `preflight` must print `FAIL CLOSED` and exit 2 without an independently valid local Windows M3a/D-046 chain. Any `PREFLIGHT_PASS` here is unexpected and must be investigated, **not** treated as permission to call `run`. A safety rejection is **success of the guard**, not an executable authorized research run. The readiness CLI always exits 2, including if future reviewed evidence and the independently protected preflight both pass; exit 0 is never a readiness/activation signal. Do **not** execute `run` or generate/sign local manifests based on this report. Neither Linux tests nor synthetic dry-run establish native-Windows acceptance. Issue #73's ignored original-checkout manifest is unrelated: do not inspect/delete/copy it. After human scientific review, submit a **separate** proposed tracking PR for plan/progress and record post-merge native Windows results; AI-8R stays unaccepted now.
 
 **NEXT_EXECUTABLE_STEP:** maintainer reviews owner-authored collection forms/codebook for the six binary directions, BP/PR, chest-pain elicitation and per-field acquisition timing; then runs the above safe checks in an isolated native Windows checkout. If evidence cannot resolve these, hold the protocol and do not fit.
 

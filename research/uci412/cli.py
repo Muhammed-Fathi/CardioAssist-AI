@@ -112,7 +112,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "readiness":
             result = assess_readiness(repo_root=REPOSITORY_ROOT)
             print(json.dumps(result, indent=2, sort_keys=True))
-            return 2 if result['status'] != 'LOCAL_GATE_PENDING' or result['local_gate'] != 'EXISTING_PREFLIGHT_PASS_NOT_EXECUTION_PERMISSION' else 0
+            # Readiness is an evidence-only diagnostic, never a green light to run.
+            # Exit 2 even for a future reviewed panel + successful local preflight:
+            # authorization and actual execution remain separate human actions.
+            return 2
         if args.command == "preflight":
             preflight = run_preflight(repo_root=REPOSITORY_ROOT, config=DEFAULT_CONFIG)
             print(
