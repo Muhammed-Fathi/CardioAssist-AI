@@ -1,8 +1,8 @@
 {
   "schema": "cardioassist.ai_master_progress/v1",
-  "roadmap_version": "1.6",
-  "updated_on": "2026-10-29",
-  "source_main_commit_at_review": "322b9749808113047525866c176ac4e34d5382a2",
+  "roadmap_version": "1.7",
+  "updated_on": "2026-11-17",
+  "source_main_commit_at_review": "5b3709ee6273f1c9c4fbf2a007921e8b4a73af7f",
   "purpose": "Track actual completed engineering versus real scientific evidence; do not infer clinical readiness from synthetic tests.",
   "status_vocabulary": [
     "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
@@ -12,7 +12,8 @@
     "NOT_STARTED",
     "MERGED_AWAITING_LOCAL_VALIDATION",
     "LOCAL_VALIDATION_FAILED",
-    "LOCALLY_ACCEPTED_ENGINEERING_ONLY"
+    "LOCALLY_ACCEPTED_ENGINEERING_ONLY",
+    "SCIENTIFIC_HOLD"
   ],
   "milestones": {
     "AI-7": {
@@ -102,7 +103,7 @@
       }
     },
     "AI-8R": {
-      "engineering_status": "PLANNED",
+      "engineering_status": "LOCALLY_ACCEPTED_ENGINEERING_ONLY",
       "research_evaluation_status": "BLOCKED_RESEARCH_EXECUTION",
       "focus": "Feature-level source admissibility resolution and protected Windows-local real UCI-412 research handoff; research-only, no unapproved fitting.",
       "acceptance": [
@@ -113,11 +114,113 @@
         "Explicit executable next step for scoped real research once separately authorized"
       ],
       "blocker": [
-        "UCI-412 semantic/timing gaps",
-        "D-048 local execution conditions and scientific review not fulfilled"
+        "SCIENTIFIC_HOLD: no owner-authored per-field acquisition timing for any of 16 UCI-412 predictors",
+        "S-9 numeric-binary coding direction not owner-confirmed; BP/PR and chest-pain semantics unresolved",
+        "UCI-412/UCI-45 outcome threshold boundary unresolved, UCI-411 not independent",
+        "D-048 local execution permissions and scientific review not satisfied; no new real-data fitting authorized"
       ],
-      "next_executable_step": "NEXT: evidence-linked UCI-412 16-field source and time-of-availability admissibility matrix, plus non-destructive guarded Windows-local preflight; no unapproved patient-data fitting.",
-      "precondition": "AI-8W synthetic engineering local acceptance fulfilled at merge SHA 322b9749808113047525866c176ac4e34d5382a2; field/source/clinical authorizations and real-data fitting remain separately gated."
+      "next_executable_step": "NEXT: obtain/review UCI-412 owner-authored field codebook/collection chronology (S-9, BP/PR, chest pain, U-6); if unavailable, evaluate independent alternative datasets for pre-reference-test suitability only, with separate authorization for any real fit. Keep UCI-411 non-independent, Hungary locked, and AI-9 labs blocked.",
+      "precondition": "AI-8W verified/accepted; AI-8R completed engineering-only with SCIENTIFIC_HOLD at merge SHA 5b3709ee6273f1c9c4fbf2a007921e8b4a73af7f. No clinical or D-048 training authorization inferred.",
+      "local_windows_acceptance": "LOCALLY_ACCEPTED_ENGINEERING_ONLY",
+      "scientific_decision": "SCIENTIFIC_HOLD",
+      "clinical_validation_status": "NOT_ESTABLISHED",
+      "pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/74",
+      "source_head_sha": "80c5598df79e7d4e0a48cf2fb9c422e615a2d440",
+      "merge_sha": "5b3709ee6273f1c9c4fbf2a007921e8b4a73af7f",
+      "ci_on_head": {
+        "contract_validation": "success",
+        "audit_toolchain_validation": "success",
+        "mock_backend_validation": "success",
+        "synthetic_experiment_runner_validation": "success"
+      },
+      "evidence_grade": "SOURCE_REVIEW_AND_SYNTHETIC_SOFTWARE_TESTS_NOT_CLINICAL_EVIDENCE",
+      "implemented": [
+        "16-field evidence-only UCI-412 source-admissibility matrix and machine-readable eligibility register",
+        "Code-bound reviewed eligibility and timing that cannot be upgraded to VERIFIED via a JSON-only edit",
+        "Readiness CLI reports non-authorizing SCIENTIFIC_HOLD and always exits 2",
+        "Guarded source-only local preflight reused without modifying trained model, panel, frozen protocol, or signed authorization",
+        "Synthetic malformed-register, gate-rejection and CLI regressions; protected local no-patient-row handoff"
+      ],
+      "field_evidence": {
+        "total": 16,
+        "verified": 0,
+        "conditionally_supported": 10,
+        "unresolved": 6,
+        "inadmissible": 0,
+        "pre_angiography_timing_verified": 0,
+        "issues": [
+          "S-9 six 0/1 directions need owner evidence",
+          "BP quantity, PR unit/conditions unverified",
+          "Chest pain elicitation and exclusivity unverified",
+          "U-6 per-field pre-angiography timing undocumented",
+          "UCI-412 >=50% versus UCI-45 >50% exact-boundary equivalence not established",
+          "UCI-411 shares UCI-412 303 participants, no independent validation"
+        ]
+      },
+      "maintainer_windows_verification": {
+        "date": "2026-11-17",
+        "platform": "Windows win32",
+        "python": "3.12.9",
+        "pytest": "9.0.3",
+        "pre_merge_sha": "80c5598df79e7d4e0a48cf2fb9c422e615a2d440",
+        "pre_merge_ai8r_regression": {
+          "passed": 22,
+          "exit_code": 0
+        },
+        "pre_merge_segmented_full_coverage": {
+          "focused": {
+            "command": "python -m pytest -W error -q tests/uci412 tests/experiments",
+            "passed": 990,
+            "skipped": 3,
+            "exit_code": 0
+          },
+          "complementary": {
+            "command": "python -m pytest -W error -q --tb=short --ignore=tests/experiments --ignore=tests/uci412",
+            "passed": 1376,
+            "skipped": 0,
+            "exit_code": 0
+          },
+          "collected_union": 2369,
+          "passed_union": 2366,
+          "skipped_union": 3,
+          "failed_union": 0,
+          "qualification": "Two disjoint, completed runs cover the collected suite. Not a successful single monolithic full-suite execution."
+        },
+        "pre_merge_monolithic_attempt": {
+          "command": "python -m pytest -W error --tb=short",
+          "observed_passed_before_interrupt": 1653,
+          "elapsed_seconds": 3111.94,
+          "status": "MANUALLY_INTERRUPTED_KEYBOARD_INTERRUPT",
+          "exit_code": -1073741510,
+          "reported_full_suite_pass": false
+        },
+        "pre_merge_pip_check": "PASS",
+        "pre_merge_source_verification": "PASS",
+        "post_merge": {
+          "sha": "5b3709ee6273f1c9c4fbf2a007921e8b4a73af7f",
+          "isolated_worktree_clean": true,
+          "ai8r_regression": {
+            "passed": 22,
+            "exit_code": 0
+          },
+          "verify_sources": "PASS (4 hashes, 25-paper status census)",
+          "readiness": {
+            "status": "SCIENTIFIC_HOLD",
+            "unverified_fields": 16,
+            "local_gate": "REJECTED_AuthorizationError",
+            "exit_code": 2,
+            "authorization_granted": false,
+            "execution_permitted": false,
+            "source_rows_parsed": false,
+            "model_fitting_started": false
+          },
+          "protected_preflight": {
+            "exit_code": 2,
+            "expected_rejection": "Missing or unsafe local M3a authorization manifest in clean isolated worktree"
+          },
+          "maintainer_composite_result": "PASSED"
+        }
+      }
     },
     "AI-9": {
       "engineering_status": "NOT_STARTED",
