@@ -3,6 +3,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
+import sys
+
+from jsonschema import Draft202012Validator
 
 import pytest
 
@@ -131,8 +135,22 @@ def test_report_is_aggregate_synthetic_and_checksum_bound(completed: tuple[dict,
     assert 0 <= report["uncalibrated_roc_auc"] <= 1
     assert 0 <= report["transport_calibrated_roc_auc"] <= 1
     assert report["sha256"] == _sha({k: v for k, v in report.items() if k != "sha256"})
+    schema_path = Path(__file__).resolve().parents[2] / "docs/research/ai10_1/synthetic-locked-site.v1.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator(schema).validate(report)
     serialized = json.dumps(report)
     assert str(ledger_path) not in serialized
     assert "reservation_id" not in serialized
     assert "patient-" not in serialized
     assert "synthetic_ai10_external_" not in serialized
+
+def test_cli_refuses_file_inside_checkout_before_training() -> None:
+    root = Path(__file__).resolve().parents[2]
+    cli = root / "scripts" / "run_ai10_synthetic_locked_site.py"
+    command = [
+        sys.executable, str(cli), "--ledger", str(root / "ai10-unsafe-ledger.json"),
+    ]
+    result = subprocess.run(command, cwd=root, capture_output=True, text=True, check=False)
+    assert result.returncode == 2
+    assert "refused" in result.stderr
+    assert not (root / "ai10-unsafe-ledger.json").exists()
