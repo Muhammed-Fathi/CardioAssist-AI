@@ -455,7 +455,7 @@
       "statement": "Final AI-12.2 full manuscript, reviewer signoff and final-SHA Windows acceptance are not yet established",
       "evidence_class": "CURRENT_CANONICAL_MILESTONE_TRACKER_AT_SOURCE_MAIN",
       "source_path": "docs/research/ai_master_progress.json",
-      "source_blob_sha": "e2cbf3b59fc79c3bc74321183adcb8fd8a7ea8a1",
+      "source_blob_sha": "3ba67cef6721496a27ba80e53d14e751e4163d25",
       "source_section": "milestones.AI-12, plus RH tracker final acceptance statuses",
       "cohort_or_scope": "Final graduation research prototype",
       "report_destination": "FR-17 and RH-07/08 closure",
