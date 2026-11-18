@@ -1,0 +1,556 @@
+{
+  "schema_id": "cardioassist.research_completion_execution_tracker/v1",
+  "document_id": "CAI-RH-TRACKER-2026-11-19-v1",
+  "prepared_on": "2026-11-19",
+  "state": "PROPOSED_REVIEW_NOT_MERGED",
+  "commit_context": {
+    "baseline_main_sha": "5786424593c5fa9387a1bf382b2233b02779de42",
+    "canonical_progress_file": "docs/research/ai_master_progress.json",
+    "canonical_progress_sha_at_baseline": "c6506407c625286f7473f527bdab22d899b4a57b",
+    "ai10_1_implementation_merged_pr": 90,
+    "ai10_1_pending_closeout_pr": 91,
+    "ai10_1_closeout_state_at_baseline": "OPEN",
+    "note": "Review current main/PR before any update; original 2026-11-18 ledger is a historical snapshot."
+  },
+  "scope": {
+    "target": "complete academically defensible research-only AI prototype",
+    "permitted_final_label": "RESEARCH_PROTOTYPE_HANDOFF_ACCEPTED",
+    "not_automatically_implied": [
+      "INDEPENDENT_EXTERNAL_VALIDATION",
+      "CLINICALLY_VALIDATED",
+      "PATIENT_READY",
+      "SUPERVISOR_APPROVAL",
+      "PATIENT_LEVEL_PROBABILITY_CALIBRATION"
+    ],
+    "final_status": "NOT_ACCEPTED"
+  },
+  "source_roles": [
+    {
+      "source": "UCI-45 Cleveland",
+      "role": "DEVELOPMENT_AND_INTERNAL_EXPLORATORY",
+      "status": "HISTORICAL_INTERNAL_REPORTED_NOT_EXTERNALLY_VALIDATED",
+      "future_validation_claim": false
+    },
+    {
+      "source": "UCI-412 Z-Alizadeh Sani",
+      "role": "SEPARATE_INTERNAL_METHODS_BENCHMARK",
+      "status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+      "future_validation_claim": false
+    },
+    {
+      "source": "UCI-45 Hungary",
+      "role": "LOCKED_EXTERNAL_CANDIDATE",
+      "status": "NOT_EXECUTED_GATED",
+      "future_validation_claim": false
+    },
+    {
+      "source": "UCI-45 VA Long Beach",
+      "role": "DOMAIN_SHIFT_MISSINGNESS_CANDIDATE",
+      "status": "REQUIRES_ADMISSIBILITY",
+      "future_validation_claim": false
+    },
+    {
+      "source": "UCI-45 Switzerland",
+      "role": "MISSINGNESS_SUITABILITY",
+      "status": "REQUIRES_ADMISSIBILITY",
+      "future_validation_claim": false
+    },
+    {
+      "source": "UCI-411 extension",
+      "role": "SOURCE_OVERLAP_AUDIT",
+      "status": "SAME_303_UCI412_NO_INDEPENDENCE",
+      "future_validation_claim": false
+    },
+    {
+      "source": "Statlog Heart",
+      "role": "OVERLAP_PROVENANCE_AUDIT",
+      "status": "INDEPENDENCE_NOT_ESTABLISHED",
+      "future_validation_claim": false
+    },
+    {
+      "source": "AngioCAD",
+      "role": "MODERN_CANDIDATE_SOURCE_RESEARCH",
+      "status": "METADATA_ONLY_NOT_ADMITTED",
+      "future_validation_claim": false
+    }
+  ],
+  "existing_result_references": [
+    {
+      "claim_id": "C-DA2-D047-PRIMARY-AUROC",
+      "population": "Cleveland 303 historical participants",
+      "value": "0.8271 +/- 0.0097 repeated nested CV AUROC",
+      "evidence_class": "DOCUMENTED_MAINTAINER_REPORTED_INTERNAL_EXPLORATORY",
+      "source_file": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "independently_reexecuted_in_this_tracking_pr": false,
+      "usable_as_clinical_or_external_validation": false
+    },
+    {
+      "claim_id": "C-DA1-M3A-PRIMARY-AUROC",
+      "population": "UCI-412 303 historical participants",
+      "value": "0.9107 +/- 0.0071 repeated nested CV AUROC",
+      "evidence_class": "DOCUMENTED_MAINTAINER_REPORTED_INTERNAL_EXPLORATORY",
+      "source_file": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+      "independently_reexecuted_in_this_tracking_pr": false,
+      "usable_as_clinical_or_external_validation": false
+    },
+    {
+      "claim_id": "C-AI9-1-SYNTH",
+      "population": "Invented matched synthetic cohort",
+      "value": "synthetic paired laboratory comparison",
+      "evidence_class": "SYNTHETIC_SOFTWARE_TEST",
+      "implementation_pr": 87,
+      "closeout_pr": 89,
+      "usable_as_clinical_or_external_validation": false
+    },
+    {
+      "claim_id": "C-AI10-1-SYNTH",
+      "population": "Invented external and development participants",
+      "value": "synthetic locked-site rehearsal only",
+      "evidence_class": "SYNTHETIC_SOFTWARE_TEST",
+      "implementation_pr": 90,
+      "closeout_pr": 91,
+      "closeout_still_open_at_baseline": true,
+      "usable_as_clinical_or_external_validation": false
+    }
+  ],
+  "milestones": [
+    {
+      "id": "RH-00",
+      "name": "Reconcile AI-10.1 closeout #91 and canonical tracker",
+      "dependencies": [],
+      "required_evidence": [
+        "PR #91 reviewed / human merged if acceptable",
+        "exact merge and docs/JSON local checks documented"
+      ],
+      "status": "PENDING_HUMAN_REVIEW",
+      "assigned_roles": [
+        "maintainer",
+        "arena_implementer",
+        "research_reviewer"
+      ],
+      "implementation_pr": null,
+      "reviewed_pr_head_sha": null,
+      "merge_sha": null,
+      "windows_evidence": null,
+      "ci_evidence": null,
+      "evidence_record_ids": [],
+      "verified_at": null,
+      "reviewer": null,
+      "notes": "No work, test or approval inferred from this planning entry."
+    },
+    {
+      "id": "RH-01",
+      "name": "Source-of-truth inventory and evidence-backed completion/gap matrix",
+      "dependencies": [
+        "RH-00"
+      ],
+      "required_evidence": [
+        "One-to-one source/PR/SHA/claim index",
+        "Every in-scope gap owned and assigned evidence/disposition"
+      ],
+      "status": "PLANNED",
+      "assigned_roles": [
+        "maintainer",
+        "arena_implementer",
+        "research_reviewer"
+      ],
+      "implementation_pr": null,
+      "reviewed_pr_head_sha": null,
+      "merge_sha": null,
+      "windows_evidence": null,
+      "ci_evidence": null,
+      "evidence_record_ids": [],
+      "verified_at": null,
+      "reviewer": null,
+      "notes": "No work, test or approval inferred from this planning entry."
+    },
+    {
+      "id": "RH-02",
+      "name": "Targeted scientific admissibility and approval-decision matrix",
+      "dependencies": [
+        "RH-01"
+      ],
+      "required_evidence": [
+        "Primary-source/owner question register with precise unresolved statuses",
+        "Study/source GO/HOLD/NO-GO evidence and allowed actions"
+      ],
+      "status": "PLANNED",
+      "assigned_roles": [
+        "maintainer",
+        "arena_implementer",
+        "research_reviewer"
+      ],
+      "implementation_pr": null,
+      "reviewed_pr_head_sha": null,
+      "merge_sha": null,
+      "windows_evidence": null,
+      "ci_evidence": null,
+      "evidence_record_ids": [],
+      "verified_at": null,
+      "reviewer": null,
+      "notes": "No work, test or approval inferred from this planning entry."
+    },
+    {
+      "id": "RH-03",
+      "name": "AI-12.2 scientific manuscript and provenance-indexed figures",
+      "dependencies": [
+        "RH-01"
+      ],
+      "required_evidence": [
+        "Completed research report with reproducible source-specific results",
+        "Every number/table/claim source-linked and evidence graded"
+      ],
+      "status": "PLANNED",
+      "assigned_roles": [
+        "maintainer",
+        "arena_implementer",
+        "research_reviewer"
+      ],
+      "implementation_pr": null,
+      "reviewed_pr_head_sha": null,
+      "merge_sha": null,
+      "windows_evidence": null,
+      "ci_evidence": null,
+      "evidence_record_ids": [],
+      "verified_at": null,
+      "reviewer": null,
+      "notes": "No work, test or approval inferred from this planning entry."
+    },
+    {
+      "id": "RH-04",
+      "name": "Versioned source-specific research-only feature and integration contracts",
+      "dependencies": [
+        "RH-01",
+        "RH-02"
+      ],
+      "required_evidence": [
+        "Typed request/response/error/status and feature acquisition crosswalk",
+        "Positive and negative synthetic I/O; backend mock-only confirmed"
+      ],
+      "status": "PLANNED",
+      "assigned_roles": [
+        "maintainer",
+        "arena_implementer",
+        "research_reviewer"
+      ],
+      "implementation_pr": null,
+      "reviewed_pr_head_sha": null,
+      "merge_sha": null,
+      "windows_evidence": null,
+      "ci_evidence": null,
+      "evidence_record_ids": [],
+      "verified_at": null,
+      "reviewer": null,
+      "notes": "No work, test or approval inferred from this planning entry."
+    },
+    {
+      "id": "RH-05",
+      "name": "Deterministic synthetic reproducibility and Windows/CI security acceptance",
+      "dependencies": [
+        "RH-03",
+        "RH-04"
+      ],
+      "required_evidence": [
+        "Exact-SHA CI and maintainer Windows evidence",
+        "Synthetic positive/refusal demos; schema, integrity, source, native ACL cases"
+      ],
+      "status": "PLANNED",
+      "assigned_roles": [
+        "maintainer",
+        "arena_implementer",
+        "research_reviewer"
+      ],
+      "implementation_pr": null,
+      "reviewed_pr_head_sha": null,
+      "merge_sha": null,
+      "windows_evidence": null,
+      "ci_evidence": null,
+      "evidence_record_ids": [],
+      "verified_at": null,
+      "reviewer": null,
+      "notes": "No work, test or approval inferred from this planning entry."
+    },
+    {
+      "id": "RH-06",
+      "name": "Conditional AI-9.2 labs and AI-10.2 external real-study dispositions",
+      "dependencies": [
+        "RH-02"
+      ],
+      "required_evidence": [
+        "AI-9.2 GO_EXECUTED or reviewed NO_GO/BLOCKED with precise cause",
+        "AI-10.2 GO_EXECUTED or reviewed NO_GO/BLOCKED with precise cause; no silent validation claim"
+      ],
+      "status": "CONDITIONAL_GATED",
+      "assigned_roles": [
+        "maintainer",
+        "arena_implementer",
+        "research_reviewer"
+      ],
+      "implementation_pr": null,
+      "reviewed_pr_head_sha": null,
+      "merge_sha": null,
+      "windows_evidence": null,
+      "ci_evidence": null,
+      "evidence_record_ids": [],
+      "verified_at": null,
+      "reviewer": null,
+      "notes": "No work, test or approval inferred from this planning entry."
+    },
+    {
+      "id": "RH-07",
+      "name": "Independent evidence review, gap closure and truthfulness audit",
+      "dependencies": [
+        "RH-02",
+        "RH-03",
+        "RH-04",
+        "RH-05",
+        "RH-06"
+      ],
+      "required_evidence": [
+        "Reviewer findings reconciled and named",
+        "Fifteen prototype acceptance requirements backed by evidence or explicit allowed disposition"
+      ],
+      "status": "PLANNED",
+      "assigned_roles": [
+        "maintainer",
+        "arena_implementer",
+        "research_reviewer"
+      ],
+      "implementation_pr": null,
+      "reviewed_pr_head_sha": null,
+      "merge_sha": null,
+      "windows_evidence": null,
+      "ci_evidence": null,
+      "evidence_record_ids": [],
+      "verified_at": null,
+      "reviewer": null,
+      "notes": "No work, test or approval inferred from this planning entry."
+    },
+    {
+      "id": "RH-08",
+      "name": "Final report, reproducible research-only package and accepted freeze",
+      "dependencies": [
+        "RH-07"
+      ],
+      "required_evidence": [
+        "Sanitized release source/contract/figure/model-card/QA/reviewer index",
+        "Maintainer signoff on exact accepted SHA; no unowned in-scope gaps"
+      ],
+      "status": "PLANNED",
+      "assigned_roles": [
+        "maintainer",
+        "arena_implementer",
+        "research_reviewer"
+      ],
+      "implementation_pr": null,
+      "reviewed_pr_head_sha": null,
+      "merge_sha": null,
+      "windows_evidence": null,
+      "ci_evidence": null,
+      "evidence_record_ids": [],
+      "verified_at": null,
+      "reviewer": null,
+      "notes": "No work, test or approval inferred from this planning entry."
+    }
+  ],
+  "conditional_studies": [
+    {
+      "id": "AI-9.2",
+      "decision": "NOT_ASSESSED_FOR_NEW_REAL_EXECUTION",
+      "data_source": "Same-source eligible matched clinical+labs cohort",
+      "required": [
+        "source verified units/feature timing",
+        "same-patient comparison, full missingness and proper target",
+        "registered adequate protocol and scoped authorization"
+      ],
+      "execution_status": "NOT_PERFORMED",
+      "scientific_completion_claim": false
+    },
+    {
+      "id": "AI-10.2",
+      "decision": "NOT_ASSESSED_FOR_NEW_REAL_EXECUTION",
+      "data_source": "Hungary or qualifying independent locked cohort",
+      "required": [
+        "external source identity/overlap decision",
+        "source-specific target and feature equivalence",
+        "locked model/plan, precision and one-shot ledger",
+        "approved source permission and execution"
+      ],
+      "execution_status": "NOT_PERFORMED",
+      "scientific_completion_claim": false
+    }
+  ],
+  "acceptance_checks": [
+    {
+      "id": "AC-01",
+      "criterion": "Research target, intended population, timing, claim limits",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-02",
+      "criterion": "Dataset/source provenance, licenses, cohort and roles",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-03",
+      "criterion": "D-047 and M3a historical internal result integrity and comparison boundaries",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-04",
+      "criterion": "Nested-CV preprocessing/tuning/selection/leakage review",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-05",
+      "criterion": "Metrics, calibration, intervals, adequacy and missing-estimand reporting",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-06",
+      "criterion": "SHAP/LIME fidelity, background, scale, stability and interpretation",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-07",
+      "criterion": "Source-specific typed feature eligibility and acquisition mapping",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-08",
+      "criterion": "Conditional real labs and external study evidence or defensible no-go",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-09",
+      "criterion": "Versioned catalog, model cards and synthetic positive/refusal I/O",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-10",
+      "criterion": "Artifact integrity, privacy, source hashes, ACL, Track A/B and mock boundary",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-11",
+      "criterion": "Exact-head GitHub CI plus maintainer Windows and reproducibility",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-12",
+      "criterion": "Completed AI-12.2 report, figures, sources, TRIPOD+AI/PROBAST+AI",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-13",
+      "criterion": "Independent scientific/engineering claim review and review disposition",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-14",
+      "criterion": "Final report/handoff package freeze and provenance",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    },
+    {
+      "id": "AC-15",
+      "criterion": "No unowned missing in-scope deliverable or unknown clinical claim",
+      "review_status": "PENDING_EVIDENCE_AUDIT",
+      "evidence_record_ids": [],
+      "reviewer": null,
+      "reviewed_on": null
+    }
+  ],
+  "evidence_records": [],
+  "evidence_record_required_fields": [
+    "record_id",
+    "milestone_id",
+    "claim_type",
+    "source_pr_url",
+    "exact_source_sha",
+    "test_or_report_name",
+    "evidence_class",
+    "observed_result",
+    "environment",
+    "command_or_method",
+    "checked_by",
+    "checked_on",
+    "review_disposition",
+    "limitations",
+    "sanitized_evidence_url_or_path"
+  ],
+  "rules": {
+    "valid_milestone_states": [
+      "PLANNED",
+      "PENDING_HUMAN_REVIEW",
+      "IN_PROGRESS",
+      "CONDITIONAL_GATED",
+      "BLOCKED_WITH_NAMED_CAUSE",
+      "NO_GO_DOCUMENTED",
+      "READY_FOR_REVIEW",
+      "MERGED_PENDING_LOCAL_ACCEPTANCE",
+      "LOCALLY_ACCEPTED_RESEARCH_ONLY",
+      "ACCEPTED_WITH_LIMITATIONS"
+    ],
+    "closure_requires": [
+      "actual evidence records",
+      "exact head and merge sha where applicable",
+      "applicable CI and local Windows result or justified N/A",
+      "named reviewer",
+      "scientifically honest claims",
+      "original source links"
+    ],
+    "do_not_edit": "docs/research/ai_master_progress.json in this initial PR because PR #91 owns its contemporaneous closeout; update via later reviewed PR after reconciliation.",
+    "do_not_upload": [
+      "patient-level data",
+      "protected real research artifacts/reports",
+      "secret keys",
+      "local authorization manifests",
+      "patient-level SHAP backgrounds",
+      "unredacted local paths"
+    ],
+    "release_gate": "All 15 acceptance checks accepted, every RH milestone accepted or legitimately conditional with reviewed NO-GO, final full report linked and maintainer explicitly accepts exact release sha. This is never clinical authorization."
+  },
+  "next_executable_step": "RH-00: human review PR #91, exact-head CI and docs/JSON scope; after appropriate manual merge reconcile canonical progress, then start RH-01 evidence inventory; do not rerun protected data."
+}
