@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -279,19 +280,38 @@ def test_artifact_byte_change_is_not_claimed_as_model_equivalence(pack):
     }
 
 
+def test_bad_comparison_input_node_ids_are_bounded():
+    # Collect without running setup: pytest exports the full node ID in
+    # PYTEST_CURRENT_TEST, which must fit in a Windows environment variable.
+    module = "tests/experiments/test_research_evidence.py"
+    target = f"{module}::test_rejects_bad_comparison_input_without_echo"
+    result = subprocess.run(
+        [sys.executable, "-Werror", "-m", "pytest", "--collect-only", "-q", "--color=no", target],
+        cwd=Path(__file__).resolve().parents[2],
+        env={**os.environ, "PYTEST_ADDOPTS": ""},  # independent of outer selection/verbosity
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    # Report only lengths if this regresses, never print a payload-sized ID.
+    lengths = [len(line) for line in result.stdout.splitlines() if line.startswith(target + "[")]
+    assert len(lengths) == 10
+    assert max(lengths) < 200
+
+
 @pytest.mark.parametrize(
     "bad",
     [
-        b"{",
-        b"[]",
-        b"{}",
-        b'{"secret-path":1,"secret-path":2}',
-        b'{"x":NaN}',
-        b'{"x":1e9999}',
-        b'{"x":1e-9999}',
-        b'{"x":1.123456789123456789123}',
-        b" " * (MAX_BYTES + 1),
-        b"[" * 2000 + b"]" * 2000,
+        pytest.param(b"{", id="truncated-json"),
+        pytest.param(b"[]", id="array-not-object"),
+        pytest.param(b"{}", id="empty-object"),
+        pytest.param(b'{"secret-path":1,"secret-path":2}', id="duplicate-key"),
+        pytest.param(b'{"x":NaN}', id="nan"),
+        pytest.param(b'{"x":1e9999}', id="infinite-exponent"),
+        pytest.param(b'{"x":1e-9999}', id="underflow-exponent"),
+        pytest.param(b'{"x":1.123456789123456789123}', id="overprecise-float"),
+        pytest.param(b" " * (MAX_BYTES + 1), id="oversized-whitespace"),
+        pytest.param(b"[" * 2000 + b"]" * 2000, id="deep-nesting"),
     ],
 )
 def test_rejects_bad_comparison_input_without_echo(pack, bad):
