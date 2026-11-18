@@ -58,7 +58,7 @@ def test_generated_cohorts_have_disjoint_fake_names_and_invented_shift() -> None
     assert identity["development_count"] == 64
     assert identity["external_count"] == 32
     assert _fabricate(plan)[4] == identity
-    assert all(rec["context"]["synthetic"] for rec in dev + ext)
+    assert all(rec["synthetic"] is True for rec in dev + ext)
 
 
 def test_insufficient_fabricated_external_ends_before_training_or_ledger(tmp_path: Path) -> None:
