@@ -1,0 +1,357 @@
+{
+  "schema_id": "cardioassist.rh02_source_adjudication/v1",
+  "prepared_at": "2026-11-19",
+  "source_main_sha": "897eaf61030636edae8dd5ac2ecc7dacf2870f02",
+  "status": "REVIEW_DRAFT_NOT_ADMITTED",
+  "scope": "Public original dataset metadata; no patient rows, protected reports, training or locked evaluation used.",
+  "source_refs": {
+    "PS45": "https://archive.ics.uci.edu/dataset/45/heart+disease",
+    "PS412": "https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani",
+    "PS411": "https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset",
+    "PS145": "https://archive.ics.uci.edu/dataset/145/statlog+heart",
+    "PSANG": "https://www.sciencedirect.com/science/article/pii/S0169260726001331",
+    "PSANG_ZENODO": "https://doi.org/10.5281/zenodo.15826856",
+    "TRIPOD_AI": "https://doi.org/10.1136/bmj-2023-078378",
+    "PROBAST_AI": "https://doi.org/10.1136/bmj-2024-082505",
+    "GITHUB_SOURCE": "docs/research/ai8r/SOURCE_ADMISSIBILITY.md"
+  },
+  "questions": [
+    {
+      "id": "Q-01",
+      "question": "Cleveland five-field meaning and pretest timeline",
+      "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "evidence_or_gap": "UCI-45 names/code units; does not establish every predictor measured before invasive reference test",
+      "required_action": "Original acquisition documentation; clinical owner",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-02",
+      "question": "UCI-45 label boundary",
+      "status": "SOURCE_WORDING_RESOLVED_EQUIVALENCE_UNRESOLVED",
+      "evidence_or_gap": "Original UCI-45 0<50 and 1>50; exact 50 and site equivalence unknown",
+      "required_action": "Clinical endpoint adjudicator",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-03",
+      "question": "UCI-412 >=50 threshold",
+      "status": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "evidence_or_gap": "UCI-412 official owner threshold >=50; individual labels/chronology not independently verified",
+      "required_action": "Preserve source-defined target",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-04",
+      "question": "UCI-412 preangiography timing all 16 predictors",
+      "status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "evidence_or_gap": "Owner landing page lacks per-field timestamps; 0/16 original collection times certified",
+      "required_action": "Dataset owner original case-record form/collection chronology",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-05",
+      "question": "UCI-412 BP and PR semantics",
+      "status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "evidence_or_gap": "BP systolic/diastolic and PR notation/conditions unverified",
+      "required_action": "Original codebook and collection method",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-06",
+      "question": "UCI-412 numeric binary direction",
+      "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "evidence_or_gap": "Local summary supports 0/1 representation, not original semantics",
+      "required_action": "Owner defines six flags and 0/1 direction",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-07",
+      "question": "UCI-412 chest-pain relationships",
+      "status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "evidence_or_gap": "Exclusivity, chronology and definition unknown; no Cleveland cp crosswalk",
+      "required_action": "Owner original symptom form",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-08",
+      "question": "UCI-412 54 versus 55 source feature count",
+      "status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "evidence_or_gap": "UCI text 54; historical protected local audit reported 55+Cath; mismatch unexplained",
+      "required_action": "Owner versioned workbook schema and eligible local audit",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-09",
+      "question": "UCI-411 independence",
+      "status": "UNSUITABLE_FOR_THIS_EXTERNAL_CLAIM",
+      "evidence_or_gap": "Owner explicitly says extension; same 303 records in repository local evidence",
+      "required_action": "Use only overlap/leakage study",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-10",
+      "question": "Hungary eligible independent cohort",
+      "status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "evidence_or_gap": "294 processed records historical aggregate, raw count/overlap/timing and coding unresolved",
+      "required_action": "Original site and patient-identity metadata and scientific owner",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-11",
+      "question": "Hungary real one-shot model/source freeze",
+      "status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "evidence_or_gap": "Synthetic ledger is not clinical site source or permission proof",
+      "required_action": "Locked protocol and human local approval",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-12",
+      "question": "Statlog overlap",
+      "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "evidence_or_gap": "UCI explicitly describes a similar heart dataset; no independent-subject demonstration",
+      "required_action": "Source-donor original lineage",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-13",
+      "question": "VA and Switzerland source suitability",
+      "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "evidence_or_gap": "Official site names only, old aggregate missingness and size prior reports; eligibility incomplete",
+      "required_action": "Owner source mapping and precision review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-14",
+      "question": "AngioCAD pretest tabular source",
+      "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "evidence_or_gap": "Public article describes 413 angiography videos and ancillary clinical data; actual pretest table unavailable to current review",
+      "required_action": "Owner original schema/access and timing evidence",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-15",
+      "question": "AI-9.2 real clinical plus labs paired comparison",
+      "status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "evidence_or_gap": "AI-9.1 synthetic only; new same-person eligible source and authorization absent",
+      "required_action": "Human-approved local pre-registered experiment",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    },
+    {
+      "id": "Q-16",
+      "question": "TRIPOD+AI/PROBAST+AI framework scope",
+      "status": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "evidence_or_gap": "Methods guidance exists, does not grant clinical approval",
+      "required_action": "Expert assess source-specific domains, not claim checklist certification",
+      "reviewer": null,
+      "reviewed_at": null,
+      "human_scientific_disposition": "PENDING",
+      "author_contact_made": false
+    }
+  ],
+  "uci412_sixteen_fields": [
+    {
+      "index": 1,
+      "name": "Age",
+      "registered_representation": "numeric years",
+      "unresolved_issue": "timing at first assessment unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 2,
+      "name": "Sex",
+      "registered_representation": "Male/Fmale/Female registered text",
+      "unresolved_issue": "original token and timestamp unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 3,
+      "name": "BMI",
+      "registered_representation": "numeric kg/m^2",
+      "unresolved_issue": "derived or recorded, when and how unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 4,
+      "name": "DM",
+      "registered_representation": "numeric 0/1 provisional",
+      "unresolved_issue": "definition/direction/timing unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 5,
+      "name": "HTN",
+      "registered_representation": "numeric 0/1 provisional",
+      "unresolved_issue": "definition/direction/timing unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 6,
+      "name": "Current Smoker",
+      "registered_representation": "numeric 0/1 provisional",
+      "unresolved_issue": "definition/direction/timing unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 7,
+      "name": "EX-Smoker",
+      "registered_representation": "numeric 0/1 provisional",
+      "unresolved_issue": "definition/direction/timing unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 8,
+      "name": "FH",
+      "registered_representation": "numeric 0/1 provisional",
+      "unresolved_issue": "family definition/direction/timing unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 9,
+      "name": "DLP",
+      "registered_representation": "text Y/N/Yes/No registered",
+      "unresolved_issue": "history vs laboratory and exact source tokens unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 10,
+      "name": "BP",
+      "registered_representation": "numeric mmHg registered",
+      "unresolved_issue": "systolic/diastolic/posture/chronology unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 11,
+      "name": "PR",
+      "registered_representation": "numeric beats/min registered",
+      "unresolved_issue": "ppm notation, conditions, chronology unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 12,
+      "name": "Typical Chest Pain",
+      "registered_representation": "numeric 0/1 provisional",
+      "unresolved_issue": "flag direction/exclusivity/time unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 13,
+      "name": "Atypical",
+      "registered_representation": "text Y/N/Yes/No registered",
+      "unresolved_issue": "exclusivity/time unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 14,
+      "name": "Nonanginal",
+      "registered_representation": "text Y/N/Yes/No registered",
+      "unresolved_issue": "exclusivity/time unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 15,
+      "name": "Exertional CP",
+      "registered_representation": "text Y/N/Yes/No registered",
+      "unresolved_issue": "symptom overlap/time unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    },
+    {
+      "index": 16,
+      "name": "Dyspnea",
+      "registered_representation": "text Y/N/Yes/No registered",
+      "unresolved_issue": "original meaning and time unknown",
+      "owner_verified_preangiography_timing": false,
+      "clinical_verified_for_input": false,
+      "reviewer": null
+    }
+  ],
+  "conditional_studies": [
+    {
+      "id": "AI-9.2",
+      "status": "HOLD_NOT_EXECUTED",
+      "real_data_authorized": false,
+      "real_experiment_completed": false
+    },
+    {
+      "id": "AI-10.2",
+      "status": "HOLD_NOT_EXECUTED",
+      "real_data_authorized": false,
+      "real_experiment_completed": false
+    }
+  ],
+  "next_review": "Medical/scientific human reviewer evaluates exact per-question evidence; obtain original owner codebook/methods only if permitted; no new study activation in this record."
+}
