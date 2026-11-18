@@ -34,6 +34,23 @@ planned in ``docs/research/AI_FIRST_COMPLETION_STRATEGY.md``:
 - :mod:`ai.inference` — offline ``ResearchCadPredictor`` returning explicitly
   separated raw/calibrated scores, descriptive fold dispersion, aligned SHAP
   attributions, and mandatory non-clinical limitations.
+- :mod:`ai.research_registry` — immutable, versioned research model/route
+  registry: which synthetic model entries exist, at what evidence level, which
+  artifact kind and execution profile each one admits, and what a verified
+  artifact actually supports (calibration, exact SHAP, certified LIME). Blocked,
+  source-timing-unverified and locked-external-target entries are registered for
+  contract inspection only and are never executable; real-patient artifacts are
+  not registerable at all.
+- :mod:`ai.research_facade` — one typed, offline, fail-closed inference facade
+  over the registry and the existing route/panel/training/packaging/inference/
+  explainability components. Returns explicit ``SYNTHETIC_RESULT`` / ``ABSTAIN``
+  / ``UNAVAILABLE`` / ``ERROR`` results, reports calibration and SHAP/LIME only
+  when the verified artifact actually supports them, and refuses unregistered
+  identifiers, invalid records, forged synthetic provenance and untrusted
+  bundles without ever echoing submitted content back.
+- :mod:`ai.research_demo` — ``python -m ai.research_demo`` reproducible
+  synthetic demonstration: one successful run plus the refusal matrix, with a
+  machine-readable stage report and a canonical payload digest.
 - :mod:`ai.execution` — locally protected, auditable real-data execution
   controller enforcing hash-bound human research authorization manifests,
   source-specific read-only adapters, prohibited feature rejection, and Windows
@@ -178,6 +195,63 @@ from ai.research_routes import (
     get_route_descriptor,
     resolve_route,
 )
+from ai.research_facade import (
+    FACADE_ID,
+    PIPELINE_STAGES,
+    REQUEST_SCHEMA_VERSION,
+    RESPONSE_SCHEMA_VERSION,
+    STATUS_PRECEDENCE,
+    ExplainabilityOptions,
+    FacadeErrorDetail,
+    LimeExplanationBlock,
+    LocalSyntheticBundleSource,
+    RecordOutcome,
+    ResearchFacadeStatus,
+    ResearchFeatureRecord,
+    ResearchInferenceRequest,
+    ResearchInferenceResponse,
+    ResearchScoreBlock,
+    ShapExplanationBlock,
+    SyntheticFixtureProvenance,
+    is_registered_static_error_message,
+    parse_feature_record,
+    parse_inference_request,
+    parse_synthetic_provenance,
+    run_offline_research_inference,
+    run_offline_research_inference_from_document,
+)
+from ai.research_registry import (
+    ADMISSIBLE_ARTIFACT_KINDS,
+    ARTIFACT_KIND_SYNTHETIC_BUNDLE,
+    EVIDENCE_LEVEL_NOT_EVALUATED,
+    EVIDENCE_LEVEL_SYNTHETIC_TEST,
+    EXECUTABLE_ENTRY_STATES,
+    KNOWN_ENTRY_STATES,
+    MAX_RECORDS_CEILING,
+    NON_EXECUTABLE_ENTRY_STATES,
+    REGISTRY_DIGEST_SHA256,
+    REGISTRY_ROUTE_IDS,
+    REGISTRY_SCHEMA_VERSION,
+    REGISTRY_VERSION,
+    RESEARCH_MODEL_REGISTRY,
+    ArtifactCapabilities,
+    ResearchModelEntry,
+    ResearchRegistryError,
+    ResolvedRegistryBinding,
+    assert_artifact_identity,
+    binding_for_entry,
+    derive_artifact_capabilities,
+    get_model_entry,
+    registry_contract,
+    registry_digest_sha256,
+    resolve_registered_model,
+)
+from ai.research_demo import (
+    DEMO_ID as RESEARCH_FACADE_DEMO_ID,
+    ResearchDemoError,
+    render_demo_text as render_research_facade_demo_text,
+    run_research_facade_demo,
+)
 from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
     CLEVELAND_D047_RF_SPACE_VERSION,
@@ -214,14 +288,49 @@ from ai.uci412_research import (
 )
 
 __all__ = [
+    "ADMISSIBLE_ARTIFACT_KINDS",
     "ADMISSIBLE_SYNTHETIC_TEST_ONLY",
     "AccessControlVerificationResult",
     "AiPipelineError",
+    "ARTIFACT_KIND_SYNTHETIC_BUNDLE",
+    "ArtifactCapabilities",
     "BUNDLE_ACCEPTANCE_MARKER_FILENAME",
+    "EVIDENCE_LEVEL_NOT_EVALUATED",
+    "EVIDENCE_LEVEL_SYNTHETIC_TEST",
+    "EXECUTABLE_ENTRY_STATES",
+    "ExplainabilityOptions",
+    "FACADE_ID",
     "BUNDLE_QUARANTINE_MARKER_FILENAME",
     "BUNDLE_SCHEMA_VERSION",
     "BundleIntegrityError",
-    "CalibrationIntegrityError",
+    "FacadeErrorDetail",
+    "KNOWN_ENTRY_STATES",
+    "LimeExplanationBlock",
+    "LocalSyntheticBundleSource",
+    "MAX_RECORDS_CEILING",
+    "NON_EXECUTABLE_ENTRY_STATES",
+    "PIPELINE_STAGES",
+    "RESEARCH_MODEL_REGISTRY",
+    "REGISTRY_DIGEST_SHA256",
+    "REGISTRY_ROUTE_IDS",
+    "REGISTRY_SCHEMA_VERSION",
+    "REGISTRY_VERSION",
+    "REQUEST_SCHEMA_VERSION",
+    "RESPONSE_SCHEMA_VERSION",
+    "RecordOutcome",
+    "RESEARCH_FACADE_DEMO_ID",
+    "ResearchDemoError",
+    "ResearchFacadeStatus",
+    "ResearchFeatureRecord",
+    "ResearchInferenceRequest",
+    "ResearchInferenceResponse",
+    "ResearchModelEntry",
+    "ResearchRegistryError",
+    "ResearchScoreBlock",
+    "ResolvedRegistryBinding",
+    "ShapExplanationBlock",
+    "STATUS_PRECEDENCE",
+    "SyntheticFixtureProvenance",
     "ClinicalInputValidationError",
     "CLEVELAND_D047_RF_SPACE_VERSION",
     "CLEVELAND_D047_RF_SPACE_WIDTH",
@@ -356,7 +465,21 @@ __all__ = [
     "write_bundle_acceptance_marker",
     "write_bundle_quarantine_marker",
     "assert_route_eligible",
+    "binding_for_entry",
+    "derive_artifact_capabilities",
     "describe_route_catalog",
     "execute_synthetic_route_exercise",
+    "get_model_entry",
     "get_route_descriptor",
+    "is_registered_static_error_message",
+    "parse_feature_record",
+    "parse_inference_request",
+    "parse_synthetic_provenance",
+    "registry_contract",
+    "registry_digest_sha256",
+    "render_research_facade_demo_text",
+    "resolve_registered_model",
+    "run_offline_research_inference",
+    "run_offline_research_inference_from_document",
+    "run_research_facade_demo",
 ]
