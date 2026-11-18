@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import sys
 
+from ai.errors import AiPipelineError
 from ai.ai10_synthetic_transport import (
     SyntheticLockedSitePlan,
     run_ai10_synthetic_locked_site,
@@ -75,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(raw, end="")
         return 0
-    except (ValueError, OSError) as exc:
+    except (AiPipelineError, ValueError, OSError) as exc:
         # No private path or caller record values are echoed.
         print(f"AI-10.1 refused: {type(exc).__name__}", file=sys.stderr)
         return 2
