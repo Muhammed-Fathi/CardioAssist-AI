@@ -2,6 +2,8 @@
 
 **Research proposal, 2026-11-17; no implementation in this PR.** Read [medical review](INDEPENDENT_MEDICAL_ENGINEERING_RESEARCH.md) and [disagreements](INDEPENDENT_DISAGREEMENTS.md). Each code PR requires explicit review of its actual scope; none below grants data access or changes a frozen protocol. Prioritize synthetic engineering independently of clinical-deployment approvals. The suggested file paths are boundaries, not a mandate to duplicate existing code.
 
+> **Current execution & handoff queue (2026-11-18):** [AI + Research GitHub-first delivery ledger](AI_RESEARCH_HANDOFF_EXECUTION_LEDGER_2026_11_18.md) documents the current PR #87 Windows gate, AI-10.1 and AI-12.2 parallel handoff, and the standing rule to reuse earlier Gate DA/PT decisions rather than repeat general dataset research. This is a **docs-only operational snapshot**, not an authorization; the [canonical AI progress tracker](../ai_master_progress.json) remains the source of milestone status.
+
 ## Existing components to reuse, not recreate
 
 - `ai/panels.py` has versioned source-specific panel contracts, rejected fields and missingness; verify identity/version/hash, don't conflate source codes.
