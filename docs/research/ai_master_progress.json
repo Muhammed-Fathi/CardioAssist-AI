@@ -1,8 +1,8 @@
 {
   "schema": "cardioassist.ai_master_progress/v1",
   "roadmap_version": "1.7",
-  "updated_on": "2026-11-17",
-  "source_main_commit_at_review": "5b3709ee6273f1c9c4fbf2a007921e8b4a73af7f",
+  "updated_on": "2026-11-18",
+  "source_main_commit_at_review": "79edba255106653e321a9d0eb30d53ae5392afdc",
   "purpose": "Track actual completed engineering versus real scientific evidence; do not infer clinical readiness from synthetic tests.",
   "status_vocabulary": [
     "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
@@ -233,14 +233,26 @@
       "focus": "Prespecified locked external transportability (Cleveland to Hungary) and independent source suitability."
     },
     "AI-11": {
-      "engineering_status": "NOT_STARTED",
+      "engineering_status": "IN_PROGRESS",
       "research_evaluation_status": "NOT_ESTABLISHED",
-      "focus": "Integrated offline multi-model research interface and versioned backend handoff."
+      "focus": "Integrated offline multi-model research interface and versioned backend handoff.",
+      "completed_slice": "AI-11.1 offline synthetic-only registry/facade merged (#79); integrated in AI-12.1 merged main, with 8/8 Windows post-merge demo at 79edba2",
+      "remaining": [
+        "AI-11.2 catalog/interface scope not yet implemented or accepted",
+        "Clinical or real-data validity remains NOT_ESTABLISHED"
+      ],
+      "next_executable_step": "Review the AI-11.2 specification and source/authorization boundaries before a separately scoped implementation PR; do not infer permission for real data or serving."
     },
     "AI-12": {
-      "engineering_status": "NOT_STARTED",
+      "engineering_status": "IN_PROGRESS",
       "research_evaluation_status": "NOT_ESTABLISHED",
-      "focus": "Scientific reporting, documentation and graduation research handoff."
+      "focus": "Scientific reporting, documentation and graduation research handoff.",
+      "completed_slice": "AI-12.1 reproducible synthetic-only E2E evidence pack and cross-platform fixture comparison merged and locally smoke-accepted.",
+      "remaining": [
+        "Broader scientific reporting and graduation handoff not complete",
+        "No real-data evaluation, independent external validation or clinical sign-off established"
+      ],
+      "next_executable_step": "Review remaining AI-12 research-documentation requirements in a separate scoped proposal; maintain scientific holds."
     },
     "AI-8W": {
       "engineering_status": "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
@@ -376,6 +388,117 @@
           "3 skipped cases on Windows are expected POSIX-only cases; native OWNER RIGHTS cases were run and passed."
         ]
       }
+    },
+    "AI-11.1": {
+      "engineering_status": "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
+      "research_evaluation_status": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+      "clinical_validation_status": "NOT_ESTABLISHED",
+      "local_windows_acceptance": "LOCALLY_ACCEPTED_ENGINEERING_ONLY",
+      "focus": "Synthetic-only offline immutable research model registry, typed inference facade, secure local-bundle load and eight-stage research demo; backend serving stays MOCK_SYNTHETIC.",
+      "pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/79",
+      "source_head_sha": "46d079088a2d6f741ce7d64843c920a420d322fa",
+      "merge_sha": "83f51f67792d55634c3eca4ff150bae732f75e2b",
+      "evidence": [
+        "PR #79 pre-merge Windows: 150 focused tests passed; native Windows ACL 8/8; source integrity and demo 8/8; 4/4 hosted workflows successful",
+        "At later integrated main 79edba255106653e321a9d0eb30d53ae5392afdc: maintainer Windows demo 8/8 and native security 8/8 passed",
+        "PR #82 Windows full suite covers included AI-11.1 code at tested PR head 75c6ab488dff2b5524c73be4a9e8e2ba165583de (2,531 passed, 3 skipped, 0 failures)"
+      ],
+      "qualification": "Post-merge integrated verification is on AI-12.1 merge SHA, NOT a separately reported run pinned to AI-11.1's earlier merge SHA 83f51f6.",
+      "next_executable_step": "Keep existing mock backend and research-only boundaries; scope AI-11.2 independently."
+    },
+    "AI-11.2": {
+      "engineering_status": "NOT_STARTED",
+      "research_evaluation_status": "NOT_ESTABLISHED",
+      "focus": "Remaining AI-11 multi-model research catalog/interface handoff; precise acceptance criteria require scoped review.",
+      "next_executable_step": "Review original roadmap, interfaces and gated source-contract dependencies; write a proposal before any real-data training or serving."
+    },
+    "AI-12.1": {
+      "engineering_status": "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
+      "local_windows_acceptance": "LOCALLY_ACCEPTED_ENGINEERING_ONLY",
+      "research_evaluation_status": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+      "clinical_validation_status": "NOT_ESTABLISHED",
+      "pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/82",
+      "source_head_sha": "75c6ab488dff2b5524c73be4a9e8e2ba165583de",
+      "merge_sha": "79edba255106653e321a9d0eb30d53ae5392afdc",
+      "ci_on_head": {
+        "contract_validation": "success",
+        "audit_toolchain_validation": "success",
+        "mock_backend_validation": "success",
+        "synthetic_experiment_runner_validation": "success"
+      },
+      "focus": "Offline fixed synthetic 8-stage CAD research evidence pack/model card, versioned schema, security/refusal proof and measured Windows/Linux fixture comparison.",
+      "maintainer_windows_verification": {
+        "platform": "Windows win32 / native NTFS DACL",
+        "interpreter": "Python 3.12.9",
+        "checked_pr_head_sha": "75c6ab488dff2b5524c73be4a9e8e2ba165583de",
+        "pre_merge_full_suite": {
+          "command": "python -m pytest -W error -q -ra --tb=short",
+          "passed": 2531,
+          "skipped": 3,
+          "failed": 0,
+          "exit_code": 0,
+          "elapsed_seconds": 5341.58,
+          "qualification": "Full monolithic Windows suite was on reviewed PR head, not the later merge SHA."
+        },
+        "pre_merge_focused": {
+          "command": "python -m pytest -W error -q tests/experiments/test_research_evidence.py tests/contracts/test_research_evidence_schema.py tests/experiments/test_research_facade.py tests/backend/test_inference_provider.py",
+          "passed": 198,
+          "failed": 0,
+          "exit_code": 0
+        },
+        "pre_merge_native_security": {
+          "steps_passed": 8,
+          "steps_total": 8,
+          "status": "PASSED",
+          "mechanism": "windows_ntfs_win32_security_descriptor_dacl"
+        },
+        "pre_merge_reproducibility": {
+          "same_machine_independent_pack_outputs_byte_identical": true,
+          "linux_windows_fixture_behavior": "MATCH",
+          "legacy_report_only_comparison": "INDETERMINATE",
+          "member_artifact_hashes_equal": false
+        },
+        "post_merge": {
+          "checked_sha": "79edba255106653e321a9d0eb30d53ae5392afdc",
+          "detached_clean_worktree": true,
+          "pip_check": "PASS",
+          "verify_sources": "PASS (4 protected SHA-256 hashes, 25-paper status census)",
+          "native_windows_security": "8/8 PASSED",
+          "legacy_eight_stage_demo": "8/8 PASSED",
+          "synthetic_evidence_generation": {
+            "command": "python -W error -m ai.research_evidence --output <external-new-file>",
+            "status": "SYNTHETIC_E2E_COMPLETE",
+            "stages_passed": 8,
+            "pack_sha256": "ad59a2661a24540d5bacd3fc06c154fe362f6641804b11c80e6cb5e86f8a59a3"
+          },
+          "cross_platform_fixture_comparison": {
+            "command": "python -W error -m ai.research_evidence --compare <new-external-pack>",
+            "fixture_behavior": "MATCH",
+            "exit_code": 0,
+            "artifact_member_hashes_equal": false
+          },
+          "final_worktree_clean": true,
+          "qualification": "Maintainer-supplied Windows shell evidence, not re-executed by GitHub documentation author; smoke scope is source+security+demo+fixture compare, not a second post-merge full suite."
+        }
+      },
+      "cross_platform_comparison": {
+        "scope": "fixed synthetic fixtures, not identical model bytes or external clinical accuracy",
+        "result": "MATCH",
+        "numeric_within_tolerance": 53,
+        "environment_differences": 9,
+        "artifact_byte_differences": 4,
+        "derived_digest_differences": 3,
+        "absolute_tolerance": 1e-12,
+        "relative_tolerance": 1e-9,
+        "legacy_report_only_result": "INDETERMINATE (two digest fields; missing historical full preimage)",
+        "limitation": "Artifact and internal report hashes differ across platforms; no clinical validity or model equivalence proven."
+      },
+      "remaining": [
+        "D-048 and real-data research execution not authorized by this milestone",
+        "UCI-412 source-field eligibility remains SCIENTIFIC_HOLD; no external transportability or clinical sign-off",
+        "AI-11.2 and broader AI-12 graduation scientific reporting remain separate."
+      ],
+      "next_executable_step": "Human review of documentation-only closeout, merge tracking PR after CI; separately scope AI-11.2 and remaining reporting with source admissibility gates preserved."
     }
   },
   "change_control": {
@@ -400,7 +523,9 @@
       ],
       "failed_tests": "Record LOCAL_VALIDATION_FAILED and repair before local acceptance; engineering merged remains separately truthful.",
       "docs_only": "Use local parse/format/link/data-schema checks; record NOT_APPLICABLE_WITH_REASON only when genuinely no executable checks apply.",
-      "safety": "No protected patient data/keys/bundles in GitHub CI, chats or repo; no weakening ACL verification or bypassing authorization."
+      "safety": "No protected patient data/keys/bundles in GitHub CI, chats or repo; no weakening ACL verification or bypassing authorization.",
+      "last_locally_accepted_engineering_milestone": "AI-12.1",
+      "last_locally_accepted_main_sha": "79edba255106653e321a9d0eb30d53ae5392afdc"
     },
     "last_locally_accepted_engineering_milestone": "AI-8W",
     "last_locally_accepted_main_sha": "322b9749808113047525866c176ac4e34d5382a2"
