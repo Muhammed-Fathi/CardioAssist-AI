@@ -2,7 +2,7 @@
   "schema": "cardioassist.ai_master_progress/v1",
   "roadmap_version": "1.7",
   "updated_on": "2026-11-18",
-  "source_main_commit_at_review": "b21ca074e9ef609894354e6d0327c4b7cc717093",
+  "source_main_commit_at_review": "5786424593c5fa9387a1bf382b2233b02779de42",
   "purpose": "Track actual completed engineering versus real scientific evidence; do not infer clinical readiness from synthetic tests.",
   "status_vocabulary": [
     "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
@@ -350,9 +350,134 @@
       "next_executable_step": "Human review/merge this documentation-only tracking PR. Proceed with independent AI-10.1 synthetic locked external-evaluation engineering and AI-12.2 research/graduation handoff in parallel. Keep AI-9.2 real-data conditions unchanged."
     },
     "AI-10": {
-      "engineering_status": "NOT_STARTED",
+      "engineering_status": "IN_PROGRESS",
       "research_evaluation_status": "NOT_ESTABLISHED",
-      "focus": "Prespecified locked external transportability (Cleveland to Hungary) and independent source suitability."
+      "focus": "Prespecified locked external transportability (Cleveland to Hungary) and independent source suitability.",
+      "completed_slice": "AI-10.1 synthetic-only locked external-site rehearsal, versioned fake cohorts, existing ExternalEvaluationLedger one-shot controls, strict JSON contract, CLI and negative tests merged as PR #90; native Windows exact-head and post-merge acceptance passed. No real Hungary data used.",
+      "remaining": [
+        "Real frozen Cleveland-to-Hungary external transportability remains unperformed, scientifically conditional and not authorized by AI-10.1",
+        "Clinical protocol and access, predictor and target mapping/timing, overlap evidence, missingness, sample-size/precision and frozen model validity remain independent research gates"
+      ],
+      "next_executable_step": "Complete AI-10.1 docs-only review/merge; progress AI-12.2 evidence-indexed graduation research reporting using existing Gate DA/PT, D-047 and M3a records. Keep any real external-validation decision separately gated."
+    },
+    "AI-10.1": {
+      "engineering_status": "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
+      "local_windows_acceptance": "LOCALLY_ACCEPTED_ENGINEERING_ONLY",
+      "research_evaluation_status": "SYNTHETIC_TRANSPORT_TEST_NOT_EXTERNAL_VALIDATION",
+      "clinical_validation_status": "NOT_ESTABLISHED",
+      "focus": "Version-bound DA-A2 five-field fabricated development-to-fabricated shifted external-site rehearsal. Reuses existing locked evaluation primitive and protected one-shot ledger. Not real Hungary or real independent external validation.",
+      "pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/90",
+      "reviewed_source_head_sha": "b5276717eb3cf45551141ec818beebfb291a0eff",
+      "merge_sha": "5786424593c5fa9387a1bf382b2233b02779de42",
+      "implementation_scope": {
+        "files_added": 6,
+        "existing_files_modified": 0,
+        "protected_source_files_modified": 0,
+        "real_hungary_source_accessed": false,
+        "existing_training_evaluation_provider_changed": false,
+        "backend_serving_changed": false
+      },
+      "github_ci_on_reviewed_head": {
+        "workflows_success": 4,
+        "total_green_jobs": 7,
+        "contract_validation": "SUCCESS",
+        "audit_toolchain_validation": "SUCCESS",
+        "mock_backend_validation": "SUCCESS (Python 3.11 + 3.12)",
+        "synthetic_experiment_runner_validation": "SUCCESS (Python 3.11 + 3.12)"
+      },
+      "maintainer_windows_verification": {
+        "provenance": "Maintainer-provided native Windows PowerShell 5.1 transcript; GitHub author did not run native Windows tests. Uploaded post-merge report bytes independently SHA-256 checked.",
+        "python": "3.12.9 (existing separately installed virtualenv)",
+        "pre_merge": {
+          "exact_reviewed_head_sha": "b5276717eb3cf45551141ec818beebfb291a0eff",
+          "clean_worktree": true,
+          "pip_check": "PASS",
+          "source_integrity": "PASS (4 protected hashes; source census 25 papers: 9 green, 1 pink, 6 orange, 9 red)",
+          "native_windows_security": {
+            "status": "PASSED",
+            "steps_passed": 8,
+            "steps_total": 8
+          },
+          "focused_tests": {
+            "passed": 18,
+            "failed": 0,
+            "seconds": 7.17,
+            "command": "python -m pytest -W error -q -ra --tb=short tests/experiments/test_ai10_synthetic_transport.py tests/contracts/test_ai10_synthetic_schema.py"
+          },
+          "full_monolithic_suite": {
+            "command": "python -m pytest -W error -q -ra --tb=short",
+            "passed": 2615,
+            "skipped": 3,
+            "failed": 0,
+            "exit_code": 0,
+            "seconds": 6063.69,
+            "qualifier": "Three platform-conditional native Windows ACL tests skipped; security validator separately passed 8/8."
+          },
+          "original_ad_hoc_schema_validation_error": "Prior PowerShell python -c verifier produced SyntaxError due to quoting; the success print after it was not accepted; independently checked attached JSON/schema, and a later standalone verifier passed post-merge."
+        },
+        "post_merge": {
+          "exact_merge_sha": "5786424593c5fa9387a1bf382b2233b02779de42",
+          "detached_clean_worktree": true,
+          "pip_check": "PASS",
+          "source_integrity": "PASS (same 4 protected hashes and 25-paper census)",
+          "native_windows_security": {
+            "status": "PASSED",
+            "steps_passed": 8,
+            "steps_total": 8
+          },
+          "focused_tests": {
+            "passed": 18,
+            "failed": 0,
+            "seconds": 7.4,
+            "command": "python -m pytest -W error -q -ra --tb=short tests/experiments/test_ai10_synthetic_transport.py tests/contracts/test_ai10_synthetic_schema.py"
+          },
+          "synthetic_cli": {
+            "status": "SYNTHETIC_LOCKED_SITE_EXERCISE_COMPLETE",
+            "cohort_origin": "LOCALLY_FABRICATED_ONLY",
+            "one_shot_ledger_status": "COMPLETED",
+            "one_shot_consumed": true
+          },
+          "standalone_report_verifier": {
+            "json_schema": "PASS",
+            "canonical_digest": "PASS",
+            "ledger": "COMPLETED (user's validator read private ledger)",
+            "synthetic_scope": "PASS",
+            "exit_code": 0
+          },
+          "report_file_sha256": "dea4674bf14ae5ff55a9c819f1d3f137c92a7eeda30915813a0bb1e2cad91f2d",
+          "report_canonical_sha256": "aee7535850b8c1bd4cb040164252a593bd82656b457f921382598766b6693c47",
+          "report_reproduced_pre_merge_bytes": true,
+          "final_worktree_clean": true,
+          "note": "Full monolithic 2615/3 was NOT rerun after merge; post-merge smoke comprised 18 targeted tests plus source/security/schema/digest/private-ledger checks."
+        }
+      },
+      "synthetic_report": {
+        "n_fabricated_development": 96,
+        "n_fabricated_external": 48,
+        "fake_external_positives": 35,
+        "fake_external_negatives": 13,
+        "seeded_invented_covariate_shift": "age +4 years, trestbps +7 mmHg (bounded); labels unchanged",
+        "selected_model_family": "l2_logistic_regression",
+        "panel_id": "da_a2_resting_v1",
+        "panel_contract_sha256": "c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8",
+        "uncalibrated_roc_auc": 0.7692307692307693,
+        "uncalibrated_brier_score": 0.18266855964550913,
+        "transported_calibrated_roc_auc": 0.7692307692307693,
+        "transported_calibrated_brier_score": 0.17751924735231636,
+        "clinical_use_authorized": false,
+        "real_data_execution_authorized": false,
+        "real_external_validation_performed": false,
+        "real_hungary_accessed": false,
+        "note": "All numbers are fabricated synthetic-methods tests, not CAD external-validation estimates. Local fixture IDs and metadata digests do not establish real participant independence or authenticate model weights."
+      },
+      "limitations": [
+        "AI-10.1 is synthetic-only engineering; parent AI-10 real external-validation hypothesis remains NOT_ESTABLISHED",
+        "No protected actual patient data, real Hungary cohort or clinical service were tested",
+        "The existing local one-shot ledger is an engineering attempt tracker, not independent source or ethics verification",
+        "M2f Hungary protocol and all appropriate data/source/clinical approvals remain conditional and unchanged"
+      ],
+      "closeout_document": "docs/research/next_phase/AI10_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md",
+      "next_executable_step": "Human review and merge this docs-only evidence tracker update; then execute AI-12.2 final research/graduation report evidence indexing. Keep real external clinical work on separate approved scientific gate."
     },
     "AI-11": {
       "engineering_status": "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
@@ -750,10 +875,10 @@
       "failed_tests": "Record LOCAL_VALIDATION_FAILED and repair before local acceptance; engineering merged remains separately truthful.",
       "docs_only": "Use local parse/format/link/data-schema checks; record NOT_APPLICABLE_WITH_REASON only when genuinely no executable checks apply.",
       "safety": "No protected patient data/keys/bundles in GitHub CI, chats or repo; no weakening ACL verification or bypassing authorization.",
-      "last_locally_accepted_engineering_milestone": "AI-9.1",
-      "last_locally_accepted_main_sha": "b21ca074e9ef609894354e6d0327c4b7cc717093"
+      "last_locally_accepted_engineering_milestone": "AI-10.1",
+      "last_locally_accepted_main_sha": "5786424593c5fa9387a1bf382b2233b02779de42"
     },
-    "last_locally_accepted_engineering_milestone": "AI-9.1",
-    "last_locally_accepted_main_sha": "b21ca074e9ef609894354e6d0327c4b7cc717093"
+    "last_locally_accepted_engineering_milestone": "AI-10.1",
+    "last_locally_accepted_main_sha": "5786424593c5fa9387a1bf382b2233b02779de42"
   }
 }
