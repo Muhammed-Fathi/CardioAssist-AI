@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Muhammed-Fathi/CardioAssist-AI/blob/main/docs/research/ai10_1/synthetic-locked-site.v1.schema.json",
+  "title": "CardioAssist AI-10.1 fabricated locked-site output (research-only)",
+  "description": "Synthetic engineering evidence only; not real external validation or clinical model use.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "cardioassist.ai.synthetic_locked_site/v1"
+        },
+        "status": {
+          "const": "SYNTHETIC_LOCKED_SITE_EXERCISE_COMPLETE"
+        },
+        "evidence_class": {
+          "const": "SYNTHETIC_TRANSPORT_TEST_NOT_EXTERNAL_VALIDATION"
+        },
+        "plan_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "real_data_execution_authorized": {
+          "const": false
+        },
+        "clinical_use_authorized": {
+          "const": false
+        },
+        "real_external_validation_performed": {
+          "const": false
+        },
+        "plan_reference": {
+          "const": "CAI-AI10.1-FABRICATED-LOCKED-SITE-V1"
+        },
+        "target_id": {
+          "const": "t1.uci45.angiographic_cad_gt50.v1"
+        },
+        "panel_id": {
+          "const": "da_a2_resting_v1"
+        },
+        "panel_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "n_development": {
+          "type": "integer",
+          "minimum": 60
+        },
+        "n_external": {
+          "type": "integer",
+          "minimum": 16
+        },
+        "n_positive": {
+          "type": "integer",
+          "minimum": 8
+        },
+        "n_negative": {
+          "type": "integer",
+          "minimum": 8
+        },
+        "fabricated_identity_check": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "development_count",
+            "external_count",
+            "development_sha256",
+            "external_sha256",
+            "overlap_count"
+          ],
+          "properties": {
+            "status": {
+              "const": "GENERATED_IDS_NONOVERLAPPING_NOT_REAL_PATIENT_INDEPENDENCE"
+            },
+            "development_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "external_count": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "development_sha256": {
+              "$ref": "#/$defs/digest"
+            },
+            "external_sha256": {
+              "$ref": "#/$defs/digest"
+            },
+            "overlap_count": {
+              "const": 0
+            }
+          }
+        },
+        "invented_site_shift": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_metadata_binding_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "selected_model_family": {
+          "enum": [
+            "l2_logistic_regression",
+            "constrained_random_forest"
+          ]
+        },
+        "ledger_status": {
+          "const": "COMPLETED"
+        },
+        "ledger_slot_consumed": {
+          "const": true
+        },
+        "model_tuned_on_external": {
+          "const": false
+        },
+        "uncalibrated_roc_auc": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "uncalibrated_brier_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "transport_calibrated_roc_auc": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "transport_calibrated_brier_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "real_hungary_accessed": {
+          "const": false
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 10
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "status",
+        "evidence_class",
+        "plan_sha256",
+        "sha256",
+        "real_data_execution_authorized",
+        "clinical_use_authorized",
+        "real_external_validation_performed",
+        "plan_reference",
+        "target_id",
+        "panel_id",
+        "panel_sha256",
+        "seed",
+        "n_development",
+        "n_external",
+        "n_positive",
+        "n_negative",
+        "fabricated_identity_check",
+        "invented_site_shift",
+        "model_metadata_binding_sha256",
+        "selected_model_family",
+        "ledger_status",
+        "ledger_slot_consumed",
+        "model_tuned_on_external",
+        "uncalibrated_roc_auc",
+        "uncalibrated_brier_score",
+        "transport_calibrated_roc_auc",
+        "transport_calibrated_brier_score",
+        "real_hungary_accessed",
+        "limitations"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "cardioassist.ai.synthetic_locked_site/v1"
+        },
+        "status": {
+          "const": "INSUFFICIENT_EVIDENCE"
+        },
+        "evidence_class": {
+          "const": "SYNTHETIC_TRANSPORT_TEST_NOT_EXTERNAL_VALIDATION"
+        },
+        "plan_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "real_data_execution_authorized": {
+          "const": false
+        },
+        "clinical_use_authorized": {
+          "const": false
+        },
+        "real_external_validation_performed": {
+          "const": false
+        },
+        "n_external": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "n_positive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_negative": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "enum": [
+            "too_few_synthetic_assessment_rows",
+            "too_few_synthetic_assessment_events_per_class"
+          ]
+        },
+        "ledger_slot_consumed": {
+          "const": false
+        }
+      },
+      "required": [
+        "schema_version",
+        "status",
+        "evidence_class",
+        "plan_sha256",
+        "sha256",
+        "real_data_execution_authorized",
+        "clinical_use_authorized",
+        "real_external_validation_performed",
+        "n_external",
+        "n_positive",
+        "n_negative",
+        "reason",
+        "ledger_slot_consumed"
+      ]
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
