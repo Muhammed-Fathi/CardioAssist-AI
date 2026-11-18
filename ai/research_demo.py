@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
@@ -52,6 +53,7 @@ from ai.research_facade import (
     LocalSyntheticBundleSource,
     ResearchFacadeStatus,
     ResearchFeatureRecord,
+    ResearchInferenceResponse,
     SyntheticFixtureProvenance,
     is_registered_static_error_message,
     run_offline_research_inference_from_document,
@@ -108,7 +110,7 @@ _BLOCKED_ENTRY_CASES: Final[tuple[tuple[str, str], ...]] = (
     ),
 )
 
-_DEMO_TRAINING_CONFIG: Final[ResearchTrainingConfig] = ResearchTrainingConfig(
+DEMO_TRAINING_CONFIG: Final[ResearchTrainingConfig] = ResearchTrainingConfig(
     protocol_id=DEMO_PROTOCOL_ID,
     model_version=DEMO_MODEL_VERSION,
     outer_folds=3,
@@ -353,7 +355,7 @@ def _build_demo_bundle(work_root: Path) -> dict[str, Any]:
         development_cohort_id=f"synthetic:{DEMO_DATASET_ID}",
         development_dataset_id=DEMO_DATASET_ID,
         synthetic_data_confirmed=True,
-        config=_DEMO_TRAINING_CONFIG,
+        config=DEMO_TRAINING_CONFIG,
     )
     _expect(
         run.synthetic_only is True,
@@ -367,6 +369,7 @@ def _build_demo_bundle(work_root: Path) -> dict[str, Any]:
     bundle_dir = trusted_root / "synthetic_research_bundle_da_a2_resting_v1"
     packaged = package_research_bundle(run, bundle_dir, signing_key=signing_key)
     return {
+        "fixture_sha256": _canonical_sha256({"records": records, "labels": labels}),
         "run": run,
         "panel": panel,
         "trusted_root": trusted_root,
@@ -392,13 +395,28 @@ def _copy_bundle_private(bundle_dir: Path, destination: Path) -> Path:
 # --------------------------------------------------------------------------- #
 
 
-def run_research_facade_demo(
+@dataclass(frozen=True)
+class DemoExecution:
+    """Report plus its full-precision stage-8 preimage; never paths or a bundle."""
+
+    report: dict[str, Any]
+    response: ResearchInferenceResponse | None
+    fixture_sha256: str | None
+
+
+def report_digest(report: Mapping[str, Any]) -> str:
+    """AI-11.1 v1 digest domain (not a checksum of pretty-printed stdout)."""
+    keys = ("stage_results", "evidence_level", "registry_digest_sha256")
+    return _canonical_sha256({key: report[key] for key in keys})
+
+
+def execute_research_facade_demo(
     *, work_dir: Path | None = None, with_lime: bool = True
-) -> dict[str, Any]:
+) -> DemoExecution:
     """Execute the complete offline synthetic demonstration.
 
-    Returns a JSON-safe payload with one entry per stage. No absolute path,
-    record value, or key material appears in it. When ``work_dir`` is ``None``
+    Returns the v1 report and, only after every stage passes, the redacted
+    response and the digest of the actual synthetic development cohort. When ``work_dir`` is ``None``
     an isolated private temporary directory is created and removed; when it is
     supplied the caller owns the directory and its contents are retained.
     """
@@ -417,11 +435,12 @@ def run_research_facade_demo(
         "n_records_development": DEMO_N_ROWS,
     }
     base_dir: Path | None = None
+    success = None
+    fixture_sha256 = None
     try:
         if work_dir is None:
-            base_dir = ensure_private_directory(
-                Path(tempfile.mkdtemp(prefix="cardioassist_ai111_demo_"))
-            )
+            base_dir = Path(tempfile.mkdtemp(prefix="cardioassist_ai111_demo_"))
+            ensure_private_directory(base_dir)
         else:
             base_dir = ensure_private_directory(Path(work_dir))
             payload["work_dir_retained"] = True
@@ -472,6 +491,12 @@ def run_research_facade_demo(
         )
 
         build = _build_demo_bundle(base_dir)
+        fixture_sha256 = build["fixture_sha256"]
+        _expect(
+            fixture_sha256 == _canonical_sha256({"records": records, "labels": labels}),
+            "demo_fixture_mismatch",
+            "The inference fixture was not reproduced from the development cohort.",
+        )
         run = build["run"]
         stages.append(
             _stage(
@@ -504,7 +529,7 @@ def run_research_facade_demo(
         )
 
         # ---- Stage 4: successful synthetic inference --------------------- #
-        first, second = _demo_records()
+        first, second = (_record_from_envelope(records[i], i) for i in range(2))
         success = _base_request(source, [first, second], with_lime=with_lime)
         _expect(
             success.status is ResearchFacadeStatus.SYNTHETIC_RESULT,
@@ -1208,7 +1233,7 @@ def run_research_facade_demo(
         }
     finally:
         if owns_temp and base_dir is not None and base_dir.exists():
-            shutil.rmtree(base_dir, ignore_errors=True)
+            shutil.rmtree(base_dir)
 
     payload["stage_results"] = stages
     payload["summary"] = {
@@ -1226,13 +1251,7 @@ def run_research_facade_demo(
             }
         ),
     }
-    payload["deterministic_sha256"] = _canonical_sha256(
-        {
-            "stage_results": stages,
-            "evidence_level": payload["evidence_level"],
-            "registry_digest_sha256": REGISTRY_DIGEST_SHA256,
-        }
-    )
+    payload["deterministic_sha256"] = report_digest(payload)
     payload["claim_level"] = "ENGINEERING_READY / SYNTHETIC_TEST_ONLY"
     payload["not_claimed"] = [
         "clinical validity or diagnostic accuracy",
@@ -1240,7 +1259,16 @@ def run_research_facade_demo(
         "authorization to serve any model",
         "real-data training or real-data evaluation",
     ]
-    return payload
+    if payload["status"] != "PASSED":
+        return DemoExecution(payload, None, None)
+    return DemoExecution(payload, success, fixture_sha256)
+
+
+def run_research_facade_demo(
+    *, work_dir: Path | None = None, with_lime: bool = True
+) -> dict[str, Any]:
+    """Return the original AI-11.1 v1 report (including its unchanged digest)."""
+    return execute_research_facade_demo(work_dir=work_dir, with_lime=with_lime).report
 
 
 def render_demo_text(payload: Mapping[str, Any]) -> str:

@@ -4,3 +4,6 @@
 *.py text eol=lf
 *.pdf binary
 *.xlsx binary
+
+# Preserve the published evidence-file bytes even on autocrlf checkouts.
+docs/research/ai12_1/*.json text eol=lf

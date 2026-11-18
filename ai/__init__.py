@@ -246,12 +246,6 @@ from ai.research_registry import (
     registry_digest_sha256,
     resolve_registered_model,
 )
-from ai.research_demo import (
-    DEMO_ID as RESEARCH_FACADE_DEMO_ID,
-    ResearchDemoError,
-    render_demo_text as render_research_facade_demo_text,
-    run_research_facade_demo,
-)
 from ai.preprocessing import FoldSafeClinicalPreprocessor
 from ai.training import (
     CLEVELAND_D047_RF_SPACE_VERSION,
@@ -286,6 +280,30 @@ from ai.uci412_research import (
     load_uci412_research_predictor,
     validate_uci412_synthetic_cohort,
 )
+
+# PEP 562: keep the package exports, but don't pre-import a module that
+# runpy is about to execute as __main__ (python -m ai.research_demo).
+_DEMO_EXPORTS = {
+    "RESEARCH_FACADE_DEMO_ID": "DEMO_ID",
+    "ResearchDemoError": "ResearchDemoError",
+    "render_research_facade_demo_text": "render_demo_text",
+    "run_research_facade_demo": "run_research_facade_demo",
+}
+
+
+def __getattr__(name: str):
+    if name not in _DEMO_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from ai import research_demo
+
+    value = getattr(research_demo, _DEMO_EXPORTS[name])
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | _DEMO_EXPORTS.keys())
+
 
 __all__ = [
     "ADMISSIBLE_ARTIFACT_KINDS",
