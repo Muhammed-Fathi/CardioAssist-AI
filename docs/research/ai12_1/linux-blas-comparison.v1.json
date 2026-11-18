@@ -1,0 +1,414 @@
+{
+  "absolute_tolerance": 1e-12,
+  "artifact_member_hashes_equal": false,
+  "canonical_json_equal": false,
+  "comparison_version": "cardioassist.ai.fixture_comparison/v1",
+  "demo_digest": {
+    "peer": "79cb09ca20d792bd5e8743010e7524cf4555523302d5e68898e0b4d3cc5eff65",
+    "reference": "0722d728f756e589a3d97b4328e6dc106111835889e6b6387969cf0b0b99b853"
+  },
+  "differences": [
+    {
+      "kind": "artifact_bytes",
+      "path": "/inference/artifact/verified_artifact_hashes/calibration.json"
+    },
+    {
+      "kind": "artifact_bytes",
+      "path": "/inference/artifact/verified_artifact_hashes/evaluation_summary.json"
+    },
+    {
+      "kind": "artifact_bytes",
+      "path": "/inference/artifact/verified_artifact_hashes/model.joblib"
+    },
+    {
+      "absolute_delta": 7.216449660063518e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/attributions/0/lime_weight",
+      "peer": 0.2813974923402707,
+      "reference": 0.28139749234027
+    },
+    {
+      "absolute_delta": 3.885780586188048e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/attributions/1/lime_weight",
+      "peer": -0.11314229175230427,
+      "reference": -0.11314229175230466
+    },
+    {
+      "absolute_delta": 3.594358900685206e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/attributions/2/lime_weight",
+      "peer": 7.007884598725577e-06,
+      "reference": 7.0078845983661415e-06
+    },
+    {
+      "absolute_delta": 1.6653345369377348e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/attributions/3/lime_weight",
+      "peer": 0.1309097373272516,
+      "reference": 0.13090973732725145
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/holdout_weighted_r2",
+      "peer": 0.9958103340068925,
+      "reference": 0.9958103340068923
+    },
+    {
+      "absolute_delta": 4.440892098500626e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/local_fidelity_abs_error",
+      "peer": 0.0035001607179414584,
+      "reference": 0.0035001607179419025
+    },
+    {
+      "absolute_delta": 2.5604518505417673e-15,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/local_fidelity_error_in_neighborhood_sigma",
+      "peer": 0.02009500834567766,
+      "reference": 0.02009500834568022
+    },
+    {
+      "absolute_delta": 3.89011739487799e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/local_fidelity_relative_error",
+      "peer": 0.0030596686127942543,
+      "reference": 0.0030596686127946434
+    },
+    {
+      "absolute_delta": 2.220446049250313e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/model_prediction_at_instance",
+      "peer": 1.1439672594951134,
+      "reference": 1.1439672594951131
+    },
+    {
+      "absolute_delta": 8.326672684688674e-17,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/neighborhood_output_weighted_sd",
+      "peer": 0.17418060533895355,
+      "reference": 0.17418060533895346
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/unweighted_r2",
+      "peer": 0.9981066980467568,
+      "reference": 0.9981066980467567
+    },
+    {
+      "absolute_delta": 2.5673907444456745e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/unweighted_rmse",
+      "peer": 0.007770087793561973,
+      "reference": 0.00777008779356223
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/weighted_r2",
+      "peer": 0.99815827819105,
+      "reference": 0.9981582781910499
+    },
+    {
+      "absolute_delta": 2.194425197110661e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/fidelity/weighted_rmse",
+      "peer": 0.007475010567821841,
+      "reference": 0.00747501056782206
+    },
+    {
+      "absolute_delta": 3.89011739487799e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/quality/criteria/5/observed",
+      "peer": 0.0030596686127942543,
+      "reference": 0.0030596686127946434
+    },
+    {
+      "absolute_delta": 2.5604518505417673e-15,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/quality/criteria/6/observed",
+      "peer": 0.02009500834567766,
+      "reference": 0.02009500834568022
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/quality/criteria/7/observed",
+      "peer": 0.99815827819105,
+      "reference": 0.9981582781910499
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/quality/criteria/8/observed",
+      "peer": 0.9958103340068925,
+      "reference": 0.9958103340068923
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/quality/stability_summary/max_abs_weight_deviation_from_reference_seed",
+      "peer": 0.0042986872625176975,
+      "reference": 0.0042986872625175865
+    },
+    {
+      "absolute_delta": 4.618701254788249e-17,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/quality/stability_summary/max_feature_weight_std",
+      "peer": 0.0017590454710126365,
+      "reference": 0.0017590454710125904
+    },
+    {
+      "absolute_delta": 2.220446049250313e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/quality/stability_summary/max_local_prediction_abs_deviation",
+      "peer": 0.0014577959309156618,
+      "reference": 0.0014577959309154398
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-15,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/surrogate/intercept",
+      "peer": 0.882450580598592,
+      "reference": 0.8824505805985932
+    },
+    {
+      "absolute_delta": 6.661338147750939e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/lime_explanation/explanation/surrogate/surrogate_prediction_at_instance",
+      "peer": 1.140467098777172,
+      "reference": 1.1404670987771712
+    },
+    {
+      "absolute_delta": 2.220446049250313e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/score/calibrated_log_odds",
+      "peer": 1.1439672594951134,
+      "reference": 1.1439672594951131
+    },
+    {
+      "absolute_delta": 2.220446049250313e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/0/shap_explanation/max_abs_discrepancy",
+      "peer": 0.0,
+      "reference": 2.220446049250313e-16
+    },
+    {
+      "absolute_delta": 7.216449660063518e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/attributions/0/lime_weight",
+      "peer": 0.4566913818954196,
+      "reference": 0.45669138189541886
+    },
+    {
+      "absolute_delta": 1.5113778284447932e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/attributions/1/lime_weight",
+      "peer": 0.0005639223462106093,
+      "reference": 0.0005639223462104582
+    },
+    {
+      "absolute_delta": 1.5514933088267568e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/attributions/2/lime_weight",
+      "peer": -0.00042282697898733885,
+      "reference": -0.000422826978987494
+    },
+    {
+      "absolute_delta": 2.7755575615628914e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/attributions/3/lime_weight",
+      "peer": 0.08664196371023357,
+      "reference": 0.08664196371023329
+    },
+    {
+      "absolute_delta": 5.412337245047638e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/attributions/4/lime_weight",
+      "peer": -0.04000370783941068,
+      "reference": -0.04000370783941122
+    },
+    {
+      "absolute_delta": 3.3306690738754696e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/holdout_weighted_r2",
+      "peer": 0.9956918843490784,
+      "reference": 0.9956918843490787
+    },
+    {
+      "absolute_delta": 4.440892098500626e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/local_fidelity_abs_error",
+      "peer": 0.007010051728570943,
+      "reference": 0.007010051728571387
+    },
+    {
+      "absolute_delta": 1.8561541192951836e-15,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/local_fidelity_error_in_neighborhood_sigma",
+      "peer": 0.02911704812019306,
+      "reference": 0.029117048120194916
+    },
+    {
+      "absolute_delta": 3.183217578417441e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/local_fidelity_relative_error",
+      "peer": 0.00500982824614516,
+      "reference": 0.005009828246145478
+    },
+    {
+      "absolute_delta": 2.220446049250313e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/model_prediction_at_instance",
+      "peer": 1.399259891587075,
+      "reference": 1.3992598915870749
+    },
+    {
+      "absolute_delta": 8.326672684688674e-17,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/neighborhood_output_weighted_sd",
+      "peer": 0.2407542035042137,
+      "reference": 0.24075420350421362
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/unweighted_r2",
+      "peer": 0.9979235360567155,
+      "reference": 0.9979235360567154
+    },
+    {
+      "absolute_delta": 2.5153490401663703e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/unweighted_rmse",
+      "peer": 0.011327886491837977,
+      "reference": 0.011327886491838229
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/weighted_r2",
+      "peer": 0.9980208400875071,
+      "reference": 0.998020840087507
+    },
+    {
+      "absolute_delta": 2.185751579730777e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/fidelity/weighted_rmse",
+      "peer": 0.010710612850579355,
+      "reference": 0.010710612850579573
+    },
+    {
+      "absolute_delta": 3.183217578417441e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/quality/criteria/5/observed",
+      "peer": 0.00500982824614516,
+      "reference": 0.005009828246145478
+    },
+    {
+      "absolute_delta": 1.8561541192951836e-15,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/quality/criteria/6/observed",
+      "peer": 0.02911704812019306,
+      "reference": 0.029117048120194916
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/quality/criteria/7/observed",
+      "peer": 0.9980208400875071,
+      "reference": 0.998020840087507
+    },
+    {
+      "absolute_delta": 3.3306690738754696e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/quality/criteria/8/observed",
+      "peer": 0.9956918843490784,
+      "reference": 0.9956918843490787
+    },
+    {
+      "absolute_delta": 2.914335439641036e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/quality/stability_summary/max_abs_weight_deviation_from_reference_seed",
+      "peer": 0.006256521001955839,
+      "reference": 0.006256521001956131
+    },
+    {
+      "absolute_delta": 6.245004513516506e-17,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/quality/stability_summary/max_feature_weight_std",
+      "peer": 0.0025698070353036865,
+      "reference": 0.002569807035303749
+    },
+    {
+      "absolute_delta": 2.220446049250313e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/quality/stability_summary/max_local_prediction_abs_deviation",
+      "peer": 0.003924562589995295,
+      "reference": 0.003924562589995517
+    },
+    {
+      "absolute_delta": 1.1102230246251565e-15,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/surrogate/intercept",
+      "peer": 0.8887791067250385,
+      "reference": 0.8887791067250396
+    },
+    {
+      "absolute_delta": 6.661338147750939e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/lime_explanation/explanation/surrogate/surrogate_prediction_at_instance",
+      "peer": 1.3922498398585041,
+      "reference": 1.3922498398585035
+    },
+    {
+      "absolute_delta": 2.220446049250313e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/score/calibrated_log_odds",
+      "peer": 1.399259891587075,
+      "reference": 1.3992598915870749
+    },
+    {
+      "absolute_delta": 2.220446049250313e-16,
+      "kind": "within_tolerance",
+      "path": "/inference/records/1/shap_explanation/max_abs_discrepancy",
+      "peer": 2.220446049250313e-16,
+      "reference": 0.0
+    },
+    {
+      "kind": "artifact_bytes",
+      "path": "/model_card/model/model_joblib_sha256"
+    },
+    {
+      "kind": "derived_digest",
+      "path": "/pack_sha256"
+    },
+    {
+      "kind": "derived_digest",
+      "path": "/report/deterministic_sha256"
+    },
+    {
+      "kind": "derived_digest",
+      "path": "/report/stage_results/7/detail/canonical_payload_sha256"
+    },
+    {
+      "kind": "environment",
+      "path": "/reproducibility/environment/numeric_libraries/0/architecture"
+    },
+    {
+      "kind": "environment",
+      "path": "/reproducibility/environment/numeric_libraries/1/architecture"
+    }
+  ],
+  "exact_file_bytes_equal": false,
+  "file_sha256": {
+    "peer": "f9f1b942b92cbfdc82bb7a41c9d1f1c4f19fae69b3cb1938335cb0cf0598fce3",
+    "reference": "a17a4b7ca29db31c441b0af63eca6b9b66233e1bea04e38782f7a13d320e3c7b"
+  },
+  "fixture_behavior": "MATCH",
+  "interpretation": "Fixed synthetic fixtures only. Report checksums are not signatures. Matching fixture behavior does not establish identical models, medical validity, or authenticity of a peer bundle.",
+  "relative_tolerance": 1e-09,
+  "scope": "synthetic_evidence_pack"
+}

@@ -29,6 +29,16 @@ wearable integrations, and a reproducible research workflow. The project is a
 **research prototype, not a clinically validated diagnosis or risk-prediction
 service**.
 
+## Run the offline CAD research demo (AI-12.1)
+
+From a clean checkout with Git and Python 3.11/3.12, run:
+
+```sh
+python scripts/run_research_evidence.py --output synthetic-pack.json
+```
+
+This installs the repository's pinned research dependencies in a throwaway virtual environment and writes **one new JSON file**. It needs no dataset or account. The pack contains the model card, full-precision synthetic inference, verified bundle identities and observed refusals. It is not CAD performance evidence. See the [example, comparison policy and native Windows verification commands](docs/research/ai12_1/README.md).
+
 ## Single source of truth
 
 - **Project vision and proposed features:** `research/source_materials/project_presentation.pdf` (47 slides) plus `project_presentation_speaker_notes.md`. Presentation citations, dataset recommendations and performance claims are **not approved research evidence**.

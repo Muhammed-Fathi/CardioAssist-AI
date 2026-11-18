@@ -1,0 +1,2040 @@
+{
+  "evidence_status": "SYNTHETIC_E2E_COMPLETE",
+  "inference": {
+    "artifact": {
+      "artifact_kind": "local_verified_synthetic_bundle",
+      "bundle_dir_name": "synthetic_research_bundle_da_a2_resting_v1",
+      "bundle_schema_version": "cardioassist.ai.research_bundle/v1",
+      "development_cohort_id": "synthetic:DA-A2",
+      "development_dataset_id": "DA-A2",
+      "execution_mode": "SYNTHETIC_RESEARCH",
+      "execution_profile": "AI1_GENERIC_V1",
+      "governance": {
+        "approved_for_serving": false,
+        "clinical_use_authorized": false,
+        "real_data_execution_authorized": false,
+        "serving_eligibility": "RESEARCH_ONLY"
+      },
+      "local_paths_disclosed": false,
+      "model_id": "synth_ai7_da_a2_resting_v1",
+      "model_version": "0.1.0",
+      "ordered_feature_names": [
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "restecg"
+      ],
+      "panel_contract_sha256": "c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8",
+      "panel_id": "da_a2_resting_v1",
+      "panel_version": "1.0.0",
+      "pooled_cohorts": false,
+      "protocol_id": "CAI-AI7-SYNTHETIC-DA_A2_RESTING_V1-V1",
+      "remote_or_url_source_supported": false,
+      "selected_model_family": "l2_logistic_regression",
+      "signing_key_provided": true,
+      "synthetic_only_provenance": true,
+      "target_id": "t1.uci45.angiographic_cad_gt50.v1",
+      "verification": {
+        "attestation_scheme": "hmac-sha256-local-producer-v1",
+        "integrity_verified_only_not_authenticated": false,
+        "producer_authenticated": true,
+        "safe_for_pickle_deserialization": true,
+        "sha256_alone_authenticates_producer": false,
+        "trusted_local_root_containment_required": true
+      },
+      "verified_artifact_hashes": {
+        "calibration.json": "ed003337a88dcd32b9d001448fe5b3f3b6040c5b0b6b11425b5408bc51227e05",
+        "evaluation_summary.json": "7b624d6efd0aed517723abc51a1d6c4fa1e69fa8a93d9fccd637f349f325b8fc",
+        "model.joblib": "dd5393abdb02e3957c1068aa624dacafc114c49658af18d7239c6eaed626fd08",
+        "preprocessing.json": "9e6bdc74eef61a440a900e6dc89a8dcff63274a4887d62732e95b4234ba1e172",
+        "protocol.md": "72602d90e52031fcb532631091d6b35e30cce97d23f4b2b4e189eeed9708df89",
+        "shap_background.json": "6de846b5249f219001f1d5e64b4ddaa840a8d7f8a66a8b0f0b0a29565567007b"
+      }
+    },
+    "capabilities": {
+      "calibration": {
+        "artifact_declared_status": "calibrated_out_of_fold_logistic",
+        "calibrator_status": "FITTED_OOF_MONOTONE_LOGISTIC",
+        "development_prevalence": 0.71875,
+        "fit_scope": "FULL_DEVELOPMENT_OOF_FINAL",
+        "input_link": "exact_raw_log_odds",
+        "n_oof_samples": 96,
+        "never_relabel_raw_score_as_calibrated": true,
+        "oof_brier_after": 0.1947942219161514,
+        "oof_brier_before": 0.19481164876298637,
+        "reason": null,
+        "supported": true
+      },
+      "explainability": {
+        "lime": {
+          "computed": false,
+          "reason": null,
+          "supported": true
+        },
+        "shap": {
+          "additive_on_calibrated_probability": false,
+          "background_contains_patient_records": false,
+          "background_encoded_feature_count": 10,
+          "background_panel_bound": true,
+          "background_privacy_classification": "SYNTHETIC_NON_PATIENT_DERIVATIVE",
+          "background_sample_count": 24,
+          "background_synthetic_only": true,
+          "explained_quantity": "calibrated_log_odds",
+          "method": "linear_shap_interventional",
+          "scale": "calibrated_log_odds",
+          "supported": true
+        }
+      }
+    },
+    "counts": {
+      "ABSTAIN": 0,
+      "ERROR": 0,
+      "SYNTHETIC_RESULT": 2,
+      "UNAVAILABLE": 0
+    },
+    "dataset_id": "DA-A2",
+    "entry_state": "ACTIVE_SYNTHETIC_OFFLINE",
+    "error": null,
+    "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+    "facade_id": "cardioassist.ai.research_facade/v1",
+    "governance": {
+      "approved_for_serving": false,
+      "clinical_use_authorized": false,
+      "gate_pt_p3": "CLOSED",
+      "http_surface_added": false,
+      "provider_selection_changed": false,
+      "real_data_execution_authorized": false,
+      "requires_clinician_and_gate_pt_validation": true,
+      "serving_eligibility": "RESEARCH_ONLY"
+    },
+    "limitations": [
+      "Every numeric output is a SYNTHETIC research score computed on a deliberately fabricated fixture by an offline research artifact: it is not a clinical CAD probability, not validated individual risk, and not external validation.",
+      "The registry and facade are offline research tooling only: no HTTP endpoint, no provider switch, no serving entitlement, and no real-artifact path exists here.",
+      "UNAVAILABLE and ABSTAIN are final answers for that request: nothing is imputed, substituted, downgraded to a fallback model, or relabelled to produce a number.",
+      "RESEARCH_ONLY output: not approved for clinical diagnosis, triage, treatment, or patient self-assessment.",
+      "Do NOT interpret calibrated_research_score as a clinically reliable individual CAD risk; formal Gate PT (P-1/P-3), external transportability validation, and clinician sign-off (P-4) remain required.",
+      "SHAP attributions are NEVER additive in calibrated probability units: for l2_logistic_regression they sum to calibrated_log_odds = logit(calibrated_research_score); for constrained_random_forest they sum to uncalibrated raw_model_score.",
+      "Outer-fold dispersion reports descriptive CV split sensitivity only\u2014NOT validated patient-specific epistemic uncertainty or a coverage interval.",
+      "Target construct is cross-sectional angiographic CAD presence in a referral cohort\u2014NEVER a 30-day or future cardiovascular event horizon.",
+      "Track B wearable/monitoring observations are not valid predictors for this model and are rejected."
+    ],
+    "model_family": "l2_logistic_regression",
+    "model_id": "synth_ai7_da_a2_resting_v1",
+    "model_version": "0.1.0",
+    "panel_contract_sha256": "c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8",
+    "panel_id": "da_a2_resting_v1",
+    "panel_version": "1.0.0",
+    "protocol_id": "CAI-AI7-SYNTHETIC-DA_A2_RESTING_V1-V1",
+    "provenance": {
+      "artifact_provenance": "verified synthetic research bundle",
+      "artifact_provenance_established_before_deserialization": true,
+      "input_provenance": "DELIBERATELY_FABRICATED_SYNTHETIC_FIXTURE",
+      "input_provenance_basis": "caller declaration, checked against the entry's pinned synthetic fixture generator allowlist",
+      "registry_digest_sha256": "e423882d21cf74a42a8270d5d3e929a1b0f346a7ff4ef69bbf8c0e3dc5b2fec7",
+      "synthetic_flag_alone_accepted_as_evidence": false
+    },
+    "records": [
+      {
+        "abstention_reason": null,
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "fold_dispersion": {
+          "action_threshold_validated": false,
+          "each_fold_calibrated_by_own_training_fold_calibrator": true,
+          "fold_calibrated_score_dispersion": {
+            "iqr": 0.04522660594202432,
+            "max": 0.8294754687042818,
+            "mean": 0.7944570740366858,
+            "min": 0.739022256820233,
+            "range": 0.09045321188404876,
+            "std": 0.03964903207986503
+          },
+          "fold_ensemble_count": 3,
+          "fold_model_families": [
+            "constrained_random_forest",
+            "constrained_random_forest",
+            "constrained_random_forest"
+          ],
+          "fold_raw_score_dispersion": {
+            "iqr": 0.0168490096656444,
+            "max": 0.7854655241429331,
+            "mean": 0.7738302126975404,
+            "min": 0.7517675048116443,
+            "range": 0.0336980193312888,
+            "std": 0.015608482183491259
+          },
+          "homogeneous_model_family": true,
+          "input_completeness": {
+            "missing_optional_features": [],
+            "present_feature_count": 5,
+            "stage_completeness_fraction": 1.0,
+            "total_panel_features": 5
+          },
+          "limitations": [
+            "Descriptive dispersion across outer-fold models trained on overlapping CV partitions; NOT a validated epistemic uncertainty estimate, posterior credible interval, or patient-specific coverage guarantee.",
+            "Calibrated against a development cohort with 71.9% CAD prevalence; scores do NOT transfer without recalibration to lower-prevalence outpatient populations.",
+            "No clinical action threshold or uncertainty cutoff has been validated (Gate P-4 pending)."
+          ],
+          "uncertainty_semantics": "DESCRIPTIVE_OUTER_FOLD_DISPERSION_NOT_VALIDATED_UNCERTAINTY",
+          "validated_epistemic_uncertainty": false,
+          "validated_patient_specific_interval": false
+        },
+        "lime_explanation": {
+          "comparable_with_shap_scale": true,
+          "explained_quantity": "calibrated_log_odds",
+          "explanation": {
+            "additive_decomposition_claim": false,
+            "attributions": [
+              {
+                "absolute_weight_rank": 1,
+                "clinical_meaning": "Age at pre-angiography clinical evaluation",
+                "encoded_columns": [
+                  "age__zscore"
+                ],
+                "estimator_input_columns": [
+                  0
+                ],
+                "feature_name": "age",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'age' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": 0.28139749234027,
+                "local_direction": "increases_declared_target",
+                "reference_differs_from_instance_value": true,
+                "represented_in_estimator_input": true,
+                "role": "numeric",
+                "status": "present",
+                "unit": "years"
+              },
+              {
+                "absolute_weight_rank": 3,
+                "clinical_meaning": "Biological sex (UCI-45 code: 0=female, 1=male)",
+                "encoded_columns": [
+                  "sex__eq_1"
+                ],
+                "estimator_input_columns": [
+                  1
+                ],
+                "feature_name": "sex",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'sex' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": -0.11314229175230466,
+                "local_direction": "decreases_declared_target",
+                "reference_differs_from_instance_value": true,
+                "represented_in_estimator_input": true,
+                "role": "categorical",
+                "status": "present",
+                "unit": null
+              },
+              {
+                "absolute_weight_rank": 5,
+                "clinical_meaning": "Chest-pain category (UCI-45 nominal codes 1..4)",
+                "encoded_columns": [
+                  "cp__eq_2",
+                  "cp__eq_3",
+                  "cp__eq_4"
+                ],
+                "estimator_input_columns": [
+                  2,
+                  3,
+                  4
+                ],
+                "feature_name": "cp",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'cp' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": 7.0078845983661415e-06,
+                "local_direction": "increases_declared_target",
+                "reference_differs_from_instance_value": false,
+                "represented_in_estimator_input": true,
+                "role": "categorical",
+                "status": "present",
+                "unit": null
+              },
+              {
+                "absolute_weight_rank": 2,
+                "clinical_meaning": "Resting systolic blood pressure on admission",
+                "encoded_columns": [
+                  "trestbps__zscore",
+                  "trestbps__missing"
+                ],
+                "estimator_input_columns": [
+                  5,
+                  6
+                ],
+                "feature_name": "trestbps",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'trestbps' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": 0.13090973732725145,
+                "local_direction": "increases_declared_target",
+                "reference_differs_from_instance_value": true,
+                "represented_in_estimator_input": true,
+                "role": "numeric",
+                "status": "present",
+                "unit": "mmHg"
+              },
+              {
+                "absolute_weight_rank": 4,
+                "clinical_meaning": "Resting electrocardiographic classification (codes 0..2)",
+                "encoded_columns": [
+                  "restecg__eq_1",
+                  "restecg__eq_2",
+                  "restecg__missing"
+                ],
+                "estimator_input_columns": [
+                  7,
+                  8,
+                  9
+                ],
+                "feature_name": "restecg",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'restecg' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": -0.04115542762123705,
+                "local_direction": "decreases_declared_target",
+                "reference_differs_from_instance_value": true,
+                "represented_in_estimator_input": true,
+                "role": "categorical",
+                "status": "present",
+                "unit": null
+              }
+            ],
+            "background": {
+              "contains_background_values_in_output": false,
+              "reference_mode": "fixed_background_reference",
+              "sample_count": 24,
+              "synthetic_only": true
+            },
+            "config_sha256": "d52d4d7a2dba4d92380f6bf802c817241715d0b1ea1e3c4d74f85fc904fcaa63",
+            "explained_quantity": "calibrated_log_odds",
+            "explains_calibrated_score_directly": true,
+            "fidelity": {
+              "holdout_rows": 58,
+              "holdout_weighted_r2": 0.9958103340068923,
+              "interpretation": "Local fidelity compares the fitted surrogate's evaluation at the explained instance with an actual model call at the same instance. Weighted R^2/RMSE summarize surrogate fit over the kernel-weighted perturbation sample; the holdout value is computed on a seeded disjoint split. A small instance error alone is NOT evidence of neighborhood fidelity - see the quality assessment for the verdict.",
+              "local_fidelity_abs_error": 0.0035001607179419025,
+              "local_fidelity_error_in_neighborhood_sigma": 0.02009500834568022,
+              "local_fidelity_relative_error": 0.0030596686127946434,
+              "model_prediction_at_instance": 1.1439672594951131,
+              "neighborhood_output_weighted_sd": 0.17418060533895346,
+              "unweighted_r2": 0.9981066980467567,
+              "unweighted_rmse": 0.00777008779356223,
+              "weighted_r2": 0.9981582781910499,
+              "weighted_rmse": 0.00747501056782206
+            },
+            "interpretation_note": "LIME weights are weighted local-linear surrogate coefficients for 'field keeps the explained instance's value' versus 'field takes a reference value from the decoded training background'. Under the default fixed_background_reference scheme that reference is a single fixed decoded-background vector (numeric median, categorical mode) reused by every perturbation row; under the optional sampled_background_marginals scheme each field instead draws its reference from the background marginals per perturbation row. Neither scheme samples a real patient record. LIME weights are NOT Shapley values, do NOT decompose the prediction exactly, are NOT additive in probability units, and may differ from exact SHAP attributions in magnitude and sign. They describe model sensitivity in a local perturbation neighborhood\u2014never causality, never clinical risk, and never clinical advice.",
+            "is_exact": false,
+            "is_local_approximation": true,
+            "limitations": [
+              "LIME is a local weighted-linear approximation of the declared model output; it is not an exact Shapley decomposition and carries no efficiency/local-accuracy guarantee.",
+              "Surrogate weights are conditional on the perturbation sampling scheme, kernel width, ridge penalty and random seed; the reported fidelity and seed-stability diagnostics quantify but never eliminate this sensitivity.",
+              "Reference values are decoded-background summaries: the fixed_background_reference scheme reuses one decoded reference vector per field (numeric background median, modal registered categorical code) for every perturbation row, while the optional sampled_background_marginals scheme draws each field's reference independently from the background marginals per row. Neither preserves inter-feature correlations of the development cohort, and no perturbation row is a reconstructed real patient record (a documented distributional approximation).",
+              "Feature weights describe local model sensitivity only and must never be presented as causal effects, individual CAD risk, or clinical advice.",
+              "RESEARCH_ONLY output: not approved for clinical diagnosis, triage, treatment, or patient self-assessment."
+            ],
+            "linked_probability_quantity": "calibrated_research_score",
+            "linked_probability_value": 0.7584072878055222,
+            "method": "tabular_lime_weighted_ridge_local_surrogate",
+            "method_family": "lime_local_approximation",
+            "model_family": "l2_logistic_regression",
+            "quality": {
+              "criteria": [
+                {
+                  "comparison": ">=",
+                  "dimension": "numerical_validity",
+                  "name": "effective_samples",
+                  "observed": 162.4362812924996,
+                  "outcome": "PASS",
+                  "rationale": "Weighted regression precision collapses when the kernel-weighted effective sample size is small.",
+                  "threshold": 20.0,
+                  "unit": "kish_effective_samples"
+                },
+                {
+                  "comparison": "<=",
+                  "dimension": "numerical_validity",
+                  "name": "design_condition_number",
+                  "observed": 35.265598534379286,
+                  "outcome": "PASS",
+                  "rationale": "Ill-conditioned weighted normal equations destroy coefficient precision regardless of the fitted values.",
+                  "threshold": 1000000.0,
+                  "unit": "condition_number"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "numerical_validity",
+                  "name": "surrogate_weights_finite_and_nonzero",
+                  "observed": 1.0,
+                  "outcome": "PASS",
+                  "rationale": "Non-finite or all-zero coefficient vectors carry no local information (1.0 = every weight finite with a non-zero maximum).",
+                  "threshold": 1.0,
+                  "unit": "boolean"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "numerical_validity",
+                  "name": "instance_target_value_finite",
+                  "observed": 1.0,
+                  "outcome": "PASS",
+                  "rationale": "Both the actual model output and the surrogate value at the instance must be finite to report any fidelity measure.",
+                  "threshold": 1.0,
+                  "unit": "boolean"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "numerical_validity",
+                  "name": "attribution_count_matches_feature_count",
+                  "observed": 5.0,
+                  "outcome": "PASS",
+                  "rationale": "Every registered panel field must receive exactly one attribution or the feature lineage is incomplete.",
+                  "threshold": 5.0,
+                  "unit": "features"
+                },
+                {
+                  "comparison": "<=",
+                  "dimension": "instance_fidelity",
+                  "name": "local_fidelity_relative_error",
+                  "observed": 0.0030596686127946434,
+                  "outcome": "PASS",
+                  "rationale": "Absolute instance-level guard for targets close to zero; the primary instance criterion is the sigma-scaled error below.",
+                  "threshold": 0.25,
+                  "unit": "relative_error_vs_max_1_abs_target"
+                },
+                {
+                  "comparison": "<=",
+                  "dimension": "instance_fidelity",
+                  "name": "local_fidelity_error_in_neighborhood_sigma",
+                  "observed": 0.02009500834568022,
+                  "outcome": "PASS",
+                  "rationale": "Scale-free instance error: the surrogate must reproduce the model's own output at the explained point to within a fraction of the neighborhood's output spread.",
+                  "threshold": 0.25,
+                  "unit": "model_output_sd_units"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "neighborhood_fidelity",
+                  "name": "weighted_r2",
+                  "observed": 0.9981582781910499,
+                  "outcome": "PASS",
+                  "rationale": "Share of the kernel-weighted model-output variance the surrogate explains across the sampled neighborhood.",
+                  "threshold": 0.5,
+                  "unit": "weighted_variance_explained"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "neighborhood_fidelity",
+                  "name": "holdout_weighted_r2",
+                  "observed": 0.9958103340068923,
+                  "outcome": "PASS",
+                  "rationale": "Variance explained on a seeded disjoint split of the same neighborhood; prevents in-sample-only acceptance.",
+                  "threshold": 0.5,
+                  "unit": "heldout_weighted_variance_explained"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "stability",
+                  "name": "stability_assessed",
+                  "observed": 3.0,
+                  "outcome": "PASS",
+                  "rationale": "A verdict without repeated perturbation draws cannot distinguish a reproducible weight from sampling noise.",
+                  "threshold": 3.0,
+                  "unit": "registered_seeds"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "stability",
+                  "name": "stability_min_pairwise_spearman",
+                  "observed": 0.9999999999999999,
+                  "outcome": "PASS",
+                  "rationale": "Rank agreement of the full weight vector across seeds.",
+                  "threshold": 0.5,
+                  "unit": "spearman_rho"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "stability",
+                  "name": "stability_sign_agreement_fraction",
+                  "observed": 0.9333333333333333,
+                  "outcome": "PASS",
+                  "rationale": "Fraction of seed-pairs whose coefficient signs agree; near-zero weights may legitimately flip sign, hence < 1.",
+                  "threshold": 0.75,
+                  "unit": "fraction"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "stability",
+                  "name": "stability_top_k_overlap_fraction",
+                  "observed": 1.0,
+                  "outcome": "PASS",
+                  "rationale": "Agreement of the highest-|weight| fields across seeds, the part of the explanation a reader actually ranks.",
+                  "threshold": 0.6,
+                  "unit": "fraction"
+                }
+              ],
+              "dimensions": {
+                "instance_fidelity": "PASS",
+                "neighborhood_fidelity": "PASS",
+                "numerical_validity": "PASS",
+                "stability": "PASS"
+              },
+              "failed_criteria": [],
+              "interpretation_guard": "This explanation passed every registered numerical-validity, local-fidelity and seed-stability criterion. It remains a local weighted-linear approximation: not an exact Shapley decomposition, not additive in probability units, and never causal or clinical advice.",
+              "is_diagnostic_only": false,
+              "is_reliable_for_interpretation": true,
+              "policy": {
+                "max_design_condition_number": 1000000.0,
+                "max_local_fidelity_error_in_neighborhood_sigma": 0.25,
+                "max_local_fidelity_relative_error": 0.25,
+                "min_effective_samples": 20.0,
+                "min_holdout_weighted_r2": 0.5,
+                "min_pairwise_spearman": 0.5,
+                "min_stability_seeds": 3,
+                "min_weighted_r2": 0.5,
+                "policy_version": "cardioassist.ai.lime_quality_policy/v1",
+                "require_holdout_diagnostic": true,
+                "require_stability_assessment": true,
+                "sign_agreement_fraction": 0.75,
+                "top_k": 3,
+                "top_k_overlap_fraction": 0.6
+              },
+              "policy_sha256": "910e574f0a5a2abc68d0c5ccd37ff011d088ad787ba55bc2e00a4894d41f6e61",
+              "recommended_action": "Report the weights as a local approximation alongside the exact SHAP explanation; never equate the two numerically or causally.",
+              "schema_version": "cardioassist.ai.lime_quality/v1",
+              "stability_seeds": [
+                20261026,
+                20261027,
+                20261028
+              ],
+              "stability_summary": {
+                "assessment": "STABLE_WITHIN_REGISTERED_TOLERANCE",
+                "max_abs_weight_deviation_from_reference_seed": 0.0042986872625175865,
+                "max_feature_weight_std": 0.0017590454710125904,
+                "max_local_prediction_abs_deviation": 0.0014577959309154398,
+                "mean_pairwise_spearman": 0.9999999999999999,
+                "min_pairwise_spearman": 0.9999999999999999,
+                "per_seed_fidelity_statuses": [
+                  "UNVERIFIED_STABILITY",
+                  "UNVERIFIED_STABILITY",
+                  "UNVERIFIED_STABILITY"
+                ],
+                "seeds": [
+                  20261026,
+                  20261027,
+                  20261028
+                ],
+                "sign_agreement_fraction": 0.9333333333333333,
+                "top_k": 3,
+                "top_k_overlap_fraction": 1.0
+              },
+              "stable_explanation": true,
+              "status": "ACCEPTABLE_LOCAL_APPROXIMATION",
+              "unassessed_criteria": [],
+              "warnings": [
+                "Accepted as a local approximation only: weights remain conditional on the perturbation distribution, kernel width, ridge penalty, reference scheme and seed, and are not Shapley values."
+              ]
+            },
+            "reference": {
+              "note": "Fixed-background references are decoded training-background marginals (numeric median / modal registered code); sampled marginal references are drawn per field and perturbation row. Neither the values nor any training statistic is emitted.",
+              "reference_values_emitted": false,
+              "scheme": "fixed_background_reference"
+            },
+            "sampling": {
+              "kernel": "exponential_normalized_hamming",
+              "kernel_width": 0.75,
+              "mask_on_probability": 0.5,
+              "num_perturbations": 192,
+              "scheme": "bernoulli_0_5_masks_plus_forced_instance_row",
+              "seed": 20261026
+            },
+            "scale": "calibrated_log_odds",
+            "schema_version": "cardioassist.ai.lime_explanation/v1",
+            "score_alignment_note": "Target is calibrated_log_odds: the local surrogate approximates logit(calibrated_research_score). LIME weights are local surrogate coefficients on that log-odds scale; they are NOT additive in probability units and NOT Shapley values.",
+            "score_bounds": null,
+            "surrogate": {
+              "design": "binary_instance_match_mask_with_intercept",
+              "design_condition_number": 35.265598534379286,
+              "estimator": "ridge_regularized_weighted_least_squares",
+              "intercept": 0.8824505805985932,
+              "n_effective_samples": 162.4362812924996,
+              "ridge_alpha": 1.0,
+              "surrogate_prediction_at_instance": 1.1404670987771712
+            },
+            "target_specification": {
+              "calibration_input_link": "exact_raw_log_odds",
+              "comparable_with_family_shap_target": true,
+              "explained_quantity": "calibrated_log_odds",
+              "explains_calibrated_score_directly": true,
+              "family_shap_target": {
+                "explained_quantity": "calibrated_log_odds",
+                "scale": "calibrated_log_odds"
+              },
+              "linked_probability_quantity": "calibrated_research_score",
+              "model_family": "l2_logistic_regression",
+              "note": "Target is calibrated_log_odds = intercept + slope * link(raw model output), i.e. logit(calibrated_research_score). The local surrogate approximates that calibrated log-odds output; its weights are NOT additive in probability units.",
+              "requested_target": "auto",
+              "resolved_target": "calibrated_log_odds",
+              "scale": "calibrated_log_odds",
+              "score_bounds": null,
+              "uses_calibrator": true
+            }
+          },
+          "is_exact_shapley": false,
+          "is_reliable_for_interpretation": true,
+          "provided": true,
+          "quality_status": "ACCEPTABLE_LOCAL_APPROXIMATION",
+          "reason": null,
+          "scale": "calibrated_log_odds"
+        },
+        "missing_fields_with_reason": [],
+        "present_fields": [
+          "age",
+          "sex",
+          "cp",
+          "trestbps",
+          "restecg"
+        ],
+        "record_ref": "demo00",
+        "score": {
+          "calibrated_log_odds": 1.1439672594951131,
+          "calibrated_research_score": 0.7584072878055222,
+          "calibration_reason": null,
+          "clinical_probability_claim": false,
+          "exploratory_above_threshold_flag": true,
+          "exploratory_threshold": 0.5,
+          "exploratory_threshold_clinically_validated": false,
+          "raw_model_log_odds": 1.144313724957358,
+          "raw_model_score": 0.7584707634896621,
+          "scale_declaration": "calibrated_research_score = expit(intercept + slope * raw_log_odds) on the calibrated log-odds scale fitted on development out-of-fold predictions; raw_model_score is the uncalibrated model probability.",
+          "score_interpretation": "RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK",
+          "score_kind": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC"
+        },
+        "shap_explanation": {
+          "additive_on_calibrated_probability": false,
+          "attribution_feature_names": [
+            "age",
+            "sex",
+            "cp",
+            "trestbps",
+            "restecg"
+          ],
+          "background": {
+            "contains_patient_records": false,
+            "sample_count": 24,
+            "synthetic_only": true
+          },
+          "explained_quantity": "calibrated_log_odds",
+          "max_abs_discrepancy": 2.220446049250313e-16,
+          "method": "linear_shap_interventional",
+          "provided": true,
+          "reason": null,
+          "scale": "calibrated_log_odds",
+          "sum_check_passed": true
+        },
+        "status": "SYNTHETIC_RESULT",
+        "unavailable_reason": null
+      },
+      {
+        "abstention_reason": null,
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "fold_dispersion": {
+          "action_threshold_validated": false,
+          "each_fold_calibrated_by_own_training_fold_calibrator": true,
+          "fold_calibrated_score_dispersion": {
+            "iqr": 0.03725105739248713,
+            "max": 0.8245305858511024,
+            "mean": 0.7958709736317835,
+            "min": 0.7500284710661281,
+            "range": 0.07450211478497426,
+            "std": 0.03275240517732029
+          },
+          "fold_ensemble_count": 3,
+          "fold_model_families": [
+            "constrained_random_forest",
+            "constrained_random_forest",
+            "constrained_random_forest"
+          ],
+          "fold_raw_score_dispersion": {
+            "iqr": 0.03751432595373383,
+            "max": 0.8256950502528939,
+            "mean": 0.7856741611043923,
+            "min": 0.7506663983454265,
+            "range": 0.07502865190746744,
+            "std": 0.030834755595064847
+          },
+          "homogeneous_model_family": true,
+          "input_completeness": {
+            "missing_optional_features": [],
+            "present_feature_count": 5,
+            "stage_completeness_fraction": 1.0,
+            "total_panel_features": 5
+          },
+          "limitations": [
+            "Descriptive dispersion across outer-fold models trained on overlapping CV partitions; NOT a validated epistemic uncertainty estimate, posterior credible interval, or patient-specific coverage guarantee.",
+            "Calibrated against a development cohort with 71.9% CAD prevalence; scores do NOT transfer without recalibration to lower-prevalence outpatient populations.",
+            "No clinical action threshold or uncertainty cutoff has been validated (Gate P-4 pending)."
+          ],
+          "uncertainty_semantics": "DESCRIPTIVE_OUTER_FOLD_DISPERSION_NOT_VALIDATED_UNCERTAINTY",
+          "validated_epistemic_uncertainty": false,
+          "validated_patient_specific_interval": false
+        },
+        "lime_explanation": {
+          "comparable_with_shap_scale": true,
+          "explained_quantity": "calibrated_log_odds",
+          "explanation": {
+            "additive_decomposition_claim": false,
+            "attributions": [
+              {
+                "absolute_weight_rank": 1,
+                "clinical_meaning": "Age at pre-angiography clinical evaluation",
+                "encoded_columns": [
+                  "age__zscore"
+                ],
+                "estimator_input_columns": [
+                  0
+                ],
+                "feature_name": "age",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'age' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": 0.45669138189541886,
+                "local_direction": "increases_declared_target",
+                "reference_differs_from_instance_value": true,
+                "represented_in_estimator_input": true,
+                "role": "numeric",
+                "status": "present",
+                "unit": "years"
+              },
+              {
+                "absolute_weight_rank": 4,
+                "clinical_meaning": "Biological sex (UCI-45 code: 0=female, 1=male)",
+                "encoded_columns": [
+                  "sex__eq_1"
+                ],
+                "estimator_input_columns": [
+                  1
+                ],
+                "feature_name": "sex",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'sex' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": 0.0005639223462104582,
+                "local_direction": "increases_declared_target",
+                "reference_differs_from_instance_value": false,
+                "represented_in_estimator_input": true,
+                "role": "categorical",
+                "status": "present",
+                "unit": null
+              },
+              {
+                "absolute_weight_rank": 5,
+                "clinical_meaning": "Chest-pain category (UCI-45 nominal codes 1..4)",
+                "encoded_columns": [
+                  "cp__eq_2",
+                  "cp__eq_3",
+                  "cp__eq_4"
+                ],
+                "estimator_input_columns": [
+                  2,
+                  3,
+                  4
+                ],
+                "feature_name": "cp",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'cp' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": -0.000422826978987494,
+                "local_direction": "decreases_declared_target",
+                "reference_differs_from_instance_value": false,
+                "represented_in_estimator_input": true,
+                "role": "categorical",
+                "status": "present",
+                "unit": null
+              },
+              {
+                "absolute_weight_rank": 2,
+                "clinical_meaning": "Resting systolic blood pressure on admission",
+                "encoded_columns": [
+                  "trestbps__zscore",
+                  "trestbps__missing"
+                ],
+                "estimator_input_columns": [
+                  5,
+                  6
+                ],
+                "feature_name": "trestbps",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'trestbps' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": 0.08664196371023329,
+                "local_direction": "increases_declared_target",
+                "reference_differs_from_instance_value": true,
+                "represented_in_estimator_input": true,
+                "role": "numeric",
+                "status": "present",
+                "unit": "mmHg"
+              },
+              {
+                "absolute_weight_rank": 3,
+                "clinical_meaning": "Resting electrocardiographic classification (codes 0..2)",
+                "encoded_columns": [
+                  "restecg__eq_1",
+                  "restecg__eq_2",
+                  "restecg__missing"
+                ],
+                "estimator_input_columns": [
+                  7,
+                  8,
+                  9
+                ],
+                "feature_name": "restecg",
+                "interpretation": "Weighted local-linear surrogate coefficient on 'restecg' switching from a decoded-background reference value to the explained instance's value; NOT a Shapley value and NOT causal or clinical advice.",
+                "lime_weight": -0.04000370783941122,
+                "local_direction": "decreases_declared_target",
+                "reference_differs_from_instance_value": true,
+                "represented_in_estimator_input": true,
+                "role": "categorical",
+                "status": "present",
+                "unit": null
+              }
+            ],
+            "background": {
+              "contains_background_values_in_output": false,
+              "reference_mode": "fixed_background_reference",
+              "sample_count": 24,
+              "synthetic_only": true
+            },
+            "config_sha256": "d52d4d7a2dba4d92380f6bf802c817241715d0b1ea1e3c4d74f85fc904fcaa63",
+            "explained_quantity": "calibrated_log_odds",
+            "explains_calibrated_score_directly": true,
+            "fidelity": {
+              "holdout_rows": 58,
+              "holdout_weighted_r2": 0.9956918843490787,
+              "interpretation": "Local fidelity compares the fitted surrogate's evaluation at the explained instance with an actual model call at the same instance. Weighted R^2/RMSE summarize surrogate fit over the kernel-weighted perturbation sample; the holdout value is computed on a seeded disjoint split. A small instance error alone is NOT evidence of neighborhood fidelity - see the quality assessment for the verdict.",
+              "local_fidelity_abs_error": 0.007010051728571387,
+              "local_fidelity_error_in_neighborhood_sigma": 0.029117048120194916,
+              "local_fidelity_relative_error": 0.005009828246145478,
+              "model_prediction_at_instance": 1.3992598915870749,
+              "neighborhood_output_weighted_sd": 0.24075420350421362,
+              "unweighted_r2": 0.9979235360567154,
+              "unweighted_rmse": 0.011327886491838229,
+              "weighted_r2": 0.998020840087507,
+              "weighted_rmse": 0.010710612850579573
+            },
+            "interpretation_note": "LIME weights are weighted local-linear surrogate coefficients for 'field keeps the explained instance's value' versus 'field takes a reference value from the decoded training background'. Under the default fixed_background_reference scheme that reference is a single fixed decoded-background vector (numeric median, categorical mode) reused by every perturbation row; under the optional sampled_background_marginals scheme each field instead draws its reference from the background marginals per perturbation row. Neither scheme samples a real patient record. LIME weights are NOT Shapley values, do NOT decompose the prediction exactly, are NOT additive in probability units, and may differ from exact SHAP attributions in magnitude and sign. They describe model sensitivity in a local perturbation neighborhood\u2014never causality, never clinical risk, and never clinical advice.",
+            "is_exact": false,
+            "is_local_approximation": true,
+            "limitations": [
+              "LIME is a local weighted-linear approximation of the declared model output; it is not an exact Shapley decomposition and carries no efficiency/local-accuracy guarantee.",
+              "Surrogate weights are conditional on the perturbation sampling scheme, kernel width, ridge penalty and random seed; the reported fidelity and seed-stability diagnostics quantify but never eliminate this sensitivity.",
+              "Reference values are decoded-background summaries: the fixed_background_reference scheme reuses one decoded reference vector per field (numeric background median, modal registered categorical code) for every perturbation row, while the optional sampled_background_marginals scheme draws each field's reference independently from the background marginals per row. Neither preserves inter-feature correlations of the development cohort, and no perturbation row is a reconstructed real patient record (a documented distributional approximation).",
+              "Feature weights describe local model sensitivity only and must never be presented as causal effects, individual CAD risk, or clinical advice.",
+              "RESEARCH_ONLY output: not approved for clinical diagnosis, triage, treatment, or patient self-assessment."
+            ],
+            "linked_probability_quantity": "calibrated_research_score",
+            "linked_probability_value": 0.8020664182642083,
+            "method": "tabular_lime_weighted_ridge_local_surrogate",
+            "method_family": "lime_local_approximation",
+            "model_family": "l2_logistic_regression",
+            "quality": {
+              "criteria": [
+                {
+                  "comparison": ">=",
+                  "dimension": "numerical_validity",
+                  "name": "effective_samples",
+                  "observed": 162.4362812924996,
+                  "outcome": "PASS",
+                  "rationale": "Weighted regression precision collapses when the kernel-weighted effective sample size is small.",
+                  "threshold": 20.0,
+                  "unit": "kish_effective_samples"
+                },
+                {
+                  "comparison": "<=",
+                  "dimension": "numerical_validity",
+                  "name": "design_condition_number",
+                  "observed": 35.265598534379286,
+                  "outcome": "PASS",
+                  "rationale": "Ill-conditioned weighted normal equations destroy coefficient precision regardless of the fitted values.",
+                  "threshold": 1000000.0,
+                  "unit": "condition_number"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "numerical_validity",
+                  "name": "surrogate_weights_finite_and_nonzero",
+                  "observed": 1.0,
+                  "outcome": "PASS",
+                  "rationale": "Non-finite or all-zero coefficient vectors carry no local information (1.0 = every weight finite with a non-zero maximum).",
+                  "threshold": 1.0,
+                  "unit": "boolean"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "numerical_validity",
+                  "name": "instance_target_value_finite",
+                  "observed": 1.0,
+                  "outcome": "PASS",
+                  "rationale": "Both the actual model output and the surrogate value at the instance must be finite to report any fidelity measure.",
+                  "threshold": 1.0,
+                  "unit": "boolean"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "numerical_validity",
+                  "name": "attribution_count_matches_feature_count",
+                  "observed": 5.0,
+                  "outcome": "PASS",
+                  "rationale": "Every registered panel field must receive exactly one attribution or the feature lineage is incomplete.",
+                  "threshold": 5.0,
+                  "unit": "features"
+                },
+                {
+                  "comparison": "<=",
+                  "dimension": "instance_fidelity",
+                  "name": "local_fidelity_relative_error",
+                  "observed": 0.005009828246145478,
+                  "outcome": "PASS",
+                  "rationale": "Absolute instance-level guard for targets close to zero; the primary instance criterion is the sigma-scaled error below.",
+                  "threshold": 0.25,
+                  "unit": "relative_error_vs_max_1_abs_target"
+                },
+                {
+                  "comparison": "<=",
+                  "dimension": "instance_fidelity",
+                  "name": "local_fidelity_error_in_neighborhood_sigma",
+                  "observed": 0.029117048120194916,
+                  "outcome": "PASS",
+                  "rationale": "Scale-free instance error: the surrogate must reproduce the model's own output at the explained point to within a fraction of the neighborhood's output spread.",
+                  "threshold": 0.25,
+                  "unit": "model_output_sd_units"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "neighborhood_fidelity",
+                  "name": "weighted_r2",
+                  "observed": 0.998020840087507,
+                  "outcome": "PASS",
+                  "rationale": "Share of the kernel-weighted model-output variance the surrogate explains across the sampled neighborhood.",
+                  "threshold": 0.5,
+                  "unit": "weighted_variance_explained"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "neighborhood_fidelity",
+                  "name": "holdout_weighted_r2",
+                  "observed": 0.9956918843490787,
+                  "outcome": "PASS",
+                  "rationale": "Variance explained on a seeded disjoint split of the same neighborhood; prevents in-sample-only acceptance.",
+                  "threshold": 0.5,
+                  "unit": "heldout_weighted_variance_explained"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "stability",
+                  "name": "stability_assessed",
+                  "observed": 3.0,
+                  "outcome": "PASS",
+                  "rationale": "A verdict without repeated perturbation draws cannot distinguish a reproducible weight from sampling noise.",
+                  "threshold": 3.0,
+                  "unit": "registered_seeds"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "stability",
+                  "name": "stability_min_pairwise_spearman",
+                  "observed": 0.8999999999999998,
+                  "outcome": "PASS",
+                  "rationale": "Rank agreement of the full weight vector across seeds.",
+                  "threshold": 0.5,
+                  "unit": "spearman_rho"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "stability",
+                  "name": "stability_sign_agreement_fraction",
+                  "observed": 0.8,
+                  "outcome": "PASS",
+                  "rationale": "Fraction of seed-pairs whose coefficient signs agree; near-zero weights may legitimately flip sign, hence < 1.",
+                  "threshold": 0.75,
+                  "unit": "fraction"
+                },
+                {
+                  "comparison": ">=",
+                  "dimension": "stability",
+                  "name": "stability_top_k_overlap_fraction",
+                  "observed": 1.0,
+                  "outcome": "PASS",
+                  "rationale": "Agreement of the highest-|weight| fields across seeds, the part of the explanation a reader actually ranks.",
+                  "threshold": 0.6,
+                  "unit": "fraction"
+                }
+              ],
+              "dimensions": {
+                "instance_fidelity": "PASS",
+                "neighborhood_fidelity": "PASS",
+                "numerical_validity": "PASS",
+                "stability": "PASS"
+              },
+              "failed_criteria": [],
+              "interpretation_guard": "This explanation passed every registered numerical-validity, local-fidelity and seed-stability criterion. It remains a local weighted-linear approximation: not an exact Shapley decomposition, not additive in probability units, and never causal or clinical advice.",
+              "is_diagnostic_only": false,
+              "is_reliable_for_interpretation": true,
+              "policy": {
+                "max_design_condition_number": 1000000.0,
+                "max_local_fidelity_error_in_neighborhood_sigma": 0.25,
+                "max_local_fidelity_relative_error": 0.25,
+                "min_effective_samples": 20.0,
+                "min_holdout_weighted_r2": 0.5,
+                "min_pairwise_spearman": 0.5,
+                "min_stability_seeds": 3,
+                "min_weighted_r2": 0.5,
+                "policy_version": "cardioassist.ai.lime_quality_policy/v1",
+                "require_holdout_diagnostic": true,
+                "require_stability_assessment": true,
+                "sign_agreement_fraction": 0.75,
+                "top_k": 3,
+                "top_k_overlap_fraction": 0.6
+              },
+              "policy_sha256": "910e574f0a5a2abc68d0c5ccd37ff011d088ad787ba55bc2e00a4894d41f6e61",
+              "recommended_action": "Report the weights as a local approximation alongside the exact SHAP explanation; never equate the two numerically or causally.",
+              "schema_version": "cardioassist.ai.lime_quality/v1",
+              "stability_seeds": [
+                20261026,
+                20261027,
+                20261028
+              ],
+              "stability_summary": {
+                "assessment": "STABLE_WITHIN_REGISTERED_TOLERANCE",
+                "max_abs_weight_deviation_from_reference_seed": 0.006256521001956131,
+                "max_feature_weight_std": 0.002569807035303749,
+                "max_local_prediction_abs_deviation": 0.003924562589995517,
+                "mean_pairwise_spearman": 0.9333333333333331,
+                "min_pairwise_spearman": 0.8999999999999998,
+                "per_seed_fidelity_statuses": [
+                  "UNVERIFIED_STABILITY",
+                  "UNVERIFIED_STABILITY",
+                  "UNVERIFIED_STABILITY"
+                ],
+                "seeds": [
+                  20261026,
+                  20261027,
+                  20261028
+                ],
+                "sign_agreement_fraction": 0.8,
+                "top_k": 3,
+                "top_k_overlap_fraction": 1.0
+              },
+              "stable_explanation": true,
+              "status": "ACCEPTABLE_LOCAL_APPROXIMATION",
+              "unassessed_criteria": [],
+              "warnings": [
+                "Accepted as a local approximation only: weights remain conditional on the perturbation distribution, kernel width, ridge penalty, reference scheme and seed, and are not Shapley values."
+              ]
+            },
+            "reference": {
+              "note": "Fixed-background references are decoded training-background marginals (numeric median / modal registered code); sampled marginal references are drawn per field and perturbation row. Neither the values nor any training statistic is emitted.",
+              "reference_values_emitted": false,
+              "scheme": "fixed_background_reference"
+            },
+            "sampling": {
+              "kernel": "exponential_normalized_hamming",
+              "kernel_width": 0.75,
+              "mask_on_probability": 0.5,
+              "num_perturbations": 192,
+              "scheme": "bernoulli_0_5_masks_plus_forced_instance_row",
+              "seed": 20261026
+            },
+            "scale": "calibrated_log_odds",
+            "schema_version": "cardioassist.ai.lime_explanation/v1",
+            "score_alignment_note": "Target is calibrated_log_odds: the local surrogate approximates logit(calibrated_research_score). LIME weights are local surrogate coefficients on that log-odds scale; they are NOT additive in probability units and NOT Shapley values.",
+            "score_bounds": null,
+            "surrogate": {
+              "design": "binary_instance_match_mask_with_intercept",
+              "design_condition_number": 35.265598534379286,
+              "estimator": "ridge_regularized_weighted_least_squares",
+              "intercept": 0.8887791067250396,
+              "n_effective_samples": 162.4362812924996,
+              "ridge_alpha": 1.0,
+              "surrogate_prediction_at_instance": 1.3922498398585035
+            },
+            "target_specification": {
+              "calibration_input_link": "exact_raw_log_odds",
+              "comparable_with_family_shap_target": true,
+              "explained_quantity": "calibrated_log_odds",
+              "explains_calibrated_score_directly": true,
+              "family_shap_target": {
+                "explained_quantity": "calibrated_log_odds",
+                "scale": "calibrated_log_odds"
+              },
+              "linked_probability_quantity": "calibrated_research_score",
+              "model_family": "l2_logistic_regression",
+              "note": "Target is calibrated_log_odds = intercept + slope * link(raw model output), i.e. logit(calibrated_research_score). The local surrogate approximates that calibrated log-odds output; its weights are NOT additive in probability units.",
+              "requested_target": "auto",
+              "resolved_target": "calibrated_log_odds",
+              "scale": "calibrated_log_odds",
+              "score_bounds": null,
+              "uses_calibrator": true
+            }
+          },
+          "is_exact_shapley": false,
+          "is_reliable_for_interpretation": true,
+          "provided": true,
+          "quality_status": "ACCEPTABLE_LOCAL_APPROXIMATION",
+          "reason": null,
+          "scale": "calibrated_log_odds"
+        },
+        "missing_fields_with_reason": [],
+        "present_fields": [
+          "age",
+          "sex",
+          "cp",
+          "trestbps",
+          "restecg"
+        ],
+        "record_ref": "demo01",
+        "score": {
+          "calibrated_log_odds": 1.3992598915870749,
+          "calibrated_research_score": 0.8020664182642083,
+          "calibration_reason": null,
+          "clinical_probability_claim": false,
+          "exploratory_above_threshold_flag": true,
+          "exploratory_threshold": 0.5,
+          "exploratory_threshold_clinically_validated": false,
+          "raw_model_log_odds": 1.397482594595834,
+          "raw_model_score": 0.8017841104322359,
+          "scale_declaration": "calibrated_research_score = expit(intercept + slope * raw_log_odds) on the calibrated log-odds scale fitted on development out-of-fold predictions; raw_model_score is the uncalibrated model probability.",
+          "score_interpretation": "RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK",
+          "score_kind": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC"
+        },
+        "shap_explanation": {
+          "additive_on_calibrated_probability": false,
+          "attribution_feature_names": [
+            "age",
+            "sex",
+            "cp",
+            "trestbps",
+            "restecg"
+          ],
+          "background": {
+            "contains_patient_records": false,
+            "sample_count": 24,
+            "synthetic_only": true
+          },
+          "explained_quantity": "calibrated_log_odds",
+          "max_abs_discrepancy": 0.0,
+          "method": "linear_shap_interventional",
+          "provided": true,
+          "reason": null,
+          "scale": "calibrated_log_odds",
+          "sum_check_passed": true
+        },
+        "status": "SYNTHETIC_RESULT",
+        "unavailable_reason": null
+      }
+    ],
+    "registry": {
+      "registry_digest_sha256": "e423882d21cf74a42a8270d5d3e929a1b0f346a7ff4ef69bbf8c0e3dc5b2fec7",
+      "registry_entry_sha256": "36de81e81963f12e673ea4031c995aeead578eb29042782b2bca5f221585a3b7"
+    },
+    "request_summary": {
+      "dataset_id": "DA-A2",
+      "explainability": {
+        "include_lime": true,
+        "include_shap": true,
+        "lime_num_perturbations": 192,
+        "lime_reference_scheme": null,
+        "lime_require_acceptable_quality": false,
+        "lime_seed": 20261026,
+        "options_type_accepted": true
+      },
+      "exploratory_threshold": 0.5,
+      "model_id": "synth_ai7_da_a2_resting_v1",
+      "model_source": {
+        "artifact_kind": "local_verified_synthetic_bundle",
+        "bundle_dir_name": "synthetic_research_bundle_da_a2_resting_v1",
+        "remote_or_url_source_supported": false,
+        "signing_key_provided": true,
+        "source_type_accepted": true
+      },
+      "model_version": "0.1.0",
+      "operation": "synthetic_prediction",
+      "panel_contract_sha256": "c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8",
+      "panel_id": "da_a2_resting_v1",
+      "panel_version": "1.0.0",
+      "record_count": 2,
+      "record_refs": [
+        "demo00",
+        "demo01"
+      ],
+      "record_refs_redacted": 0,
+      "redacted_fields": [],
+      "request_schema_version": "cardioassist.ai.research_inference_request/v1",
+      "request_type_accepted": true,
+      "route_id": "da_a2_resting_v1",
+      "route_version": "1.0.0",
+      "summary_redaction_basis": "validated_result_correlation",
+      "unvalidated_values_redacted": false
+    },
+    "response_schema_version": "cardioassist.ai.research_inference_response/v1",
+    "route_id": "da_a2_resting_v1",
+    "route_version": "1.0.0",
+    "source_family": "UCI-45",
+    "status": "SYNTHETIC_RESULT",
+    "target_id": "t1.uci45.angiographic_cad_gt50.v1"
+  },
+  "model_card": {
+    "calibration_absence_reason": null,
+    "capabilities": {
+      "calibration": true,
+      "lime": true,
+      "shap": true
+    },
+    "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+    "example_explanations": {
+      "interpretation": "SHAP additivity is on its declared scale, not calibrated probability. LIME is a local surrogate, not exact Shapley attribution; neither is causal.",
+      "lime_absence_reason": null,
+      "lime_quality": "ACCEPTABLE_LOCAL_APPROXIMATION",
+      "lime_scale": "calibrated_log_odds",
+      "shap_scale": "calibrated_log_odds",
+      "shap_sum_check_passed": true
+    },
+    "governance": {
+      "approved_for_serving": false,
+      "clinical_use_authorized": false,
+      "gate_pt_p3": "CLOSED",
+      "http_surface_added": false,
+      "provider_selection_changed": false,
+      "real_data_execution_authorized": false,
+      "requires_clinician_and_gate_pt_validation": true,
+      "serving_eligibility": "RESEARCH_ONLY"
+    },
+    "intended_use": "Offline software test on fabricated development fixtures; not a diagnostic test or a future-event risk estimate.",
+    "limitations": [
+      "Synthetic results are software evidence only: not CAD performance, not clinical validity, and not an external-validation result.",
+      "The exploratory 0.5 cutoff is not a clinically validated decision threshold; Gate P-4 clinician wording remains pending.",
+      "Target construct is cross-sectional angiographic CAD presence in a referral cohort, never a 30-day or future cardiovascular event horizon.",
+      "Five resting fields only: age, sex, cp, trestbps, restecg; no laboratory biomarkers.",
+      "1980s single-center referral care (Cleveland); transport to other eras or sites is unverified.",
+      "The accepted real D-047 bundle is frozen at revision A3 and is never loaded, retrained or inferred through this synthetic-only layer."
+    ],
+    "model": {
+      "bundle_schema_version": "cardioassist.ai.research_bundle/v1",
+      "entry_sha256": "36de81e81963f12e673ea4031c995aeead578eb29042782b2bca5f221585a3b7",
+      "family": "l2_logistic_regression",
+      "id": "synth_ai7_da_a2_resting_v1",
+      "model_joblib_sha256": "dd5393abdb02e3957c1068aa624dacafc114c49658af18d7239c6eaed626fd08",
+      "selection": "Explicit dataset/route/panel/version binding; nested CV on this synthetic cohort only. No cross-route ranking or fallback.",
+      "version": "0.1.0"
+    },
+    "panel": {
+      "contract_sha256": "c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8",
+      "dataset_id": "DA-A2",
+      "fields": [
+        {
+          "categorical_codes": [],
+          "clinical_meaning": "Age at pre-angiography clinical evaluation",
+          "name": "age",
+          "order": 0,
+          "plausible_range": null,
+          "required": true,
+          "role": "numeric",
+          "stage": "history_only",
+          "strictly_positive": true,
+          "text_vocabulary": null,
+          "unit": "years"
+        },
+        {
+          "categorical_codes": [
+            0,
+            1
+          ],
+          "clinical_meaning": "Biological sex (UCI-45 code: 0=female, 1=male)",
+          "name": "sex",
+          "order": 1,
+          "plausible_range": null,
+          "required": true,
+          "role": "categorical",
+          "stage": "history_only",
+          "strictly_positive": false,
+          "text_vocabulary": null,
+          "unit": null
+        },
+        {
+          "categorical_codes": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "clinical_meaning": "Chest-pain category (UCI-45 nominal codes 1..4)",
+          "name": "cp",
+          "order": 2,
+          "plausible_range": null,
+          "required": true,
+          "role": "categorical",
+          "stage": "history_only",
+          "strictly_positive": false,
+          "text_vocabulary": null,
+          "unit": null
+        },
+        {
+          "categorical_codes": [],
+          "clinical_meaning": "Resting systolic blood pressure on admission",
+          "name": "trestbps",
+          "order": 3,
+          "plausible_range": null,
+          "required": false,
+          "role": "numeric",
+          "stage": "resting_assessment",
+          "strictly_positive": true,
+          "text_vocabulary": null,
+          "unit": "mmHg"
+        },
+        {
+          "categorical_codes": [
+            0,
+            1,
+            2
+          ],
+          "clinical_meaning": "Resting electrocardiographic classification (codes 0..2)",
+          "name": "restecg",
+          "order": 4,
+          "plausible_range": null,
+          "required": false,
+          "role": "categorical",
+          "stage": "resting_assessment",
+          "strictly_positive": false,
+          "text_vocabulary": null,
+          "unit": null
+        }
+      ],
+      "governance_status": "RESEARCH_PROPOSED_GATE_PT_CLOSED",
+      "panel_id": "da_a2_resting_v1",
+      "panel_version": "1.0.0",
+      "real_data_execution_authorized": false,
+      "source_family": "UCI-45",
+      "stage": "resting_assessment",
+      "target_definition": "Cross-sectional angiographic CAD presence (num in {1,2,3,4} => >50% luminal diameter narrowing in >=1 major vessel vs 0 => <50%).",
+      "target_id": "t1.uci45.angiographic_cad_gt50.v1"
+    },
+    "protocol": {
+      "bundle_protocol_md_sha256": "72602d90e52031fcb532631091d6b35e30cce97d23f4b2b4e189eeed9708df89",
+      "id": "CAI-AI7-SYNTHETIC-DA_A2_RESTING_V1-V1",
+      "training_config": {
+        "auc_simplicity_tolerance": 0.005,
+        "bootstrap_resamples": 40,
+        "execution_profile": "AI1_GENERIC_V1",
+        "exploratory_threshold": 0.5,
+        "inner_folds": 2,
+        "lr_c_grid": [
+          0.1,
+          1.0
+        ],
+        "model_version": "0.1.0",
+        "outer_folds": 3,
+        "protocol_id": "CAI-AI7-SYNTHETIC-DA_A2_RESTING_V1-V1",
+        "repeat_seeds": [
+          20261025
+        ],
+        "rf_max_depths": [
+          2,
+          3
+        ],
+        "rf_min_samples_leaf": [
+          5
+        ],
+        "rf_n_estimators": 20,
+        "shap_max_background_samples": 24,
+        "shuffle_control_seeds": [
+          20261101
+        ],
+        "shuffle_max_allowed_auroc": 0.65
+      },
+      "training_config_sha256": "96fa18fe1ea967f63f5bfcc13161f5b829c2a4a88af2d0d8aa9dc3d47dc50631"
+    },
+    "route": {
+      "definition": "Cross-sectional angiographic CAD presence (num in {1,2,3,4} => >50% luminal diameter narrowing in >=1 major vessel vs 0 => <50%). UCI-412 uses a >=50% boundary; the two targets are not equivalent.",
+      "id": "da_a2_resting_v1",
+      "sha256": "5640215ba89a413d0940cc531d4ae00d390e766f0a665d173c0483a6fc7f5a75",
+      "target": "t1.uci45.angiographic_cad_gt50.v1",
+      "version": "1.0.0"
+    },
+    "schema_version": "cardioassist.ai.synthetic_model_card/v1",
+    "score_interpretation": "calibrated_research_score = expit(intercept + slope * raw_log_odds) on the calibrated log-odds scale fitted on development out-of-fold predictions; raw_model_score is the uncalibrated model probability.",
+    "source": {
+      "cohort_id": "synthetic:DA-A2",
+      "contract_reference": "UCI Heart Disease / processed Cleveland (DOI 10.24432/C52P4X)",
+      "dataset_id": "DA-A2",
+      "evaluation_basis": "First two rows of the generated development cohort, NOT independent or held out. Labels are fabricated by the generator.",
+      "fixture_ref": "synth-fixture-da-a2-resting",
+      "generator": "ai.research_routes.build_synthetic_uci45_resting_cohort",
+      "license_inventory": "UCI-45 (CC BY 4.0) is a schema reference only. No UCI records downloaded, used, or redistributed. The fixture contains no third-party dataset contents.",
+      "provenance": "DELIBERATELY_FABRICATED_SYNTHETIC_FIXTURE",
+      "records_and_labels_sha256": "662c547a8d1e0e76b4ca7e16fc897566f6012d4a281ba7be577ff18350943396",
+      "row_count": 96,
+      "seed": 20261117,
+      "source_family": "UCI-45"
+    },
+    "tested_refusals": {
+      "abstention_code": "registry_abstain_policy_optional_field_missing",
+      "error_cases": 38,
+      "score_produced": false,
+      "unavailable_codes": [
+        "model_entry_blocked_pending_authorization",
+        "model_entry_blocked_source_timing_unverified",
+        "model_entry_locked_external_target"
+      ]
+    }
+  },
+  "pack_sha256": "d250cee87030fedbc07ea08d03746f6ce4a0279e7549496e6b718ca5cbde3f60",
+  "report": {
+    "claim_level": "ENGINEERING_READY / SYNTHETIC_TEST_ONLY",
+    "command": "python -m ai.research_demo --format text",
+    "data_provenance": "deliberately fabricated synthetic fixtures",
+    "demo_id": "cardioassist.ai.research_facade_demo/v1",
+    "deterministic_sha256": "0722d728f756e589a3d97b4328e6dc106111835889e6b6387969cf0b0b99b853",
+    "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+    "n_records_development": 96,
+    "not_claimed": [
+      "clinical validity or diagnostic accuracy",
+      "externally validated individual risk probability",
+      "authorization to serve any model",
+      "real-data training or real-data evaluation"
+    ],
+    "registry_digest_sha256": "e423882d21cf74a42a8270d5d3e929a1b0f346a7ff4ef69bbf8c0e3dc5b2fec7",
+    "registry_version": "1.0.0",
+    "seed": 20261117,
+    "stage_results": [
+      {
+        "detail": {
+          "admissible_artifact_kinds": [
+            "local_verified_synthetic_bundle"
+          ],
+          "blocked_entries": [
+            "synth_ai7_da_a1_clinical_core_labs_v1@0.1.0",
+            "synth_ai7_da_a2_hungary_locked_transportability_v1@0.1.0",
+            "synth_ai7_da_a2_resting_labs_v1@0.1.0"
+          ],
+          "executable_entries": [
+            "synth_ai7_da_a2_resting_v1@0.1.0",
+            "synth_ai8_uci412_da_a1_basic_clinical@0.1.0"
+          ],
+          "mutation_api_present": false,
+          "real_artifacts_registerable": false,
+          "registered_model_entries": [
+            "synth_ai7_da_a1_clinical_core_labs_v1@0.1.0",
+            "synth_ai7_da_a2_hungary_locked_transportability_v1@0.1.0",
+            "synth_ai7_da_a2_resting_labs_v1@0.1.0",
+            "synth_ai7_da_a2_resting_v1@0.1.0",
+            "synth_ai8_uci412_da_a1_basic_clinical@0.1.0"
+          ],
+          "registry_digest_sha256": "e423882d21cf74a42a8270d5d3e929a1b0f346a7ff4ef69bbf8c0e3dc5b2fec7",
+          "registry_schema_version": "cardioassist.ai.research_registry/v1",
+          "registry_version": "1.0.0"
+        },
+        "stage": "1_registry_contract",
+        "status": "PASSED"
+      },
+      {
+        "detail": {
+          "all_records_declare_synthetic_source": true,
+          "generator_id": "ai.research_routes.build_synthetic_uci45_resting_cohort",
+          "label_prevalence": 0.71875,
+          "n_rows": 96,
+          "seed": 20261117
+        },
+        "stage": "2_synthetic_cohort",
+        "status": "PASSED"
+      },
+      {
+        "detail": {
+          "bundle_dir_name": "synthetic_research_bundle_da_a2_resting_v1",
+          "bundle_packaged": true,
+          "bundle_producer_authenticated": true,
+          "bundle_safe_for_deserialization": true,
+          "execution_profile": "AI1_GENERIC_V1",
+          "model_id": "synth_ai7_da_a2_resting_v1",
+          "model_version": "0.1.0",
+          "panel_contract_sha256": "c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8",
+          "panel_id": "da_a2_resting_v1",
+          "protocol_id": "CAI-AI7-SYNTHETIC-DA_A2_RESTING_V1-V1",
+          "selected_model_family": "l2_logistic_regression",
+          "synthetic_only": true
+        },
+        "stage": "3_synthetic_training_and_bundle",
+        "status": "PASSED"
+      },
+      {
+        "detail": {
+          "calibrated_log_odds": 1.143967,
+          "calibrated_research_score": 0.758407,
+          "calibration_reason": null,
+          "calibration_supported": true,
+          "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+          "exploratory_above_threshold_flag": true,
+          "exploratory_threshold": 0.5,
+          "fold_dispersion_keys": [
+            "action_threshold_validated",
+            "each_fold_calibrated_by_own_training_fold_calibrator",
+            "fold_calibrated_score_dispersion",
+            "fold_ensemble_count",
+            "fold_model_families",
+            "fold_raw_score_dispersion",
+            "homogeneous_model_family",
+            "input_completeness",
+            "limitations",
+            "uncertainty_semantics",
+            "validated_epistemic_uncertainty",
+            "validated_patient_specific_interval"
+          ],
+          "lime": {
+            "comparable_with_shap_scale": true,
+            "explained_quantity": "calibrated_log_odds",
+            "is_reliable_for_interpretation": true,
+            "local_approximation_not_exact_shapley": true,
+            "provided": true,
+            "quality_status": "ACCEPTABLE_LOCAL_APPROXIMATION",
+            "scale": "calibrated_log_odds"
+          },
+          "model_family": "l2_logistic_regression",
+          "raw_model_log_odds": 1.144314,
+          "raw_model_score": 0.758471,
+          "records_evaluated": 2,
+          "score_interpretation": "RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK",
+          "score_kind": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC",
+          "shap": {
+            "background_sample_count": 24,
+            "background_synthetic_only": true,
+            "explained_quantity": "calibrated_log_odds",
+            "method": "linear_shap_interventional",
+            "provided": true,
+            "scale": "calibrated_log_odds",
+            "sum_check_passed": true
+          },
+          "status": "SYNTHETIC_RESULT",
+          "threshold_clinically_validated": false
+        },
+        "stage": "4_successful_synthetic_inference",
+        "status": "PASSED"
+      },
+      {
+        "detail": {
+          "case": "optional_field_missing_under_abstention_policy",
+          "code": "registry_abstain_policy_optional_field_missing",
+          "field": null,
+          "message": null,
+          "missing_field_and_reason": [
+            [
+              "trestbps",
+              "not_provided"
+            ]
+          ],
+          "no_score_produced": true,
+          "note": "The artifact could impute the optional field from training statistics; the registered policy declines to score on an imputed field instead of silently doing so.",
+          "score_produced": false,
+          "stage": "record",
+          "status": "ABSTAIN"
+        },
+        "stage": "5_abstention",
+        "status": "PASSED"
+      },
+      {
+        "detail": {
+          "blocked_entries_report_registered_versions": true,
+          "cases": [
+            {
+              "case": "blocked_entry_da_a2_resting_labs_v1",
+              "code": "model_entry_blocked_pending_authorization",
+              "field": "entry_state",
+              "message": "The request was refused by a registered fail-closed check.",
+              "score_produced": false,
+              "stage": "registry",
+              "status": "UNAVAILABLE"
+            },
+            {
+              "case": "blocked_entry_da_a1_clinical_core_labs_v1",
+              "code": "model_entry_blocked_source_timing_unverified",
+              "field": "entry_state",
+              "message": "The request was refused by a registered fail-closed check.",
+              "score_produced": false,
+              "stage": "registry",
+              "status": "UNAVAILABLE"
+            },
+            {
+              "case": "blocked_entry_da_a2_hungary_locked_transportability_v1",
+              "code": "model_entry_locked_external_target",
+              "field": "entry_state",
+              "message": "The request was refused by a registered fail-closed check.",
+              "score_produced": false,
+              "stage": "registry",
+              "status": "UNAVAILABLE"
+            }
+          ],
+          "no_score_produced": true,
+          "reported_binding_versions": {
+            "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+            "panel_contract_sha256": "2a822095917cd7dfbadd2edc1be9537aa68322dfe8191576265623c96762584b",
+            "route_id": "da_a2_resting_labs_v1",
+            "route_version": "1.0.0"
+          }
+        },
+        "stage": "6_unavailable_contracts",
+        "status": "PASSED"
+      },
+      {
+        "detail": {
+          "any_case_produced_a_score": false,
+          "case_count": 38,
+          "cases": [
+            {
+              "case": "unregistered_model_entry",
+              "code": "unknown_model_entry",
+              "field": "model_id",
+              "message": "No research model entry is registered for this model id and version.",
+              "score_produced": false,
+              "stage": "registry",
+              "status": "ERROR"
+            },
+            {
+              "case": "wrong_route_version",
+              "code": "route_version_mismatch",
+              "field": "route_version",
+              "message": "The request route version does not match the registry binding.",
+              "score_produced": false,
+              "stage": "registry",
+              "status": "ERROR"
+            },
+            {
+              "case": "wrong_model_version",
+              "code": "unknown_model_entry",
+              "field": "model_id",
+              "message": "No research model entry is registered for this model id and version.",
+              "score_produced": false,
+              "stage": "registry",
+              "status": "ERROR"
+            },
+            {
+              "case": "wrong_panel_hash",
+              "code": "panel_contract_hash_mismatch",
+              "field": "panel_contract_sha256",
+              "message": "The request panel contract hash does not match the pinned panel contract.",
+              "score_produced": false,
+              "stage": "registry",
+              "status": "ERROR"
+            },
+            {
+              "case": "wrong_panel_version",
+              "code": "panel_version_mismatch",
+              "field": "panel_version",
+              "message": "The request panel version does not match the registry binding.",
+              "score_produced": false,
+              "stage": "registry",
+              "status": "ERROR"
+            },
+            {
+              "case": "forbidden_real_or_serving_operation",
+              "code": "facade_operation_not_supported",
+              "field": "operation",
+              "message": "Only the registered offline synthetic prediction operation is reachable through this facade.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "real_bundle_inference_operation",
+              "code": "facade_operation_not_supported",
+              "field": "operation",
+              "message": "Only the registered offline synthetic prediction operation is reachable through this facade.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "field_not_in_panel",
+              "code": "unregistered_feature_for_panel",
+              "field": null,
+              "message": "The record supplies a field that is not part of the registered panel.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "wrong_value_type",
+              "code": "invalid_numeric_value",
+              "field": null,
+              "message": "A supplied numeric value is not a finite real measurement.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "unknown_categorical_code",
+              "code": "unknown_categorical_code",
+              "field": null,
+              "message": "A supplied categorical code is outside the registered vocabulary.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "wrong_unit",
+              "code": "unit_mismatch",
+              "field": null,
+              "message": "A supplied unit token does not match the registered unit for that field.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "missing_unit_entry",
+              "code": "unit_keys_mismatch",
+              "field": null,
+              "message": "Measured fields with physical units require exact unit entries and no extra ones.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "missing_required_field",
+              "code": "missing_required_field",
+              "field": null,
+              "message": "A required panel field is omitted or null.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "optional_field_without_missing_reason",
+              "code": "missing_reason_mismatch",
+              "field": null,
+              "message": "Every omitted or null optional field requires exactly one registered missing reason.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "outcome_leakage_field",
+              "code": "prohibited_leakage_or_wearable_field",
+              "field": null,
+              "message": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "angiography_reference_standard_field",
+              "code": "prohibited_leakage_or_wearable_field",
+              "field": null,
+              "message": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "wearable_contamination_source",
+              "code": "unsupported_input_source",
+              "field": null,
+              "message": "The declared input source is not a registered synthetic research source.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "wearable_derived_field",
+              "code": "prohibited_leakage_or_wearable_field",
+              "field": null,
+              "message": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "forged_synthetic_flag_without_provenance",
+              "code": "synthetic_flag_is_not_provenance",
+              "field": "synthetic",
+              "message": "A boolean 'synthetic' flag is not admissible provenance; a fabricated-fixture declaration is required.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "missing_provenance_block",
+              "code": "synthetic_provenance_missing",
+              "field": "synthetic_provenance",
+              "message": "The record carries no synthetic fixture provenance declaration.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "unknown_fixture_generator",
+              "code": "synthetic_provenance_generator_not_admissible",
+              "field": null,
+              "message": "The declared fixture generator is not on this entry's pinned generator allowlist.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "record_from_earlier_acquisition_stage",
+              "code": "acquisition_stage_precedence_violation",
+              "field": null,
+              "message": "A supplied field originates from a later acquisition stage than the record declares.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "unregistered_acquisition_stage",
+              "code": "acquisition_stage_invalid",
+              "field": null,
+              "message": "The declared acquisition stage is outside the registered stage vocabulary.",
+              "score_produced": false,
+              "stage": "record",
+              "status": "ERROR"
+            },
+            {
+              "case": "duplicate_record_references",
+              "code": "duplicate_record_ref",
+              "field": "records",
+              "message": "Record references must be unique within one request.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "empty_request",
+              "code": "empty_record_set",
+              "field": "records",
+              "message": "The request carries no records to evaluate.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "bundle_outside_trusted_root",
+              "code": "untrusted_bundle_location",
+              "field": null,
+              "message": "The artifact is not located inside the declared trusted local root.",
+              "score_produced": false,
+              "stage": "artifact",
+              "status": "ERROR"
+            },
+            {
+              "case": "tampered_artifact_digest",
+              "code": "file_size_mismatch",
+              "field": "preprocessing.json",
+              "message": "An artifact file size does not match the recorded manifest entry.",
+              "score_produced": false,
+              "stage": "artifact",
+              "status": "ERROR"
+            },
+            {
+              "case": "foreign_producer_key",
+              "code": "untrusted_bundle_producer_signature",
+              "field": "local_producer_attestation",
+              "message": "The artifact producer attestation failed verification; nothing was deserialized.",
+              "score_produced": false,
+              "stage": "artifact",
+              "status": "ERROR"
+            },
+            {
+              "case": "path_shaped_record_ref_with_wrong_schema_version",
+              "code": "request_schema_version_unsupported",
+              "field": "request_schema_version",
+              "message": "The request carries a schema version this facade does not implement.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "nested_mapping_record_ref",
+              "code": "invalid_record_ref",
+              "field": "record_ref",
+              "message": "The record reference is outside the registered identifier grammar.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "oversized_record_list",
+              "code": "record_count_exceeds_ceiling",
+              "field": "records",
+              "message": "The request exceeds the registered per-invocation record ceiling.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "unexpected_request_key",
+              "code": "unexpected_request_key",
+              "field": "request",
+              "message": "The request carries a key outside the registered request grammar.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "grammar_valid_record_ref_withheld_on_refusal",
+              "code": "unknown_model_entry",
+              "field": "model_id",
+              "message": "No research model entry is registered for this model id and version.",
+              "score_produced": false,
+              "stage": "registry",
+              "status": "ERROR"
+            },
+            {
+              "case": "unverified_bundle_directory_name_withheld",
+              "code": "invalid_bundle_directory",
+              "field": null,
+              "message": "The request was refused by a registered fail-closed check.",
+              "score_produced": false,
+              "stage": "artifact",
+              "status": "ERROR"
+            },
+            {
+              "case": "unreadable_request_document_NoneType",
+              "code": "request_malformed",
+              "field": "request",
+              "message": "The request was refused by a registered fail-closed check.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "unreadable_request_document_int",
+              "code": "request_malformed",
+              "field": "request",
+              "message": "The request was refused by a registered fail-closed check.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "unreadable_request_document_str",
+              "code": "request_malformed",
+              "field": "request",
+              "message": "The request was refused by a registered fail-closed check.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            },
+            {
+              "case": "unreadable_request_document_list",
+              "code": "request_malformed",
+              "field": "request",
+              "message": "The request was refused by a registered fail-closed check.",
+              "score_produced": false,
+              "stage": "request",
+              "status": "ERROR"
+            }
+          ],
+          "distinct_codes": [
+            "acquisition_stage_invalid",
+            "acquisition_stage_precedence_violation",
+            "duplicate_record_ref",
+            "empty_record_set",
+            "facade_operation_not_supported",
+            "file_size_mismatch",
+            "invalid_bundle_directory",
+            "invalid_numeric_value",
+            "invalid_record_ref",
+            "missing_reason_mismatch",
+            "missing_required_field",
+            "panel_contract_hash_mismatch",
+            "panel_version_mismatch",
+            "prohibited_leakage_or_wearable_field",
+            "record_count_exceeds_ceiling",
+            "request_malformed",
+            "request_schema_version_unsupported",
+            "route_version_mismatch",
+            "synthetic_flag_is_not_provenance",
+            "synthetic_provenance_generator_not_admissible",
+            "synthetic_provenance_missing",
+            "unexpected_request_key",
+            "unit_keys_mismatch",
+            "unit_mismatch",
+            "unknown_categorical_code",
+            "unknown_model_entry",
+            "unregistered_feature_for_panel",
+            "unsupported_input_source",
+            "untrusted_bundle_location",
+            "untrusted_bundle_producer_signature"
+          ],
+          "malformed_input_cases": [
+            "grammar_valid_record_ref_withheld_on_refusal",
+            "nested_mapping_record_ref",
+            "oversized_record_list",
+            "path_shaped_record_ref_with_wrong_schema_version",
+            "unexpected_request_key",
+            "unreadable_request_document_NoneType",
+            "unreadable_request_document_int",
+            "unreadable_request_document_list",
+            "unreadable_request_document_str",
+            "unverified_bundle_directory_name_withheld"
+          ],
+          "malformed_input_cases_no_echo_verified": 10
+        },
+        "stage": "7_typed_error_refusals",
+        "status": "PASSED"
+      },
+      {
+        "detail": {
+          "canonical_payload_sha256": "9e513ff7daaa522a8aaf5195f6f0277718166bdde85dcdc7d6a96a312d2cdbac",
+          "distinct_refusal_messages": 29,
+          "local_paths_disclosed": false,
+          "refusal_cases_checked": 41,
+          "refusal_messages_registered_static": true,
+          "repeat_payload_match": true,
+          "responses_json_clean": true,
+          "signing_key_material_disclosed": false
+        },
+        "stage": "8_determinism_and_redaction",
+        "status": "PASSED"
+      }
+    ],
+    "status": "PASSED",
+    "summary": {
+      "stages_failed": 0,
+      "stages_succeeded": 8,
+      "stages_total": 8,
+      "statuses_exercised": [
+        "ABSTAIN",
+        "ERROR",
+        "SYNTHETIC_RESULT",
+        "UNAVAILABLE"
+      ]
+    },
+    "synthetic_only": true
+  },
+  "reproducibility": {
+    "command": "python -W error -m ai.research_evidence",
+    "dependencies": {
+      "et-xmlfile": "2.0.0",
+      "joblib": "1.4.2",
+      "numpy": "1.26.4",
+      "openpyxl": "3.1.5",
+      "scikit-learn": "1.6.1",
+      "scipy": "1.15.3",
+      "threadpoolctl": "3.6.0"
+    },
+    "environment": {
+      "architecture": "x86_64",
+      "implementation": "CPython",
+      "numeric_libraries": [
+        {
+          "architecture": "SkylakeX",
+          "internal_api": "openblas",
+          "num_threads": 2,
+          "version": "0.3.23.dev"
+        },
+        {
+          "architecture": "SkylakeX",
+          "internal_api": "openblas",
+          "num_threads": 2,
+          "version": "0.3.28"
+        },
+        {
+          "architecture": null,
+          "internal_api": "openmp",
+          "num_threads": 2,
+          "version": null
+        }
+      ],
+      "os": "Linux",
+      "python": "3.11.2"
+    },
+    "requirements": "research/uci412/requirements.txt",
+    "source": {
+      "ai_tree": "62754bfe779ab372bc862a74bc91b9e74dd657a8",
+      "git_commit": "42c6844d2f730bf7702b8c743b9a550acaee16d8",
+      "research_tree": "de37f4fbe023fcaa5d65e5ea9e10b71a617adc2b",
+      "source_trees_clean": true
+    }
+  },
+  "schema_version": "cardioassist.ai.synthetic_evidence_pack/v1"
+}
