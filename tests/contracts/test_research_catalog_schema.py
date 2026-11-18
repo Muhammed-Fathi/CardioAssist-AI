@@ -49,6 +49,7 @@ def _example() -> dict:
             "panel_contract_sha256": "b" * 64,
             "ordered_feature_names": ["synthetic_test_feature"],
             "features": [copy.deepcopy(feature)],
+            "allowed_model_families": ["l2_logistic_regression"],
             "permitted_operations": ["route_contract_query"],
             "inference_policy": {
                 "abstain_on_missing_optional": False,
