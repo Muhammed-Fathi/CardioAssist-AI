@@ -30,7 +30,8 @@ PACK_VERSION = "cardioassist.ai.synthetic_evidence_pack/v1"
 CARD_VERSION = "cardioassist.ai.synthetic_model_card/v1"
 ROOT = Path(__file__).resolve().parents[1]
 REQUIREMENTS = "research/uci412/requirements.txt"
-RELEASED_EXAMPLE = ROOT / "docs/research/ai12_1/linux-example.v1.json"
+# The original linux-example.v1.json is historical evidence from the pre-guard ai tree.
+RELEASED_EXAMPLE = ROOT / "docs/research/ai12_1/linux-uci45-envelope.v1.json"
 
 
 def _source_revision() -> dict[str, Any]:

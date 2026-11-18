@@ -86,7 +86,12 @@ from ai.packaging import (
     VerifiedBundleDescriptor,
     verify_trusted_local_bundle,
 )
-from ai.panels import REGISTERED_PANELS, ResearchPanelContract, validate_clinical_record
+from ai.panels import (
+    REGISTERED_PANELS,
+    ResearchPanelContract,
+    ValidatedClinicalRecord,
+    validate_clinical_record,
+)
 from ai.research_registry import (
     ADMISSIBLE_SYNTHETIC_PROVENANCE_DECLARATIONS,
     KNOWN_OPERATIONS,
@@ -106,7 +111,12 @@ from ai.research_registry import (
     registry_digest_sha256,
     resolve_registered_model,
 )
-from ai.research_routes import OP_SYNTHETIC_PREDICTION, RESEARCH_ROUTE_CATALOG, resolve_route
+from ai.research_routes import (
+    OP_SYNTHETIC_PREDICTION,
+    RESEARCH_ROUTE_CATALOG,
+    UCI45_RESTING_FIXTURE_BOUNDS,
+    resolve_route,
+)
 
 REQUEST_SCHEMA_VERSION: Final[str] = "cardioassist.ai.research_inference_request/v1"
 RESPONSE_SCHEMA_VERSION: Final[str] = "cardioassist.ai.research_inference_response/v1"
@@ -208,6 +218,7 @@ _ERROR_MESSAGES: Final[Mapping[str, str]] = MappingProxyType(
         "record_not_a_dataclass": "Each record must be a mapping in the registered record grammar.",
         "synthetic_provenance_declaration_unknown": "The declared provenance declaration is not the registered fabricated-fixture declaration.",
         "synthetic_provenance_generator_not_admissible": "The declared fixture generator is not on this entry's pinned generator allowlist.",
+        "outside_synthetic_fixture_envelope": "A measurement lies outside the declared synthetic generator's output envelope.",
         "synthetic_provenance_seed_invalid": "The declared fixture seed is not a non-negative 63-bit integer.",
         "synthetic_provenance_fixture_ref_invalid": "The declared fixture reference is outside the registered identifier grammar.",
         "input_source_not_admissible": "The declared input source is not the registered structured synthetic research source.",
@@ -1965,19 +1976,32 @@ def _validate_record(
     entry: ResearchModelEntry,
     panel: ResearchPanelContract,
     request: ResearchInferenceRequest,
-) -> Any:
+) -> ValidatedClinicalRecord:
     _validate_synthetic_provenance(record, entry)
     if record.panel_id is not None and record.panel_id != request.panel_id:
         raise _Refusal("record_panel_id_mismatch", stage="record", field_name="panel_id")
     _validate_acquisition_stage(record, panel)
     try:
-        return validate_clinical_record(
+        validated = validate_clinical_record(
             record.to_panel_payload(request.panel_id), panel, require_synthetic=True
         )
     except ClinicalInputValidationError as exc:
         raise _Refusal(exc.code, stage="record", field_name=exc.field, panel=panel) from exc
     except (ValueError, TypeError) as exc:
         raise _Refusal("record_input_invalid", stage="record") from exc
+
+    # This route admits one fabricated generator. Check the envelope of its
+    # draws *after* panel validation, not the plausibility of a patient value.
+    if entry.route_id == "da_a2_resting_v1":
+        fields = panel.field_map
+        for name, (low, high) in UCI45_RESTING_FIXTURE_BOUNDS.items():
+            if name not in validated.present_fields:
+                continue  # A legal missing optional measurement is handled by the abstention policy.
+            if not low <= validated.values[fields[name].order] <= high:
+                raise _Refusal(
+                    "outside_synthetic_fixture_envelope", stage="record", field_name=name, panel=panel
+                )
+    return validated
 
 
 def _score_record(

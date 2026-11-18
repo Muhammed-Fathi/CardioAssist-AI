@@ -942,8 +942,7 @@ def test_wrong_panel_for_the_model_is_refused(source, records) -> None:
         ),
         (
             lambda d: with_feature(d, "age", 10**12),
-            ["value_out_of_plausible_range", "shap_additivity_check_failed",
-             "prediction_integrity_check_failed"],
+            ["outside_synthetic_fixture_envelope"],
         ),
         (
             lambda d: with_feature(d, "age", True),
@@ -994,6 +993,47 @@ def test_invalid_records_are_refused_with_no_score(
     assert all(
         outcome.shap is None or not outcome.shap.provided for outcome in response.outcomes
     )
+
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        pytest.param("age", 10**12, id="extreme-age"),
+        pytest.param("age", 39.99, id="below-age-draws"),
+        pytest.param("age", 79.01, id="above-age-draws"),
+        pytest.param("trestbps", 89.99, id="below-pressure-draws"),
+        pytest.param("trestbps", 199.01, id="above-pressure-draws"),
+    ],
+)
+def test_outside_uci45_fixture_envelope_never_calls_predictor(
+    source, records, monkeypatch, name, value
+) -> None:
+    from ai.inference import ResearchCadPredictor
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("An out-of-envelope synthetic record reached prediction")
+
+    monkeypatch.setattr(ResearchCadPredictor, "predict_research_only", forbidden)
+    response = call(source, [with_feature(doc(records[0]), name, value)])
+    outcome, = response.outcomes
+    assert response.status is outcome.status is ResearchFacadeStatus.ERROR
+    error = error_of(response)
+    assert (error.stage, error.code, error.field_name) == (
+        "record", "outside_synthetic_fixture_envelope", name
+    )
+    assert is_registered_static_error_message(error.message) and str(value) not in error.message
+    assert outcome.score is outcome.shap is outcome.lime is outcome.uncertainty is None
+
+
+def test_uci45_fixture_envelope_includes_draw_endpoints(source, records) -> None:
+    # These are endpoints of the fabricated generator, not medical limits.
+    docs = [
+        with_feature(with_feature(doc(rec), "age", age), "trestbps", bp)
+        for rec, age, bp in zip(records, (40, 79), (199, 90), strict=True)
+    ]
+    response = call(source, docs)
+    assert response.status is ResearchFacadeStatus.SYNTHETIC_RESULT
+    assert len(response.outcomes) == 2 and all(o.score is not None for o in response.outcomes)
 
 
 def test_missing_required_field_is_refused_without_fabricated_default(source, records) -> None:
