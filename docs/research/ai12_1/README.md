@@ -23,7 +23,7 @@ No arguments prints the entire pack as JSON. `--no-lime` explicitly reports `pro
 
 ## What is in the pack?
 
-[Generated Linux pack](linux-example.v1.json) · [JSON Schema 2020-12](evidence-pack.v1.schema.json) · [Measured field-level BLAS comparison](linux-blas-comparison.v1.json).
+[Current generated Linux pack](linux-uci45-envelope.v1.json) · [JSON Schema 2020-12](evidence-pack.v1.schema.json) · [Original Linux pack](linux-example.v1.json) and its [measured field-level BLAS comparison](linux-blas-comparison.v1.json) (historical; unchanged).
 
 | JSON member | What to inspect |
 |---|---|
@@ -50,6 +50,14 @@ The example records the clean **implementation** commit. The subsequent evidence
 | `ERROR` | Incompatible unit → `unit_mismatch`; tampered artifact → `file_size_mismatch`; foreign key → `untrusted_bundle_producer_signature` |
 
 8/8 stages; **1 abstention, 3 unavailable and 38 error cases**, none with a score. The target contract is historical cross-sectional angiographic CAD presence, not a future event. A synthetic OOF calibrator does not validate a population probability; neither XAI method establishes causality.
+
+### Why the synthetic facade refuses an extreme finite input
+
+The UCI-45 source contract requires finite, positive measurements; it does **not** specify medical upper limits. A declared `age=10**12` therefore passed panel validation. In [the failing Python 3.12 CI job](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44252990449/job/134627918359), it was scored. A passing test on another runtime was not proof of rejection at intake: a later SHAP sum check could fail instead. On pinned Linux 3.11.18 and 3.12.16, changing numerical kernels reproduced both outcomes for the same input and model family. SHAP checks agreement between model and explanation, not input admissibility.
+
+Only the offline `da_a2_resting_v1` facade entry applies the extra check. Its sole admitted generator draws `age` in **40–79** and `trestbps` in **90–199** (inclusive). The generator and facade share those existing draw endpoints. After validating the panel, but **before prediction**, a present measurement outside that envelope yields `ERROR` / `outside_synthetic_fixture_envelope`, with no score or explanation. Missing optional fields retain their existing policy. This is an envelope check, not seed replay or a claim that every in-range value was generated. The endpoints describe fabricated numbers, **not patient eligibility or normal values**. Nothing is clipped; no source schema, clinical rule, estimator, SHAP tolerance, or real-data permission changed.
+
+`--compare` uses the separately generated current Linux pack because the `ai` source tree changed. Comparing the historical and current full packs directly must report `DIFFERENT` for that tree; it is not an allowed roundoff difference. The archived files have not been rewritten and the comparison rules are unchanged.
 
 ## Why do the Windows and Linux digests differ?
 

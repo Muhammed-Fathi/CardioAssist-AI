@@ -16,11 +16,13 @@ SCHEMA = json.loads((ROOT / "evidence-pack.v1.schema.json").read_text(encoding="
 EXAMPLE = json.loads((ROOT / "linux-example.v1.json").read_text(encoding="utf-8"))
 
 
-def test_released_pack_and_standalone_card_match_versioned_schema():
+@pytest.mark.parametrize("filename", ["linux-example.v1.json", "linux-uci45-envelope.v1.json"])
+def test_released_pack_and_standalone_card_match_versioned_schema(filename):
+    example = json.loads((ROOT / filename).read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(SCHEMA)
-    Draft202012Validator(SCHEMA).validate(EXAMPLE)
+    Draft202012Validator(SCHEMA).validate(example)
     Draft202012Validator({"$defs": SCHEMA["$defs"], "$ref": "#/$defs/card"}).validate(
-        EXAMPLE["model_card"]
+        example["model_card"]
     )
 
 
