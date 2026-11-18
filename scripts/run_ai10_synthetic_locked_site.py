@@ -6,6 +6,10 @@ import json
 from pathlib import Path
 import sys
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from ai.errors import AiPipelineError
 from ai.ai10_synthetic_transport import (
     SyntheticLockedSitePlan,
@@ -17,9 +21,6 @@ from ai.filesystem_security import (
     relative_posix_if_within_directory,
     write_new_private_file,
 )
-
-ROOT = Path(__file__).resolve().parents[1]
-
 
 def _check_external_new_path(path: Path, *, purpose: str) -> Path:
     candidate = path.expanduser().resolve(strict=False)
