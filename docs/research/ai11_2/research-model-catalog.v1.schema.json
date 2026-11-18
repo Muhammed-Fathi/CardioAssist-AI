@@ -109,6 +109,7 @@
           "offline_synthetic_registration_active",
           "ordered_feature_names",
           "features",
+          "allowed_model_families",
           "permitted_operations",
           "registry_declared_capabilities",
           "verified_artifact_capabilities",
@@ -415,6 +416,14 @@
           },
           "local_paths_disclosed": {
             "const": false
+          },
+          "allowed_model_families": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
           }
         }
       }
