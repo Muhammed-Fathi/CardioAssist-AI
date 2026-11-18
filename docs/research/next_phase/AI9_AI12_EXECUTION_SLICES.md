@@ -4,6 +4,8 @@
 
 > **Current execution & handoff queue (2026-11-18):** [AI + Research GitHub-first delivery ledger](AI_RESEARCH_HANDOFF_EXECUTION_LEDGER_2026_11_18.md) documents the current PR #87 Windows gate, AI-10.1 and AI-12.2 parallel handoff, and the standing rule to reuse earlier Gate DA/PT decisions rather than repeat general dataset research. This is a **docs-only operational snapshot**, not an authorization; the [canonical AI progress tracker](../ai_master_progress.json) remains the source of milestone status.
 
+> **Proposed complete research-prototype delivery plan (2026-11-19):** [RH-00…RH-08 completion charter](AI_RESEARCH_PROTOTYPE_COMPLETION_CHARTER_2026_11_19.md), [machine-readable execution/evidence tracker](AI_RESEARCH_COMPLETION_TRACKER_2026_11_19.json), [result-recording standard](AI_RESEARCH_EVIDENCE_LOG_TEMPLATE_2026_11_19.md), and [AI-12.2 final report blueprint](AI12_2_FINAL_REPORT_BLUEPRINT_2026_11_19.md). These are proposed reviewable planning artifacts; use current GitHub/`ai_master_progress.json` for actual status and reconcile open closeout PR #91 before changing canonical milestones. No new research authorization or clinical approval is implied.
+
 ## Existing components to reuse, not recreate
 
 - `ai/panels.py` has versioned source-specific panel contracts, rejected fields and missingness; verify identity/version/hash, don't conflate source codes.
