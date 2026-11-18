@@ -76,6 +76,7 @@ def build_research_model_catalog() -> dict[str, Any]:
             "panel_contract_sha256": panel.contract_sha256,
             "ordered_feature_names": list(panel.feature_names),
             "features": [f.to_contract_dict() for f in panel.fields],
+            "allowed_model_families": list(source.allowed_model_families),
             "permitted_operations": sorted(source.permitted_operations),
             "inference_policy": registered["inference_policy"],
             "registry_declared_capabilities": registered["capabilities"],
