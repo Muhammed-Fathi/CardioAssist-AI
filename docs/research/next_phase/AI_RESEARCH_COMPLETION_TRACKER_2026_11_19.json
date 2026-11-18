@@ -9,8 +9,12 @@
     "canonical_progress_sha_at_baseline": "c6506407c625286f7473f527bdab22d899b4a57b",
     "ai10_1_implementation_merged_pr": 90,
     "ai10_1_pending_closeout_pr": 91,
-    "ai10_1_closeout_state_at_baseline": "OPEN",
-    "note": "Review current main/PR before any update; original 2026-11-18 ledger is a historical snapshot."
+    "ai10_1_closeout_state_at_baseline": "OPEN_AS_OF_INITIAL_2026_11_19_CHARTER; NOW_MERGED_AT_13b852e875e198e1148ee0a61c3efc485caa2d30",
+    "note": "Review current main/PR before any update; original 2026-11-18 ledger is a historical snapshot.",
+    "current_main_at_rh00_reconciliation": "2070d9b91f0bdb2dd249135d356f4d554cbc6f90",
+    "rh00_closeout_tracking_status": "READY_FOR_REVIEW_NOT_ACCEPTED",
+    "pr92_planning_doc_merge_sha": "2070d9b91f0bdb2dd249135d356f4d554cbc6f90",
+    "next_action": "Review RH-00 evidence closeout PR then initiate RH-01 evidence-index/gap-matrix read-only audit."
   },
   "scope": {
     "target": "complete academically defensible research-only AI prototype",
@@ -122,21 +126,24 @@
         "PR #91 reviewed / human merged if acceptable",
         "exact merge and docs/JSON local checks documented"
       ],
-      "status": "PENDING_HUMAN_REVIEW",
+      "status": "READY_FOR_REVIEW",
       "assigned_roles": [
         "maintainer",
         "arena_implementer",
         "research_reviewer"
       ],
-      "implementation_pr": null,
-      "reviewed_pr_head_sha": null,
-      "merge_sha": null,
-      "windows_evidence": null,
-      "ci_evidence": null,
-      "evidence_record_ids": [],
-      "verified_at": null,
+      "implementation_pr": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/92",
+      "reviewed_pr_head_sha": "a1ff453814a4dd5e7883369cb7d7d23b38a7ef3f",
+      "merge_sha": "2070d9b91f0bdb2dd249135d356f4d554cbc6f90",
+      "windows_evidence": "No new native Windows RH-00 test performed; PR #91 records separate maintainer-provided AI-10.1 Windows evidence (2615 passed/3 skipped/0 failed pre-merge, 18 focused post-merge, security 8/8), not independently executed in this RH-00 reconciliation. PR #92 documentation-only: Windows acceptance NOT_RUN/NOT_REQUIRED unless maintainer decides otherwise.",
+      "ci_evidence": "PR #91 head 5ced14671d00bda45059657fac0c2251c04cf9a7: 4/4 workflows success; PR #92 head a1ff453814a4dd5e7883369cb7d7d23b38a7ef3f: 4/4 workflows success (GitHub read-only checked 2026-11-19).",
+      "evidence_record_ids": [
+        "RH-00-EV-001",
+        "RH-00-EV-002"
+      ],
+      "verified_at": "2026-11-19",
       "reviewer": null,
-      "notes": "No work, test or approval inferred from this planning entry."
+      "notes": "GitHub verified PR #91 merged at 13b852e875e198e1148ee0a61c3efc485caa2d30 and PR #92 at 2070d9b91f0bdb2dd249135d356f4d554cbc6f90, new main 2070d9b91f0bdb2dd249135d356f4d554cbc6f90. Canonical ai_master_progress.json now contains AI-10.1 synthetic-only locally accepted record, but AI-10 real external validation remains IN_PROGRESS/NOT_ESTABLISHED. RH-00 tracking update is READY_FOR_REVIEW, not independently accepted. No sign-off claimed; RH-01 can begin inventory after review."
     },
     {
       "id": "RH-01",
@@ -502,7 +509,44 @@
       "reviewed_on": null
     }
   ],
-  "evidence_records": [],
+  "evidence_records": [
+    {
+      "record_id": "RH-00-EV-001",
+      "milestone_id": "RH-00",
+      "claim_type": "MERGE_AND_CI_SOURCE_OF_TRUTH_RECONCILIATION",
+      "source_pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/91",
+      "exact_source_sha": "5ced14671d00bda45059657fac0c2251c04cf9a7",
+      "merge_sha": "13b852e875e198e1148ee0a61c3efc485caa2d30",
+      "test_or_report_name": "GitHub PR #91 docs-only AI-10.1 closeout and 4 PR workflows",
+      "evidence_class": "GITHUB_MERGE_OBSERVED_AND_CI_CONFIRMED",
+      "observed_result": "MERGED 2026-11-18T22:21:04Z; 4/4 GitHub workflow runs completed success on PR head; main canonical progress adds AI-10.1 as MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY. Existing AI-10.1 Windows evidence cited in PR91 tracker: maintainer-reported premerge 2615 passed, 3 skipped, 0 failed; native NTFS security 8/8. Real external validation still NOT_ESTABLISHED.",
+      "environment": "GitHub connector read-only verification; native Windows evidence is historical maintainer-provided, not freshly executed in this RH00 step",
+      "command_or_method": "Read GitHub PR #91 metadata, commit workflows at exact PR head, main branch metadata and ai_master_progress.json",
+      "checked_by": "ChatGPT read-only GitHub verification (not human signoff)",
+      "checked_on": "2026-11-19",
+      "review_disposition": "READY_FOR_REVIEW_NOT_FINAL_ACCEPTANCE",
+      "limitations": "No new code, local test or real-data execution; workflow success alone does not establish scientific validation. Explicit maintainer review record remains pending.",
+      "sanitized_evidence_url_or_path": "docs/research/next_phase/RH00_GITHUB_RECONCILIATION_2026_11_19.md"
+    },
+    {
+      "record_id": "RH-00-EV-002",
+      "milestone_id": "RH-00",
+      "claim_type": "RESEARCH_COMPLETION_PLAN_MERGE_AND_CI",
+      "source_pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/92",
+      "exact_source_sha": "a1ff453814a4dd5e7883369cb7d7d23b38a7ef3f",
+      "merge_sha": "2070d9b91f0bdb2dd249135d356f4d554cbc6f90",
+      "test_or_report_name": "GitHub PR #92 RH charter, tracker, final report blueprint; 4 PR workflows",
+      "evidence_class": "GITHUB_MERGE_OBSERVED_AND_CI_CONFIRMED",
+      "observed_result": "MERGED 2026-11-18T22:50:01Z; 4/4 GitHub workflow runs completed success on PR head; main at 2070d9b91f0bdb2dd249135d356f4d554cbc6f90; RH-00…RH-08 plan and 15 acceptance criteria on main.",
+      "environment": "GitHub connector read-only verification; doc-only PR, no new native Windows run claimed",
+      "command_or_method": "Read GitHub PR #92 metadata, commit workflows at exact PR head, main branch metadata, RH tracker JSON parse",
+      "checked_by": "ChatGPT read-only GitHub verification (not human signoff)",
+      "checked_on": "2026-11-19",
+      "review_disposition": "READY_FOR_REVIEW_NOT_FINAL_ACCEPTANCE",
+      "limitations": "No formal independent GitHub review submitted; merged by repository maintainer, not a clinical/scientific approval; plan is documentation, not actual RH-01 audit.",
+      "sanitized_evidence_url_or_path": "docs/research/next_phase/RH00_GITHUB_RECONCILIATION_2026_11_19.md"
+    }
+  ],
   "evidence_record_required_fields": [
     "record_id",
     "milestone_id",
@@ -552,5 +596,5 @@
     ],
     "release_gate": "All 15 acceptance checks accepted, every RH milestone accepted or legitimately conditional with reviewed NO-GO, final full report linked and maintainer explicitly accepts exact release sha. This is never clinical authorization."
   },
-  "next_executable_step": "RH-00: human review PR #91, exact-head CI and docs/JSON scope; after appropriate manual merge reconcile canonical progress, then start RH-01 evidence inventory; do not rerun protected data."
+  "next_executable_step": "RH-00 reviewer accepts this source-truth reconciliation (PR #91/#92 merged; GitHub CI 4/4 each), then RH-01 read-only inventory of Gate DA/PT, D-047, M3a, AI8R, code and tests with gap dispositions; no new model fit."
 }
