@@ -49,6 +49,7 @@ def test_catalog_is_a_stable_complete_registry_projection() -> None:
         assert exported["ordered_feature_names"] == list(panel.feature_names)
         assert exported["features"] == [f.to_contract_dict() for f in panel.fields]
         assert exported["entry_state"] == source.entry_state
+        assert exported["allowed_model_families"] == list(source.allowed_model_families)
         assert exported["offline_synthetic_registration_active"] == source.executable
         assert exported["non_executable_reason"] == source.non_executable_reason
         assert exported["registry_declared_capabilities"] == source.to_contract_dict()["capabilities"]
