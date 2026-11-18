@@ -1,8 +1,8 @@
 {
   "schema": "cardioassist.ai_master_progress/v1",
   "roadmap_version": "1.7",
-  "updated_on": "2026-11-17",
-  "source_main_commit_at_review": "5b3709ee6273f1c9c4fbf2a007921e8b4a73af7f",
+  "updated_on": "2026-11-18",
+  "source_main_commit_at_review": "83f51f67792d55634c3eca4ff150bae732f75e2b",
   "purpose": "Track actual completed engineering versus real scientific evidence; do not infer clinical readiness from synthetic tests.",
   "status_vocabulary": [
     "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
@@ -233,9 +233,83 @@
       "focus": "Prespecified locked external transportability (Cleveland to Hungary) and independent source suitability."
     },
     "AI-11": {
-      "engineering_status": "NOT_STARTED",
+      "engineering_status": "IN_PROGRESS",
       "research_evaluation_status": "NOT_ESTABLISHED",
-      "focus": "Integrated offline multi-model research interface and versioned backend handoff."
+      "focus": "Integrated offline multi-model research interface and versioned backend handoff.",
+      "completed_slice": "AI-11.1 — merged and pre-merge Windows-validated synthetic-only offline model registry + inference facade; AI-11.2 not yet implemented",
+      "next_executable_step": "AI-12.1 reproducible research E2E evidence pack and cross-OS digest diagnostics in separate code PR; AI-11.2 catalog later; after code merge perform pinned post-merge native Windows recheck; no real-data gates opened."
+    },
+    "AI-11.1": {
+      "engineering_status": "MERGED_AWAITING_LOCAL_VALIDATION",
+      "research_evaluation_status": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+      "local_windows_acceptance": "PRE_MERGE_PR_HEAD_PASSED_POST_MERGE_SHA_NOT_YET_EXECUTED",
+      "focus": "Immutable synthetic-only research model registry and typed offline inference facade, signed-bundle demo and fail-closed refusals; no HTTP provider changes.",
+      "pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/79",
+      "source_head_sha": "46d079088a2d6f741ce7d64843c920a420d322fa",
+      "merge_sha": "83f51f67792d55634c3eca4ff150bae732f75e2b",
+      "ci_on_head": {
+        "synthetic_experiment_runner_validation": "success",
+        "contract_validation": "success",
+        "audit_toolchain_validation": "success",
+        "mock_backend_validation": "success"
+      },
+      "implemented": [
+        "Immutable versioned synthetic-only research model-entry registry with five entries (two executable routes; three registered contract-only blocks)",
+        "Typed offline inference facade with SYNTHETIC_RESULT/ABSTAIN/UNAVAILABLE/ERROR, source/panel/route/model checks and redaction of rejected-request summary",
+        "Reused authenticated local bundle load, calibration and correctly declared SHAP/LIME without live FastAPI or mock-provider changes",
+        "Eight-stage real synthetic fit/signed-bundle/inference/refusal demo and targeted negative regressions"
+      ],
+      "maintainer_pre_merge_windows_verification": {
+        "date": "2026-11-18",
+        "environment": "Windows win32 / Python 3.12.9 / external AI8W_FullSuite_Venv / detached clean worktree E:\\CardioAssist_AI_AI111_PR79",
+        "checked_sha": "46d079088a2d6f741ce7d64843c920a420d322fa",
+        "command_focused_tests": "python -m pytest -W error -q tests/experiments/test_research_facade.py tests/backend/test_inference_provider.py",
+        "focused_tests": {
+          "passed": 150,
+          "failed": 0,
+          "skipped": 0,
+          "exit_code": 0,
+          "elapsed_seconds": 50.01
+        },
+        "pip_check": "PASS",
+        "source_verification": "PASS — four SHA-256 hashes, 25-paper status census preserved",
+        "windows_compatibility": {
+          "status": "PASSED",
+          "steps_passed": 8,
+          "steps_total": 8,
+          "access_control_mechanism": "windows_ntfs_win32_security_descriptor_dacl",
+          "exit_code": 0
+        },
+        "demo": {
+          "command_text": "python -m ai.research_demo --format text",
+          "command_json": "python -m ai.research_demo --format json",
+          "stages_passed": 8,
+          "stages_total": 8,
+          "statuses_exercised": [
+            "ABSTAIN",
+            "ERROR",
+            "SYNTHETIC_RESULT",
+            "UNAVAILABLE"
+          ],
+          "text_json_digest_match": true,
+          "windows_digest": "d8e6f5d95ac5b1c01a1f5abddc2cca6b4db0fc8d1dd603c5e8194d735c86309e",
+          "linux_reported_digest": "0722d728f756e589a3d97b4328e6dc106111835889e6b6387969cf0b0b99b853",
+          "cross_os_same_digest": false,
+          "cross_os_reason": "NOT_YET_DETERMINED",
+          "runtime_warning": "runpy warning caused by eager import of ai.research_demo from ai/__init__.py; demo exit 0"
+        },
+        "worktree_clean": true,
+        "acceptance_report": "WindowsAcceptance : PASSED",
+        "qualification": "Maintainer verified source PR head BEFORE merge, not the merge commit. This is pre-merge native Windows evidence, not completed post-merge local acceptance. Only focused 150 tests plus relevant integrity/compatibility/demo tests were run here; no claim of completed monolithic full suite."
+      },
+      "next_executable_step": "After focused post-merge check on SHA 83f51f67792d55634c3eca4ff150bae732f75e2b, record verified local acceptance in a new reviewable tracking update. Start independent AI-12.1 code PR using latest main now; include report reproduction, cross-OS digest diagnosis and runpy warning cleanup.",
+      "limitations": [
+        "Synthetic engineering readiness is not medical/clinical evidence or permission to serve a CAD model.",
+        "UCI-412 real feature timing/coding remains scientifically blocked, Hungary remains locked, D-048/P-3 unchanged.",
+        "Cross-platform byte-identical demo report not yet proven; different digests observed on Windows vs Arena Linux.",
+        "A runpy RuntimeWarning occurs with python -m ai.research_demo on Windows; fix without changing public API.",
+        "Post-merge Windows runtime acceptance and broader full-suite execution have not been evidenced for this milestone."
+      ]
     },
     "AI-12": {
       "engineering_status": "NOT_STARTED",
