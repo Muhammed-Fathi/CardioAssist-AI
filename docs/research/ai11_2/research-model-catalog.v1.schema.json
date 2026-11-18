@@ -1,0 +1,436 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cardioassist:research-model-catalog:v1",
+  "title": "Read-only, offline synthetic research model registry projection — not a serving contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "catalog_version",
+    "source_registry_schema_version",
+    "source_registry_version",
+    "source_registry_digest_sha256",
+    "purpose",
+    "catalog_is_artifact_authentication",
+    "catalog_authorizes_loading_or_serving",
+    "registry_capabilities_are_artifact_verified",
+    "governance",
+    "entry_count",
+    "entries",
+    "catalog_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cardioassist.ai.research_model_catalog/v1"
+    },
+    "catalog_version": {
+      "const": "1.0.0"
+    },
+    "source_registry_schema_version": {
+      "const": "cardioassist.ai.research_registry/v1"
+    },
+    "source_registry_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_registry_digest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "purpose": {
+      "const": "READ_ONLY_OFFLINE_SYNTHETIC_RESEARCH_DESCRIPTION"
+    },
+    "catalog_is_artifact_authentication": {
+      "const": false
+    },
+    "catalog_authorizes_loading_or_serving": {
+      "const": false
+    },
+    "registry_capabilities_are_artifact_verified": {
+      "const": false
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "real_data_execution_authorized",
+        "approved_for_serving",
+        "clinical_use_authorized",
+        "gate_pt_p3",
+        "serving_eligibility"
+      ],
+      "properties": {
+        "real_data_execution_authorized": {
+          "const": false
+        },
+        "approved_for_serving": {
+          "const": false
+        },
+        "clinical_use_authorized": {
+          "const": false
+        },
+        "gate_pt_p3": {
+          "const": "CLOSED"
+        },
+        "serving_eligibility": {
+          "const": "RESEARCH_ONLY"
+        }
+      }
+    },
+    "entry_count": {
+      "const": 5
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model_key",
+          "model_id",
+          "model_version",
+          "route_id",
+          "route_version",
+          "dataset_id",
+          "source_family",
+          "target_id",
+          "protocol_id",
+          "execution_profile",
+          "artifact_kind",
+          "entry_state",
+          "panel_id",
+          "panel_version",
+          "evidence_level",
+          "registry_entry_sha256",
+          "panel_contract_sha256",
+          "non_executable_reason",
+          "offline_synthetic_registration_active",
+          "ordered_feature_names",
+          "features",
+          "allowed_model_families",
+          "permitted_operations",
+          "registry_declared_capabilities",
+          "verified_artifact_capabilities",
+          "inference_policy",
+          "published_synthetic_model_card_reference",
+          "governance",
+          "local_paths_disclosed"
+        ],
+        "properties": {
+          "model_key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "route_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "route_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "dataset_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_family": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "protocol_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "execution_profile": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_kind": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entry_state": {
+            "enum": [
+              "ACTIVE_SYNTHETIC_OFFLINE",
+              "BLOCKED_PENDING_AUTHORIZATION",
+              "BLOCKED_SOURCE_TIMING_UNVERIFIED",
+              "LOCKED_EXTERNAL_TARGET_NEVER_FACADE"
+            ]
+          },
+          "panel_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "panel_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_level": {
+            "enum": [
+              "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+              "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+            ]
+          },
+          "registry_entry_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "panel_contract_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "non_executable_reason": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "offline_synthetic_registration_active": {
+            "type": "boolean"
+          },
+          "ordered_feature_names": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "features": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "order",
+                "role",
+                "clinical_meaning",
+                "required",
+                "stage",
+                "unit",
+                "categorical_codes",
+                "text_vocabulary",
+                "strictly_positive",
+                "plausible_range"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "order": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "role": {
+                  "enum": [
+                    "numeric",
+                    "categorical"
+                  ]
+                },
+                "clinical_meaning": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "stage": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "unit": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "categorical_codes": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "text_vocabulary": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      }
+                    }
+                  ]
+                },
+                "strictly_positive": {
+                  "type": "boolean"
+                },
+                "plausible_range": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "permitted_operations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "registry_declared_capabilities": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "calibration_supported",
+              "shap_supported",
+              "lime_supported"
+            ],
+            "properties": {
+              "calibration_supported": {
+                "type": "boolean"
+              },
+              "shap_supported": {
+                "type": "boolean"
+              },
+              "lime_supported": {
+                "type": "boolean"
+              }
+            }
+          },
+          "verified_artifact_capabilities": {
+            "const": null
+          },
+          "inference_policy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "abstain_on_missing_optional",
+              "max_records_per_invocation",
+              "admissible_synthetic_generators",
+              "required_acquisition_stages"
+            ],
+            "properties": {
+              "abstain_on_missing_optional": {
+                "type": "boolean"
+              },
+              "max_records_per_invocation": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "admissible_synthetic_generators": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required_acquisition_stages": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "published_synthetic_model_card_reference": {
+            "oneOf": [
+              {
+                "const": "docs/research/ai12_1/linux-uci45-envelope.v1.json#model_card"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "governance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "real_data_execution_authorized",
+              "approved_for_serving",
+              "clinical_use_authorized",
+              "gate_pt_p3",
+              "serving_eligibility"
+            ],
+            "properties": {
+              "real_data_execution_authorized": {
+                "const": false
+              },
+              "approved_for_serving": {
+                "const": false
+              },
+              "clinical_use_authorized": {
+                "const": false
+              },
+              "gate_pt_p3": {
+                "const": "CLOSED"
+              },
+              "serving_eligibility": {
+                "const": "RESEARCH_ONLY"
+              }
+            }
+          },
+          "local_paths_disclosed": {
+            "const": false
+          },
+          "allowed_model_families": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "catalog_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
