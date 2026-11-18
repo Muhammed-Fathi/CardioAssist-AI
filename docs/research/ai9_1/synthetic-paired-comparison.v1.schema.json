@@ -1,0 +1,555 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cardioassist:ai9:synthetic-paired-incremental-value:v1",
+  "title": "Synthetic matched clinical-vs-labs research comparison (NOT clinical evidence)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "evidence_class",
+    "source",
+    "target_id",
+    "real_data_execution_authorized",
+    "clinical_use_authorized",
+    "labs_route_activated",
+    "cohort",
+    "comparison_plan",
+    "outer_fold_lineage",
+    "metrics",
+    "paired_deltas_labs_minus_clinical",
+    "paired_uncertainty",
+    "feasibility",
+    "interpretation",
+    "sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cardioassist.ai.synthetic_paired_incremental_value/v1"
+    },
+    "status": {
+      "const": "SYNTHETIC_INCREMENTAL_VALUE_EXERCISE_COMPLETE"
+    },
+    "evidence_class": {
+      "const": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    "source": {
+      "const": "IN_PROCESS_FABRICATED_DA_A2_ONLY"
+    },
+    "target_id": {
+      "const": "t1.uci45.angiographic_cad_gt50.v1"
+    },
+    "real_data_execution_authorized": {
+      "const": false
+    },
+    "clinical_use_authorized": {
+      "const": false
+    },
+    "labs_route_activated": {
+      "const": false
+    },
+    "cohort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "n_matched",
+        "n_positive",
+        "n_negative",
+        "matched_identity_checksum",
+        "lab_missingness"
+      ],
+      "properties": {
+        "n_matched": {
+          "type": "integer",
+          "minimum": 96,
+          "maximum": 384
+        },
+        "n_positive": {
+          "type": "integer",
+          "minimum": 12
+        },
+        "n_negative": {
+          "type": "integer",
+          "minimum": 12
+        },
+        "matched_identity_checksum": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "lab_missingness": {
+          "type": "object",
+          "required": [
+            "chol",
+            "fbs"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "chol": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "missing",
+                "denominator",
+                "fraction"
+              ],
+              "properties": {
+                "missing": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "denominator": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "fraction": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            },
+            "fbs": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "missing",
+                "denominator",
+                "fraction"
+              ],
+              "properties": {
+                "missing": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "denominator": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "fraction": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "comparison_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "same_source_and_target",
+        "same_patient_ids",
+        "same_outer_splits",
+        "outer_folds",
+        "inner_folds",
+        "seed",
+        "model_family_fixed_both_arms",
+        "hyperparameters_selected_on_inner_training_folds_only",
+        "preprocessing_and_calibration_fitted_inside_outer_train_only",
+        "clinical_panel",
+        "labs_panel"
+      ],
+      "properties": {
+        "same_source_and_target": {
+          "const": true
+        },
+        "same_patient_ids": {
+          "const": true
+        },
+        "same_outer_splits": {
+          "const": true
+        },
+        "outer_folds": {
+          "const": 3
+        },
+        "inner_folds": {
+          "const": 3
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model_family_fixed_both_arms": {
+          "const": "l2_logistic_regression"
+        },
+        "hyperparameters_selected_on_inner_training_folds_only": {
+          "const": true
+        },
+        "preprocessing_and_calibration_fitted_inside_outer_train_only": {
+          "const": true
+        },
+        "clinical_panel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "version",
+            "sha256"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "labs_panel": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "version",
+            "sha256"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      }
+    },
+    "outer_fold_lineage": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fold",
+          "matched_outer_test_identity_sha256",
+          "clinical",
+          "clinical_plus_labs"
+        ],
+        "properties": {
+          "fold": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "matched_outer_test_identity_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "clinical": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fold",
+              "n_train",
+              "n_test",
+              "n_preprocessor_training_rows",
+              "n_calibration_training_rows",
+              "n_raw_features",
+              "n_encoded_features",
+              "estimated_fitted_coefficients_and_calibration_parameters",
+              "hyperparameter_C_selected_on_inner_train_only",
+              "calibrator_fit_scope"
+            ],
+            "properties": {
+              "fold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3
+              },
+              "n_train": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_test": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_preprocessor_training_rows": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_calibration_training_rows": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_raw_features": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_encoded_features": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "estimated_fitted_coefficients_and_calibration_parameters": {
+                "type": "integer",
+                "minimum": 4
+              },
+              "hyperparameter_C_selected_on_inner_train_only": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "calibrator_fit_scope": {
+                "const": "INNER_CV_FOLD_CONTAINED"
+              }
+            }
+          },
+          "clinical_plus_labs": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fold",
+              "n_train",
+              "n_test",
+              "n_preprocessor_training_rows",
+              "n_calibration_training_rows",
+              "n_raw_features",
+              "n_encoded_features",
+              "estimated_fitted_coefficients_and_calibration_parameters",
+              "hyperparameter_C_selected_on_inner_train_only",
+              "calibrator_fit_scope"
+            ],
+            "properties": {
+              "fold": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 3
+              },
+              "n_train": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_test": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_preprocessor_training_rows": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_calibration_training_rows": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_raw_features": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "n_encoded_features": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "estimated_fitted_coefficients_and_calibration_parameters": {
+                "type": "integer",
+                "minimum": 4
+              },
+              "hyperparameter_C_selected_on_inner_train_only": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "calibrator_fit_scope": {
+                "const": "INNER_CV_FOLD_CONTAINED"
+              }
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clinical_only",
+        "clinical_plus_labs"
+      ],
+      "properties": {
+        "clinical_only": {
+          "type": "object",
+          "required": [
+            "roc_auc",
+            "average_precision",
+            "brier_score",
+            "expected_calibration_error_10bin",
+            "cox_diagnostics"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "roc_auc": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "average_precision": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "brier_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "expected_calibration_error_10bin": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "cox_diagnostics": {
+              "type": "object"
+            }
+          }
+        },
+        "clinical_plus_labs": {
+          "type": "object",
+          "required": [
+            "roc_auc",
+            "average_precision",
+            "brier_score",
+            "expected_calibration_error_10bin",
+            "cox_diagnostics"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "roc_auc": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "average_precision": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "brier_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "expected_calibration_error_10bin": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "cox_diagnostics": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "paired_deltas_labs_minus_clinical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "roc_auc",
+        "brier_score",
+        "expected_calibration_error_10bin_descriptive_only"
+      ],
+      "properties": {
+        "roc_auc": {
+          "type": "number"
+        },
+        "brier_score": {
+          "type": "number"
+        },
+        "expected_calibration_error_10bin_descriptive_only": {
+          "type": "number"
+        }
+      }
+    },
+    "paired_uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "n_resamples",
+        "interval",
+        "uncertainty_limitations",
+        "delta_labs_minus_clinical_roc_auc_95_interval",
+        "delta_labs_minus_clinical_brier_95_interval"
+      ],
+      "properties": {
+        "type": {
+          "const": "PAIRED_STRATIFIED_PERCENTILE_BOOTSTRAP_CONDITIONAL_ON_FITTED_OUTER_FOLD_PREDICTIONS"
+        },
+        "n_resamples": {
+          "type": "integer",
+          "minimum": 40,
+          "maximum": 1000
+        },
+        "interval": {
+          "const": 0.95
+        },
+        "uncertainty_limitations": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delta_labs_minus_clinical_roc_auc_95_interval": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          }
+        },
+        "delta_labs_minus_clinical_brier_95_interval": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "feasibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "measured_clinical_lab_timing_or_source_semantics_verified",
+        "sample_size_adequacy_for_real_study",
+        "model_complexity_note"
+      ],
+      "properties": {
+        "status": {
+          "const": "SYNTHETIC_FEASIBILITY_ONLY"
+        },
+        "measured_clinical_lab_timing_or_source_semantics_verified": {
+          "const": false
+        },
+        "sample_size_adequacy_for_real_study": {
+          "const": "NOT_ESTABLISHED"
+        },
+        "model_complexity_note": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "interpretation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
