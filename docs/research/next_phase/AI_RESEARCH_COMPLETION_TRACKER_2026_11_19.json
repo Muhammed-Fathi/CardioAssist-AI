@@ -165,13 +165,14 @@
       "reviewed_pr_head_sha": null,
       "merge_sha": null,
       "windows_evidence": "NOT_RUN: RH-01 source audit only; final Windows acceptance belongs RH-05 and applicable code milestones",
-      "ci_evidence": "No new PR CI yet; PR #93 completed 4/4 GitHub workflows success at head 1b3794f1e95799bcfbb35fbefdc4ee81c6ce6007; not a RH-01 test run",
+      "ci_evidence": "PR94 exact head 51b0f2f99e8a449398789065150236cc1992d877: 4/4 GitHub workflows success; THIS RH01 claim-lineage PR CI not yet recorded; no new Windows test.",
       "evidence_record_ids": [
-        "RH-01-EV-001"
+        "RH-01-EV-001",
+        "RH-01-EV-002"
       ],
       "verified_at": "2026-11-19",
       "reviewer": null,
-      "notes": "Initial GitHub source audit on exact main 04ad9b6b99839d155c2b208da5e0dcbb220fdffb covered entire non-truncated 433-entry tree and selected original code/method/science/CI files; initial 25-component inventory and 10 candidate gaps documented in RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md. This is a review draft, not a complete exhaustive code+test/source-lineage verification. Full acceptance and reviewer pending."
+      "notes": "RH-01 remains IN_PROGRESS. PR #94 merged at 17643b9b94170ef73848c7ff911994b2b8c0168f; GitHub CI four workflows success. Second read-only source pass created 28 exact original-source/blob-SHA claim entries (validated against non-truncated 433-entry Git tree), paired human-readable report intake and evidence-grade constraints. All claims still await independent scientific review; no final-source Windows tests or protected research data touched. RH-02 source adjudication and RH-03 actual full manuscript are next permitted independent tasks, but do not mark RH-01 complete from this evidence."
     },
     {
       "id": "RH-02",
@@ -564,6 +565,23 @@
       "review_disposition": "REVIEW_DRAFT_IN_PROGRESS",
       "limitations": "Source files/tests were inspected but full repo automated code audit, whole-suite runtime execution, original protected real experiment reports and external primary source re-verification NOT performed. README status drift and UCI412 scientific holds preserved; not final RH01 acceptance.",
       "sanitized_evidence_url_or_path": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md"
+    },
+    {
+      "record_id": "RH-01-EV-002",
+      "milestone_id": "RH-01",
+      "claim_type": "PINNED_ORIGINAL_RESEARCH_CLAIM_LINEAGE_SECOND_PASS",
+      "source_pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/94",
+      "exact_source_sha": "17643b9b94170ef73848c7ff911994b2b8c0168f",
+      "test_or_report_name": "28-claim source evidence index + human-readable RH02/RH03 manuscript intake",
+      "evidence_class": "GITHUB_SOURCE_DOCUMENT_VERIFICATION_NO_REAL_RERUN",
+      "observed_result": "Read original D-047 and M3a sections for metrics, dependent CV SD, target, calibration, missing bin data, Riley sample-size limits; verified 28 unique claim IDs have source paths/blobs at source main against complete 433-item Git tree. GitHub PR94 verified merged and its 4 workflows success. Original patient-level results not downloaded or rerun.",
+      "environment": "Read-only private GitHub connector; no local Windows/pytests or protected data access",
+      "command_or_method": "fetch_file original source reports with sections, fetch exact-main Git tree, build JSON claims and independently compare each source_path/source_blob_sha to 433-item tree",
+      "checked_by": "ChatGPT GitHub read-only source review; named independent researcher/maintainer signoff pending",
+      "checked_on": "2026-11-19",
+      "review_disposition": "REVIEW_DRAFT_IN_PROGRESS_NOT_HUMAN_ACCEPTED",
+      "limitations": "28 registered claims are curated from source reports and code; not an exhaustive scientific final audit. ± means repeat SD not CI. No direct access to protected underlying patient data/reports. Current PR CI/Windows not claimed.",
+      "sanitized_evidence_url_or_path": "docs/research/next_phase/RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json"
     }
   ],
   "evidence_record_required_fields": [
@@ -615,20 +633,22 @@
     ],
     "release_gate": "All 15 acceptance checks accepted, every RH milestone accepted or legitimately conditional with reviewed NO-GO, final full report linked and maintainer explicitly accepts exact release sha. This is never clinical authorization."
   },
-  "next_executable_step": "Review RH-01 first-pass source inventory/gap matrix PR; continue exact-source original-claim lineage audit and then run RH-02 source admissibility and RH-03 scientific report in parallel. Do not declare RH-01 or any acceptance check complete based on file existence.",
+  "next_executable_step": "Review and merge RH-01 28-claim source evidence audit PR after CI. Continue RH-01 completeness audit and independent claim validation, begin separate scoped RH-02 source semantics and RH-03 full AI-12.2 manuscript drafting in parallel. Keep final acceptance status NOT_ACCEPTED.",
   "rh01_gap_register": [
     {
       "gap_id": "GAP-01",
       "priority": "P0",
-      "status": "OPEN_IN_SCOPE",
+      "status": "IN_PROGRESS",
       "description": "Evidence and claim lineage matrix",
       "owner_stage": "RH-01",
       "role": "chatgpt_research_review+arena_source_extraction+maintainer",
-      "exit_evidence": "reviewed lineages with exact original source and hashes",
+      "exit_evidence": "28 pinned source-claim entries generated and all source/blob SHA checked against exact nontruncated 433-item Git tree. Report text and scientific review not yet accepted. Reconcile figure-level/model-card/permitted-aggregate evidence before closure.",
       "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
       "reviewer": null,
       "closed_on": null,
-      "evidence_record_ids": []
+      "evidence_record_ids": [
+        "RH-01-EV-002"
+      ]
     },
     {
       "gap_id": "GAP-02",
