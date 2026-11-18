@@ -2,7 +2,7 @@
   "schema": "cardioassist.ai_master_progress/v1",
   "roadmap_version": "1.7",
   "updated_on": "2026-11-18",
-  "source_main_commit_at_review": "b49df50eb509b6daa8dad016f77c8cd6bfde7335",
+  "source_main_commit_at_review": "b21ca074e9ef609894354e6d0327c4b7cc717093",
   "purpose": "Track actual completed engineering versus real scientific evidence; do not infer clinical readiness from synthetic tests.",
   "status_vocabulary": [
     "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
@@ -223,9 +223,131 @@
       }
     },
     "AI-9": {
-      "engineering_status": "NOT_STARTED",
+      "engineering_status": "IN_PROGRESS",
       "research_evaluation_status": "NOT_ESTABLISHED",
-      "focus": "Clinical vs routine-labs same-source incremental value only where admissible."
+      "focus": "Clinical vs routine-labs same-source incremental value only where admissible.",
+      "completed_slice": "AI-9.1 matched Clinical vs Clinical+Labs synthetic-only incremental-value comparison harness, JSON Schema, deterministic report and negative tests merged as PR #87; native Windows acceptance on exact head and merge SHA.",
+      "remaining": [
+        "Real same-source clinical-plus-labs incremental-value evidence not established; do not claim clinical superiority or fit under the AI-9.1 scope",
+        "Feature collection timing/semantics, adequacy, protected data and independent real research authorization remain separate AI-9.2 gates"
+      ],
+      "next_executable_step": "Close the accepted AI-9.1 engineering slice via this docs-only review. Scope AI-10.1 synthetic locked external-evaluation engineering next and final AI-12.2 report in parallel; real AI-9.2 stays conditional and not authorized by AI-9.1."
+    },
+    "AI-9.1": {
+      "engineering_status": "MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY",
+      "local_windows_acceptance": "LOCALLY_ACCEPTED_ENGINEERING_ONLY",
+      "research_evaluation_status": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+      "clinical_validation_status": "NOT_ESTABLISHED",
+      "focus": "Same-source matched synthetic Clinical vs Clinical+Labs five-vs-seven feature comparison, with same outer folds, fold-local selection/imputation/calibration, paired deltas, missingness, schema and bounded uncertainty. No real-data experiment or lab provider activation.",
+      "pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/87",
+      "source_head_sha": "27fa6e57b2845d7dc4ae9ab20c17adab0a2d7733",
+      "merge_sha": "b21ca074e9ef609894354e6d0327c4b7cc717093",
+      "ci_on_head": {
+        "contract_validation": "success",
+        "audit_toolchain_validation": "success (Python 3.11 and 3.12)",
+        "mock_backend_validation": "success (Python 3.11 and 3.12)",
+        "synthetic_experiment_runner_validation": "success (Python 3.11 and 3.12)",
+        "total_green_jobs": 7
+      },
+      "maintainer_windows_verification": {
+        "provenance": "Maintainer-supplied Windows PowerShell 5.1 output; native tests not executed by documentation author. Actual post-merge JSON attached separately was independently hashed and checked.",
+        "interpreter": "Python 3.12.9; existing external pinned virtual environment; native Windows NTFS",
+        "reviewed_pr_head_sha": "27fa6e57b2845d7dc4ae9ab20c17adab0a2d7733",
+        "pre_merge": {
+          "pip_check": "PASS",
+          "source_integrity": "PASS (4 protected hashes; 25-paper census 9 green, 1 pink, 6 orange, 9 red)",
+          "native_windows_security": {
+            "status": "PASSED",
+            "steps_passed": 8,
+            "steps_total": 8
+          },
+          "focused_tests": {
+            "passed": 200,
+            "failed": 0,
+            "exit_code": 0,
+            "elapsed_seconds": 60.22
+          },
+          "full_monolithic_suite": {
+            "command": "python -m pytest -W error -q -ra --tb=short",
+            "passed": 2597,
+            "skipped": 3,
+            "failed": 0,
+            "exit_code": 0,
+            "elapsed_seconds": 6505.47,
+            "qualification": "Three Windows-specific tests skipped; their native ACL cases were covered by the separately passing 8/8 NTFS security suite."
+          },
+          "synthetic_external_reports": {
+            "count": 2,
+            "n_matched": 120,
+            "byte_identical": true,
+            "file_sha256": "6ebf36f021b4ddae0947a1cee508f40716be82dc47aaaa538173356c8a2f900a",
+            "canonical_report_sha256": "ed85b4f5ad7b47e90b2538022dd34277a8b593484d3fe47104ff83f236935f3c",
+            "json_schema": "PASS"
+          }
+        },
+        "post_merge": {
+          "checked_sha": "b21ca074e9ef609894354e6d0327c4b7cc717093",
+          "detached_clean_worktree": true,
+          "pip_check": "PASS",
+          "verify_sources": "PASS (4 protected hashes; 25-paper census unchanged)",
+          "native_windows_security": {
+            "status": "PASSED",
+            "steps_passed": 8,
+            "steps_total": 8
+          },
+          "focused_tests": {
+            "passed": 44,
+            "failed": 0,
+            "exit_code": 0,
+            "elapsed_seconds": 11.31,
+            "modules": [
+              "tests/experiments/test_ai9_paired_synthetic.py",
+              "tests/contracts/test_ai9_paired_synthetic_schema.py"
+            ]
+          },
+          "report": {
+            "status": "SYNTHETIC_INCREMENTAL_VALUE_EXERCISE_COMPLETE",
+            "evidence_class": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+            "n_matched": 120,
+            "source": "IN_PROCESS_FABRICATED_DA_A2_ONLY",
+            "json_schema": "PASS",
+            "outer_sha256": "6ebf36f021b4ddae0947a1cee508f40716be82dc47aaaa538173356c8a2f900a",
+            "internal_sha256": "ed85b4f5ad7b47e90b2538022dd34277a8b593484d3fe47104ff83f236935f3c",
+            "replayed_bytes_match_pre_merge": true,
+            "canonical_digest_verified": true,
+            "clinical_use_authorized": false,
+            "real_data_execution_authorized": false,
+            "labs_route_activated": false
+          },
+          "final_worktree_clean": true,
+          "qualification": "No post-merge monolithic full-suite rerun; 2597 passed / 3 skipped is pre-merge exact PR-head evidence. Post-merge scope covered by 44 focused tests plus source/security/schema/report smoke."
+        }
+      },
+      "synthetic_paired_report": {
+        "matched_records": 120,
+        "positive_records": 89,
+        "negative_records": 31,
+        "labs_missing_counts": {
+          "chol": 25,
+          "fbs": 25
+        },
+        "clinical_only_roc_auc": 0.632113084450888,
+        "clinical_plus_labs_roc_auc": 0.5976803189561435,
+        "paired_roc_auc_delta_labs_minus_clinical": -0.0344327654947445,
+        "paired_bootstrap_roc_auc_95_interval": [
+          -0.07803552011598405,
+          0.002346864806089111
+        ],
+        "limitations": "Fictitious cohort; bootstrap conditional on fixed OOF predictions (no resampling/refit of model selection); these are not real clinical, external-validation, or new model development results."
+      },
+      "scope_limitations": [
+        "No real clinical-plus-labs model fit or activated labs route",
+        "Prior D-047 and M3a real internal exploratory outcomes are separate and incomparable across cohorts",
+        "Hungary external evaluation remains locked and not performed",
+        "Backend stays MOCK_SYNTHETIC; no clinical AI serving or approval"
+      ],
+      "closeout_document": "docs/research/next_phase/AI9_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md",
+      "next_executable_step": "Human review/merge this documentation-only tracking PR. Proceed with independent AI-10.1 synthetic locked external-evaluation engineering and AI-12.2 research/graduation handoff in parallel. Keep AI-9.2 real-data conditions unchanged."
     },
     "AI-10": {
       "engineering_status": "NOT_STARTED",
@@ -628,10 +750,10 @@
       "failed_tests": "Record LOCAL_VALIDATION_FAILED and repair before local acceptance; engineering merged remains separately truthful.",
       "docs_only": "Use local parse/format/link/data-schema checks; record NOT_APPLICABLE_WITH_REASON only when genuinely no executable checks apply.",
       "safety": "No protected patient data/keys/bundles in GitHub CI, chats or repo; no weakening ACL verification or bypassing authorization.",
-      "last_locally_accepted_engineering_milestone": "AI-11.2",
-      "last_locally_accepted_main_sha": "b49df50eb509b6daa8dad016f77c8cd6bfde7335"
+      "last_locally_accepted_engineering_milestone": "AI-9.1",
+      "last_locally_accepted_main_sha": "b21ca074e9ef609894354e6d0327c4b7cc717093"
     },
-    "last_locally_accepted_engineering_milestone": "AI-11.2",
-    "last_locally_accepted_main_sha": "b49df50eb509b6daa8dad016f77c8cd6bfde7335"
+    "last_locally_accepted_engineering_milestone": "AI-9.1",
+    "last_locally_accepted_main_sha": "b21ca074e9ef609894354e6d0327c4b7cc717093"
   }
 }
