@@ -155,21 +155,23 @@
         "One-to-one source/PR/SHA/claim index",
         "Every in-scope gap owned and assigned evidence/disposition"
       ],
-      "status": "PLANNED",
+      "status": "IN_PROGRESS",
       "assigned_roles": [
         "maintainer",
         "arena_implementer",
         "research_reviewer"
       ],
-      "implementation_pr": null,
+      "implementation_pr": "PENDING_CREATION_THIS_BRANCH",
       "reviewed_pr_head_sha": null,
       "merge_sha": null,
-      "windows_evidence": null,
-      "ci_evidence": null,
-      "evidence_record_ids": [],
-      "verified_at": null,
+      "windows_evidence": "NOT_RUN: RH-01 source audit only; final Windows acceptance belongs RH-05 and applicable code milestones",
+      "ci_evidence": "No new PR CI yet; PR #93 completed 4/4 GitHub workflows success at head 1b3794f1e95799bcfbb35fbefdc4ee81c6ce6007; not a RH-01 test run",
+      "evidence_record_ids": [
+        "RH-01-EV-001"
+      ],
+      "verified_at": "2026-11-19",
       "reviewer": null,
-      "notes": "No work, test or approval inferred from this planning entry."
+      "notes": "Initial GitHub source audit on exact main 04ad9b6b99839d155c2b208da5e0dcbb220fdffb covered entire non-truncated 433-entry tree and selected original code/method/science/CI files; initial 25-component inventory and 10 candidate gaps documented in RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md. This is a review draft, not a complete exhaustive code+test/source-lineage verification. Full acceptance and reviewer pending."
     },
     {
       "id": "RH-02",
@@ -545,6 +547,23 @@
       "review_disposition": "READY_FOR_REVIEW_NOT_FINAL_ACCEPTANCE",
       "limitations": "No formal independent GitHub review submitted; merged by repository maintainer, not a clinical/scientific approval; plan is documentation, not actual RH-01 audit.",
       "sanitized_evidence_url_or_path": "docs/research/next_phase/RH00_GITHUB_RECONCILIATION_2026_11_19.md"
+    },
+    {
+      "record_id": "RH-01-EV-001",
+      "milestone_id": "RH-01",
+      "claim_type": "BASELINE_CODE_SOURCE_SCIENTIFIC_GAP_INVENTORY",
+      "source_pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/93",
+      "exact_source_sha": "04ad9b6b99839d155c2b208da5e0dcbb220fdffb",
+      "test_or_report_name": "RH-01 first-pass source evidence and gap matrix (GitHub-only)",
+      "evidence_class": "GITHUB_SOURCE_INSPECTION_NO_NEW_RUNTIME_TEST",
+      "observed_result": "Authenticated GitHub latest-main, complete 433-item nontruncated recursive tree, 25-source-component evidence inventory, 10 prioritized prototype gaps with scientific holds and explicit current source anchors; PR93 four workflows success. No local/protected patient evidence or new model performance was generated.",
+      "environment": "Read-only authenticated private GitHub connector; no Python execution or native Windows tests",
+      "command_or_method": "Get main SHA, git tree recursive, selected GitHub fetch_file original research docs/code/schemas/tests, canonical AI progress and PR93 exact-head CI; manual analysis",
+      "checked_by": "ChatGPT source inspection; independent human review pending",
+      "checked_on": "2026-11-19",
+      "review_disposition": "REVIEW_DRAFT_IN_PROGRESS",
+      "limitations": "Source files/tests were inspected but full repo automated code audit, whole-suite runtime execution, original protected real experiment reports and external primary source re-verification NOT performed. README status drift and UCI412 scientific holds preserved; not final RH01 acceptance.",
+      "sanitized_evidence_url_or_path": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md"
     }
   ],
   "evidence_record_required_fields": [
@@ -596,5 +615,137 @@
     ],
     "release_gate": "All 15 acceptance checks accepted, every RH milestone accepted or legitimately conditional with reviewed NO-GO, final full report linked and maintainer explicitly accepts exact release sha. This is never clinical authorization."
   },
-  "next_executable_step": "RH-00 reviewer accepts this source-truth reconciliation (PR #91/#92 merged; GitHub CI 4/4 each), then RH-01 read-only inventory of Gate DA/PT, D-047, M3a, AI8R, code and tests with gap dispositions; no new model fit."
+  "next_executable_step": "Review RH-01 first-pass source inventory/gap matrix PR; continue exact-source original-claim lineage audit and then run RH-02 source admissibility and RH-03 scientific report in parallel. Do not declare RH-01 or any acceptance check complete based on file existence.",
+  "rh01_gap_register": [
+    {
+      "gap_id": "GAP-01",
+      "priority": "P0",
+      "status": "OPEN_IN_SCOPE",
+      "description": "Evidence and claim lineage matrix",
+      "owner_stage": "RH-01",
+      "role": "chatgpt_research_review+arena_source_extraction+maintainer",
+      "exit_evidence": "reviewed lineages with exact original source and hashes",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    },
+    {
+      "gap_id": "GAP-02",
+      "priority": "P0",
+      "status": "OPEN_IN_SCOPE",
+      "description": "Completed AI-12.2 scientific manuscript",
+      "owner_stage": "RH-03",
+      "role": "chatgpt_research_report+arena_evidence_tooling+maintainer",
+      "exit_evidence": "17 sections, source-linked tables and review",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    },
+    {
+      "gap_id": "GAP-03",
+      "priority": "P0",
+      "status": "SCIENTIFIC_HOLD_REVIEW",
+      "description": "Source definitions, timing, owner evidence and admissibility",
+      "owner_stage": "RH-02",
+      "role": "medical_science_reviewer+maintainer+arena_assistance",
+      "exit_evidence": "question-by-question primary evidence or reviewed HOLD",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    },
+    {
+      "gap_id": "GAP-04",
+      "priority": "P1",
+      "status": "OPEN_IN_SCOPE",
+      "description": "Versioned research intake/acquisition and error contract crosswalk",
+      "owner_stage": "RH-04",
+      "role": "arena_implementation+chatgpt_review",
+      "exit_evidence": "source-specific fields, units, provenance, abstain and synthetic I/O",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    },
+    {
+      "gap_id": "GAP-05",
+      "priority": "P1",
+      "status": "OPEN_IN_SCOPE",
+      "description": "Outdated README status timeline repair",
+      "owner_stage": "RH-01",
+      "role": "arena_docs+chatgpt_review",
+      "exit_evidence": "reviewed exact-source historical current status pointers",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    },
+    {
+      "gap_id": "GAP-06",
+      "priority": "P1",
+      "status": "OPEN_IN_SCOPE",
+      "description": "Final source-SHA E2E/Windows/security reproducibility",
+      "owner_stage": "RH-05",
+      "role": "maintainer_windows+arena_tests+chatgpt_audit",
+      "exit_evidence": "actual current release runs, skip/exit/hash evidence",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    },
+    {
+      "gap_id": "GAP-07",
+      "priority": "P1",
+      "status": "CONDITIONAL_GATED",
+      "description": "AI-9.2 conditional real labs experiment or documented no-go",
+      "owner_stage": "RH-06",
+      "role": "medical_science_reviewer+maintainer",
+      "exit_evidence": "separate scope authorization and eligible local results OR precise NO-GO",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    },
+    {
+      "gap_id": "GAP-08",
+      "priority": "P1",
+      "status": "CONDITIONAL_GATED",
+      "description": "AI-10.2 conditional locked external evaluation or documented no-go",
+      "owner_stage": "RH-06",
+      "role": "medical_science_reviewer+maintainer",
+      "exit_evidence": "independence/equivalence and approved one-shot OR precise NO-GO",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    },
+    {
+      "gap_id": "GAP-09",
+      "priority": "P2",
+      "status": "OPEN_IN_SCOPE",
+      "description": "Final research model cards, backend/Flutter synthetic handoff",
+      "owner_stage": "RH-04",
+      "role": "arena_docs+chatgpt_review",
+      "exit_evidence": "reviewed typed synthetic examples, source/status limitation mapping",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    },
+    {
+      "gap_id": "GAP-10",
+      "priority": "P2",
+      "status": "OPEN_IN_SCOPE",
+      "description": "Independent review and final research freeze",
+      "owner_stage": "RH-07",
+      "role": "maintainer+science_reviewer",
+      "exit_evidence": "evidence review, 15 criteria and source/report hashes before RH-08",
+      "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
+      "reviewer": null,
+      "closed_on": null,
+      "evidence_record_ids": []
+    }
+  ]
 }
