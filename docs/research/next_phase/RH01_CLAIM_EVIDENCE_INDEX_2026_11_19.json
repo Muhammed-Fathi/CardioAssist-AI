@@ -8,7 +8,8 @@
     "DOCUMENTED_MAINTAINER_REPORTED_INTERNAL_EXPLORATORY": "Historical local aggregate quoted in committed report; not direct rerun",
     "GITHUB_CODE_INSPECTED_HISTORICAL_TESTS_SEPARATE": "Relevant source implementation inspected at frozen blob; presence of code is not new runtime validation",
     "PREEXISTING_SYNTHETIC_SOFTWARE_EVIDENCE": "Earlier reviewed software tests on invented participants; cannot establish clinical performance",
-    "EXISTING_SOURCE_ADMISSIBILITY_OR_GOVERNANCE_RECORD": "Historical review/authorized source evidence, limitations retained"
+    "EXISTING_SOURCE_ADMISSIBILITY_OR_GOVERNANCE_RECORD": "Historical review/authorized source evidence, limitations retained",
+    "CURRENT_CANONICAL_MILESTONE_TRACKER_AT_SOURCE_MAIN": "Actual current GitHub milestone metadata at baseline, not an independent model or Windows test"
   },
   "notes": [
     "All SHA values are blob objects from source main, not live commits or proof of scientific truth.",
@@ -452,14 +453,14 @@
     {
       "id": "CL-028",
       "statement": "Final AI-12.2 full manuscript, reviewer signoff and final-SHA Windows acceptance are not yet established",
-      "evidence_class": "EXISTING_SOURCE_ADMISSIBILITY_OR_GOVERNANCE_RECORD",
-      "source_path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
-      "source_blob_sha": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
-      "source_section": "§1–2 scientific limitations (historical); current status independently checked in ai_master_progress.json",
+      "evidence_class": "CURRENT_CANONICAL_MILESTONE_TRACKER_AT_SOURCE_MAIN",
+      "source_path": "docs/research/ai_master_progress.json",
+      "source_blob_sha": "e2cbf3b59fc79c3bc74321183adcb8fd8a7ea8a1",
+      "source_section": "milestones.AI-12, plus RH tracker final acceptance statuses",
       "cohort_or_scope": "Final graduation research prototype",
       "report_destination": "FR-17 and RH-07/08 closure",
       "interpretation_limit": "Source report itself is not live milestone evidence; canonical tracker confirms AI12 IN_PROGRESS",
-      "method": "Read-only GitHub document/source inspection; no new runtime experiment",
+      "method": "Read-only canonical milestone tracker inspection at source main 17643b9b94170ef73848c7ff911994b2b8c0168f",
       "independently_reran_protected_source": false,
       "review_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW",
       "reviewer": null,
