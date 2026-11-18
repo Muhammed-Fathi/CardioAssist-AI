@@ -1011,6 +1011,11 @@ def assert_route_eligible(
 # Synthetic cohort builders (deterministic fixtures only)                     #
 # --------------------------------------------------------------------------- #
 
+# Inclusive integer draw endpoints for the fabricated fixture only. These are
+# not plausibility bounds in the UCI-45 source/panel contract.
+UCI45_RESTING_FIXTURE_BOUNDS: Final[Mapping[str, tuple[int, int]]] = MappingProxyType(
+    {"age": (40, 79), "trestbps": (90, 199)}
+)
 _UCI45_RESTING_UNITS: Final[Mapping[str, str]] = {"age": "years", "trestbps": "mmHg"}
 _UCI412_BASIC_UNITS: Final[Mapping[str, str]] = {
     "Age": "years",
@@ -1067,10 +1072,10 @@ def build_synthetic_uci45_resting_cohort(
     records: list[dict[str, Any]] = []
     labels: list[int] = []
     for idx in range(int(n_rows)):
-        age = float(rng.integers(40, 80))
+        age = float(rng.integers(*UCI45_RESTING_FIXTURE_BOUNDS["age"], endpoint=True))
         sex = int(rng.integers(0, 2))
         cp = int(rng.integers(1, 5))
-        trestbps = float(rng.integers(90, 200))
+        trestbps = float(rng.integers(*UCI45_RESTING_FIXTURE_BOUNDS["trestbps"], endpoint=True))
         restecg = int(rng.integers(0, 3))
         latent = (
             0.04 * (age - 55.0)

@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cardioassist:synthetic-evidence-pack:v1",
+  "title": "Completed offline synthetic research evidence (not a serving contract)",
+  "description": "The report and inference members retain their AI-11.1 contracts. This schema checks the evidence envelope, mandatory provenance and safety semantics; it does not authenticate a report or a bundle.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "evidence_status", "report", "inference", "model_card", "reproducibility", "pack_sha256"],
+  "properties": {
+    "schema_version": {"const": "cardioassist.ai.synthetic_evidence_pack/v1"},
+    "evidence_status": {"const": "SYNTHETIC_E2E_COMPLETE"},
+    "report": {"$ref": "#/$defs/report"}, "inference": {"$ref": "#/$defs/inference"},
+    "model_card": {"$ref": "#/$defs/card"}, "reproducibility": {"$ref": "#/$defs/reproducibility"},
+    "pack_sha256": {"$ref": "#/$defs/sha"}
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "grade": {"const": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"},
+    "text": {"type": "string", "minLength": 1},
+    "governance": {
+      "type": "object", "required": ["approved_for_serving", "clinical_use_authorized", "real_data_execution_authorized", "gate_pt_p3", "serving_eligibility", "http_surface_added", "provider_selection_changed"],
+      "properties": {"approved_for_serving": {"const": false}, "clinical_use_authorized": {"const": false}, "real_data_execution_authorized": {"const": false}, "gate_pt_p3": {"const": "CLOSED"}, "serving_eligibility": {"const": "RESEARCH_ONLY"}, "http_surface_added": {"const": false}, "provider_selection_changed": {"const": false}}
+    },
+    "refusal": {
+      "type": "object", "required": ["case", "code", "status", "score_produced"],
+      "properties": {"case": {"$ref": "#/$defs/text"}, "code": {"$ref": "#/$defs/text"}, "status": {"enum": ["ABSTAIN", "UNAVAILABLE", "ERROR"]}, "score_produced": {"const": false}}
+    },
+    "report": {
+      "type": "object", "required": ["demo_id", "status", "deterministic_sha256", "registry_digest_sha256", "stage_results", "synthetic_only", "evidence_level", "summary"],
+      "properties": {
+        "demo_id": {"const": "cardioassist.ai.research_facade_demo/v1"}, "status": {"const": "PASSED"}, "synthetic_only": {"const": true},
+        "evidence_level": {"$ref": "#/$defs/grade"}, "deterministic_sha256": {"$ref": "#/$defs/sha"}, "registry_digest_sha256": {"$ref": "#/$defs/sha"},
+        "summary": {"const": {"stages_succeeded": 8, "stages_total": 8, "stages_failed": 0, "statuses_exercised": ["ABSTAIN", "ERROR", "SYNTHETIC_RESULT", "UNAVAILABLE"]}},
+        "stage_results": {
+          "type": "array", "minItems": 8, "maxItems": 8,
+          "allOf": [{"items": {"type": "object", "required": ["stage", "status", "detail"], "properties": {"status": {"const": "PASSED"}, "detail": {"type": "object"}}}}],
+          "prefixItems": [
+            {"properties": {"stage": {"const": "1_registry_contract"}}},
+            {"properties": {"stage": {"const": "2_synthetic_cohort"}}},
+            {"properties": {"stage": {"const": "3_synthetic_training_and_bundle"}}},
+            {"properties": {"stage": {"const": "4_successful_synthetic_inference"}, "detail": {"required": ["status"], "properties": {"status": {"const": "SYNTHETIC_RESULT"}}}}},
+            {"properties": {"stage": {"const": "5_abstention"}, "detail": {"$ref": "#/$defs/refusal", "properties": {"status": {"const": "ABSTAIN"}}}}},
+            {"properties": {"stage": {"const": "6_unavailable_contracts"}, "detail": {"required": ["cases"], "properties": {"cases": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/refusal", "properties": {"status": {"const": "UNAVAILABLE"}}}}}}}},
+            {"properties": {"stage": {"const": "7_typed_error_refusals"}, "detail": {"required": ["cases"], "properties": {"cases": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/refusal", "properties": {"status": {"const": "ERROR"}}}}}}}},
+            {"properties": {"stage": {"const": "8_determinism_and_redaction"}, "detail": {"required": ["canonical_payload_sha256", "repeat_payload_match"], "properties": {"canonical_payload_sha256": {"$ref": "#/$defs/sha"}, "repeat_payload_match": {"const": true}}}}}
+          ]
+        }
+      }
+    },
+    "score": {
+      "type": "object", "required": ["raw_model_score", "raw_model_log_odds", "calibrated_research_score", "calibrated_log_odds", "calibration_reason", "score_kind", "scale_declaration", "clinical_probability_claim", "exploratory_threshold_clinically_validated"],
+      "properties": {"raw_model_score": {"type": "number", "minimum": 0, "maximum": 1}, "raw_model_log_odds": {"type": "number"}, "clinical_probability_claim": {"const": false}, "exploratory_threshold_clinically_validated": {"const": false}},
+      "oneOf": [
+        {"properties": {"score_kind": {"const": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC"}, "calibrated_research_score": {"type": "number", "minimum": 0, "maximum": 1}, "calibrated_log_odds": {"type": "number"}, "calibration_reason": {"type": "null"}}},
+        {"properties": {"score_kind": {"const": "RAW_MODEL_PROBABILITY_NOT_CALIBRATED"}, "calibrated_research_score": {"type": "null"}, "calibrated_log_odds": {"type": "null"}, "calibration_reason": {"$ref": "#/$defs/text"}}}
+      ]
+    },
+    "inference": {
+      "type": "object", "required": ["response_schema_version", "status", "evidence_level", "artifact", "records", "capabilities", "governance", "provenance", "limitations"],
+      "properties": {
+        "response_schema_version": {"const": "cardioassist.ai.research_inference_response/v1"}, "status": {"const": "SYNTHETIC_RESULT"}, "evidence_level": {"$ref": "#/$defs/grade"}, "governance": {"$ref": "#/$defs/governance"},
+        "artifact": {"type": "object", "required": ["verification", "verified_artifact_hashes", "synthetic_only_provenance"], "properties": {
+          "verification": {"type": "object", "required": ["producer_authenticated", "safe_for_pickle_deserialization"], "properties": {"producer_authenticated": {"const": true}, "safe_for_pickle_deserialization": {"const": true}}},
+          "synthetic_only_provenance": {"const": true}, "verified_artifact_hashes": {"type": "object", "required": ["model.joblib", "protocol.md", "evaluation_summary.json", "calibration.json", "shap_background.json", "preprocessing.json"], "additionalProperties": {"$ref": "#/$defs/sha"}}
+        }},
+        "records": {"type": "array", "minItems": 2, "maxItems": 2, "items": {
+          "type": "object", "required": ["status", "score", "shap_explanation", "lime_explanation"],
+          "properties": {
+            "status": {"const": "SYNTHETIC_RESULT"}, "score": {"$ref": "#/$defs/score"},
+            "shap_explanation": {"type": "object", "required": ["scale", "sum_check_passed", "additive_on_calibrated_probability"], "properties": {"scale": {"$ref": "#/$defs/text"}, "sum_check_passed": {"const": true}, "additive_on_calibrated_probability": {"const": false}}},
+            "lime_explanation": {"type": "object", "required": ["provided", "reason", "scale", "quality_status", "is_exact_shapley"], "properties": {"is_exact_shapley": {"const": false}}, "oneOf": [
+              {"properties": {"provided": {"const": true}, "scale": {"$ref": "#/$defs/text"}, "quality_status": {"$ref": "#/$defs/text"}, "reason": {"type": "null"}}},
+              {"properties": {"provided": {"const": false}, "scale": {"type": "null"}, "quality_status": {"type": "null"}, "reason": {"$ref": "#/$defs/text"}}}
+            ]}
+          }
+        }}
+      }
+    },
+    "card": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "evidence_level", "intended_use", "source", "model", "route", "panel", "protocol", "capabilities", "score_interpretation", "calibration_absence_reason", "example_explanations", "tested_refusals", "governance", "limitations"],
+      "properties": {
+        "schema_version": {"const": "cardioassist.ai.synthetic_model_card/v1"}, "evidence_level": {"$ref": "#/$defs/grade"}, "governance": {"$ref": "#/$defs/governance"}, "intended_use": {"$ref": "#/$defs/text"}, "score_interpretation": {"$ref": "#/$defs/text"}, "calibration_absence_reason": {"type": ["string", "null"]},
+        "source": {"type": "object", "required": ["dataset_id", "contract_reference", "license_inventory", "generator", "fixture_ref", "row_count", "seed", "evaluation_basis", "provenance", "records_and_labels_sha256"], "properties": {"records_and_labels_sha256": {"$ref": "#/$defs/sha"}, "provenance": {"const": "DELIBERATELY_FABRICATED_SYNTHETIC_FIXTURE"}, "seed": {"type": "integer"}, "row_count": {"type": "integer", "minimum": 1}}},
+        "model": {"type": "object", "required": ["id", "version", "family", "entry_sha256", "model_joblib_sha256", "bundle_schema_version"], "properties": {"entry_sha256": {"$ref": "#/$defs/sha"}, "model_joblib_sha256": {"$ref": "#/$defs/sha"}}},
+        "route": {"type": "object", "required": ["id", "version", "target", "definition", "sha256"], "properties": {"sha256": {"$ref": "#/$defs/sha"}}},
+        "panel": {"type": "object", "required": ["panel_id", "panel_version", "fields", "contract_sha256", "real_data_execution_authorized"], "properties": {"contract_sha256": {"$ref": "#/$defs/sha"}, "real_data_execution_authorized": {"const": false}}},
+        "protocol": {"type": "object", "required": ["id", "training_config", "training_config_sha256", "bundle_protocol_md_sha256"], "properties": {"training_config": {"type": "object"}, "training_config_sha256": {"$ref": "#/$defs/sha"}, "bundle_protocol_md_sha256": {"$ref": "#/$defs/sha"}}},
+        "capabilities": {"type": "object", "required": ["calibration", "shap", "lime"], "additionalProperties": {"type": "boolean"}},
+        "example_explanations": {"type": "object", "required": ["shap_scale", "shap_sum_check_passed", "lime_scale", "lime_quality", "lime_absence_reason", "interpretation"]},
+        "tested_refusals": {"type": "object", "required": ["abstention_code", "unavailable_codes", "error_cases", "score_produced"], "properties": {"score_produced": {"const": false}}},
+        "limitations": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/text"}}
+      }
+    },
+    "reproducibility": {
+      "type": "object", "additionalProperties": false, "required": ["source", "requirements", "command", "dependencies", "environment"],
+      "properties": {
+        "source": {"type": "object", "required": ["git_commit", "ai_tree", "research_tree", "source_trees_clean"], "properties": {"git_commit": {"$ref": "#/$defs/oid"}, "ai_tree": {"$ref": "#/$defs/oid"}, "research_tree": {"$ref": "#/$defs/oid"}, "source_trees_clean": {"type": "boolean"}}},
+        "requirements": {"const": "research/uci412/requirements.txt"}, "command": {"$ref": "#/$defs/text"},
+        "dependencies": {"type": "object", "required": ["numpy", "scipy", "scikit-learn", "joblib", "threadpoolctl", "openpyxl", "et-xmlfile"], "additionalProperties": {"$ref": "#/$defs/text"}},
+        "environment": {"type": "object", "additionalProperties": false, "required": ["os", "architecture", "python", "implementation", "numeric_libraries"], "properties": {"os": {"$ref": "#/$defs/text"}, "architecture": {"$ref": "#/$defs/text"}, "python": {"$ref": "#/$defs/text"}, "implementation": {"$ref": "#/$defs/text"}, "numeric_libraries": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["internal_api", "architecture", "version", "num_threads"], "properties": {"internal_api": {"$ref": "#/$defs/text"}, "architecture": {"type": ["string", "null"]}, "version": {"type": ["string", "null"]}, "num_threads": {"type": "integer", "minimum": 1}}}}}}
+      }
+    }
+  }
+}
