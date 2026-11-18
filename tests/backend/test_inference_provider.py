@@ -359,6 +359,49 @@ def test_monitoring_replay_stays_durable_and_idempotent(client, http_app, monito
 # --------------------------------------------------------------------------- #
 
 
+def test_the_offline_research_layer_added_no_provider_and_no_route(http_app):
+    """AI-11.1's single-provider invariant, asserted at runtime where it can be.
+
+    The experiment layer (``tests/experiments/test_research_facade.py``) checks
+    the same boundary by static source inspection only, because the synthetic
+    experiment CI environment installs exactly the research / audit / uci412
+    pins — no FastAPI, no SQLAlchemy, no PyYAML. Importing a backend runtime
+    module from that directory would give the experiment layer a dependency its
+    environment deliberately does not have, so the dynamic assertion lives here,
+    with the backend tests that provision it. Nothing about the invariant itself
+    is weaker for the move: the allowlist, the construction guard and the route
+    surface are all checked against the live application.
+    """
+    import backend.app.inference.registry as registry
+
+    assert registry.ACTIVE_PROVIDER_IDS == frozenset({MOCK_SYNTHETIC_PROVIDER_ID})
+    assert REAL_MODEL_PROVIDER_ID not in registry.ACTIVE_PROVIDER_IDS
+
+    provider = build_active_provider(http_app.state.mock.contracts)
+    assert type(provider) is MockSyntheticProvider
+    assert http_app.state.mock.provider.provider_id == MOCK_SYNTHETIC_PROVIDER_ID
+
+    # The HTTP surface is exactly the two mock endpoints it already had: no
+    # research, synthetic-facade or artifact route was added beside them.
+    paths = sorted({str(getattr(route, "path", "")) for route in http_app.routes})
+    assert sorted(path for path in paths if path.startswith("/v1")) == sorted({CAD, MON})
+    for forbidden in ("research", "synth", "facade", "artifact", "registry"):
+        assert not [path for path in paths if forbidden in path.lower()], forbidden
+
+
+def test_the_serving_runtime_never_imports_the_offline_research_layer():
+    """A fresh interpreter proves the boundary, independent of test order."""
+    probe = (
+        "import sys, backend.app.main;"
+        "offenders = [m for m in sys.modules if m == 'ai' or m.startswith('ai.')];"
+        "assert not offenders, 'serving runtime imported the offline research layer'"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", probe], cwd=ROOT, capture_output=True, text=True
+    )
+    assert completed.returncode == 0, completed.stderr
+
+
 def test_real_model_provider_cannot_be_constructed_or_called(cad_body):
     with pytest.raises(RealModelServingNotAuthorized):
         FailClosedRealModelProvider()

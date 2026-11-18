@@ -997,14 +997,22 @@ def run_research_facade_demo(
             "hostile",
             "C:\\Users",
             "/home/leak",
+            "privatesecret123",
+            "synthetic-private-leak",
         )
 
         unechoed_cases: list[str] = []
 
-        def refuse_unechoed(label: str, document: Any, codes: Sequence[str]) -> None:
+        def refuse_unechoed(
+            label: str,
+            document: Any,
+            codes: Sequence[str],
+            *,
+            artifact_source: Any = None,
+        ) -> None:
             unechoed_cases.append(label)
             response = run_offline_research_inference_from_document(
-                document, model_source=source
+                document, model_source=artifact_source if artifact_source is not None else source
             )
             error_cases.append(
                 _refusal_expectation(
@@ -1063,6 +1071,35 @@ def run_research_facade_demo(
             },
             ["unexpected_request_key"],
         )
+        # A grammar-valid reference is still caller text: on a refusal it is not
+        # echoed anywhere, only counted.
+        grammar_valid_document = {
+            **_base_document([mutate_record(first, record_ref="privatesecret123")]),
+            "model_id": "synth_unregistered_v1",
+        }
+        refuse_unechoed(
+            "grammar_valid_record_ref_withheld_on_refusal",
+            grammar_valid_document,
+            ["unknown_model_entry"],
+        )
+        # A caller-chosen bundle directory name is not a registered identity
+        # either: before the artifact trust gates have verified that directory,
+        # its basename is withheld even though the source object is well-formed.
+        unverified_source = LocalSyntheticBundleSource(
+            bundle_dir=Path(build["bundle_dir"]).parent / "synthetic-private-leak-bundle",
+            trusted_local_root=Path(build["trusted_root"]),
+            signing_key=build["signing_key"],
+        )
+        refuse_unechoed(
+            "unverified_bundle_directory_name_withheld",
+            _base_document([first]),
+            ["invalid_bundle_directory", "bundle_verification_failed",
+             "bundle_not_within_trusted_local_root", "bundle_outside_trusted_root",
+             "untrusted_bundle_location", "bundle_path_invalid", "artifact_read_failed",
+             "artifact_digest_mismatch", "bundle_manifest_missing"],
+            artifact_source=unverified_source,
+        )
+
         for unreadable in (None, 7, "not-a-mapping", [{"record_ref": "/home/leak/secret_bundle"}]):
             refuse_unechoed(
                 f"unreadable_request_document_{type(unreadable).__name__}",

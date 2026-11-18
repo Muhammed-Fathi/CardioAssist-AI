@@ -27,6 +27,7 @@ involved, and nothing here authorizes serving any model.
 """
 from __future__ import annotations
 
+import ast
 import copy
 import dataclasses
 from dataclasses import FrozenInstanceError
@@ -102,6 +103,12 @@ from ai.research_registry import (
     resolve_registered_model,
 )
 from ai.research_routes import RESEARCH_ROUTE_CATALOG
+
+
+def _literal(node: ast.AST) -> object:
+    """The constant value of an assignment target, read without importing it."""
+    assert isinstance(node, ast.Constant), ast.dump(node)
+    return node.value
 
 
 def _canonical(payload: dict) -> str:
@@ -1755,6 +1762,8 @@ def test_status_enum_is_exactly_the_four_registered_results() -> None:
 #: value (a summary built from `getattr`, or from `record.get("record_ref")`).
 SECRET_STRINGS = (
     "synthetic-fake-secret",
+    "privatesecret123",
+    "synthetic-private-leak",
     "secret_bundle",
     "nested-secret",
     "hostile-introspection",
@@ -1897,11 +1906,22 @@ def test_a_path_shaped_or_unregistered_model_identity_is_not_echoed(source, reco
 
 
 def test_ordinary_registered_identifiers_and_refs_are_still_echoed(source, records) -> None:
-    """The fix must not blind the summary: valid ids keep their diagnostic value."""
+    """The hardening must not blind the summary: valid ids keep their value."""
     parsed = parse_inference_request(_base_document(list(records)), model_source=source)
-    summary = build_request_summary(parsed)
     entry = RESEARCH_MODEL_REGISTRY[DEMO_KEY]
     panel = REGISTERED_PANELS[DEMO_PANEL_ID]
+    # A caller's own view of a request is always the conservative one: a request
+    # object cannot attest that it passed the facade's validation.
+    private_view = parsed.to_safe_dict()
+    assert private_view["summary_redaction_basis"] == "refused_request_value_free"
+    assert private_view["record_refs"] == []
+    assert private_view["model_source"]["bundle_dir_name"] is None
+    # The view a *validated result* carries adds the correlation data back.
+    response = run_offline_research_inference(parsed)
+    assert response.status is ResearchFacadeStatus.SYNTHETIC_RESULT
+    summary = response.to_dict()["request_summary"]
+    assert summary is not private_view
+    assert summary["summary_redaction_basis"] == "validated_result_correlation"
     assert summary["request_schema_version"] == REQUEST_SCHEMA_VERSION
     assert summary["operation"] == FACADE_OPERATION
     assert summary["route_id"] == DEMO_ROUTE_ID
@@ -1920,13 +1940,129 @@ def test_ordinary_registered_identifiers_and_refs_are_still_echoed(source, recor
     assert summary["unvalidated_values_redacted"] is False
     assert summary["request_type_accepted"] is True
     assert summary["exploratory_threshold"] == 0.5
-    # The same projection the response carries, and a success is not more
-    # permissive than it used to be: only the redaction bookkeeping is added.
-    response = run_offline_research_inference(parsed)
-    assert response.status is ResearchFacadeStatus.SYNTHETIC_RESULT
-    assert response.to_dict()["request_summary"] == summary
     assert summary["model_source"]["source_type_accepted"] is True
+    assert summary["model_source"]["bundle_dir_name"] == Path(source.bundle_dir).name
     assert summary["explainability"]["options_type_accepted"] is True
+    # Same projection the sanitizer produces for a verified request.
+    assert summary == build_request_summary(parsed, verified=True)
+    # Correlation is never *only* in the summary: each record answer names itself.
+    assert [outcome["record_ref"] for outcome in response.to_dict()["records"]] == [
+        record.record_ref for record in records
+    ]
+
+
+def test_a_grammar_valid_record_ref_is_withheld_from_every_refusal(source, records) -> None:
+    """A reference that passes the grammar is still caller text, not identity.
+
+    ``^[a-z0-9][a-z0-9_-]{0,31}$`` admits a lowercase personal or upstream
+    record identifier, so the *only* rule that keeps a refusal value-free is not
+    to echo references there at all — while a validated result keeps them for
+    correlation, and the bounded count keeps the refusal diagnosable.
+    """
+    sensitive = "privatesecret123"
+    assert SAFE_RECORD_REF_RE.fullmatch(sensitive), "the marker must be grammar-valid"
+    document = mutate(doc(records[0]), record_ref=sensitive)
+
+    for refused in (
+        _base_document([document], request_schema_version="cardioassist.ai.research_inference_request/v0"),
+        _base_document([document], model_id="synth_unregistered_v1"),
+        _base_document([document], panel_contract_sha256="0" * 64),
+    ):
+        response = run_offline_research_inference_from_document(refused, model_source=source)
+        assert response.status is not ResearchFacadeStatus.SYNTHETIC_RESULT
+        payload = _assert_clean(response)
+        summary = payload["request_summary"]
+        assert summary["record_refs"] == []
+        assert summary["record_refs_redacted"] == 1
+        assert summary["record_count"] == 1
+        assert summary["summary_redaction_basis"] == "refused_request_value_free"
+        assert sensitive not in json.dumps(summary)
+
+    # A record-level refusal is the one case where the reference stays: it is the
+    # *key of the answer* for that record, not a reflection of request metadata.
+    # The whole-request summary is value-free there too, so nothing is disclosed
+    # about the request as a whole on any refusal.
+    record_level = call(
+        source, [mutate(document, units={**document["units"], "trestbps": "kPa"})]
+    )
+    assert record_level.status is ResearchFacadeStatus.ERROR
+    answered = record_level.to_dict()
+    assert answered["records"][0]["record_ref"] == sensitive
+    assert answered["request_summary"]["record_refs"] == []
+    assert answered["request_summary"]["record_refs_redacted"] == 1
+    assert answered["request_summary"]["summary_redaction_basis"] == "refused_request_value_free"
+    assert is_registered_static_error_message(answered["records"][0]["error"]["message"])
+
+    # The identical reference on a request that passed validation is reported,
+    # in the summary and per record — the redaction is status-bound, not global.
+    accepted = call(source, [document])
+    assert accepted.status is ResearchFacadeStatus.SYNTHETIC_RESULT
+    payload = accepted.to_dict()
+    assert payload["request_summary"]["record_refs"] == [sensitive]
+    assert payload["request_summary"]["record_refs_redacted"] == 0
+    assert payload["records"][0]["record_ref"] == sensitive
+
+
+def test_an_unverified_bundle_directory_name_is_never_reflected(demo_bundle, records) -> None:
+    """A caller-chosen directory name is not a registered identity either."""
+    marker = "synthetic-private-leak"
+    private_dir = _copy_bundle(
+        Path(demo_bundle["bundle_dir"]),
+        Path(demo_bundle["trusted_root"]) / f"{marker}-bundle-dir",
+    )
+    source = LocalSyntheticBundleSource(
+        bundle_dir=private_dir,
+        trusted_local_root=Path(demo_bundle["trusted_root"]),
+        signing_key=demo_bundle["signing_key"],
+    )
+    assert Path(source.bundle_dir).name.startswith(marker)
+    assert source.safe_descriptor()["bundle_dir_name"].startswith(marker)
+
+    # Refused before any verification of the source: name withheld.
+    refused = call(source, [doc(records[0])], model_id="synth_unregistered_v1")
+    assert refused.status is ResearchFacadeStatus.ERROR
+    summary = _assert_clean(refused)["request_summary"]
+    assert summary["model_source"]["source_type_accepted"] is True
+    assert summary["model_source"]["bundle_dir_name"] is None
+    assert summary["unvalidated_values_redacted"] is True
+
+    # A malformed typed request, whose source object is never even reached.
+    hostile_request = ResearchInferenceRequest(
+        request_schema_version="v0",
+        operation=FACADE_OPERATION,
+        route_id=DEMO_ROUTE_ID,
+        route_version="1.0.0",
+        model_id=DEMO_MODEL_ID,
+        model_version="0.1.0",
+        panel_id=DEMO_PANEL_ID,
+        panel_version="v1",
+        panel_contract_sha256="0" * 64,
+        dataset_id=DEMO_DATASET_ID,
+        records=(),
+        model_source=source,
+    )
+    text = json.dumps(
+        run_offline_research_inference(hostile_request).to_dict(), allow_nan=False
+    )
+    assert marker not in text
+
+    # And once the bundle has actually been verified and produced a result, the
+    # path-free basename is reported again (the source of this response is this
+    # same directory, so the marker appears — proving the gate, not the copy).
+    verified = call(source, [doc(records[0])])
+    assert verified.status is ResearchFacadeStatus.SYNTHETIC_RESULT
+    assert (
+        verified.to_dict()["request_summary"]["model_source"]["bundle_dir_name"]
+        == f"{marker}-bundle-dir"
+    )
+    assert marker not in json.dumps(
+        [
+            run_offline_research_inference_from_document(
+                {"records": [{"record_ref": marker}]}, model_source=source
+            ).to_dict(),
+            run_offline_research_inference_from_document(None, model_source=source).to_dict(),
+        ]
+    )
 
 
 def test_a_malformed_typed_request_still_serializes_to_value_free_json(
@@ -2219,16 +2355,91 @@ def test_no_http_surface_or_contract_change_is_introduced() -> None:
 
 
 def test_backend_and_diagnostic_boundaries_are_untouched() -> None:
-    """This facade adds no provider, no serving path and no diagnostic scope."""
-    from backend.app.inference.registry import ACTIVE_PROVIDER_IDS
-    from backend.app.inference.types import MOCK_SYNTHETIC_PROVIDER_ID
+    """This facade adds no provider, no serving path and no diagnostic scope.
+
+    The backend half of this boundary is checked by *static source inspection*,
+    deliberately: the synthetic-experiment environment installs only the
+    research / audit / uci412 pins — no FastAPI, no SQLAlchemy, no PyYAML — so a
+    test in this directory must not import a backend runtime module, and the
+    experiment layer must not acquire that dependency. The runtime assertion
+    that the application still resolves exactly one, mock, provider lives in
+    ``tests/backend/test_inference_provider.py``, which runs where the backend is
+    provisioned. What is verified here is the source of the boundary itself:
+
+    1. ``ACTIVE_PROVIDER_IDS`` is still literally the one mock synthetic id and
+       the provider factory still takes no selection input;
+    2. no module under ``backend/`` imports the ``ai`` package at all, so no
+       request path can reach the offline research facade;
+    3. the ratified diagnostic-inference registry gained nothing from this work
+       (``ai.diagnostic_scope`` has no backend dependency, so it is imported).
+    """
+    root = Path(__file__).resolve().parents[2]
+    inference = root / "backend" / "app" / "inference"
+
+    def assignments(path: Path) -> dict[str, ast.AST]:
+        found: dict[str, ast.AST] = {}
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        found[target.id] = node.value
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                if node.value is not None:
+                    found[node.target.id] = node.value
+        return found
+
+    types_map = assignments(inference / "types.py")
+    mock_provider_id = _literal(types_map["MOCK_SYNTHETIC_PROVIDER_ID"])
+    assert mock_provider_id == "mock_synthetic"
+    assert _literal(types_map["MOCK_SYNTHETIC_DATA_CLASS"]) == "MOCK_SYNTHETIC"
+    # The fail-closed real provider keeps a different id, which the allowlist
+    # below must not admit.
+    real_map = assignments(inference / "real_model.py")
+    real_provider_id = _literal(real_map["REAL_MODEL_PROVIDER_ID"])
+    assert real_provider_id == "reviewed_real_model" != mock_provider_id
+
+    registry_map = assignments(inference / "registry.py")
+    allowlist = registry_map["ACTIVE_PROVIDER_IDS"]
+    assert (
+        isinstance(allowlist, ast.Call)
+        and isinstance(allowlist.func, ast.Name)
+        and allowlist.func.id == "frozenset"
+        and not allowlist.keywords
+        and len(allowlist.args) == 1
+        and isinstance(allowlist.args[0], ast.Set)
+        and len(allowlist.args[0].elts) == 1
+        and isinstance(allowlist.args[0].elts[0], ast.Name)
+        and allowlist.args[0].elts[0].id == "MOCK_SYNTHETIC_PROVIDER_ID"
+    ), "the provider allowlist must stay a one-element frozenset of the mock id"
+
+    tree = ast.parse((inference / "registry.py").read_text(encoding="utf-8"))
+    factory = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "build_active_provider"
+    )
+    assert [arg.arg for arg in factory.args.args] == ["contracts"]
+    assert not factory.args.kwonlyargs
+    assert factory.args.kwarg is None and factory.args.vararg is None
+
+    # Nothing in the serving tree may reach the research layer — or any ai module.
+    offenders: list[str] = []
+    for path in sorted((root / "backend").rglob("*.py")):
+        imported: set[str] = set()
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                imported.add(node.module.split(".")[0])
+        if "ai" in imported:
+            offenders.append(str(path.relative_to(root)))
+    assert offenders == []
+
     from ai.diagnostic_scope import (
         DIAGNOSTIC_REGISTRY_SYMBOL,
         RATIFIED_DIAGNOSTIC_INFERENCE_SCOPES,
     )
 
-    # The application still resolves exactly one provider: the mock synthetic one.
-    assert ACTIVE_PROVIDER_IDS == frozenset({MOCK_SYNTHETIC_PROVIDER_ID})
     # The separately ratified diagnostic-inference registry gained nothing from
     # this work: no synthetic research model entry is a ratified diagnostic
     # scope, and no synthetic facade artifact kind appears in it.

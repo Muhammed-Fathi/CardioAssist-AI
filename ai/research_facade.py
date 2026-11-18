@@ -540,8 +540,13 @@ class ResearchInferenceRequest:
         :func:`parse_inference_request`) can therefore never place an
         unvalidated identifier, path or nested object in a response — such a
         value becomes ``None`` and its field name is listed in
-        ``redacted_fields`` instead. Record references keep their correlation
-        value only when they match the registered reference grammar.
+        ``redacted_fields`` instead.
+
+        A request cannot attest to its own validation, so this view is the
+        conservative one: record references and the bundle directory basename
+        are withheld (only the bounded counts are reported). The facade rebuilds
+        the summary with correlation enabled for the response that a validated
+        request actually produced a result for.
         """
         return build_request_summary(self)
 
@@ -1317,8 +1322,15 @@ def _safe_bounded_count(value: Any) -> int:
     return max(0, min(int(value), _SUMMARY_RECORD_BOUND))
 
 
-def _summary_records(raw: Any) -> tuple[int, list[str], int]:
-    """(count, grammar-valid refs, redacted-ref count) from a raw records value."""
+def _summary_records(raw: Any, *, echo_refs: bool) -> tuple[int, list[str], int]:
+    """(count, echoed refs, redacted-ref count) from a raw records value.
+
+    ``echo_refs`` is set only for a response that a *validated* request produced
+    a result for. A reference is caller-chosen text: even inside the registered
+    grammar it can carry sensitive content (a lowercase identifier of a real
+    person or record in an upstream system), so a refused request reports the
+    bounded count and the count of withheld references, never the strings.
+    """
     if type(raw) not in (list, tuple):
         return 0, [], 0
     count = len(raw)
@@ -1332,7 +1344,8 @@ def _summary_records(raw: Any) -> tuple[int, list[str], int]:
             candidate = item.record_ref
         else:
             candidate = None
-        if isinstance(candidate, str) and SAFE_RECORD_REF_RE.fullmatch(candidate):
+        valid = isinstance(candidate, str) and bool(SAFE_RECORD_REF_RE.fullmatch(candidate))
+        if valid and echo_refs:
             refs.append(candidate)
         else:
             redacted += 1
@@ -1381,7 +1394,15 @@ def _summary_explainability(options: Any) -> dict[str, Any]:
     }
 
 
-def _summary_model_source(source: Any) -> dict[str, Any]:
+def _summary_model_source(source: Any, *, verified: bool) -> dict[str, Any]:
+    """Path-free description of the artifact source.
+
+    ``bundle_dir_name`` is a *caller-chosen* basename, not a registered identity:
+    before the source has passed the bundle trust gates it is withheld, so a
+    refusal cannot confirm that a directory name existed or echo one that embeds
+    a secret. It is reported only on a response whose artifact was actually
+    verified against the trusted local root and producer signature.
+    """
     if type(source) is not LocalSyntheticBundleSource:
         return {
             "artifact_kind": ARTIFACT_KIND_LABEL,
@@ -1390,11 +1411,17 @@ def _summary_model_source(source: Any) -> dict[str, Any]:
             "remote_or_url_source_supported": False,
             "source_type_accepted": False,
         }
-    return {**source.safe_descriptor(), "source_type_accepted": True}
+    descriptor = {**source.safe_descriptor(), "source_type_accepted": True}
+    if not verified:
+        descriptor["bundle_dir_name"] = None
+    return descriptor
 
 
 def build_request_summary(
-    request: Any, *, fields: Mapping[str, Any] | None = None
+    request: Any,
+    *,
+    fields: Mapping[str, Any] | None = None,
+    verified: bool = False,
 ) -> dict[str, Any]:
     """Build the request summary a response may carry, for any input shape.
 
@@ -1406,6 +1433,12 @@ def build_request_summary(
     request object is never introspected, and raw document values are only ever
     read through the ``fields`` projection that :func:`safe_document_summary`
     builds from a plain ``dict``.
+
+    ``verified`` marks the summary of a response that a fully validated request
+    produced a result for; it is the only case in which caller-chosen text —
+    record references and the bundle directory basename — is echoed, because on
+    that path those values have been through the registered record grammar and
+    the artifact trust gates. A refusal never echoes them.
     """
     accepted = type(request) is ResearchInferenceRequest
     resolved: dict[str, Any] = {}
@@ -1427,16 +1460,19 @@ def build_request_summary(
         else:
             summary[name] = None
             redacted.append(name)
-    count, refs, redacted_refs = _summary_records(resolved.get("records"))
+    count, refs, redacted_refs = _summary_records(resolved.get("records"), echo_refs=verified)
     summary["record_count"] = count
     summary["record_refs"] = refs
     summary["exploratory_threshold"] = _safe_threshold(resolved.get("exploratory_threshold"))
     summary["explainability"] = _summary_explainability(resolved.get("explainability"))
-    summary["model_source"] = _summary_model_source(resolved.get("model_source"))
+    summary["model_source"] = _summary_model_source(resolved.get("model_source"), verified=verified)
     summary["request_type_accepted"] = accepted
     summary["record_refs_redacted"] = redacted_refs
     summary["redacted_fields"] = sorted(set(redacted))
     summary["unvalidated_values_redacted"] = bool(redacted or redacted_refs) or not accepted
+    summary["summary_redaction_basis"] = (
+        "validated_result_correlation" if verified else "refused_request_value_free"
+    )
     return summary
 
 
@@ -1462,15 +1498,16 @@ def _universal_refusal_summary() -> dict[str, Any]:
         "record_refs": [],
         "exploratory_threshold": None,
         "explainability": _summary_explainability(None),
-        "model_source": _summary_model_source(None),
+        "model_source": _summary_model_source(None, verified=False),
         "request_type_accepted": False,
         "record_refs_redacted": 0,
         "redacted_fields": sorted(_SUMMARY_IDENTITY_FIELDS),
         "unvalidated_values_redacted": True,
+        "summary_redaction_basis": "refused_request_value_free",
     }
 
 
-def safe_request_summary(request: Any) -> dict[str, Any]:
+def safe_request_summary(request: Any, *, verified: bool = False) -> dict[str, Any]:
     """``build_request_summary`` with a total failure fallback.
 
     Summarizing a request must never be able to raise: if the sanitizer itself
@@ -1478,7 +1515,7 @@ def safe_request_summary(request: Any) -> dict[str, Any]:
     instead of escaping the boundary.
     """
     try:
-        summary = build_request_summary(request)
+        summary = build_request_summary(request, verified=verified)
         json.dumps(summary, allow_nan=False, ensure_ascii=True)
     except Exception:  # noqa: BLE001 - the boundary never leaks or re-raises
         return _universal_refusal_summary()
@@ -1499,7 +1536,7 @@ def safe_document_summary(document: Any) -> dict[str, Any]:
     projected["records"] = mapping.get("records")
     projected["exploratory_threshold"] = mapping.get("exploratory_threshold")
     projected["explainability"] = mapping.get("explainability")
-    return build_request_summary(None, fields=projected)
+    return build_request_summary(None, fields=projected, verified=False)
 
 # --------------------------------------------------------------------------- #
 # Internal refusal carrier                                                     #
@@ -2219,10 +2256,12 @@ def run_offline_research_inference(
     outcomes: tuple[RecordOutcome, ...] = ()
     refusal: FacadeErrorDetail | None = None
     forced: ResearchFacadeStatus | None = None
-    safe_summary: Mapping[str, Any] = {}
+    summary_source: Any = request
     try:
         validated_request = _validate_request_shape(request)
-        safe_summary = safe_request_summary(validated_request)
+        # From here the summary describes a request that satisfied the registered
+        # grammar; before it, the raw (untrusted) object is what is summarized.
+        summary_source = validated_request
         binding = _resolve_binding(validated_request)
         panel = binding.panel
         artifact = _load_artifact(validated_request, binding, panel)
@@ -2237,15 +2276,18 @@ def run_offline_research_inference(
         if exc.binding is not None:
             binding = exc.binding
         forced = exc.status
-        if not safe_summary:
-            safe_summary = safe_request_summary(request)
     except Exception:  # noqa: BLE001 - the boundary never leaks internals
         refusal = _Refusal("request_unexpected_error", stage="request").detail
         forced = ResearchFacadeStatus.ERROR
-        if not safe_summary:
-            safe_summary = safe_request_summary(request)
 
     status = forced if forced is not None else _roll_up(outcomes)
+    # The summary is built once the status is known, because what a response may
+    # disclose depends on it: caller-chosen text (record references, the bundle
+    # directory basename) is reported only on the response a fully validated and
+    # verified request produced a result for. Every refusal is value-free.
+    safe_summary: Mapping[str, Any] = safe_request_summary(
+        summary_source, verified=status.produced_a_score
+    )
     provenance = {
         "input_provenance": SYNTHETIC_PROVENANCE_DECLARATION,
         "input_provenance_basis": (
