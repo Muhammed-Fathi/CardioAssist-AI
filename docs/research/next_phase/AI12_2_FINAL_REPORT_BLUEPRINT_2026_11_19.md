@@ -1,5 +1,7 @@
 # AI-12.2 — Final Graduation Research Report Blueprint and Evidence Map
 
+> **2026-11-19 editorial cross-reference:** A **substantive 17-chapter scientific manuscript draft** now exists at [AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md](AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md), with [per-chapter evidence/review tracker](AI12_2_MANUSCRIPT_COVERAGE_2026_11_19.json). The `UNWRITTEN` baseline below records this blueprint's **original creation state**, not its current successor status. **No final acceptance or new real clinical validation is claimed.**
+
 **Document ID:** CAI-AI12.2-REPORT-BLUEPRINT-2026-11-19-v1  
 **State:** UNWRITTEN FINAL MANUSCRIPT / REVIEWABLE BLUEPRINT ONLY; completing this template is not completion of AI-12.2.  
 **Baseline:** `main` `5786424593c5fa9387a1bf382b2233b02779de42`; this is a report specification, not a claim of fresh testing.  
