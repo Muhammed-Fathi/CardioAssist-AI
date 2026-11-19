@@ -190,17 +190,18 @@
         "arena_implementer",
         "research_reviewer"
       ],
-      "implementation_pr": "PENDING_CREATION_THIS_BRANCH",
+      "implementation_pr": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/96",
       "reviewed_pr_head_sha": null,
       "merge_sha": null,
       "windows_evidence": "NOT_RUN / metadata-only scientific review, no patient data accessed",
-      "ci_evidence": "GitHub CI for this proposal not yet run at record creation",
+      "ci_evidence": "Merged PR #96 exact head cbcddaaf85542884cb1974ce3b24ce6f8b151ed0: 4/4 workflows success; this current Round-2 PR CI not yet recorded.",
       "evidence_record_ids": [
-        "RH-02-EV-001"
+        "RH-02-EV-001",
+        "RH-02-EV-002"
       ],
       "verified_at": "2026-11-19",
       "reviewer": null,
-      "notes": "Round-1 read-only original UCI owner landing pages and methodological reporting standards inspected; 16 source questions and 16 UCI-412 registered features reviewed with explicit open source/clinical timing holds. No real source admission, new real training, author contact or scientific human approval. Signed reviewer dispositions required."
+      "notes": "Round-1 read-only original UCI owner landing pages and methodological reporting standards inspected; 16 source questions and 16 UCI-412 registered features reviewed with explicit open source/clinical timing holds. No real source admission, new real training, author contact or scientific human approval. Signed reviewer dispositions required. Round-2 public primary dataset-owner/author abstract reconciliation read 2026-11-19: original owner 303/54 fields, 2022 third-party 303/55 and secondary reported constant Exertional CP, 2020 contradictory 216+88=304, AngioCAD original 2026 paper explicitly says 413 PATIENTS with structured clinical data/video (not 413 videos); source decisions remain unresolved/no real activation."
     },
     {
       "id": "RH-03",
@@ -212,21 +213,23 @@
         "Completed research report with reproducible source-specific results",
         "Every number/table/claim source-linked and evidence graded"
       ],
-      "status": "PLANNED",
+      "status": "IN_PROGRESS",
       "assigned_roles": [
         "maintainer",
         "arena_implementer",
         "research_reviewer"
       ],
-      "implementation_pr": null,
+      "implementation_pr": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/97",
       "reviewed_pr_head_sha": null,
-      "merge_sha": null,
-      "windows_evidence": null,
-      "ci_evidence": null,
-      "evidence_record_ids": [],
-      "verified_at": null,
+      "merge_sha": "c6fe4911bef062dfbea92e0d3f6f422a906832d7",
+      "windows_evidence": "NOT_RUN for manuscript PR; final release Windows/NTFS evidence required RH-05",
+      "ci_evidence": "PR #97 exact head 5f573de44cd34cbd241d469a0853522bb93ed025: 4/4 GitHub workflows completed success; docs-only report CI, not medical validation.",
+      "evidence_record_ids": [
+        "RH-03-EV-001"
+      ],
+      "verified_at": "2026-11-19",
       "reviewer": null,
-      "notes": "No work, test or approval inferred from this planning entry."
+      "notes": "PR #97 merged at c6fe4911bef062dfbea92e0d3f6f422a906832d7. Substantive AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md has all FR-01..FR-17 chapters with 28 original claim IDs and required tables; separate coverage JSON retains 10 PENDING scientific/engineering editorial review actions. Not an accepted final report; final report SHA/Windows E2E not complete."
     },
     {
       "id": "RH-04",
@@ -601,6 +604,41 @@
       "review_disposition": "REVIEW_DRAFT_NOT_HUMAN_ACCEPTED",
       "limitations": "Dataset landing page has empty UCI-412 field table; original owner field forms and AngioCAD Zenodo files not inspected, no new data permissions; no unearned conditional study GO or NO-GO",
       "sanitized_evidence_url_or_path": "docs/research/next_phase/RH02_PRIMARY_SOURCE_ADMISSIBILITY_2026_11_19.md"
+    },
+    {
+      "record_id": "RH-02-EV-002",
+      "milestone_id": "RH-02",
+      "claim_type": "SECOND_ROUND_PRIMARY_AND_SECONDARY_DATASET_SCIENTIFIC_RECONCILIATION",
+      "source_pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/96",
+      "exact_source_sha": "c6fe4911bef062dfbea92e0d3f6f422a906832d7",
+      "test_or_report_name": "RH02_ROUND2_SOURCE_RECONCILIATION_2026_11_19.md; Q-05/Q-07/Q-08/Q-14 update",
+      "evidence_class": "PUBLIC_ORIGINAL_AUTHOR_ABSTRACT_AND_AUTHOR_DATASET_METADATA_PLUS_SECONDARY_CONFLICT_REVIEW",
+      "observed_result": "Author-deposited UCI-412 303/54 and >=50 threshold; original author abstract 303/54; 2022 independent description 303/55, 216/87 and secondary Exertional CP constant; 2020 published 216+88=304 discrepancy; original AngioCAD abstract describes 413 PATIENTS with clinical data and videos, not 413 videos. No source admission or hold lifted.",
+      "environment": "Read-only public Mendeley dataset-owner metadata, PubMed abstracts and peer-reviewed secondary article HTML; no patient source data",
+      "command_or_method": "Read official author-deposited dataset description, original 2013 and 2026 PubMed abstracts, compare peer-reviewed 2020/2022 articles and existing frozen GitHub source review; update exact literal claims and decision JSON",
+      "checked_by": "ChatGPT research review; independent human clinical/source-owner review pending",
+      "checked_on": "2026-11-19",
+      "review_disposition": "REVIEW_DRAFT_HOLD_CONTINUES",
+      "limitations": "Original 2013 full paper/author field codebook not inspected; AngioCAD Zenodo files/manifest unavailable, no owner contact/permission; secondary Exertional CP variance not independently checked from protected patient source",
+      "sanitized_evidence_url_or_path": "docs/research/next_phase/RH02_ROUND2_SOURCE_RECONCILIATION_2026_11_19.md"
+    },
+    {
+      "record_id": "RH-03-EV-001",
+      "milestone_id": "RH-03",
+      "claim_type": "SUBSTANTIVE_FINAL_RESEARCH_MANUSCRIPT_DRAFT_MERGED",
+      "source_pr_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/97",
+      "exact_source_sha": "5f573de44cd34cbd241d469a0853522bb93ed025",
+      "merge_sha": "c6fe4911bef062dfbea92e0d3f6f422a906832d7",
+      "test_or_report_name": "AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md and AI12_2_MANUSCRIPT_COVERAGE_2026_11_19.json",
+      "evidence_class": "MERGED_GITHUB_REPORT_DRAFT_WITH_CI_NOT_SCIENTIFIC_ACCEPTANCE",
+      "observed_result": "PR97 merged on main, 4 GitHub workflows success; FR-01 through FR-17 written, 28 claim IDs mapped, 10 human/academic/engineering review actions all PENDING; real labs/external not executed.",
+      "environment": "GitHub PR and source document read-only confirmation; no new Windows, patient data, real model training",
+      "command_or_method": "Fetch PR97 merge state and exact-head workflows; inspect exact-main report and coverage JSON",
+      "checked_by": "ChatGPT GitHub read-only review; named independent human review pending",
+      "checked_on": "2026-11-19",
+      "review_disposition": "MERGED_DRAFT_REQUIRES_REPORT_AND_SOURCE_REVIEW",
+      "limitations": "Report is not independently accepted; no final release-SHA Windows tests or supervisor scientific signoff; report change in current PR is factual AngioCAD patient count correction",
+      "sanitized_evidence_url_or_path": "docs/research/next_phase/AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md"
     }
   ],
   "evidence_record_required_fields": [
@@ -652,7 +690,7 @@
     ],
     "release_gate": "All 15 acceptance checks accepted, every RH milestone accepted or legitimately conditional with reviewed NO-GO, final full report linked and maintainer explicitly accepts exact release sha. This is never clinical authorization."
   },
-  "next_executable_step": "Review and merge RH-01 28-claim source evidence audit PR after CI. Continue RH-01 completeness audit and independent claim validation, begin separate scoped RH-02 source semantics and RH-03 full AI-12.2 manuscript drafting in parallel. Keep final acceptance status NOT_ACCEPTED.",
+  "next_executable_step": "Review RH-02 Round-2 source reconciliation and manuscript AngioCAD patient-count correction after CI; obtain original source owner acquisition-time/feature codebooks and AngioCAD archive schema only when accessible and authorized. Complete independent RH-02 scientific adjudication and RH-03 report review; preserve UCI-412 scientific HOLD and real AI9.2/AI10.2 NOT EXECUTED. Later RH-04/RH-05 versioned handoff and exact-SHA tests.",
   "rh01_gap_register": [
     {
       "gap_id": "GAP-01",
@@ -672,7 +710,7 @@
     {
       "gap_id": "GAP-02",
       "priority": "P0",
-      "status": "OPEN_IN_SCOPE",
+      "status": "IN_PROGRESS",
       "description": "Completed AI-12.2 scientific manuscript",
       "owner_stage": "RH-03",
       "role": "chatgpt_research_report+arena_evidence_tooling+maintainer",
@@ -680,7 +718,9 @@
       "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
       "reviewer": null,
       "closed_on": null,
-      "evidence_record_ids": []
+      "evidence_record_ids": [
+        "RH-03-EV-001"
+      ]
     },
     {
       "gap_id": "GAP-03",
@@ -694,7 +734,8 @@
       "reviewer": null,
       "closed_on": null,
       "evidence_record_ids": [
-        "RH-02-EV-001"
+        "RH-02-EV-001",
+        "RH-02-EV-002"
       ]
     },
     {
