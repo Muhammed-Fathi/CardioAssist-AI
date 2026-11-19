@@ -20,7 +20,7 @@ from typing import Any
 
 VALIDATOR_SCHEMA_ID = "cardioassist.issue110_decision_review_validation/v1"
 REVIEW_SCHEMA_ID = "cardioassist.issue110_decision_review/v1"
-REVIEW_VERSION = "1.0.0"
+REVIEW_VERSION = "1.1.0"
 EXPECTED_BASE_COMMIT = "d45bbd44e029d3677e99d08dd4f848d5ec29fa2f"
 EXPECTED_BRANCH = "arena/252b77ec-cardioassist-ai"
 EXPECTED_REGISTER_SHA256 = "9e3f5f9895f894fb603f90435a69d7b174b24bff291254e208cd7c2201f612d4"
@@ -102,6 +102,23 @@ DATASET_TOKENS = (
     "VA Long Beach",
     "Switzerland",
     "AngioCAD",
+)
+REPORT_REQUIRED_V11_TOKENS = (
+    "UNASSESSED_DIFFERENT_ESTIMAND",
+    "`chol`",
+    "`fbs`",
+    "2013 RCM Table 2",
+    "2015 inventor patent",
+)
+REPORT_FORBIDDEN_V11_PHRASES = (
+    # The review-corrected claim set. Meta-mention of the correction (e.g. in
+    # the v1.1 change log) must not re-introduce the definitive claim, so only
+    # the exact claim phrasings are forbidden and the meta text avoids them:
+    "UCI-45 has no labs",
+    "family has no labs",
+    "Cleveland has no labs",
+    "has **no labs**",
+    "no labs anywhere",
 )
 
 
@@ -293,6 +310,45 @@ def validate(
 
     for token in REPORT_TOKENS + DATASET_TOKENS:
         require(token in report, errors, f"Markdown report is missing required token: {token}")
+    for token in REPORT_REQUIRED_V11_TOKENS:
+        require(token in report, errors, f"Markdown report is missing required v1.1 correction token: {token}")
+    report_lower = report.lower()
+    for phrase in REPORT_FORBIDDEN_V11_PHRASES:
+        require(
+            phrase.lower() not in report_lower,
+            errors,
+            f"Markdown report re-introduces the definitively false phrasing: {phrase!r}",
+        )
+
+    # v1.1 review corrections: UCI-45 chol/fbs are documented in the underlying
+    # 13-predictor schema at all four sites; they are omitted from the frozen
+    # five-field panel and are UNASSESSED_DIFFERENT_ESTIMAND, never admissible.
+    uci45_ids = ("UCI45_CLEVELAND", "UCI45_HUNGARY", "UCI45_VA_LONG_BEACH", "UCI45_SWITZERLAND")
+    for entry in datasets or []:
+        if isinstance(entry, dict) and entry.get("id") in uci45_ids:
+            facts = " ".join(str(fact) for fact in entry.get("known_facts", [])).lower()
+            require(
+                "chol" in facts and "fbs" in facts,
+                errors,
+                f"{entry.get('id')} known_facts no longer document chol/fbs schema acknowledgment (v1.1 correction)",
+            )
+    matrix = ai92.get("alternative_same_source_matrix") or []
+    require(
+        isinstance(matrix, list) and len(matrix) == 1,
+        errors,
+        "ai_9_2_blockers.alternative_same_source_matrix must contain exactly one documented entry (the UCI-45 chol/fbs estimand)",
+    )
+    if isinstance(matrix, list) and matrix and isinstance(matrix[0], dict):
+        require(
+            matrix[0].get("disposition") == "UNASSESSED_DIFFERENT_ESTIMAND",
+            errors,
+            "alternative_same_source_matrix entry must be UNASSESSED_DIFFERENT_ESTIMAND - never ADMISSIBLE",
+        )
+        require(
+            "ADMISSIBLE" in (matrix[0].get("not") or []),
+            errors,
+            "alternative_same_source_matrix entry must explicitly exclude ADMISSIBLE",
+        )
 
     claims = review.get("prohibited_claims", {})
     require(bool(claims), errors, "prohibited_claims register is empty")

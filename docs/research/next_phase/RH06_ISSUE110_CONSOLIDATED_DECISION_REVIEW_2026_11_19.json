@@ -1,7 +1,7 @@
 {
   "schema_id": "cardioassist.issue110_decision_review/v1",
-  "version": "1.0.0",
-  "document_id": "CAI-RH06-ISSUE110-DECISION-REVIEW-2026-11-19-v1",
+  "version": "1.1.0",
+  "document_id": "CAI-RH06-ISSUE110-DECISION-REVIEW-2026-11-19-v1.1",
   "prepared_at": "2026-11-19",
   "status": "EVIDENCE_REVIEW_DRAFT_NOT_APPROVED",
   "baseline": {
@@ -84,7 +84,8 @@
       "known_facts": [
         "303 headline instances; class vector 164/55/36/35/13; under 0 vs 1-4 binarization: 139 positive / 164 negative (E4 arithmetic from E1).",
         "Official sources define age, sex, cp, trestbps and restecg; trestbps is resting blood pressure on admission in mm Hg; num wording is 0 <50% and 1 >50%.",
-        "Historical internal exploratory D-047 result (INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED), not re-executed: source-reported repeated nested-CV AUROC 0.8271 +/- 0.0097 over four dependent repeats; outcome-proportion adequacy targets 382 and MAPE criterion 459 unmet at n=303."
+        "Historical internal exploratory D-047 result (INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED), not re-executed: source-reported repeated nested-CV AUROC 0.8271 +/- 0.0097 over four dependent repeats; outcome-proportion adequacy targets 382 and MAPE criterion 459 unmet at n=303.",
+        "Official UCI-45 owner page and heart-disease.names (E1) explicitly list chol (serum cholesterol, mg/dL) and fbs (binary fasting blood sugar >120 mg/dL) among the standard 13 predictors/14 fields of the underlying 13-predictor source; both are omitted from CardioAssist's frozen D-047 five-field resting panel and are UNASSESSED_DIFFERENT_ESTIMAND for any study (report section 6.2.1); neither marker is authorized or investigated here."
       ],
       "uncertainties": [
         "No dated per-field evidence that all five proposed inputs existed before the reference procedure (six-week window exists only in an E3 transcription, not per-field clocks).",
@@ -124,7 +125,7 @@
     {
       "id": "UCI412_Z_ALIZADEH_SANI",
       "title": "UCI-412 Z-Alizadeh Sani / DA-A1",
-      "intended_role": "Separate 16-field historical M3a internal-research route; the only candidate same-source Clinical+Labs pairing source, currently inadmissible for it. Never pooled; never compared head-to-head with Cleveland.",
+      "intended_role": "Separate 16-field historical M3a internal-research route; the only currently investigated and registered same-source Clinical+Labs pairing (its 17-name laboratory/echo extension), currently inadmissible for it. Never pooled; never compared head-to-head with Cleveland. This restriction concerns the investigated/registered labs extension only - it is not a claim that UCI-45 lacks biochemical markers (UCI-45 documents chol/fbs; see ai_9_2_blockers.alternative_same_source_matrix, UNASSESSED_DIFFERENT_ESTIMAND).",
       "sources": [
         "OA-2012-JMSS",
         "OA-2013-RCM",
@@ -201,7 +202,8 @@
       "known_facts": [
         "Official class vector 188/37/26/28/15: 294 records, 188 negative / 106 positive (E4 arithmetic from E1); the 1989 original abstract describes a 425-patient Hungarian test group at 38% prevalence - delivered 294-record file is not the full published group.",
         "E2 aggregate record: 292/294 joint five-field availability (one trestbps missing); 782 recognized missing cells in 14 processed columns (ca=291, thal=266, slope=190); one excess processed full-row duplicate; processed target 0/1 vs raw 0-4 with aggregate correspondence consistent with binarization.",
-        "Raw-vs-processed order-independent 13-predictor profile overlap 293/294; positional exact agreement 1/294 - neither figure proves patient identity, correct linkage or independence."
+        "Raw-vs-processed order-independent 13-predictor profile overlap 293/294; positional exact agreement 1/294 - neither figure proves patient identity, correct linkage or independence.",
+        "The shared UCI-45 schema documents chol (serum cholesterol, mg/dL) and fbs (binary fasting blood sugar >120 mg/dL) at this site as well, with major missingness/source-specific quality concerns; neither marker is part of any authorized study or the frozen five-field panel (report section 6.2.1)."
       ],
       "uncertainties": [
         "Patient-level independence from Cleveland cannot be established from public sources (dummy identifiers; 425 vs 294; reported profile collisions; 1 excess full-row duplicate).",
@@ -262,7 +264,8 @@
       ],
       "known_facts": [
         "Class vector 51/56/41/42/10: 200 records, 149 positive (E4 arithmetic from E1); the 1989 original describes a 200-patient VA test group with 75% prevalence - size/prevalence consistent, identity unproven.",
-        "E2 aggregate record: 698 recognized missing cells in 14 processed columns (24.93%); ca=198/200, thal=166/200, slope=102/200, oldpeak=56/200, trestbps=56/200; one excess processed full-row duplicate."
+        "E2 aggregate record: 698 recognized missing cells in 14 processed columns (24.93%); ca=198/200, thal=166/200, slope=102/200, oldpeak=56/200, trestbps=56/200; one excess processed full-row duplicate.",
+        "The shared UCI-45 schema documents chol (serum cholesterol, mg/dL) and fbs (binary fasting blood sugar >120 mg/dL) at this site as well; neither marker is part of any authorized study or the frozen five-field panel (report section 6.2.1)."
       ],
       "uncertainties": [
         "Five-field timing/units as delivered; joint availability unresolved; patient overlap with Cleveland unresolved (dummy identifiers).",
@@ -313,7 +316,8 @@
       ],
       "known_facts": [
         "Class vector 8/48/32/30/5: 123 records, 115 positive and only 8 num=0 negatives (E4 arithmetic from E1); the 1989 original reports a 143-patient Zurich/Basel group (58/85, 1985) at 84% prevalence - delivered file is not the full published group.",
-        "E2 aggregate record: 273 recognized missing cells (15.85%); ca=118/123, fbs=75/123, thal=52/123, slope=17/123, trestbps=2/123; chol=0 for all 123 rows - physiologically implausible; unresolved structural-missingness/coding question, not a proven patient value and not a recoding license."
+        "E2 aggregate record: 273 recognized missing cells (15.85%); ca=118/123, fbs=75/123, thal=52/123, slope=17/123, trestbps=2/123; chol=0 for all 123 rows - physiologically implausible; unresolved structural-missingness/coding question, not a proven patient value and not a recoding license.",
+        "The shared UCI-45 schema also explicitly documents chol (serum cholesterol, mg/dL) and fbs (binary fasting blood sugar >120 mg/dL) as fields - distinct from the missingness facts above; neither marker is part of any authorized study or the frozen five-field panel (report section 6.2.1)."
       ],
       "uncertainties": [
         "123-vs-143 reconciliation and Zurich/Basel attribution; site reference-standard equivalence; per-field timing.",
@@ -517,8 +521,8 @@
         },
         {
           "id": "F-2",
-          "blocker": "No printed units anywhere except EF(%); frozen secondary units and ranges conflict in places (TG 37-1050 vs 50-400; PLT 25-742 vs 100-450; K 3.0-6.6 vs 3.0-6.0; WBC 3700-18000 vs 2000-15000; ESR 1-90 vs 0-60) and may not be adopted as original-author units.",
-          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md section 2.4 table"
+          "blocker": "No printed lab/echo units in the original-author 2013 RCM Table 2 itself, except EF(%). The 2015 inventor patent application does print some laboratory/echo units (and BP mmHg, PR ppm), but it is a 335-person/50-feature distinct embodiment - NOT verification of UCI-412's delivered 303-row XLSX units, lab timing or clinical correctness; units must not be transferred between those sources without evidence. Secondary/frozen ranges disagree in places (TG paper 37-1050 vs dict 50-400; PLT 25-742 vs 100-450; K 3.0-6.6 vs 3.0-6.0; WBC 3700-18000 vs 2000-15000; ESR 1-90 vs 0-60). Frozen secondary units (mg/dL, mm/hr, ...) must not be treated as original-author units.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md sections 2.4 (Table 2 compare) and 2.5 (patent)"
         },
         {
           "id": "F-3",
@@ -564,8 +568,8 @@
         },
         {
           "id": "T-3",
-          "blocker": "Cleveland/UCI-45 contains no routine labs; Hungary/VA/Switzerland have no labs dictionary with any timing evidence; the only same-person pairing is UCI-412, whose labs fail T-1/T-2.",
-          "evidence": "RH02_ISSUE107_PUBLIC_SOURCE_DATASET_AUDIT_2026_11_19.md sections 4.1-4.6"
+          "blocker": "UCI-45's underlying 13-predictor schema documents chol and fbs at all four sites (with major missingness/source-specific quality concerns, e.g. Switzerland chol=0 in all 123 rows), but the frozen D-047 five-field panel omits them, they are not verified pre-angiography, and they are UNASSESSED_DIFFERENT_ESTIMAND - not a Clinical+Labs pairing (see alternative_same_source_matrix). The only currently investigated same-person pairing is UCI-412's 17-name laboratory/echo extension, whose timing fails T-1/T-2.",
+          "evidence": "RH02_ISSUE107_PUBLIC_SOURCE_DATASET_AUDIT_2026_11_19.md sections 4.1-4.6; UCI-45 owner page / heart-disease.names (E1); report section 6.2.1"
         },
         {
           "id": "T-4",
@@ -576,8 +580,8 @@
       "source": [
         {
           "id": "S-1",
-          "blocker": "UCI-412 is the only in-portfolio same-source clinical+labs pairing and is under SCIENTIFIC_HOLD for new real fitting; #106 forbids new real UCI-412 training / AI-9.2 pending owner CRF/codebook.",
-          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md sections 9-10 (D-UCI-TIME)"
+          "blocker": "UCI-412 is the only currently investigated and registered same-source clinical+labs pairing - specifically its 17-name laboratory/echo extension - and is under SCIENTIFIC_HOLD for new real fitting; #106 forbids new real UCI-412 training / AI-9.2 pending owner CRF/codebook. The UCI-45 family (Cleveland/Hungary/VA/Switzerland) DOES document two biochemical markers in the underlying 13-predictor schema (chol serum cholesterol mg/dL; fbs binary fasting blood sugar >120 mg/dL), omitted from the frozen D-047 five-field resting panel; this is a different, unassessed estimand (see alternative_same_source_matrix), not a pairing, and carries no timing, validity or admissibility evidence. Statlog has none. AngioCAD's schema is unopened and not admitted.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md sections 9-10 (D-UCI-TIME); UCI-45 owner page / heart-disease.names (E1); report section 6.2.1"
         },
         {
           "id": "S-2",
@@ -596,8 +600,8 @@
         },
         {
           "id": "S-5",
-          "blocker": "No other reputable source with verified pre-outcome labs and a target-compatible label exists or was introduced (out of scope); substitution requires a fresh, separately reviewed suitability pass.",
-          "evidence": "Scope of this decision review; RH02_RH03_CONSOLIDATED_RESEARCH_HANDOFF_2026_11_19.md section 6 Priority 1"
+          "blocker": "No sub-cohort with VERIFIED pre-outcome labs + a target-compatible label exists inside the portfolio: UCI-412's labs fail section 6.1, and UCI-45's documented chol/fbs are not verified pre-angiography markers, are omitted from the frozen D-047 five-field panel, and are UNASSESSED_DIFFERENT_ESTIMAND (see alternative_same_source_matrix). No other reputable source may be substituted without a fresh, separately reviewed suitability pass (not performed here, per scope).",
+          "evidence": "Scope of this decision review; UCI-45 owner page / heart-disease.names (E1); report sections 6.2 and 6.2.1"
         }
       ],
       "protocol": [
@@ -674,7 +678,33 @@
     "standing_disposition": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
     "review_only_path": "GO_FOR_REVIEW_ONLY",
     "real_study_status": "NOT_PERFORMED",
-    "honest_completion_statement": "NOT_PERFORMED - not failed, not pending-data; not executed and not authorized. Incremental diagnostic benefit of labs is NOT ESTABLISHED."
+    "honest_completion_statement": "NOT_PERFORMED - not failed, not pending-data; not executed and not authorized. Incremental diagnostic benefit of labs is NOT ESTABLISHED.",
+    "alternative_same_source_matrix": [
+      {
+        "id": "ALT-UCI45-CHOL-FBS",
+        "description": "The official UCI-45 owner page and heart-disease.names (E1) explicitly list chol (serum cholesterol, mg/dL) and fbs (binary fasting blood sugar >120 mg/dL) among the standard 13 predictors/14 fields of the underlying 13-predictor source, shared by Cleveland, Hungary, VA Long Beach and Switzerland (with major missingness and source-specific quality concerns, e.g. Switzerland chol=0 in all 123 rows). A hypothetical UCI-45 limited-biochemical-marker comparison would be a different, much narrower estimand than both the currently investigated/registered UCI-412 17-name laboratory/echo extension and AI-9.2's intended routine-labs paired question.",
+        "disposition": "UNASSESSED_DIFFERENT_ESTIMAND",
+        "not": [
+          "ADMISSIBLE",
+          "a new workstream",
+          "a replacement for AI-9.2",
+          "evidence of collection before angiography",
+          "an excuse for training or changing the frozen D-047 five-field resting panel",
+          "authorization of any data access, fitting or evaluation"
+        ],
+        "minimum_for_any_future_scoping": [
+          "its own written protocol with the estimand stated",
+          "target/threshold rulings (exact-50 / >50% unresolved)",
+          "units and semantics evidence for chol and fbs",
+          "missingness/abstention policy covering recorded structural anomalies",
+          "pre-angiography availability evidence",
+          "sample-size/precision justification",
+          "named independent scientific review",
+          "separately scoped governance authorization naming UCI-45 and those fields"
+        ],
+        "owner": "None named - no study is proposed by this companion; any future scoping requires a separately scoped protocol and authorization"
+      }
+    ]
   },
   "ai_10_2_prerequisites": {
     "summary": "Approved frozen full-cohort Cleveland artifact does not exist; source compatibility, independence, one-shot protocol and precision all open; execution stays NOT_PERFORMED.",
@@ -1248,10 +1278,30 @@
   "disclaimer": "Decision-review, not a decision. Recommendations only; named humans decide. No dataset, model, protocol, gate, register status, backend capability or clinical status was changed or is implied to change by this companion.",
   "deliverables": {
     "markdown_report": "RH06_ISSUE110_CONSOLIDATED_DECISION_REVIEW_2026_11_19.md",
-    "report_sha256": "5b0c62060c0dd1d7b9e80b28f55194392f6666511022235b238edb3e9de5e96f",
+    "report_sha256": "d5fe573fef13b3611f6501ca0b738c908342bdadfb7c6171dc6e79662cf0ec10",
     "validator": "validate_issue110_decision_review.py",
-    "validator_sha256": "8befb327420e48959ea1d9d547063635eaad2b2229f331a0befba2b41930c8b9",
+    "validator_sha256": "bc03c97f20b01f64c3b89ab167af7db2b10e5604d07768812bacc6ea32f38118",
     "canonical_register_sha256": "9e3f5f9895f894fb603f90435a69d7b174b24bff291254e208cd7c2201f612d4",
     "canonical_register_path": "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json"
-  }
+  },
+  "change_log": [
+    {
+      "version": "1.1",
+      "date": "2026-11-19",
+      "review": "5971292942",
+      "changes": [
+        "Corrected UCI-45 source characterization: underlying 13-predictor schema documents chol and fbs at all four sites (E1); the prior 'no labs' phrasing was too broad and is removed.",
+        "Restricted the 'only candidate' claim to the currently investigated/registered UCI-412 17-name laboratory/echo extension.",
+        "Documented the hypothetical UCI-45 limited-biochemical-marker study as UNASSESSED_DIFFERENT_ESTIMAND (not ADMISSIBLE, not proposed, not authorized).",
+        "Scoped the no-printed-units statement to the original-author 2013 RCM Table 2 itself; the 2015 inventor patent prints some lab/echo units but is a 335-person/50-feature distinct embodiment, not verification of the delivered UCI-412 workbook.",
+        "Added Cleveland/Hungary/VA/Switzerland known-fact rows for chol/fbs; updated Appendix A; bumped Document ID to v1.1."
+      ],
+      "unchanged": [
+        "All 16 canonical question statuses (SHA-256 pinned register)",
+        "P-1 PENDING / P-3 / P-5 prohibited; D-046 read-only; D-047 Cleveland-only; D-048 unratified; P25 REJECTED_RED / SCIENTIFIC_HOLD_NOT_ADMITTED",
+        "AI-9.2 / AI-10.2 NOT_PERFORMED and HOLD_NOT_EXECUTED",
+        "Frozen D-047 five-field panel, dictionary, protocols, tracker, workflows, MOCK_SYNTHETIC backend"
+      ]
+    }
+  ]
 }

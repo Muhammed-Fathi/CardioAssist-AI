@@ -202,3 +202,58 @@ def test_prohibited_claim_cannot_be_asserted(tmp_path: Path) -> None:
     completed = run_validator(review=review)
     assert completed.returncode == 1
     assert any("prohibited claim asserted as true" in error for error in result(completed)["errors"])
+
+
+def test_reintroduced_definitive_no_labs_claim_fails_closed(tmp_path: Path) -> None:
+    tampered = tmp_path / "report.md"
+    tampered.write_text(
+        REPORT.read_text(encoding="utf-8") + "\nThe UCI-45 has no labs report line.\n",
+        encoding="utf-8",
+    )
+    completed = run_validator(report=tampered)
+    assert completed.returncode == 1
+    assert any("definitively false" in error for error in result(completed)["errors"])
+
+
+def test_uci45_known_facts_must_acknowledge_chol_fbs(tmp_path: Path) -> None:
+    modified = json.loads(REVIEW.read_text(encoding="utf-8"))
+    for entry in modified["datasets"]:
+        if entry["id"] == "UCI45_CLEVELAND":
+            entry["known_facts"] = [
+                fact
+                for fact in entry["known_facts"]
+                if "chol" not in fact.lower() and "fbs" not in fact.lower()
+            ]
+    review = write_copy(tmp_path, "review.json", modified)
+    completed = run_validator(review=review)
+    assert completed.returncode == 1
+    assert any("chol/fbs schema acknowledgment" in error for error in result(completed)["errors"])
+
+
+def test_alternative_same_source_matrix_cannot_be_made_admissible(tmp_path: Path) -> None:
+    modified = json.loads(REVIEW.read_text(encoding="utf-8"))
+    matrix = modified["ai_9_2_blockers"]["alternative_same_source_matrix"]
+    assert len(matrix) == 1
+    matrix[0]["disposition"] = "ADMISSIBLE"
+    review = write_copy(tmp_path, "review.json", modified)
+    completed = run_validator(review=review)
+    assert completed.returncode == 1
+    assert any("UNASSESSED_DIFFERENT_ESTIMAND" in error for error in result(completed)["errors"])
+
+
+def test_alternative_same_source_matrix_cannot_drop_admissible_exclusion(tmp_path: Path) -> None:
+    modified = json.loads(REVIEW.read_text(encoding="utf-8"))
+    matrix = modified["ai_9_2_blockers"]["alternative_same_source_matrix"]
+    matrix[0]["not"] = [entry for entry in matrix[0]["not"] if entry != "ADMISSIBLE"]
+    review = write_copy(tmp_path, "review.json", modified)
+    completed = run_validator(review=review)
+    assert completed.returncode == 1
+    assert any("explicitly exclude ADMISSIBLE" in error for error in result(completed)["errors"])
+
+
+def test_report_and_validator_bindings_match_current_files() -> None:
+    review_doc = json.loads(REVIEW.read_text(encoding="utf-8"))
+    deliverables = review_doc["deliverables"]
+    assert deliverables["report_sha256"] == digest(REPORT)
+    assert deliverables["validator_sha256"] == digest(VALIDATOR)
+    assert deliverables["canonical_register_sha256"] == digest(REGISTER)
