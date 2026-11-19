@@ -25,9 +25,14 @@ REPO_ROOT: Final[Path] = PACKAGE_ROOT.parent.parent
 MAPPING_PATH: Final[Path] = PACKAGE_ROOT / "fixtures" / "offline_demo_cards.v1.json"
 OFFLINE_PACK_PATH: Final[Path] = PACKAGE_ROOT / "fixtures" / "offline_io.v1.json"
 MOCK_OPENAPI_PATH: Final[Path] = REPO_ROOT / "shared" / "contracts" / "openapi.yaml"
-MOCK_FIXTURE_INDEX_PATH: Final[Path] = (
-    REPO_ROOT / "shared" / "contracts" / "fixtures" / "index.json"
-)
+MOCK_FIXTURES_DIR: Final[Path] = REPO_ROOT / "shared" / "contracts" / "fixtures"
+MOCK_FIXTURE_INDEX_PATH: Final[Path] = MOCK_FIXTURES_DIR / "index.json"
+MOCK_STATIC_FIXTURE_ID: Final[str] = "F-01"
+MOCK_STATIC_FIXTURE_FILE: Final[str] = "F-01-cad-tabular-valid-mock-clinical-v1.json"
+MOCK_STATIC_FIXTURE_PATH: Final[Path] = MOCK_FIXTURES_DIR / MOCK_STATIC_FIXTURE_FILE
+MOCK_STATIC_EXPECTED_STATUS: Final[int] = 200
+MOCK_STATIC_MODEL_ID: Final[str] = "mock_model_a_v0.1.0"
+MOCK_STATIC_FEATURE_SCHEMA_ID: Final[str] = "mock_clinical_v1"
 MOCK_MODEL_REGISTRY_PATH: Final[Path] = (
     REPO_ROOT / "shared" / "contracts" / "registry" / "mock_model_registry.v1.json"
 )
@@ -40,7 +45,7 @@ MOCK_CAD_RESPONSE_SCHEMA_PATH: Final[Path] = (
 )
 
 SCHEMA_VERSION: Final[str] = "cardioassist.offline_demo_card_mapping/v1"
-MAPPING_VERSION: Final[str] = "1.0.0"
+MAPPING_VERSION: Final[str] = "1.0.1"
 OFFLINE_PRESENTATION_ID: Final[str] = "offline_research_fixture_pack_v1"
 MOCK_PRESENTATION_ID: Final[str] = "approved_mock_http_v1"
 PERSISTENT_WARNING: Final[str] = "Synthetic research fixture — not clinical"
@@ -276,11 +281,12 @@ def _source_digests() -> dict[str, str]:
         "mock_openapi_bytes_sha256": _bytes_sha256(MOCK_OPENAPI_PATH),
         "mock_fixture_index_bytes_sha256": _bytes_sha256(MOCK_FIXTURE_INDEX_PATH),
         "mock_model_registry_bytes_sha256": _bytes_sha256(MOCK_MODEL_REGISTRY_PATH),
+        "mock_f01_fixture_bytes_sha256": _bytes_sha256(MOCK_STATIC_FIXTURE_PATH),
     }
 
 
-def _assert_mock_contract_still_approved() -> None:
-    """Read the approved mock source documents without importing its runtime."""
+def _assert_mock_contract_still_approved(static_fixture: Mapping[str, Any]) -> None:
+    """Bind the fifth card to F-01 without reading or exposing its request body."""
     openapi_text = MOCK_OPENAPI_PATH.read_text(encoding="utf-8")
     if MOCK_CAD_ENDPOINT.split(" ", 1)[1] + ":" not in openapi_text:
         _fail("Approved mock CAD endpoint is absent from OpenAPI.")
@@ -295,6 +301,75 @@ def _assert_mock_contract_still_approved() -> None:
         _fail("Approved mock registry is not MOCK_SYNTHETIC/MOCK_ONLY.")
     if '"MOCK_SYNTHETIC"' not in json.dumps(response_schema, sort_keys=True):
         _fail("Approved mock response schema does not pin MOCK_SYNTHETIC.")
+
+    _exact_keys(
+        static_fixture,
+        {
+            "fixture_id",
+            "file",
+            "endpoint",
+            "expected_http_status",
+            "model_id",
+            "feature_schema_id",
+            "data_class",
+            "static_display_only",
+        },
+        "approved_mock_fixture",
+    )
+    expected_binding: Mapping[str, Any] = {
+        "fixture_id": MOCK_STATIC_FIXTURE_ID,
+        "file": MOCK_STATIC_FIXTURE_FILE,
+        "endpoint": MOCK_CAD_ENDPOINT,
+        "expected_http_status": MOCK_STATIC_EXPECTED_STATUS,
+        "model_id": MOCK_STATIC_MODEL_ID,
+        "feature_schema_id": MOCK_STATIC_FEATURE_SCHEMA_ID,
+        "data_class": MOCK_DATA_CLASS,
+        "static_display_only": True,
+    }
+    if dict(static_fixture) != expected_binding:
+        _fail("The mock presentation must select the reviewed static F-01 binding exactly.")
+
+    indexed = fixture_index.get("fixtures")
+    if not isinstance(indexed, list):
+        _fail("Approved mock fixture index has no fixture list.")
+    matches = [
+        _mapping(entry, "approved mock fixture index entry")
+        for entry in indexed
+        if isinstance(entry, Mapping) and entry.get("fixture_id") == MOCK_STATIC_FIXTURE_ID
+    ]
+    if len(matches) != 1:
+        _fail("The reviewed mock fixture id is absent or ambiguous in the approved index.")
+    catalog_entry = matches[0]
+    if (
+        catalog_entry.get("file") != MOCK_STATIC_FIXTURE_FILE
+        or catalog_entry.get("endpoint") != MOCK_CAD_ENDPOINT
+        or catalog_entry.get("expected_status") != MOCK_STATIC_EXPECTED_STATUS
+    ):
+        _fail("The approved fixture index no longer binds F-01 to its reviewed contract.")
+
+    # Construct the file path only from the hard-wired reviewed catalog value.
+    # A mapping field therefore cannot select an absolute path or traverse out
+    # of the approved fixture directory.
+    catalog_path = MOCK_FIXTURES_DIR / MOCK_STATIC_FIXTURE_FILE
+    if catalog_path != MOCK_STATIC_FIXTURE_PATH or not catalog_path.is_file():
+        _fail("The reviewed mock fixture file is unavailable.")
+    fixture = _mapping(_read_json(catalog_path), "approved F-01 mock fixture")
+    if fixture.get("endpoint") != MOCK_CAD_ENDPOINT:
+        _fail("The reviewed mock fixture endpoint does not match the mapping.")
+    steps = fixture.get("steps")
+    if not isinstance(steps, list) or len(steps) != 1:
+        _fail("The reviewed mock fixture must contain exactly one static response example.")
+    step = _mapping(steps[0], "approved F-01 mock fixture step")
+    expected = _mapping(step.get("expected"), "approved F-01 mock fixture expected response")
+    body = _mapping(expected.get("body"), "approved F-01 mock fixture response body")
+    if expected.get("status") != MOCK_STATIC_EXPECTED_STATUS:
+        _fail("The reviewed mock fixture expected HTTP status does not match the mapping.")
+    if (
+        body.get("data_class") != MOCK_DATA_CLASS
+        or body.get("model_id") != MOCK_STATIC_MODEL_ID
+        or body.get("feature_schema_id") != MOCK_STATIC_FEATURE_SCHEMA_ID
+    ):
+        _fail("The reviewed mock fixture response does not match its MOCK_SYNTHETIC binding.")
 
 
 def _assert_status_rule(status: str, rule: Mapping[str, Any]) -> None:
@@ -441,6 +516,7 @@ def validate(document: Mapping[str, Any] | None = None) -> int:
             "presentation_contract_id",
             "data_class",
             "approved_http_contract",
+            "approved_mock_fixture",
             "safe_label",
             "allowed_display_fields",
             "blocked_state_behavior",
@@ -455,6 +531,7 @@ def validate(document: Mapping[str, Any] | None = None) -> int:
         _fail("Mock presentation must declare MOCK_SYNTHETIC exactly.")
     if mock.get("approved_http_contract") != MOCK_CAD_ENDPOINT:
         _fail("Mock presentation is not bound to the approved CAD HTTP contract.")
+    static_fixture = _mapping(mock.get("approved_mock_fixture"), "approved_mock_fixture")
     if mock.get("safe_label") != "Mock synthetic backend result":
         _fail("Mock presentation safe label is not the reviewed label.")
     mock_allowed = _string_list(mock.get("allowed_display_fields"), "mock allowed_display_fields")
@@ -471,7 +548,7 @@ def validate(document: Mapping[str, Any] | None = None) -> int:
         _fail("Mock error behavior is not the reviewed safe behavior.")
     if mock.get("offline_case_links_forbidden") is not True:
         _fail("Mock presentation must forbid links from offline fixture cases.")
-    _assert_mock_contract_still_approved()
+    _assert_mock_contract_still_approved(static_fixture)
 
     pack = _mapping(_read_json(OFFLINE_PACK_PATH), "offline fixture pack")
     return _assert_offline_cases(mapping.get("offline_case_cards"), pack, statuses)

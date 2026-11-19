@@ -1,6 +1,6 @@
 {
   "schema_version": "cardioassist.offline_demo_card_mapping/v1",
-  "mapping_version": "1.0.0",
+  "mapping_version": "1.0.1",
   "artifact_kind": "OFFLINE_SYNTHETIC_RESEARCH_DEMO_CARD_MAPPING",
   "persistent_warning": "Synthetic research fixture \u2014 not clinical",
   "source_digests": {
@@ -10,7 +10,8 @@
     "offline_fixture_pack_crosswalk_sha256": "1c79195261c40ffc212d384c64b3645a2ef563f39b3b5b240a5a906c108abda7",
     "mock_openapi_bytes_sha256": "2748ab7e09771d5ad1793d09d17d1ecef46be7ded930f5530109889ab65f567a",
     "mock_fixture_index_bytes_sha256": "4c6cd73f3746970b9c0230b15d8b96b44b58d31b52e365e5c379f3f96fd71ada",
-    "mock_model_registry_bytes_sha256": "65f711e3b8a34148db68b30d17e21f6a8fbebfcd4835a6aff488d58f50f2b552"
+    "mock_model_registry_bytes_sha256": "65f711e3b8a34148db68b30d17e21f6a8fbebfcd4835a6aff488d58f50f2b552",
+    "mock_f01_fixture_bytes_sha256": "37024d7970a8214fe9d318eba4a785f5ee182a912e0229c72469392d0cbfb571"
   },
   "forbidden_display_fields": [
     "records",
@@ -310,6 +311,16 @@
     "presentation_contract_id": "approved_mock_http_v1",
     "data_class": "MOCK_SYNTHETIC",
     "approved_http_contract": "POST /v1/predictions/cad-tabular",
+    "approved_mock_fixture": {
+      "fixture_id": "F-01",
+      "file": "F-01-cad-tabular-valid-mock-clinical-v1.json",
+      "endpoint": "POST /v1/predictions/cad-tabular",
+      "expected_http_status": 200,
+      "model_id": "mock_model_a_v0.1.0",
+      "feature_schema_id": "mock_clinical_v1",
+      "data_class": "MOCK_SYNTHETIC",
+      "static_display_only": true
+    },
     "safe_label": "Mock synthetic backend result",
     "allowed_display_fields": [
       "data_class",

@@ -12,7 +12,8 @@ The consumer source of truth is
 reviewed examples from the offline fixture pack using per-case canonical
 expected-projection hashes. It also fails closed if its source digests no longer
 match the fixture pack, frozen registry/crosswalk bindings, mock OpenAPI,
-approved mock fixture index, or mock model registry.
+approved mock fixture index/model registry, or the selected approved F-01 mock
+fixture example.
 
 ```sh
 python -m research.intake.offline_demo_card_mapping
@@ -35,6 +36,7 @@ offline facade.
 | Approved mock OpenAPI bytes | `2748ab7e09771d5ad1793d09d17d1ecef46be7ded930f5530109889ab65f567a` |
 | Approved mock fixture-index bytes | `4c6cd73f3746970b9c0230b15d8b96b44b58d31b52e365e5c379f3f96fd71ada` |
 | Approved mock model-registry bytes | `65f711e3b8a34148db68b30d17e21f6a8fbebfcd4835a6aff488d58f50f2b552` |
+| Approved static F-01 mock-fixture bytes | `37024d7970a8214fe9d318eba4a785f5ee182a912e0229c72469392d0cbfb571` |
 
 ## Required consumer behavior
 
@@ -62,11 +64,22 @@ an `ABSTAIN` card.
 
 `MOCK_SYNTHETIC` is a **fifth, separate** card presentation named
 `approved_mock_http_v1`, bound only to `POST /v1/predictions/cad-tabular` in the
-existing approved mock HTTP contract. No offline fixture case can select it.
-Its allowlist keeps the mock data class, mock model/schema identity, safe
-rendering metadata, missing-feature/warning labels, review state, dataset-access
-status, and disclaimer—but never a submitted feature, explanation, artifact
-hash, score value, risk percentage, or raw model output.
+existing approved mock HTTP contract. It selects exactly the approved
+**static-display-only** F-01 example:
+
+- fixture ID `F-01`, file `F-01-cad-tabular-valid-mock-clinical-v1.json`
+- endpoint `POST /v1/predictions/cad-tabular`, expected HTTP status `200`
+- model `mock_model_a_v0.1.0`, feature schema `mock_clinical_v1`, data class
+  `MOCK_SYNTHETIC`
+
+A frontend can package that selected response as a deterministic **static mock
+example only** after validating the mapping; it must not submit the fixture
+request, invoke a route, or use it as a prediction. No offline fixture case can
+select it. Its allowlist keeps the mock data class, mock model/schema identity,
+safe rendering metadata, missing-feature/warning labels, review state,
+dataset-access status, and disclaimer—but never a submitted feature,
+patient/reference field, explanation, artifact hash, score value, risk
+percentage, raw model output, or clinical probability.
 
 ## Boundary coverage and limits
 

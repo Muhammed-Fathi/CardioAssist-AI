@@ -62,6 +62,25 @@ def test_offline_and_mock_presentations_are_explicitly_different_contracts():
     assert "outcomes.score.calibrated_research_score" not in mock["allowed_display_fields"]
 
 
+def test_mock_card_selects_only_the_reviewed_f01_static_example():
+    document = cards.load_mapping()
+    binding = document["mock_synthetic_backend"]["approved_mock_fixture"]
+
+    assert binding == {
+        "fixture_id": "F-01",
+        "file": "F-01-cad-tabular-valid-mock-clinical-v1.json",
+        "endpoint": "POST /v1/predictions/cad-tabular",
+        "expected_http_status": 200,
+        "model_id": "mock_model_a_v0.1.0",
+        "feature_schema_id": "mock_clinical_v1",
+        "data_class": "MOCK_SYNTHETIC",
+        "static_display_only": True,
+    }
+    assert document["source_digests"]["mock_f01_fixture_bytes_sha256"] == cards._bytes_sha256(
+        cards.MOCK_STATIC_FIXTURE_PATH
+    )
+
+
 @pytest.mark.parametrize(
     "mutate",
     [
@@ -79,6 +98,30 @@ def test_offline_and_mock_presentations_are_explicitly_different_contracts():
         lambda doc: doc["mock_synthetic_backend"]["allowed_display_fields"].append(
             "score.value"
         ),
+        lambda doc: doc["source_digests"].__setitem__(
+            "mock_f01_fixture_bytes_sha256", "0" * 64
+        ),
+        lambda doc: doc["mock_synthetic_backend"]["approved_mock_fixture"].__setitem__(
+            "fixture_id", "F-404"
+        ),
+        lambda doc: doc["mock_synthetic_backend"]["approved_mock_fixture"].__setitem__(
+            "file", "F-01b-cad-tabular-valid-mock-clinical-v2.json"
+        ),
+        lambda doc: doc["mock_synthetic_backend"]["approved_mock_fixture"].__setitem__(
+            "file", "../../outside-fixture.json"
+        ),
+        lambda doc: doc["mock_synthetic_backend"]["approved_mock_fixture"].__setitem__(
+            "model_id", "mock_model_b_v0.1.0"
+        ),
+        lambda doc: doc["mock_synthetic_backend"]["approved_mock_fixture"].__setitem__(
+            "feature_schema_id", "mock_clinical_v2"
+        ),
+        lambda doc: doc["mock_synthetic_backend"]["approved_mock_fixture"].__setitem__(
+            "static_display_only", False
+        ),
+        lambda doc: doc["mock_synthetic_backend"]["approved_mock_fixture"].__setitem__(
+            "expected_http_status", 503
+        ),
         lambda doc: doc.__setitem__("persistent_warning", "Synthetic research fixture"),
     ],
     ids=(
@@ -88,6 +131,14 @@ def test_offline_and_mock_presentations_are_explicitly_different_contracts():
         "case-status-drift",
         "raw-feature-field-allowlisted",
         "mock-score-value-allowlisted",
+        "f01-digest-corrupted",
+        "unknown-mock-fixture-id",
+        "mock-fixture-file-swapped",
+        "mock-fixture-path-traversal",
+        "mock-fixture-model-swapped",
+        "mock-fixture-schema-swapped",
+        "mock-fixture-not-static",
+        "mock-fixture-status-altered",
         "warning-removed",
     ),
 )
@@ -97,6 +148,21 @@ def test_validator_fails_closed_for_stale_unsafe_or_cross_contract_mapping(mutat
 
     with pytest.raises(cards.DemoCardMappingError):
         cards.validate(document)
+
+
+def test_validator_rejects_corrupted_f01_response_binding(monkeypatch):
+    """A changed approved-example response cannot silently relabel the mock card."""
+    read_json = cards._read_json
+
+    def corrupted_read_json(path):
+        document = read_json(path)
+        if path == cards.MOCK_STATIC_FIXTURE_PATH:
+            document["steps"][0]["expected"]["body"]["data_class"] = "NOT_MOCK_SYNTHETIC"
+        return document
+
+    monkeypatch.setattr(cards, "_read_json", corrupted_read_json)
+    with pytest.raises(cards.DemoCardMappingError):
+        cards.validate(mapping_document())
 
 
 def test_status_rules_define_exactly_four_safe_outcomes_and_refusal_behaviors():
@@ -127,7 +193,7 @@ def test_validator_is_standalone_and_does_not_require_the_research_ml_stack():
         text=True,
         check=True,
     )
-    assert completed.stdout.strip() == "29 offline demo cards verified: 1.0.0"
+    assert completed.stdout.strip() == "29 offline demo cards verified: 1.0.1"
 
     isolated = subprocess.run(
         [
