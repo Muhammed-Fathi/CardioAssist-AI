@@ -1,9 +1,21 @@
 {
   "schema_id": "cardioassist.rh02_uci412_angiocad_scientific_evidence_investigation/v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "prepared_at": "2026-11-19",
   "prepared_by": "Arena Agent Mode (documentation-only public-source scientific investigation)",
   "status": "REVIEW_DRAFT_NOT_SCIENTIFIC_ADMISSION",
+  "addendum": {
+    "version": "1.1.0",
+    "reason": "PR #106 independent review: v1 incorrectly stated that only the 2012 original-author full text was accessible. Add Alizadehsani et al. 2013 Res Cardiovasc Med 2(3):133-139 DOI 10.5812/cardiovascmed.10888 PMC4253773 as a second original-author open full text with Tables 1-2.",
+    "does_not": [
+      "lift scientific holds",
+      "change questions[].status",
+      "choose 54 vs 55 vs 56",
+      "treat n=303 as a verified patient-level join across publications or workbooks",
+      "claim per-feature pre-angiography timing",
+      "certify BP subtype or PR ppm"
+    ]
+  },
   "issue": {
     "url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/104",
     "title_as_supplied": "RH-02 Issue #104: deep independent public-source scientific investigation into UCI-412 (Z-Alizadeh Sani) and AngioCAD",
@@ -148,11 +160,50 @@
       ]
     },
     {
+      "source_id": "OA-2013-RCM",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/",
+      "doi": "10.5812/cardiovascmed.10888",
+      "pubmed": "https://pubmed.ncbi.nlm.nih.gov/25478509/",
+      "pmcid": "PMC4253773",
+      "table1_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/table/tbl11452/",
+      "table2_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/table/tbl11453/",
+      "label": "Alizadehsani et al. 2013 Res Cardiovasc Med 2(3):133-139 open full text (DIFFERENT 2013 paper from OA-2013-CMPB)",
+      "authors": "Alizadehsani R, Habibi J, Alizadeh Sani Z, Mashayekhi H, Boghrati R, Ghandeharioun A, Khozeimeh F, Alizadeh-Sani F",
+      "year": 2013,
+      "section": "Abstract; Section 3 Patients and Methods; Table 1 Demographic Features; Table 2 Laboratory and Echo Features; Gini Tables 4-6; Section 5 Discussion",
+      "authority": "ORIGINAL_AUTHOR_PAPER",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Full PMC HTML including Tables 1-2. PDF fetch HTTP 500. Association-rule block described as shown below not recovered as text.",
+      "verified_facts": [
+        "303 random chest-pain referrals to Rajaie Cardiovascular, Medical and Research Center, Tehran",
+        "ECG data studied in previous works citing 2012 JMSS and 2012 EJSR; this paper uses laboratory and echocardiographic data for per-artery LAD/LCX/RCA stenosis",
+        "Table 1: 16 named demographics with Yes/No or numeric ranges and subgroup counts; Length omitted from Table 1",
+        "Age year 30-86 mean 58.898; Weight Kg 48-120; Sex Male 176 Female 127; BMI Kg/m2 18-41; Obesity Yes if BMI > 25 (211/92)",
+        "DM Yes 90 / No 213; HTN Yes 179 / No 124; Current Smoker Yes 63 / No 240; Ex-Smoker Yes 10 / No 293; FH Yes 48 / No 255; DLP Yes 191 / No 112",
+        "Table 2: 17 named laboratory and echo fields: FBS 62-400, Cr 0.5-2.2, TG 37-1050, LDL 18-232, HDL 15-111, BUN 6-52, ESR 1-90, HB 8.9-17.6, K 3.0-6.6, Na 128-156, WBC 3700-18000, Lymph 7-60, Neut 32-89, PLT 25-742, EF(%) 15-60, Region with RWMA mean 0.620 sd 1.133 range blank, VHD Normal/Mild/Moderate/Severe",
+        "No printed lab units except EF(%); Cr footnote glosses Creatine",
+        "Gini Tables 4-6 include Length despite omission from Table 1",
+        "Future work: add ECG and examination features",
+        "Modelling intent to obviate angiography; not a substitute for angiography",
+        "Open-access Creative Commons Attribution License"
+      ],
+      "does_not_support": [
+        "that these 303 rows are the same patients as 2012 JMSS, 2013 CMPB, or the UCI/Mendeley workbooks",
+        "a 54-feature or 55-feature published count (this paper never states 54)",
+        "per-feature timestamp versus angiography or versus knowledge of stenosis labels",
+        "BP quantity, BP unit, PR unit, or ppm",
+        "chest-pain flags, Function Class, ECG Rhythm or BBB",
+        "workbook 0/1 direction",
+        "a 50% (or any percent) stenosis cut-off restated in this paper",
+        "lab units such as mg/dL"
+      ]
+    },
+    {
       "source_id": "OA-2013-CMPB",
       "url": "https://www.sciencedirect.com/science/article/pii/S0169260713000801",
       "doi": "10.1016/j.cmpb.2013.03.004",
       "pubmed": "https://pubmed.ncbi.nlm.nih.gov/23537611/",
-      "label": "Alizadehsani et al. 2013 Comput. Methods Programs Biomed. 111:52-61",
+      "label": "Alizadehsani et al. 2013 Comput. Methods Programs Biomed. 111:52-61 (DIFFERENT 2013 paper from OA-2013-RCM)",
       "authors": "Alizadehsani R, Habibi J, Hosseini MJ, Mashayekhi H, Boghrati R, Ghandeharioun A, Bahadorian B, Alizadeh Sani Z",
       "year": 2013,
       "section": "Abstract; snippet The medical dataset",
@@ -169,7 +220,8 @@
       "does_not_support": [
         "Table 1 field dictionary (unread)",
         "per-field timing",
-        "workbook column count reconciliation"
+        "workbook column count reconciliation",
+        "identity of these 303 rows with OA-2013-RCM or OA-2012-JMSS"
       ]
     },
     {
@@ -542,7 +594,15 @@
       "source_ids": ["OA-2012-JMSS", "OA-2012-EJSR"],
       "authority": "ORIGINAL_AUTHOR_PAPER",
       "status": "PARTIALLY_SUPPORTED",
-      "statement": "The 2012 original-author JMSS paper supplies named Yes/No or numeric tables for the clinical/ECG core, history definitions for DM/HTN/smoking/FH, BP as Blood Pressure 90-190, PR as Pulse Rate 50-110, four parallel chest-pain flags, Cath >=50, 37 features, and a chest-pain angiography-referred cohort. EJSR derived BP2/PR2 cut-offs are compatible with systolic BP and bpm pulse-rate interpretation of the derived features."
+      "statement": "The 2012 original-author JMSS paper supplies named Yes/No or numeric tables for the clinical/ECG core, history definitions for DM/HTN/smoking/FH, BP as Blood Pressure 90-190, PR as Pulse Rate 50-110, four parallel chest-pain flags, Cath >=50, 37 features, and a chest-pain angiography-referred cohort. EJSR derived BP2/PR2 cut-offs are compatible with systolic BP and bpm pulse-rate interpretation of the derived features. This is not the only accessible original-author full text."
+    },
+    {
+      "finding_id": "F-2013-RCM",
+      "question_ids": ["Q-04", "Q-06", "Q-08"],
+      "source_ids": ["OA-2013-RCM"],
+      "authority": "ORIGINAL_AUTHOR_PAPER",
+      "status": "PARTIALLY_SUPPORTED",
+      "statement": "The 2013 RCM original-author open full text (DOI 10.5812/cardiovascmed.10888, PMC4253773), a different paper from paywalled 2013 CMPB, supplies Table 1 16 named demographics with Yes/No counts (Length omitted) and Table 2 17 named laboratory/echo fields with numeric ranges. Name correspondence with the frozen 17 laboratory-and-echo group is 17/17 at token level. The paper never states 54 features, does not restate a 50% cut-off, does not document BP/PR/chest pain, does not print lab units except EF(%), does not supply per-feature pre-angiography timestamps, and does not prove that its 303 rows are the UCI workbook or the 2012 cohort."
     },
     {
       "finding_id": "F-THRESHOLD",
@@ -555,26 +615,26 @@
     {
       "finding_id": "F-COUNT",
       "question_ids": ["Q-08"],
-      "source_ids": ["OA-2012-JMSS", "OA-2013-CMPB", "P1A", "P1B", "P1C", "P1D", "S-EYU", "S-ZHA", "REG-412"],
+      "source_ids": ["OA-2012-JMSS", "OA-2013-RCM", "OA-2013-CMPB", "P1A", "P1B", "P1C", "P1D", "S-EYU", "S-ZHA", "REG-412"],
       "authority": "OWNER_METADATA",
       "status": "DISPUTED",
-      "statement": "Original 2012: 37 features then add lab/echo. Author 2013/2016/2017/UCI/Mendeley: 54. Secondary tables: 55. UCI UI/API: 56 blank variable rows. Local audit: 55 predictors + Cath. UCI-411: 59. Arithmetic 54+3!=59 but 56+3=59. Rhythm vs BBB and Function Class 1-4 vs 0-3 and Length omitted/included remain unresolved. No count adopted."
+      "statement": "Original 2012: 37 features. Original 2013 RCM: 16 named demographics plus 17 named lab/echo (paper does not state 54); Length used in Gini only. Author 2013 CMPB/2016/2017/UCI/Mendeley: 54. Secondary tables: 55. UCI UI/API: 56 blank variable rows. Local audit: 55 predictors + Cath. UCI-411: 59. Arithmetic 37+17=54 is an original-author-table hypothesis, not adopted. 54+3!=59 but 56+3=59. Rhythm vs BBB, Function Class 1-4 vs 0-3, Length omitted/included, and several lab ranges vs frozen secondary ranges remain unresolved. No count adopted. n=303 is not a verified row join."
     },
     {
       "finding_id": "F-TIMING",
       "question_ids": ["Q-04"],
-      "source_ids": ["OA-2012-JMSS", "P1A", "P1B"],
+      "source_ids": ["OA-2012-JMSS", "OA-2013-RCM", "P1A", "P1B"],
       "authority": "ORIGINAL_AUTHOR_PAPER",
       "status": "UNRESOLVED",
-      "statement": "0/16 owner-verified pre-angiography timestamps. 2012 describes volunteers for angiography; that is cohort design, not a field-level clock."
+      "statement": "0/16 owner-verified pre-angiography timestamps. 2012 describes volunteers for angiography; 2013 RCM describes chest-pain referrals and modelling to obviate angiography using lab/echo features. Both are cohort design, not a field-level clock. 2013 RCM does not establish per-feature pre-angiography timing."
     },
     {
       "finding_id": "F-NO-CRF",
       "question_ids": ["Q-04", "Q-05", "Q-06", "Q-07"],
-      "source_ids": ["P1B", "OA-2013-CMPB"],
+      "source_ids": ["P1B", "OA-2013-CMPB", "OA-2013-RCM"],
       "authority": "OWNER_METADATA",
       "status": "UNRESOLVED",
-      "statement": "No original case-record form, supplementary codebook or owner-signed acquisition protocol was found. UCI API field metadata is structurally present and empty."
+      "statement": "No original case-record form, supplementary codebook or owner-signed acquisition protocol was found. 2013 RCM Tables 1-2 are published original-author tables, not a CRF. UCI API field metadata is structurally present and empty."
     },
     {
       "finding_id": "F-ANG-OWNER",
@@ -612,28 +672,33 @@
   "uci412": {
     "owner_verified_pre_angiography_fields": 0,
     "original_owner_codebook_obtained": false,
+    "original_2013_2016_2017_cmpb_kbs_table1_read": false,
     "original_2013_2016_2017_table1_read": false,
     "original_2012_jmss_full_text_read": true,
+    "original_2013_rcm_full_text_read": true,
+    "original_2013_rcm_tables_1_2_read": true,
+    "n_303_patient_identity_across_publications_verified": false,
+    "lab_echo_17_names_original_author_table_supported": true,
     "feature_count_adopted": null,
     "cad_threshold_owner_landing_page": ">=50%",
     "cad_threshold_original_author_conflict": true,
     "sixteen_fields": [
-      {"index": 1, "name": "Age", "original_author_2012": "numeric 30-86", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 2, "name": "Sex", "original_author_2012": "Male, Female", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 3, "name": "BMI", "original_author_2012": "18-41 Kg/m2; Obesity derived BMI>25", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 4, "name": "DM", "original_author_2012": "Yes/No; history of Diabetes Mellitus", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 5, "name": "HTN", "original_author_2012": "Yes/No; history of Hypertension", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 6, "name": "Current Smoker", "original_author_2012": "Yes/No; current consumption of cigarettes", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 7, "name": "EX-Smoker", "original_author_2012": "Yes/No; previous consumption of cigarettes", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 8, "name": "FH", "original_author_2012": "Yes/No; heart disease in first-degree relatives", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 9, "name": "DLP", "original_author_2012": "Yes/No Dyslipidemia", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 10, "name": "BP", "original_author_2012": "Blood Pressure 90-190; EJSR BP2 high if >140", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 11, "name": "PR", "original_author_2012": "Pulse Rate 50-110; EJSR PR2 normal 60-100", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
-      {"index": 12, "name": "Typical Chest Pain", "original_author_2012": "separate Yes/No column", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
-      {"index": 13, "name": "Atypical", "original_author_2012": "separate Yes/No column", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
-      {"index": 14, "name": "Nonanginal", "original_author_2012": "separate Yes/No Nonanginal CP", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
-      {"index": 15, "name": "Exertional CP", "original_author_2012": "separate Yes/No", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
-      {"index": 16, "name": "Dyspnea", "original_author_2012": "separate Yes/No", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false}
+      {"index": 1, "name": "Age", "original_author_2012": "numeric 30-86", "original_author_2013_rcm": "58.898 +/- 10.392; range 30-86", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 2, "name": "Sex", "original_author_2012": "Male, Female", "original_author_2013_rcm": "Male 176; Female 127", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 3, "name": "BMI", "original_author_2012": "18-41 Kg/m2; Obesity derived BMI>25", "original_author_2013_rcm": "18-41 Kg/m2; Obesity Yes if BMI > 25 (211/92)", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 4, "name": "DM", "original_author_2012": "Yes/No; history of Diabetes Mellitus", "original_author_2013_rcm": "Yes 90 / No 213", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 5, "name": "HTN", "original_author_2012": "Yes/No; history of Hypertension", "original_author_2013_rcm": "Yes 179 / No 124", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 6, "name": "Current Smoker", "original_author_2012": "Yes/No; current consumption of cigarettes", "original_author_2013_rcm": "Yes 63 / No 240", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 7, "name": "EX-Smoker", "original_author_2012": "Yes/No; previous consumption of cigarettes", "original_author_2013_rcm": "Yes 10 / No 293", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 8, "name": "FH", "original_author_2012": "Yes/No; heart disease in first-degree relatives", "original_author_2013_rcm": "Yes 48 / No 255", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 9, "name": "DLP", "original_author_2012": "Yes/No Dyslipidemia", "original_author_2013_rcm": "Yes 191 / No 112", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 10, "name": "BP", "original_author_2012": "Blood Pressure 90-190; EJSR BP2 high if >140", "original_author_2013_rcm": "absent from Tables 1-2; examination features are future work", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 11, "name": "PR", "original_author_2012": "Pulse Rate 50-110; EJSR PR2 normal 60-100", "original_author_2013_rcm": "absent from Tables 1-2; examination features are future work", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 12, "name": "Typical Chest Pain", "original_author_2012": "separate Yes/No column", "original_author_2013_rcm": "absent from Tables 1-2", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
+      {"index": 13, "name": "Atypical", "original_author_2012": "separate Yes/No column", "original_author_2013_rcm": "absent from Tables 1-2", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
+      {"index": 14, "name": "Nonanginal", "original_author_2012": "separate Yes/No Nonanginal CP", "original_author_2013_rcm": "absent from Tables 1-2", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
+      {"index": 15, "name": "Exertional CP", "original_author_2012": "separate Yes/No", "original_author_2013_rcm": "absent from Tables 1-2", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
+      {"index": 16, "name": "Dyspnea", "original_author_2012": "separate Yes/No", "original_author_2013_rcm": "absent from Tables 1-2", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false}
     ]
   },
   "angiocad": {
@@ -668,7 +733,7 @@
       "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
       "status_change": false,
       "finding": "UNRESOLVED",
-      "source_ids": ["OA-2012-JMSS", "P1A", "P1B"]
+      "source_ids": ["OA-2012-JMSS", "OA-2013-RCM", "P1A", "P1B"]
     },
     {
       "id": "Q-05",
@@ -676,7 +741,7 @@
       "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
       "status_change": false,
       "finding": "PARTIALLY_SUPPORTED",
-      "source_ids": ["OA-2012-JMSS", "OA-2012-EJSR", "S-EYU", "P1B"]
+      "source_ids": ["OA-2012-JMSS", "OA-2012-EJSR", "OA-2013-RCM", "S-EYU", "P1B"]
     },
     {
       "id": "Q-06",
@@ -684,7 +749,7 @@
       "proposed_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
       "status_change": false,
       "finding": "PARTIALLY_SUPPORTED",
-      "source_ids": ["OA-2012-JMSS"]
+      "source_ids": ["OA-2012-JMSS", "OA-2013-RCM"]
     },
     {
       "id": "Q-07",
@@ -700,7 +765,7 @@
       "proposed_status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
       "status_change": false,
       "finding": "DISPUTED",
-      "source_ids": ["OA-2012-JMSS", "OA-2013-CMPB", "P1A", "P1B", "P1C", "S-EYU", "REG-412"]
+      "source_ids": ["OA-2012-JMSS", "OA-2013-RCM", "OA-2013-CMPB", "P1A", "P1B", "P1C", "S-EYU", "REG-412"]
     },
     {
       "id": "Q-14",
@@ -713,11 +778,11 @@
   ],
   "decision_matrix": [
     {"id": "D-UCI-TH", "decision": "Keep UCI-412 target as source-defined >=50%; report original-author >50% conflict", "finding": "DISPUTED", "forbidden": "Harmonize with Cleveland or pick 2016 to override UCI"},
-    {"id": "D-UCI-TIME", "decision": "Do not treat the 16 fields as verified pretest inputs", "finding": "UNRESOLVED", "forbidden": "New real UCI-412 training or AI-9.2"},
+    {"id": "D-UCI-TIME", "decision": "Do not treat the 16 fields as verified pretest inputs; 2013 RCM adds no per-feature clocks; n=303 is not a verified row join", "finding": "UNRESOLVED", "forbidden": "New real UCI-412 training or AI-9.2; treat 303 as identity across papers"},
     {"id": "D-UCI-BPPR", "decision": "Do not map BP to trestbps or certify ppm", "finding": "PARTIALLY_SUPPORTED", "forbidden": "Recode PR or collapse with Cleveland BP"},
     {"id": "D-UCI-BIN", "decision": "Keep S-9 provisional", "finding": "PARTIALLY_SUPPORTED", "forbidden": "Heuristic recoding"},
     {"id": "D-UCI-CP", "decision": "Keep four chest-pain flags as delivered", "finding": "UNRESOLVED", "forbidden": "Drop Exertional CP because Zhang 2022 did"},
-    {"id": "D-UCI-N", "decision": "Do not choose 54 or 55 or 56", "finding": "DISPUTED", "forbidden": "Fix dictionary to 54"},
+    {"id": "D-UCI-N", "decision": "Do not choose 54 or 55 or 56; 2013 RCM Table 2 supports 17 lab/echo names only", "finding": "DISPUTED", "forbidden": "Fix dictionary to 54 because 37+17=54"},
     {"id": "D-ANG-ADM", "decision": "AngioCAD remains not admitted", "finding": "UNRESOLVED", "forbidden": "Download RAR/XLSX, train, or call it Track A"},
     {"id": "D-ANG-LIT", "decision": "Keep P25 REJECTED_RED", "finding": "UNRESOLVED", "forbidden": "Recolour because a table exists"},
     {"id": "D-ANG-TASK", "decision": "If ever in scope, imaging/stenosis plus mixed-ACS, separate protocol", "finding": "PARTIALLY_SUPPORTED", "forbidden": "Substitute for UCI-412/Cleveland pretest CAD"},
@@ -725,7 +790,7 @@
   ],
   "recommended_next_steps": [
     "Human review of this packet before any register or colour change",
-    "UCI-412 author/curator letter: CRF, BP quantity/unit, PR unit, 0/1 map, chest-pain exclusivity, 54-vs-56-vs-59, >=50 vs >50",
+    "UCI-412 author/curator letter: CRF, BP quantity/unit, PR unit, 0/1 map, chest-pain exclusivity, 54-vs-56-vs-59, >=50 vs >50, whether 2012/2013 RCM/2013 CMPB/UCI rows are the same 303, lab units and Cr/Creatine token",
     "AngioCAD curator letter: Features/Labels schema, patient-video map, clinical chronology, owner CAD rule, CC BY 4.0 vs non-commercial",
     "Do not recolour P25; do not lift SCIENTIFIC_HOLD_NOT_ADMITTED",
     "Only if separately authorized: local read-only header/shape comparison of UCI vs Mendeley workbooks",
@@ -765,7 +830,7 @@
       "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
       "status_change": false,
       "applied": false,
-      "proposed_evidence_appendix": "2012 volunteers for angiography is cohort design, not 16 timestamps."
+      "proposed_evidence_appendix": "2012 volunteers for angiography and 2013 RCM obviate-angiography lab/echo design are cohort intent, not 16 timestamps. Same n=303 is not a row join."
     },
     {
       "question_id": "Q-05",
@@ -773,7 +838,7 @@
       "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
       "status_change": false,
       "applied": false,
-      "proposed_evidence_appendix": "2012 Blood Pressure / Pulse Rate plus EJSR BP2 140 and PR2 60-100; still no codebook."
+      "proposed_evidence_appendix": "2012 Blood Pressure / Pulse Rate plus EJSR BP2 140 and PR2 60-100; 2013 RCM Tables 1-2 have no BP/PR and do not document ppm; still no codebook."
     },
     {
       "question_id": "Q-06",
@@ -781,7 +846,7 @@
       "proposed_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
       "status_change": false,
       "applied": false,
-      "proposed_evidence_appendix": "2012 history definitions for DM, HTN, Current Smoker, Ex-Smoker, FH."
+      "proposed_evidence_appendix": "2012 history definitions for DM, HTN, Current Smoker, Ex-Smoker, FH; 2013 RCM Table 1 Yes/No counts."
     },
     {
       "question_id": "Q-07",
@@ -797,7 +862,7 @@
       "proposed_status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
       "status_change": false,
       "applied": false,
-      "proposed_evidence_appendix": "2012 37-feature precursor; Rhythm versus BBB; Function Class 1-4 versus 0-3; 54+3!=59."
+      "proposed_evidence_appendix": "2012 37-feature precursor; 2013 RCM original-author 17 lab/echo names (paper never states 54); Rhythm versus BBB; Function Class 1-4 versus 0-3; Length omitted from both Table 1s; 54+3!=59. 54 vs 55 not inferred."
     },
     {
       "question_id": "Q-14",
@@ -813,16 +878,19 @@
     "recorded_after_run": true,
     "ran_at": "2026-11-19",
     "structural_checks": {
-      "passed": 31,
+      "passed": 38,
       "failed": 0,
-      "total": 31,
+      "total": 38,
       "exit_code": 0,
       "results": [
         "PASS json_parses",
         "PASS required_keys",
         "PASS schema_id",
         "PASS status_review_draft",
-        "PASS unique_source_id (20)",
+        "PASS version_1_1",
+        "PASS addendum_present",
+        "PASS oa_2013_rcm_present",
+        "PASS unique_source_id (21)",
         "PASS unique_finding_id",
         "PASS source_authority_declared",
         "PASS finding_sources_resolvable",
@@ -838,6 +906,7 @@
         "PASS preangio_zero",
         "PASS sixteen_fields",
         "PASS all_sixteen_timing_false",
+        "PASS n303_not_joined",
         "PASS bytes_zero",
         "PASS frozen_false",
         "PASS holds_not_lifted",
@@ -845,6 +914,9 @@
         "PASS baseline_sha ab613baa3de5ec7c3442f4047b1a4cc56126d624",
         "PASS md_exists",
         "PASS md_companion_path",
+        "PASS md_mentions_pmc4253773",
+        "PASS md_two_papers",
+        "PASS md_not_only_one_full_text_claim",
         "PASS relative_md_links_resolve",
         "PASS decision_matrix_nonempty",
         "PASS recommendations_nonempty",

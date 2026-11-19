@@ -1,10 +1,11 @@
 # RH-02 Issue #104 — UCI-412 and AngioCAD primary-source scientific evidence investigation
 
-**Document ID:** `CAI-RH02-ISSUE104-UCI412-ANGIOCAD-SCIENTIFIC-EVIDENCE-2026-11-19-v1`  
-**Status:** `REVIEW_DRAFT_NOT_SCIENTIFIC_ADMISSION` — documentation-only public-source investigation. **Not** a source-admission decision, supervisor signature, training authorization, ethics approval or clinical validation.  
-**Issue:** [Issue #104](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/104) (Issues API returned `403 Resource not accessible by integration`; the maintainer supplied the specification verbatim in-session).  
-**Exact `main` baseline named by the issue:** `ab613baa3de5ec7c3442f4047b1a4cc56126d624` (“Merge pull request #105”). This object **is** `HEAD` of the session branch at the start of the investigation (`git rev-parse HEAD`).  
-**Machine-readable companion:** [`RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.json`](RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.json) (schema `cardioassist.rh02_uci412_angiocad_scientific_evidence_investigation/v1`).  
+**Document ID:** `CAI-RH02-ISSUE104-UCI412-ANGIOCAD-SCIENTIFIC-EVIDENCE-2026-11-19-v1.1`
+**Status:** `REVIEW_DRAFT_NOT_SCIENTIFIC_ADMISSION` — documentation-only public-source investigation. **Not** a source-admission decision, supervisor signature, training authorization, ethics approval or clinical validation.
+**Addendum (PR #106 review, same branch):** Independent review identified a second original-author **open full text** that v1 omitted: Alizadehsani et al. 2013 *Res. Cardiovasc. Med.* 2(3):133–139, DOI [10.5812/cardiovascmed.10888](https://doi.org/10.5812/cardiovascmed.10888), PMCID [PMC4253773](https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/), PMID [25478509](https://pubmed.ncbi.nlm.nih.gov/25478509/). This revision inspects that paper’s Tables 1–2. It does **not** lift holds, choose 54 vs 55, or treat 303 as a verified patient-level join across publications or workbooks.
+**Issue:** [Issue #104](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/104) (Issues API returned `403 Resource not accessible by integration`; the maintainer supplied the specification verbatim in-session).
+**Exact `main` baseline named by the issue:** `ab613baa3de5ec7c3442f4047b1a4cc56126d624` (“Merge pull request #105”). This object **is** `HEAD` of the session branch at the start of the investigation (`git rev-parse HEAD`).
+**Machine-readable companion:** [`RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.json`](RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.json) (schema `cardioassist.rh02_uci412_angiocad_scientific_evidence_investigation/v1`).
 **Predecessor audits (not replaced):** [RH-02 first pass](RH02_PRIMARY_SOURCE_ADMISSIBILITY_2026_11_19.md) · [Round 2](RH02_ROUND2_SOURCE_RECONCILIATION_2026_11_19.md) · [16-question register](RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json) · [Issue #99 technical metadata audit](RH02_TECHNICAL_DATASET_METADATA_AUDIT_V1.md) · [AI-8R source admissibility](../ai8r/SOURCE_ADMISSIBILITY.md).
 
 > **What this document is.** An independent public-source scientific investigation of **UCI-412 (Z-Alizadeh Sani)** original-author papers (2012–2017), owner metadata, published feature tables, and **AngioCAD** (2026 article, Zenodo metadata, and publicly readable secondary documentation). Each research question is answered with source URL, author, year, section, authority, what the evidence proves and does not prove, conflicts, and a finding class.
@@ -28,8 +29,8 @@
 | Activity | Performed | Detail |
 |---|---|---|
 | Public landing-page, API and article-preview reads | **Yes** | UCI-412/411 pages and JSON API; Mendeley deposit page; Zenodo record HTML and `/api/records/15826856`; PubMed 23537611 and 42033972; ScienceDirect previews of 2013/2016/2017/2026 papers; CC BY 4.0 deed. |
-| Original-author full text | **Yes, one paper** | Alizadehsani et al. 2012 *J. Med. Signals Sens.* 2:153–159, DOI [10.4103/2228-7477.112099](https://doi.org/10.4103/2228-7477.112099), Semantic Scholar PDF (all four chunks). |
-| Original-author abstracts and paywalled snippets | **Yes** | 2013 CMPB, 2016 *Knowl.-Based Syst.*, 2017 Arabasadi/Alizadehsani CMPB. **Table 1 of each of those three papers is paywalled and was not read.** |
+| Original-author full text | **Yes, two papers** | **(1)** Alizadehsani et al. 2012 *J. Med. Signals Sens.* 2:153–159, DOI [10.4103/2228-7477.112099](https://doi.org/10.4103/2228-7477.112099) — **clinical/ECG** Tables 1–3. **(2)** Alizadehsani et al. 2013 *Res. Cardiovasc. Med.* 2(3):133–139, DOI [10.5812/cardiovascmed.10888](https://doi.org/10.5812/cardiovascmed.10888), [PMC4253773](https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/) — **demographic Table 1 and laboratory/echocardiography Table 2**. These are two different 2013-era papers; (2) is **not** the paywalled 2013 CMPB article. |
+| Original-author abstracts and paywalled snippets | **Yes** | 2013 CMPB (`10.1016/j.cmpb.2013.03.004`), 2016 *Knowl.-Based Syst.*, 2017 Arabasadi/Alizadehsani CMPB. **Table 1 of each of those three papers remains paywalled and was not read.** |
 | Secondary open-access feature tables | **Yes** | Eyupoglu & Karakuş 2024 PMC11122190 Table 1; Sayadi et al. 2022 PMC9698583 Table 1; Zhang et al. 2022 *Electronics* 11(9):1495 §3–4.1. |
 | Secondary AngioCAD code/README (no patient files) | **Yes** | [MRS028/AngioCAD_Project](https://github.com/MRS028/AngioCAD_Project) README and `src/angiocad_common.py`. Column names are **that repository’s code**, not an owner codebook. |
 | Dataset / workbook / video / RAR / XLSX download | **No** | Zero bytes of any patient-level file. UCI `Z-Alizadeh sani dataset.xlsx`, Mendeley `CAD.xlsx`, `AngioCAD_Features.xlsx`, `AngioCAD_Labels.xlsx` and the four RAR parts were **not** retrieved. |
@@ -61,7 +62,8 @@ Finding classes: **`SUPPORTED`**, **`PARTIALLY_SUPPORTED`**, **`UNRESOLVED`**, *
 |---|---|---|---|
 | `OA-2012-JMSS` | [Semantic Scholar PDF of Alizadehsani et al. 2012 JMSS](https://pdfs.semanticscholar.org/c126/774693609b7c63a8477a595d6e4850c58bc1.pdf) · DOI [10.4103/2228-7477.112099](https://doi.org/10.4103/2228-7477.112099) | Full text, 4 chunks | Abstract; §2 dataset; Tables 1–3 (demographic, symptom/examination, ECG); class definition; collection site/season; §5 “37 features”; future-work statement that lab/echo were **not yet** included. |
 | `OA-2012-EJSR` | [ResearchGate record of Alizadehsani et al. 2012 *Eur. J. Sci. Res.* 82(4):542–553](https://www.researchgate.net/publication/265158683_Diagnosis_of_Coronary_Artery_Disease_Using_Data_Mining_Techniques_Based_on_Symptoms_and_ECG_Features) | Extract / tables only | Table 2 BP 90–190, PR 50–110; Table 4 derived `BP2`/`PR2` cut-offs. **Full PDF not independently archived in this session.** |
-| `OA-2013-CMPB` | [ScienceDirect preview, *Comput. Methods Programs Biomed.* 111:52–61](https://www.sciencedirect.com/science/article/pii/S0169260713000801) · [PubMed 23537611](https://pubmed.ncbi.nlm.nih.gov/23537611/) · DOI 10.1016/j.cmpb.2013.03.004 | Abstract + snippets; Table 1 **paywalled** | 303 patients / 54 features; 216 CAD; four feature groups; feature-creation method; 94.08% accuracy claim. |
+| `OA-2013-RCM` | [PMC4253773](https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/) · [PubMed 25478509](https://pubmed.ncbi.nlm.nih.gov/25478509/) · DOI [10.5812/cardiovascmed.10888](https://doi.org/10.5812/cardiovascmed.10888) · tables [tbl11452](https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/table/tbl11452/) / [tbl11453](https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/table/tbl11453/) | Full PMC HTML (PDF fetch HTTP 500) | **Different 2013 paper from CMPB.** Abstract; §3 Patients and Methods; **Table 1 demographic** (16 named fields + Yes/No subgroup counts; Length omitted); **Table 2 laboratory and echo** (17 named fields + ranges); Gini Tables 4–6 use **Length** anyway; no 50% threshold restated; no per-feature timestamps. |
+| `OA-2013-CMPB` | [ScienceDirect preview, *Comput. Methods Programs Biomed.* 111:52–61](https://www.sciencedirect.com/science/article/pii/S0169260713000801) · [PubMed 23537611](https://pubmed.ncbi.nlm.nih.gov/23537611/) · DOI 10.1016/j.cmpb.2013.03.004 | Abstract + snippets; Table 1 **paywalled** | 303 patients / 54 features; 216 CAD; four feature groups; feature-creation method; 94.08% accuracy claim. **Not the same article as `OA-2013-RCM`.** |
 | `OA-2016-KBS` | [ScienceDirect preview, *Knowl.-Based Syst.* 109:187–197](https://www.sciencedirect.com/science/article/abs/pii/S0950705116302076) · DOI 10.1016/j.knosys.2016.07.004 | Abstract + snippets; Table 1 **paywalled** | 303 patients / 54 features; “stenotic more than 50%”; Table 1 exists but was not readable. |
 | `OA-2017-ARAB` | [ScienceDirect preview, Arabasadi/Alizadehsani *Comput. Methods Programs Biomed.* 141:19–26](https://www.sciencedirect.com/science/article/pii/S0169260716309695) · DOI 10.1016/j.cmpb.2017.01.004 | Abstract + snippets; Table 1 **paywalled** | 303 patients / 54 features / 216 CAD; “stenosis of higher than 50%”. |
 | `P1A` | [UCI-412](https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani) | `200` | 303; ≥50% CAD; 54-feature prose; 56 blank variable rows; `Z-Alizadeh sani dataset.xlsx` 120.7 KB; CC BY 4.0; donated 2017-11-16. |
@@ -84,7 +86,7 @@ Finding classes: **`SUPPORTED`**, **`PARTIALLY_SUPPORTED`**, **`UNRESOLVED`**, *
 
 ## 2. UCI-412 — original-author corpus (2012, 2013, 2016, 2017)
 
-The issue asked for 2013, 2016 and 2017 original-author publications. Those three exist, but the **first original collection paper is 2012**, and it is the only original-author article whose feature tables were fully readable in this round. Treating 2013 as the first paper would hide the 37-feature precursor and the BP/PR original wording.
+The issue asked for 2013, 2016 and 2017 original-author publications. Those exist. The **first original collection paper remains 2012 JMSS** (clinical/ECG Tables 1–3, 37-feature precursor, BP/PR wording). A **second original-author full text**, 2013 *Res. Cardiovasc. Med.* (DOI 10.5812/cardiovascmed.10888, **not** the paywalled 2013 CMPB article), supplies **demographic Table 1 and laboratory/echocardiography Table 2**. v1’s claim that only the 2012 full text was accessible is **incorrect** and is corrected here. Treating CMPB 2013 as the first paper would still hide the 37-feature precursor and the BP/PR original wording.
 
 ### 2.1 What each original-author source actually establishes
 
@@ -92,7 +94,8 @@ The issue asked for 2013, 2016 and 2017 original-author publications. Those thre
 |---|---|---|---|---|
 | **2012** | Alizadehsani R, Habibi J, Bahadorian B, Mashayekhi H, Ghandeharioun A, Boghrati R, Alizadeh Sani Z. *Diagnosis of coronary arteries stenosis using data mining.* **J. Med. Signals Sens.** 2(3):153–159. DOI 10.4103/2228-7477.112099. §2, Tables 1–3, §5. | `ORIGINAL_AUTHOR_PAPER` (full text) | 303 random visitors to Shaheed Rajaei, Tehran, **autumn 2011–winter 2012**; “visitors with chest pain … suspicious of having CAD and were volunteers for angiography”; class `Cath` = `Cad` if diameter narrowing **“greater or equal to 50”**, else `Normal`; **named** demographic / symptom / ECG features with Yes/No or numeric ranges; **explicit history definitions** for HTN, DM, Current Smoker, Ex-Smoker, FH; BP labelled “Blood Pressure” range 90–190; PR labelled “Pulse Rate” range 50–110; four chest-pain flags listed as separate Yes/No columns; **37 features examined**; future work: “add other features like Lab data and Echo data”. | Units of BP/PR; systolic vs diastolic; posture/device; per-field clock time vs angiography; 0/1 workbook coding (tables are Yes/No); mutual exclusivity of chest-pain flags; lab/echo codebook; delivered UCI column count. |
 | **2012** | Alizadehsani et al. *Diagnosis of coronary artery disease using data mining techniques based on symptoms and ECG features.* **Eur. J. Sci. Res.** 82(4):542–553. Tables 2 and 4 (ResearchGate extract). | `ORIGINAL_AUTHOR_PAPER` (extract only) | Same BP 90–190 and PR 50–110; derived **`BP2`**: BP&lt;90 / 90≤BP≤140 / BP&gt;140; derived **`PR2`**: PR&lt;60 / 60≤PR≤100 / PR&gt;100. | Full article not independently archived here; still no measurement protocol or pre-cath timestamp. |
-| **2013** | Alizadehsani et al. *A data mining approach for diagnosis of coronary artery disease.* **Comput. Methods Programs Biomed.** 111(1):52–61. DOI 10.1016/j.cmpb.2013.03.004. PMID 23537611. Abstract + “The medical dataset” snippet. | `OWNER_PAPER_ABSTRACT` / `ORIGINAL_AUTHOR_PAPER` (Table 1 unread) | Introduces the named **Z-Alizadeh Sani** dataset: **303 patients, 54 features**, four groups (demographic, symptom and examination, ECG, laboratory and echo); 216 CAD; feature-creation method adding **three derived** features; Typical Chest Pain, Region RWMA2 and age called most effective. | Table 1 (names/units/ranges) **not read**; collection form; timestamps; 0/1 direction; 54-vs-delivered-file reconciliation. |
+| **2013** | Alizadehsani R, Habibi J, Alizadeh Sani Z, Mashayekhi H, Boghrati R, Ghandeharioun A, Khozeimeh F, Alizadeh-Sani F. *Diagnosing Coronary Artery Disease via Data Mining Algorithms by Considering Laboratory and Echocardiography Features.* **Res. Cardiovasc. Med.** 2(3):133–139. DOI 10.5812/cardiovascmed.10888. PMID 25478509. PMC4253773. Abstract; §3; Tables 1–2; Gini Tables 4–6; §5. | `ORIGINAL_AUTHOR_PAPER` (full PMC HTML) | 303 random chest-pain referrals to Rajaie, Tehran; ECG “studied in our previous works” (cites 2012 JMSS/EJSR); this paper uses **laboratory and echocardiographic** data for **per-artery** LAD/LCX/RCA stenosis; Table 1 **16 named demographics** with Yes/No counts (Length omitted from the table); Table 2 **17 named lab/echo fields** with numeric ranges (except Region RWMA range blank; VHD ordinal Normal/Mild/Moderate/Severe); Obesity **Yes if BMI > 25**; Gini tables use **Length** anyway; future work: add ECG and examination. Open-access CC BY. | **Not** a 54-feature codebook (this paper never states “54 features”); **not** a patient-ID join to 2012, CMPB 2013, or UCI/Mendeley workbooks (same *n* and centre is not identity); **no** 50% stenosis threshold restated; **no** BP/PR/chest-pain tables; **no** lab units except EF(%); **no** per-feature pre-angiography timestamps; Cr footnote prints “Creatine”. |
+| **2013** | Alizadehsani et al. *A data mining approach for diagnosis of coronary artery disease.* **Comput. Methods Programs Biomed.** 111(1):52–61. DOI 10.1016/j.cmpb.2013.03.004. PMID 23537611. Abstract + “The medical dataset” snippet. **Different article from the RCM paper above.** | `OWNER_PAPER_ABSTRACT` / `ORIGINAL_AUTHOR_PAPER` (Table 1 unread) | Introduces the named **Z-Alizadeh Sani** dataset: **303 patients, 54 features**, four groups (demographic, symptom and examination, ECG, laboratory and echo); 216 CAD; feature-creation method adding **three derived** features; Typical Chest Pain, Region RWMA2 and age called most effective. | Table 1 (names/units/ranges) **not read**; collection form; timestamps; 0/1 direction; 54-vs-delivered-file reconciliation; identity of these 303 with RCM/JMSS/UCI rows. |
 | **2016** | Alizadehsani et al. *Coronary artery disease detection using computational intelligence methods.* **Knowl.-Based Syst.** 109:187–197. DOI 10.1016/j.knosys.2016.07.004. Abstract + “Medical dataset used” snippet. | `ORIGINAL_AUTHOR_PAPER` (Table 1 unread) | “random sample of 303 patients with 54 features”; “features … presented in Table 1”; “medical histories, physical examinations, laboratory data, ECGs, and echocardiograms”; CAD if at least one of LAD/LCX/RCA is **“stenotic more than 50%”**. | Table 1 unread; **wording conflict** with 2012/UCI ≥50% (§2.3); timestamps. |
 | **2017** | Arabasadi Z, **Alizadehsani R**, Roshanzamir M, Moosaei H, Yarifard AA. *Computer aided decision making for heart disease detection using hybrid neural network-Genetic algorithm.* **Comput. Methods Programs Biomed.** 141:19–26. DOI 10.1016/j.cmpb.2017.01.004. Abstract + Dataset snippet. | `ORIGINAL_AUTHOR_COAUTHOR_PAPER` (Table 1 unread) | 303 patients, 216 CAD, **54 features**; Table 1 exists; CAD if at least one of LAD/LCX/RCA has **“stenosis of higher than 50%”**. | Table 1 unread; not a codebook for the UCI workbook; **same &gt;50% wording conflict**. |
 | **2017** | UCI-412 donation 16 Nov 2017; Mendeley 23 Jan 2017. | `OWNER_METADATA` | Official ≥50% threshold; 303; 54-feature prose; CC BY 4.0; two different files (120.7 KB vs 118 KB). | Field names (API `num_features: 0`, 56 blank rows); units; timing. |
@@ -113,7 +116,7 @@ No original **case-record form**, **CRF**, **supplementary codebook**, or **owne
 
 This is the strongest original-author **semantic** evidence located for five of the six numeric-binary panel fields. It still does not define the sixth (`Typical Chest Pain`) beyond the column name, and it does not map Yes/No onto workbook `0`/`1`.
 
-**§5 conclusion:** “The effects of **37 features** were examined.” Arithmetic of Tables 1–3: 16 + 14 + 7 = 37. Future work: add lab and echo. **2013’s 54-feature dataset is therefore the 2012 clinical/ECG core plus laboratory and echocardiography**, not a new cohort.
+**§5 conclusion:** “The effects of **37 features** were examined.” Arithmetic of Tables 1–3: 16 + 14 + 7 = 37. Future work: add lab and echo. The 2013 CMPB abstract’s **54-feature, four-group** description is **arithmetically compatible** with adding the 2013 RCM Table 2 laboratory/echo panel (17 named fields) to that 37-feature core. That reconstruction is a **hypothesis, not adopted** (§3.2). Same published *n* = 303 and overlapping authors/centre **do not prove** that the 2012, 2013 RCM, 2013 CMPB, and UCI/Mendeley rows are the same patients.
 
 ### 2.3 Original-author CAD threshold conflict (`DISPUTED` wording, UCI ≥50% still the owner landing-page rule)
 
@@ -124,7 +127,64 @@ This is the strongest original-author **semantic** evidence located for five of 
 | CAD if at least one of LAD/LCX/RCA **stenotic more than 50%** | 2016 KBS Introduction | &gt;50 |
 | CAD if at least one artery has **stenosis of higher than 50%** | 2017 Arabasadi/Alizadehsani Dataset snippet | &gt;50 |
 
-**Finding:** `DISPUTED` for the exact-50% edge **inside original-author literature**; `SUPPORTED` that the **UCI-412 owner landing page** states ≥50%. Exact handling of a 50% lesion in the delivered 303 rows remains `UNRESOLVED`. Do **not** pool with UCI-45 `>50%` and do **not** silently pick one paper to “fix” the owner page.
+**Finding:** `DISPUTED` for the exact-50% edge **inside original-author literature**; `SUPPORTED` that the **UCI-412 owner landing page** states ≥50%. Exact handling of a 50% lesion in the delivered 303 rows remains `UNRESOLVED`. Do **not** pool with UCI-45 `>50%` and do **not** silently pick one paper to “fix” the owner page. The 2013 RCM full text **does not restate** a 50% (or any percent) stenosis cut-off in the accessible HTML.
+
+### 2.4 Original 2013 RCM demographic and laboratory/echo tables (`OA-2013-RCM`)
+
+**Authority:** `ORIGINAL_AUTHOR_PAPER`, full PMC HTML of Alizadehsani et al. 2013 *Res. Cardiovasc. Med.* 2:133–139. Distinct from paywalled 2013 CMPB.
+
+**§3 Patients and Methods (verbatim design, not a codebook):** “The dataset of the current study was gathered from 303 random individuals, who referred to Rajaie Cardiovascular, Medical and Research Center, Tehran, Iran, due to chest pain.” “Electrocardiographic (ECG) data were studied in our previous works.” Goal: “accuracy of echocardiographic and laboratory features to predict CAD patients that require angiography.” Abstract Objectives: among chest-pain referrals “a great number … are normal”; method would “select high-risk cases that definitely need angiography.” **Not** a substitute for angiography.
+
+**Table 1 — Demographic Features** (16 named rows; **Length is not listed**, same omission as 2012 Table 1):
+
+| Feature | Descriptive index | Range / coding |
+|---|---|---|
+| Age, year | 58.898 ± 10.392 | 30–86 |
+| Weight, Kg | 73.832 ± 11.987 | 48–120 |
+| Sex | Male 176 (58.1%); Female 127 (41.9%) | Male/Female |
+| BMI, Kg/m² | 27.248 ± 4.099 | 18–41 |
+| DM | Yes 90 (29.7%); No 213 (70.3%) | Yes/No |
+| HTN | Yes 179 (59.1%); No 124 (40.9%) | Yes/No |
+| Current Smoker | Yes 63 (20.8%); No 240 (79.2%) | Yes/No |
+| Ex-Smoker | Yes 10 (3.3%); No 293 (96.7%) | Yes/No |
+| FH | Yes 48 (15.8%); No 255 (84.2%) | Yes/No |
+| Obesity | Yes if BMI > 25: 211 (69.6%); No otherwise 92 (30.4%) | derived |
+| CRF | Yes 6 (2%); No 297 (98%) | Yes/No |
+| CVA | Yes 5 (1.7%); No 298 (98.3%) | Yes/No |
+| Airway Disease | Yes 11 (3.6%); No 292 (96.4%) | Yes/No |
+| Thyroid Disease | Yes 7 (2.3%); No 296 (97.7%) | Yes/No |
+| CHF | Yes 1 (0.3%); No 302 (99.7%) | Yes/No |
+| DLP | Yes 191 (63%); No 112 (37%) | Yes/No |
+
+**Table 2 — Laboratory and Echo Features** (17 named rows). Footnote b expands names; Cr/CR is glossed “C, Creatine” (not “creatinine”). **No printed units except EF(%).** Region with RWMA has a mean but **blank range**. VHD is severity (Normal/Mild/Moderate/Severe), “not on the basis of which valve was diseased”; “patients with known or predominant valvular heart disease were excluded.”
+
+| Feature (paper token) | Mean ± SD | Paper range | Frozen-dict token (read-only compare) | Frozen-dict secondary range (not owner) |
+|---|---|---|---|---|
+| FBS | 119.185 ± 52.08 | 62–400 | FBS | 70–400 |
+| Cr | 1.056 ± 0.264 | 0.5–2.2 | CR | 0.5–2.5 |
+| TG | 150.343 ± 97.959 | **37–1050** | TG | 50–400 |
+| LDL | 104.644 ± 35.397 | 18–232 | LDL | 40–250 |
+| HDL | 40.234 ± 10.559 | 15–111 | HDL | 20–90 |
+| BUN | 17.502 ± 6.957 | 6–52 | BUN | 5–60 |
+| ESR | 19.462 ± 15.936 | **1–90** | ESR | 0–60 |
+| HB | 13.153 ± 1.61 | 8.9–17.6 | HB | 8–19 |
+| K | 4.231 ± 0.458 | **3.0–6.6** | K | 3.0–6.0 |
+| Na | 140.997 ± 3.808 | 128–156 | Na | 125–155 |
+| WBC | 7562.046 ± 2413.739 | **3700–18000** | WBC | 2000–15000 |
+| Lymph | 32.399 ± 9.973 | 7–60 | Lymph | 10–50 |
+| Neut | 60.149 ± 10.182 | 32–89 | Neut | 30–85 |
+| PLT | 221.488 ± 60.796 | **25–742** | PLT | 100–450 |
+| EF(%) | 50.788 ± 8.652 | 15–60 | EF-TTE | 20–70 |
+| Region with RWMA | 0.620 ± 1.133 | *(blank)* | Region RWMA | 0–3 |
+| VHD | Normal 116 / Mild 149 / Moderate 27 / Severe 11 | ordinal | VHD | N/Mild/Moderate/Severe |
+
+**Name correspondence with the frozen 17 laboratory-and-echo group is 17/17** at token level (Cr↔CR, EF(%)↔EF-TTE, Region with RWMA↔Region RWMA). That is **not** a workbook header audit and **not** a licence to treat frozen secondary units (`mg/dL`, `mm/hr`, …) as original-author units.
+
+**Gini Tables 4–6** rank **Length** for LAD, LCX and RCA even though Length is absent from Table 1 — the same original-author internal omission as 2012 IG tables.
+
+**§5 future work:** “diagnostic accuracy may be further augmented by adding new features such as the ECG and examination features.” This paper is therefore the **lab/echo counterpart** of 2012’s clinical/ECG paper, not a statement that a 54- or 55-column file exists.
+
+**What this paper does not supply:** BP, PR, chest-pain flags, Function Class, ECG/`BBB`/`Rhythm`, 0/1 workbook coding, lab units, a 50% CAD rule, a CRF, per-feature clocks, or proof that these 303 rows are the UCI-412 workbook.
 
 ---
 
@@ -135,7 +195,8 @@ This is the strongest original-author **semantic** evidence located for five of 
 | Count | Source | Class |
 |---|---|---|
 | **37 features** | 2012 JMSS §5 | `ORIGINAL_AUTHOR_PAPER` |
-| **54 features** | 2013 abstract; 2016 snippet; 2017 co-author snippet; UCI-412 prose; Mendeley | `ORIGINAL_AUTHOR_PAPER` / `OWNER_METADATA` |
+| **16 named demographics + 17 named lab/echo (this paper does not state 54)** | 2013 RCM Tables 1–2; Length used only in Gini | `ORIGINAL_AUTHOR_PAPER` |
+| **54 features** | 2013 **CMPB** abstract; 2016 snippet; 2017 co-author snippet; UCI-412 prose; Mendeley | `ORIGINAL_AUTHOR_PAPER` / `OWNER_METADATA` |
 | **55 attributes / 55 features** | Eyupoglu 2024 Table 1 (17+14+7+17); Zhang 2022 §3; Joloudari 2020 | `SECONDARY_PAPER` |
 | **56 variable rows** | UCI-412 page “0 to 10 of 56”; API `variables` length 56 | `OWNER_METADATA` (names blank) |
 | **`num_features: 0`** | UCI-412 API | `OWNER_METADATA` |
@@ -144,20 +205,22 @@ This is the strongest original-author **semantic** evidence located for five of 
 
 ### 3.2 Reconstructable arithmetic (hypotheses, **not adopted**)
 
-1. **2012 → 2013.** 37 (demo+symptom+ECG) + 17 laboratory-and-echo (Eyupoglu Table 1 #39–55) = **54**. This is the only reconstruction in which the authors’ own 2012 “37” and 2013 “54” both hold, **if** Length is not counted in the 37. But Length is used in 2012 IG tables, so the 37 already under-counts relative to the analysis.
+1. **2012 clinical/ECG + 2013 RCM lab/echo → CMPB “54” (hypothesis, not adopted).** 2012 JMSS §5 **37** (Tables 1–3: 16 demo without Length + 14 symptom/exam + 7 ECG including **Rhythm** not `BBB`) **+** 2013 RCM Table 2 **17** laboratory-and-echo names **= 54**. This is now an **original-author-table** reconstruction (no longer dependent on Eyupoglu for the 17 lab/echo names). It still **fails** if Length is counted (both 2012 IG and 2013 Gini use Length while omitting it from Table 1). It still **does not identify** the UCI workbook columns. It still **does not prove** the 303 rows are the same people.
 2. **Delivered 55 predictors.** 17 demographic **including Length** + 14 symptom + 7 ECG **including `BBB` not `Rhythm`** + 17 lab/echo = **55**. Plus `Cath` = **56**. Then 56 + LAD + LCX + RCA = **59**, which is exactly UCI-411’s owner statement. **`54 + 3 ≠ 59`; `56 + 3 = 59`.**
 3. **Two owner files are not identical artefacts:** UCI `Z-Alizadeh sani dataset.xlsx` 120.7 KB vs Mendeley `CAD.xlsx` 118 KB.
 
 **Additional original-vs-secondary table conflicts (not resolved):**
 
-| Item | 2012 original tables | Secondary 55-row tables (Eyupoglu 2024) |
-|---|---|---|
-| Length | omitted from Table 1; used in IG | listed, 140–188 |
-| ECG | **Rhythm** Sin/AF | **BBB** Left/Right/Normal; Rhythm absent |
-| Function Class | 1, 2, 3, 4 | 0, 1, 2, 3 |
-| Obesity | derived, BMI&gt;25 | Yes/No |
+| Item | 2012 JMSS | 2013 RCM | Secondary 55-row (Eyupoglu 2024) / frozen dict |
+|---|---|---|---|
+| Length | omitted from Table 1; used in IG | omitted from Table 1; used in Gini | listed, 140–188 |
+| Lab/echo panel | future work | **17 named fields**, Table 2 | 17 fields; several **range** mismatches vs RCM (TG, ESR, K, WBC, PLT, EF) |
+| ECG | **Rhythm** Sin/AF | not in this paper (previous work) | **BBB** Left/Right/Normal; Rhythm absent |
+| Function Class | 1, 2, 3, 4 | not in this paper | 0, 1, 2, 3 |
+| Obesity | derived, BMI&gt;25 | derived, BMI &gt; 25, with counts | Yes/No |
+| Lab units | n/a | **none** except EF(%) | mmHg/ppm and mg/dL etc. are **secondary** |
 
-**Finding:** `UNRESOLVED` / `DISPUTED` across source versions. **Neither 54 nor 55 nor 56 is chosen.** The frozen dictionary remains 56 registered entries. Choosing a secondary table to “correct” the owner prose is prohibited.
+**Finding:** `UNRESOLVED` / `DISPUTED` across source versions. **Neither 54 nor 55 nor 56 is chosen.** The frozen dictionary remains 56 registered entries. Original-author 2013 RCM Table 2 **supports the 17-name laboratory/echo inventory** as an author-published list; it does **not** certify the delivered column count. Choosing a secondary table — or this RCM paper — to “correct” the owner prose is prohibited.
 
 **Cheapest decisive evidence (not performed):** authorized read-only header/shape comparison of the UCI and Mendeley workbooks, emitting column names and counts only.
 
@@ -165,21 +228,21 @@ This is the strongest original-author **semantic** evidence located for five of 
 
 ## 4. The registered 16 predictors — original-author vs remaining gaps
 
-Registered panel `uci412_basic_clinical_v1` (`REPOSITORY_CONTRACT`, dictionary 1.1.0). **No field is owner-verified pre-angiography.** A 2012 Yes/No table is not the 2017 workbook encoding.
+Registered panel `uci412_basic_clinical_v1` (`REPOSITORY_CONTRACT`, dictionary 1.1.0). **No field is owner-verified pre-angiography.** A 2012/2013 Yes/No table is not the 2017 workbook encoding. 2013 RCM Table 1 adds **original-author subgroup counts** for the demographic subset; it does **not** cover BP, PR, or chest-pain flags.
 
 | # | Field | Original-author evidence (`OA-2012-JMSS` unless noted) | What it proves | What it does not prove | Finding |
 |---|---|---|---|---|---|
-| 1 | Age | Numeric 30–86 | Age was a collected demographic | Age-at-which-date; pre-cath clock | `PARTIALLY_SUPPORTED` (meaning); timing `UNRESOLVED` |
-| 2 | Sex | Male, Female | Binary sex recorded | `Fmale` token; timestamp | `PARTIALLY_SUPPORTED`; token `UNRESOLVED` |
-| 3 | BMI | 18–41 Kg/m²; Obesity derived if BMI&gt;25 | Unit kg/m² in 2012 table | Direct vs derived in the workbook; timing | `PARTIALLY_SUPPORTED` |
-| 4 | DM | Yes/No; **“history of Diabetes Mellitus”** | History flag, not a glucose cut-off in 2012 prose | 0/1 direction in the xlsx; diagnostic criteria; timing | `PARTIALLY_SUPPORTED` (history semantics); S-9 `UNRESOLVED` |
-| 5 | HTN | Yes/No; **“history of Hypertension”** | History flag, not the BP column | Whether history equals treated HTN; 0/1; timing | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
-| 6 | Current Smoker | Yes/No; **“current consumption of cigarettes”** | Current smoking history | Window (days/years); 0/1; timing | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
-| 7 | EX-Smoker | Yes/No; **“history of previous consumption of cigarettes”** | Former-smoking history, distinct from current | Exclusive vs overlapping with Current Smoker; 0/1 | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
-| 8 | FH | Yes/No; **“history of heart disease in first-degree relatives”** | First-degree family history | Age-of-onset threshold; 0/1; timing | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
-| 9 | DLP | Yes/No “Dyslipidemia” | Named history/diagnosis flag | Lab-derived vs recorded diagnosis; Y/N vs Yes/No tokens | `PARTIALLY_SUPPORTED` |
-| 10 | BP | “Blood Pressure” 90–190; EJSR `BP2` uses **140** as high cut-off | Single numeric; 140-cut-off is the classic **systolic** threshold, so a systolic-like quantity is **the intended reading of the derived feature** | Systolic vs diastolic vs MAP as recorded; mmHg (2012 table has **no unit**); posture, device, rest; pre-cath time. Must not be mapped to Cleveland `trestbps`. | `PARTIALLY_SUPPORTED` (pulse-pressure-like single value, systolic-compatible cut-off); quantity/unit/timing `UNRESOLVED` |
-| 11 | PR | “Pulse Rate” 50–110; EJSR `PR2` uses 60–100 as normal | Named pulse rate; 60–100 is the classic **beats/min** adult range | Printed secondary unit `ppm`; device; conditions; timing | `PARTIALLY_SUPPORTED` (pulse rate, bpm-compatible); unit/timing `UNRESOLVED` |
+| 1 | Age | Numeric 30–86; 2013 RCM 58.898 ± 10.392, same range | Age was a collected demographic in both 2012 and 2013 RCM tables | Age-at-which-date; pre-cath clock; row identity across papers | `PARTIALLY_SUPPORTED` (meaning); timing `UNRESOLVED` |
+| 2 | Sex | Male, Female; 2013 RCM Male 176 / Female 127 | Binary sex recorded | `Fmale` token; timestamp; identity of those 303 | `PARTIALLY_SUPPORTED`; token `UNRESOLVED` |
+| 3 | BMI | 18–41 Kg/m²; Obesity derived if BMI&gt;25 (2012 and 2013 RCM, latter with 211/92 counts) | Unit kg/m² in original-author tables | Direct vs derived in the workbook; timing | `PARTIALLY_SUPPORTED` |
+| 4 | DM | Yes/No; **“history of Diabetes Mellitus”**; 2013 RCM Yes 90 / No 213 | History flag, not a glucose cut-off in 2012 prose | 0/1 direction in the xlsx; diagnostic criteria; timing | `PARTIALLY_SUPPORTED` (history semantics); S-9 `UNRESOLVED` |
+| 5 | HTN | Yes/No; **“history of Hypertension”**; 2013 RCM Yes 179 / No 124 | History flag, not the BP column | Whether history equals treated HTN; 0/1; timing | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
+| 6 | Current Smoker | Yes/No; **“current consumption of cigarettes”**; 2013 RCM Yes 63 / No 240 | Current smoking history | Window (days/years); 0/1; timing | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
+| 7 | EX-Smoker | Yes/No; **“history of previous consumption of cigarettes”**; 2013 RCM Yes 10 / No 293 | Former-smoking history, distinct from current | Exclusive vs overlapping with Current Smoker; 0/1 | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
+| 8 | FH | Yes/No; **“history of heart disease in first-degree relatives”**; 2013 RCM Yes 48 / No 255 | First-degree family history | Age-of-onset threshold; 0/1; timing | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
+| 9 | DLP | Yes/No “Dyslipidemia”; 2013 RCM Yes 191 / No 112 | Named history/diagnosis flag | Lab-derived vs recorded diagnosis; Y/N vs Yes/No tokens | `PARTIALLY_SUPPORTED` |
+| 10 | BP | “Blood Pressure” 90–190; EJSR `BP2` uses **140** as high cut-off. **Absent from 2013 RCM Tables 1–2** (examination features are future work). | Single numeric; 140-cut-off is the classic **systolic** threshold, so a systolic-like quantity is **the intended reading of the derived feature** | Systolic vs diastolic vs MAP as recorded; mmHg (2012 table has **no unit**); posture, device, rest; pre-cath time. Must not be mapped to Cleveland `trestbps`. 2013 RCM does **not** add a BP subtype. | `PARTIALLY_SUPPORTED` (pulse-pressure-like single value, systolic-compatible cut-off); quantity/unit/timing `UNRESOLVED` |
+| 11 | PR | “Pulse Rate” 50–110; EJSR `PR2` uses 60–100 as normal. **Absent from 2013 RCM Tables 1–2.** | Named pulse rate; 60–100 is the classic **beats/min** adult range | Printed secondary unit `ppm`; device; conditions; timing. 2013 RCM does **not** document `ppm`. | `PARTIALLY_SUPPORTED` (pulse rate, bpm-compatible); unit/timing `UNRESOLVED` |
 | 12 | Typical Chest Pain | Separate Yes/No column; highest IG for LAD/RCA | A typical-pain flag existed | Case definition; 0/1; exclusivity vs other flags; timing | `UNRESOLVED` |
 | 13 | Atypical | Separate Yes/No | Distinct column | Exclusive vs overlapping; timing | `UNRESOLVED` |
 | 14 | Nonanginal | Separate Yes/No (“Nonanginal CP”) | Distinct column | Exclusive vs overlapping; timing | `UNRESOLVED` |
@@ -198,9 +261,17 @@ Registered panel `uci412_basic_clinical_v1` (`REPOSITORY_CONTRACT`, dictionary 1
 - Aim: diagnose vessel stenosis “when there is not enough ECG changes and **only based on** Demographic, Symptom, Examination information and ECG Features”.
 - Class `Cath` “is determined by angiography” — i.e. the label is the invasive test.
 
+**2013 RCM (`OA-2013-RCM` Abstract / §3 / §5) — related modelling intent, still no clocks:**
+
+- 303 random chest-pain referrals to Rajaie; features “measured and collected from potential patients.”
+- Objective: predict patients “most probably normal” to “obviate angiography costs and complications”; “Not a substitute for angiography.”
+- Echo (EF, Region with RWMA) and laboratories are the **inputs of this paper**. Same-admission echo/labs around angiography remain compatible with every sentence.
+- **No sentence states** that any named field was recorded before angiography or before knowledge of the stenosis label.
+- Same published *n* = 303 is **not** a verified patient-level overlap with 2012 JMSS or the UCI workbook.
+
 **What this proves:** the **study design** was to use non-invasive fields as an alternative to angiography in an angiography-referred sample. That is original-author *intent*.
 
-**What this does not prove:** that each of the 16 registered values was **measured or abstracted before the angiogram was performed**, or **before the abstractor knew `Cath`**. Retrospective chart abstraction after cath is compatible with every public sentence. ECG, later echo (EF, RWMA) and laboratories in the 54-feature set are commonly obtained on the same admission as angiography.
+**What this does not prove:** that each of the 16 registered values was **measured or abstracted before the angiogram was performed**, or **before the abstractor knew `Cath`**. Retrospective chart abstraction after cath is compatible with every public sentence. ECG, later echo (EF, RWMA) and laboratories in the 54-feature set are commonly obtained on the same admission as angiography. **0/16 is not elevated.**
 
 **Secondary papers** that call the features “noninvasive clinical parameters” (Sayadi 2022) repeat the modelling *use*, not a collection log.
 
@@ -212,7 +283,7 @@ Registered panel `uci412_basic_clinical_v1` (`REPOSITORY_CONTRACT`, dictionary 1
 
 ### 6.1 Six numeric 0/1 fields (Q-06)
 
-- **2012 original tables:** Yes/No, with history definitions (§2.2).
+- **2012 original tables:** Yes/No, with history definitions (§2.2). **2013 RCM Table 1:** same Yes/No tokens plus subgroup counts for DM, HTN, Current Smoker, Ex-Smoker, FH, DLP; still not 0/1.
 - **Local 2026-10-24 audit (`HISTORICAL_LOCAL_AGGREGATE`):** delivered cells are numeric `0`/`1` for DM, HTN, Current Smoker, EX-Smoker, FH, Typical Chest Pain.
 - **Tao et al. 2025 Table 1** (secondary 0=false, 1=true): **not re-read** this round (`X-TAO`).
 
@@ -294,58 +365,58 @@ Canonical `questions[].status` values below are **unchanged** from `RH02_SOURCE_
 
 ### Q-03 — UCI-412 CAD threshold
 
-1. **Sources:** UCI-412 Additional Information (owner, 2017 page); 2012 JMSS §2; 2016 KBS Introduction; 2017 Arabasadi Dataset snippet.  
-2. **Evidence / authority:** Owner + 2012 original: ≥50%. 2016/2017 original-author(–coauthor): &gt;50%.  
-3. **Proves / does not:** Proves UCI landing-page rule is ≥50%. Does not prove exact-50% row handling or equivalence to UCI-45.  
-4. **Conflicts:** Original-author &gt;50% vs ≥50% (§2.3).  
+1. **Sources:** UCI-412 Additional Information (owner, 2017 page); 2012 JMSS §2; 2016 KBS Introduction; 2017 Arabasadi Dataset snippet.
+2. **Evidence / authority:** Owner + 2012 original: ≥50%. 2016/2017 original-author(–coauthor): &gt;50%.
+3. **Proves / does not:** Proves UCI landing-page rule is ≥50%. Does not prove exact-50% row handling or equivalence to UCI-45.
+4. **Conflicts:** Original-author &gt;50% vs ≥50% (§2.3).
 5. **Finding:** `DISPUTED` (edge); owner-page ≥50% `SUPPORTED`. **Register status unchanged:** `RESOLVED_PRIMARY_METADATA_ONLY`.
 
 ### Q-04 — 16-field pre-angiography timing
 
-1. **Sources:** 2012 JMSS §2; UCI/Mendeley (no timestamps); 2013/2016 snippets.  
-2. **Evidence:** Referred chest-pain angiography volunteers; no per-field clock.  
-3. **Proves / does not:** Cohort design ≠ field-level pretest certification.  
-4. **Conflicts:** None on timestamps (universal silence).  
+1. **Sources:** 2012 JMSS §2; 2013 RCM Abstract/§3/§5; UCI/Mendeley (no timestamps); 2013 CMPB / 2016 snippets.
+2. **Evidence:** Referred chest-pain angiography volunteers (2012) and chest-pain referrals whose lab/echo features are used to “obviate angiography” (2013 RCM). **Neither paper states a per-feature clock vs angiography or vs knowledge of the stenosis label.**
+3. **Proves / does not:** Cohort design ≠ field-level pretest certification. 2013 RCM echo/lab inputs do not become pretest-certified by being called non-invasive. Same *n* = 303 is not a row join.
+4. **Conflicts:** None on timestamps (universal silence).
 5. **Finding:** `UNRESOLVED` (0/16). **Status unchanged:** `UNRESOLVED_SCIENTIFIC_HOLD`.
 
 ### Q-05 — BP and PR
 
-1. **Sources:** 2012 JMSS Table 2; 2012 EJSR Table 4; Eyupoglu 2024 Table 1; UCI API empty units.  
-2. **Evidence:** “Blood Pressure” 90–190, `BP2` high if &gt;140; “Pulse Rate” 50–110, `PR2` normal 60–100; secondary mmHg / ppm.  
-3. **Proves / does not:** Author modelling interpretation is systolic-compatible BP and bpm-compatible pulse. Not a codebook for quantity, device, `ppm`, or time.  
-4. **Conflicts:** 2012 no unit vs secondary mmHg/ppm.  
+1. **Sources:** 2012 JMSS Table 2; 2012 EJSR Table 4; Eyupoglu 2024 Table 1; UCI API empty units; 2013 RCM Tables 1–2 (negative: BP/PR absent).
+2. **Evidence:** “Blood Pressure” 90–190, `BP2` high if &gt;140; “Pulse Rate” 50–110, `PR2` normal 60–100; secondary mmHg / ppm. 2013 RCM does **not** document BP subtype or `PR ppm`.
+3. **Proves / does not:** Author modelling interpretation is systolic-compatible BP and bpm-compatible pulse. Not a codebook for quantity, device, `ppm`, or time.
+4. **Conflicts:** 2012 no unit vs secondary mmHg/ppm.
 5. **Finding:** `PARTIALLY_SUPPORTED` (terminology); measurement `UNRESOLVED`. **Status unchanged:** `UNRESOLVED_SCIENTIFIC_HOLD`.
 
 ### Q-06 — numeric binary direction
 
-1. **Sources:** 2012 JMSS §2 definitions; local A-1 audit; Tao 2025 Table 1 unread this round.  
-2. **Evidence:** Yes/No history semantics originally; xlsx is 0/1 per prior local audit.  
-3. **Proves / does not:** 2012 meaning of the *concepts*; not owner 0/1 direction.  
-4. **Conflicts:** Yes/No tables vs numeric delivery.  
+1. **Sources:** 2012 JMSS §2 definitions; 2013 RCM Table 1 Yes/No counts; local A-1 audit; Tao 2025 Table 1 unread this round.
+2. **Evidence:** Yes/No history semantics originally; 2013 RCM reprints Yes/No with counts; xlsx is 0/1 per prior local audit.
+3. **Proves / does not:** 2012/2013 meaning of the *concepts*; not owner 0/1 direction.
+4. **Conflicts:** Yes/No tables vs numeric delivery.
 5. **Finding:** `PARTIALLY_SUPPORTED` (history semantics); direction `UNRESOLVED`. **Status unchanged:** `CONDITIONAL_SOURCE_REVIEW_REQUIRED`.
 
 ### Q-07 — chest-pain flags
 
-1. **Sources:** 2012 Table 2; Zhang 2022 §3–4.1.  
-2. **Evidence:** Four parallel flags; secondary constancy claim with misspelling.  
-3. **Proves / does not:** Distinct columns existed. Not exclusivity, timing, or constancy of *our* file.  
-4. **Conflicts:** Secondary “delete External CP” vs frozen 16-field panel.  
+1. **Sources:** 2012 Table 2; Zhang 2022 §3–4.1.
+2. **Evidence:** Four parallel flags; secondary constancy claim with misspelling.
+3. **Proves / does not:** Distinct columns existed. Not exclusivity, timing, or constancy of *our* file.
+4. **Conflicts:** Secondary “delete External CP” vs frozen 16-field panel.
 5. **Finding:** `UNRESOLVED`. **Status unchanged:** `UNRESOLVED_SCIENTIFIC_HOLD`.
 
 ### Q-08 — 54 vs 55 vs 56
 
-1. **Sources:** §3 table.  
-2. **Evidence:** Original 37 then 54; secondary 55; local 55+Cath; UCI 56 blank rows; 411 = 59.  
-3. **Proves / does not:** A real version/count discrepancy. Does not identify the extra column without a header audit.  
-4. **Conflicts:** 54+3≠59 vs 56+3=59; Rhythm vs BBB; Function Class 1–4 vs 0–3; Length omitted/included.  
-5. **Finding:** `DISPUTED` / `UNRESOLVED`. **Status unchanged:** `DOCUMENTED_REPOSITORY_AGGREGATE_ONLY`.
+1. **Sources:** §3 table; 2013 RCM Tables 1–2.
+2. **Evidence:** Original 2012 **37**; original 2013 RCM **16 demo + 17 lab/echo** (paper never says 54); 2013 CMPB/2016/2017/UCI/Mendeley **54**; secondary 55; local 55+Cath; UCI 56 blank rows; 411 = 59. 37+17=54 is now an original-author-table **hypothesis**, not a chosen count.
+3. **Proves / does not:** A real version/count discrepancy. 2013 RCM **supports the 17 lab/echo names**. Does not identify the extra column without a header audit. Does not prove 303-row identity.
+4. **Conflicts:** 54+3≠59 vs 56+3=59; Rhythm vs BBB; Function Class 1–4 vs 0–3; Length omitted from both original Table 1s but used in IG/Gini; several lab **ranges** differ from frozen secondary ranges.
+5. **Finding:** `DISPUTED` / `UNRESOLVED`. **Status unchanged:** `DOCUMENTED_REPOSITORY_AGGREGATE_ONLY`. **54 vs 55 is not inferred as resolved.**
 
 ### Q-14 — AngioCAD pretest tabular source
 
-1. **Sources:** §7.  
-2. **Evidence:** Owner 413 patients + 413 videos + two XLSX; secondary 377 clinical / STEMI-heavy constructed &gt;50% label; CC BY 4.0 vs “non-commercial”.  
-3. **Proves / does not:** Multimodal deposit exists. Does not prove pretest Track A eligibility.  
-4. **Conflicts:** 413 vs 377 vs 376; ≥50 vs &gt;50 constructed; CC BY vs NC wording.  
+1. **Sources:** §7.
+2. **Evidence:** Owner 413 patients + 413 videos + two XLSX; secondary 377 clinical / STEMI-heavy constructed &gt;50% label; CC BY 4.0 vs “non-commercial”.
+3. **Proves / does not:** Multimodal deposit exists. Does not prove pretest Track A eligibility.
+4. **Conflicts:** 413 vs 377 vs 376; ≥50 vs &gt;50 constructed; CC BY vs NC wording.
 5. **Finding:** `PARTIALLY_SUPPORTED` as a **different imaging/stenosis task**; `UNRESOLVED` as pretest tabular CAD; classification **`SCIENTIFIC_HOLD_NOT_ADMITTED`**. **Status unchanged:** `CONDITIONAL_SOURCE_REVIEW_REQUIRED`. Literature colour **`REJECTED_RED` (P25)** unchanged.
 
 ---
@@ -355,11 +426,11 @@ Canonical `questions[].status` values below are **unchanged** from `RH02_SOURCE_
 | ID | Decision | Finding | Authority ceiling | Permitted next action | Forbidden next action |
 |---|---|---|---|---|---|
 | D-UCI-TH | Keep UCI-412 target as source-defined ≥50%; report original-author &gt;50% conflict | `DISPUTED` edge | Owner page + original papers | Quote both wordings in FR-04 | Harmonize with Cleveland; pick 2016 to override UCI |
-| D-UCI-TIME | Do not treat the 16 fields as verified pretest inputs | `UNRESOLVED` | 2012 design intent only | Owner CRF request | New real UCI-412 training / AI-9.2 |
+| D-UCI-TIME | Do not treat the 16 fields as verified pretest inputs | `UNRESOLVED` | 2012 and 2013 RCM design intent only; **no per-feature clocks** | Owner CRF request | New real UCI-412 training / AI-9.2; treat 303 as a verified join |
 | D-UCI-BPPR | Do not map BP→`trestbps` or certify `ppm` | `PARTIALLY_SUPPORTED` | 2012 tables + EJSR BP2/PR2 | Ask owner: systolic? unit? conditions? | Recode PR or collapse with Cleveland BP |
 | D-UCI-BIN | Keep S-9 provisional | `PARTIALLY_SUPPORTED` | 2012 Yes/No history | Owner 0/1 statement | Heuristic recoding |
 | D-UCI-CP | Keep four flags as delivered | `UNRESOLVED` | 2012 parallel columns | Optional authorized aggregate uniqueness of Exertional CP | Drop column because Zhang 2022 did |
-| D-UCI-N | Do not choose 54 or 55 or 56 | `DISPUTED` | Owner + local + secondary | Authorized header/shape audit of **named** delivery | “Fix” dictionary to 54 |
+| D-UCI-N | Do not choose 54 or 55 or 56 | `DISPUTED` | Owner + 2012/2013 RCM tables + local + secondary | Cite 2013 RCM Table 2 as original-author **17 lab/echo names**; authorized header/shape audit of **named** delivery | “Fix” dictionary to 54 because 37+17=54 |
 | D-ANG-ADM | AngioCAD remains **not admitted** | `SCIENTIFIC_HOLD_NOT_ADMITTED` | Owner + secondary | Curator schema/timing/licence questions | Download RAR/XLSX; train; call it Track A |
 | D-ANG-LIT | Keep **P25 `REJECTED_RED`** | `SUPERVISOR_CLASSIFICATION` | Supervisor sheet | Cite as rejected-from-selected-scope | Recolour because a table exists |
 | D-ANG-TASK | If ever in scope, it is an **imaging/stenosis + mixed-ACS** task | `PARTIALLY_SUPPORTED` (secondary) | MRS028 README | Separate protocol, separate estimand | Substitute for UCI-412/Cleveland pretest CAD |
@@ -372,7 +443,7 @@ Canonical `questions[].status` values below are **unchanged** from `RH02_SOURCE_
 ## 10. Ranked recommendations (cheapest–safest first)
 
 1. **Human review of this packet.** No register JSON, supervisor CSV, dictionary or protocol should change until a named reviewer accepts specific rows.
-2. **UCI-412 author/curator letter (zero data access):** (a) original CRF for the 16 fields with clock vs angiography; (b) BP quantity (SBP/DBP/other), unit, posture; (c) PR unit and the `ppm` token; (d) Yes/No → 0/1 map; (e) chest-pain exclusivity; (f) why prose says 54, UCI UI has 56 rows, 411 says 59; (g) ≥50 vs &gt;50 in 2016/2017 papers.
+2. **UCI-412 author/curator letter (zero data access):** (a) original CRF for the 16 fields with clock vs angiography; (b) BP quantity (SBP/DBP/other), unit, posture; (c) PR unit and the `ppm` token; (d) Yes/No → 0/1 map; (e) chest-pain exclusivity; (f) why prose says 54, UCI UI has 56 rows, 411 says 59; (g) ≥50 vs &gt;50 in 2016/2017 papers; (h) whether 2012 JMSS, 2013 RCM, 2013 CMPB and the UCI/Mendeley workbooks are the **same 303 rows**; (i) lab units and the Cr/“Creatine” token.
 3. **AngioCAD curator letter (zero download):** schema of Features/Labels; patient↔video map; clinical/lab chronology; owner patient-level CAD rule if any; which text governs reuse (CC BY 4.0 vs “non-commercial”).
 4. **Do not recolour P25 and do not lift `SCIENTIFIC_HOLD_NOT_ADMITTED`.**
 5. **If and only if separately authorized:** local read-only header/shape comparison of UCI vs Mendeley UCI-412 files (names/counts only).
@@ -389,11 +460,11 @@ The file `RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json` is **not edited**. If a
 | Question | Canonical status (unchanged) | Proposed appendix only |
 |---|---|---|
 | Q-03 | `RESOLVED_PRIMARY_METADATA_ONLY` | 2012 JMSS ≥50 vs 2016/2017 original-author &gt;50 wording. |
-| Q-04 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 “volunteers for angiography” is cohort design, not 16 timestamps. |
-| Q-05 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 “Blood Pressure”/“Pulse Rate” + EJSR BP2 140 / PR2 60–100; still no codebook. |
-| Q-06 | `CONDITIONAL_SOURCE_REVIEW_REQUIRED` | 2012 history definitions for DM/HTN/smoker/FH. |
-| Q-07 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 four parallel Yes/No flags. |
-| Q-08 | `DOCUMENTED_REPOSITORY_AGGREGATE_ONLY` | 2012 37-feature precursor; Rhythm vs BBB; Function Class 1–4 vs 0–3; 54+3≠59. |
+| Q-04 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 “volunteers for angiography” and 2013 RCM “obviate angiography” are cohort design, not 16 timestamps. Same *n*=303 is not a row join. |
+| Q-05 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 “Blood Pressure”/“Pulse Rate” + EJSR BP2 140 / PR2 60–100; 2013 RCM has no BP/PR; still no codebook. |
+| Q-06 | `CONDITIONAL_SOURCE_REVIEW_REQUIRED` | 2012 history definitions for DM/HTN/smoker/FH; 2013 RCM Yes/No counts. |
+| Q-07 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 four parallel Yes/No flags. 2013 RCM does not list chest-pain columns. |
+| Q-08 | `DOCUMENTED_REPOSITORY_AGGREGATE_ONLY` | 2012 37-feature precursor; 2013 RCM original 17 lab/echo names (not a 54-count); Rhythm vs BBB; Function Class 1–4 vs 0–3; Length omitted from both Table 1s; 54+3≠59. 54 vs 55 **not** inferred. |
 | Q-14 | `CONDITIONAL_SOURCE_REVIEW_REQUIRED` | Secondary 377 clinical / STEMI 49%; constructed &gt;50% label; P25 remains REJECTED_RED; classification remains SCIENTIFIC_HOLD_NOT_ADMITTED. |
 
 **Explicitly not proposed:** any `decision_id`, any status string change, any colour change, any dictionary/panel/hash change.
@@ -418,15 +489,17 @@ Documentation-level only. Commands and results are recorded in the JSON `validat
 
 ## 14. Limitations
 
-1. **Paywalls.** 2013/2016/2017 Table 1 and AngioCAD §§3–5 unread. Absence in accessible materials ≠ non-existence inside those PDFs/workbooks.
+1. **Paywalls.** 2013 **CMPB** / 2016 / 2017 Table 1 and AngioCAD §§3–5 unread. The 2013 **RCM** Tables 1–2 **were** read (PMC HTML). Absence in accessible materials ≠ non-existence inside unread PDFs/workbooks.
 2. **No file opened.** Headers, dtypes, row counts of xlsx/RAR unknown from bytes.
 3. **2012 EJSR** is extract-level, not a second archived full PDF.
-4. **Tao 2025 Table 1** not retrieved; S-9 not re-verified.
-5. **MRS028** is independent secondary code, not Hosseini et al.
-6. **Issue #104** not machine-read (`403`).
-7. **Secondary tables are not owner CRFs.**
-8. This PR **must not** be cited as scientific or clinical approval.
+4. **2013 RCM PDF** fetch returned HTTP 500; PMC HTML including Tables 1–2 and Gini Tables 4–6 was read. Association-rule block described as “shown below” was not recovered as text (possible figure).
+5. **Tao 2025 Table 1** not retrieved; S-9 not re-verified.
+6. **MRS028** is independent secondary code, not Hosseini et al.
+7. **Issue #104** not machine-read (`403`).
+8. **Secondary tables are not owner CRFs.** 2013 RCM Tables 1–2 are original-author **published tables**, still not a CRF or workbook.
+9. **303 is a published sample size**, not a verified patient-level identity across papers or deposits.
+10. This PR **must not** be cited as scientific or clinical approval.
 
 ---
 
-**Bottom line.** Original-author 2012 tables **do** name BP as blood pressure, PR as pulse rate, and five history flags, and they describe an angiography-referred chest-pain cohort — but they **do not** certify pre-cath timestamps, 0/1 direction, BP systolic-vs-diastolic as recorded, or a single feature count. The 54/55/56/59 discrepancy is now tied to a documented 37-feature 2012 precursor, a Rhythm-vs-BBB swap, and the arithmetic `56+3=59`. AngioCAD remains a post-cath multimodal resource with a CC BY 4.0 vs “non-commercial” documentary clash; a secondary reanalysis describes 377 clinical rows and a STEMI-heavy constructed &gt;50% label. **`REJECTED_RED` (P25) and `SCIENTIFIC_HOLD_NOT_ADMITTED` are preserved. No hold was lifted. No patient file was downloaded. No model was fitted.**
+**Bottom line.** Original-author **2012 JMSS** tables name BP, PR, and history flags (clinical/ECG). Original-author **2013 RCM** (PMC4253773) — a **different paper** from paywalled 2013 CMPB — supplies **demographic Table 1 and 17 laboratory/echo names with ranges**. v1’s “only one original-author full text” claim is corrected. Neither paper certifies pre-cath timestamps (still **0/16**), 0/1 direction, BP systolic-vs-diastolic, `PR ppm`, or a single feature count. 37+17=54 is an original-author-table **hypothesis, not adopted**; 303 is not a verified row join. AngioCAD remains a post-cath multimodal resource with a CC BY 4.0 vs “non-commercial” documentary clash. **`REJECTED_RED` (P25) and `SCIENTIFIC_HOLD_NOT_ADMITTED` are preserved. No hold was lifted. No patient file was downloaded. No model was fitted.**
