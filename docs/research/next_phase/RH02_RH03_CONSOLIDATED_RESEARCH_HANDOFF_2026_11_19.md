@@ -129,7 +129,7 @@ Status source: [RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json](RH02_SOURCE_QUEST
 - [RH-02 original-publication / patent / AngioCAD evidence packet](RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md)
 - [RH-02 machine-readable source/findings](RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.json)
 - [AI-8R source-admissibility and 16-field scientific hold](../ai8r/SOURCE_ADMISSIBILITY.md)
-- [Original literature classification register](../../research/source_materials/literature_review_status.csv)
+- [Original literature classification register](../../../research/source_materials/literature_review_status.csv)
 - [Q-01/Q-02/Q-09–Q-13 future scope, Issue #107](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/107)
 - [Prepared **UNSENT** owner-evidence request drafts, Issue #102](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/102)
 
