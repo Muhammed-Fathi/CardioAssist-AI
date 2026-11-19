@@ -1,0 +1,548 @@
+{
+  "schema_id": "cardioassist.issue107_public_source_audit/v1",
+  "version": "1.0.0",
+  "document_id": "CAI-RH02-ISSUE107-PUBLIC-SOURCE-AUDIT-2026-11-19-v1",
+  "prepared_at": "2026-11-19",
+  "status": "EVIDENCE_REVIEW_DRAFT_NOT_APPROVED",
+  "baseline": {
+    "branch": "arena/26f5fc6c-cardioassist-ai",
+    "commit": "0835627d524dbe3c512c1f9bd0606b6bcb864f17",
+    "main_baseline_verified_by_requester": true
+  },
+  "issue_access": {
+    "issue": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/107",
+    "gh_command": "gh issue view 107 --repo Muhammed-Fathi/CardioAssist-AI",
+    "result": "HTTP_403_EQUIVALENT",
+    "error": "GraphQL: Resource not accessible by integration (repository.issue)",
+    "fallback_executed": "COMPLETE_SCOPE_GIVEN_IN_REQUEST"
+  },
+  "scope": {
+    "public_sources_only": true,
+    "research_questions": ["Q-01", "Q-02", "Q-09", "Q-10", "Q-11", "Q-12", "Q-13"],
+    "excluded_repeated_investigation": "UCI-412/AngioCAD literature from PR #106",
+    "original_patient_datasets_downloaded": false,
+    "patient_rows_accessed": false,
+    "patient_level_outputs_created": false,
+    "models_trained": false,
+    "models_scored": false,
+    "locked_external_test_outcomes_inspected": false,
+    "frozen_protocols_modified": false,
+    "scientific_approvals_changed": false,
+    "real_backend_inference_enabled": false,
+    "dataset_files_written": false,
+    "network_calls_to_dataset_hosts_by_validator": false
+  },
+  "evidence_grades": {
+    "E1": "Official dataset-owner documentation, original publication or registry",
+    "E2": "Reproducible local audited aggregate under a recorded scope; reused, not re-derived here",
+    "E3": "Peer-reviewed or reputable secondary research / transcribed source text with access limits",
+    "E4": "Explicit inference or arithmetic from cited facts",
+    "E5": "Synthetic software fixture; none used as evidence in this audit"
+  },
+  "source_catalog": [
+    {
+      "id": "S-UCI45",
+      "url": "https://archive.ics.uci.edu/dataset/45/heart+disease",
+      "authority": "E1",
+      "title": "UCI Machine Learning Repository: Heart Disease (dataset 45)",
+      "establishes": "Four named sites, 303 headline instances, 14-column historical subset, num 0-4 with 0 vs 1-4 contrast, trestbps on admission in mm Hg, num 0 <50% and 1 >50%, missing values, creators, DOI 10.24432/C52P4X, CC BY 4.0.",
+      "limits": "No per-field timestamps, exact-50 coding, cross-site patient independence, clinical harmonization or contemporary applicability."
+    },
+    {
+      "id": "S-UCI45-NAMES",
+      "url": "https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/heart-disease.names",
+      "authority": "E1",
+      "title": "Official UCI heart-disease.names documentation (22 July 1988)",
+      "establishes": "Four source institutions and principal investigators, 76 raw attributes with 14 used, class vectors for Cleveland/Hungary/Switzerland/VA, raw missing code -9.0, historical ~77% accuracy statement, and strict >50% wording.",
+      "limits": "Processed files were not opened; no timestamps, exact-50 rule, raw-to-processed identity or ethics permission."
+    },
+    {
+      "id": "S-DETRANO-ABSTRACT",
+      "url": "https://europepmc.org/article/MED/2756873",
+      "authority": "E1",
+      "title": "Detrano et al. 1989 original article abstract (PMID 2756873)",
+      "establishes": "303 Cleveland derivation patients; test groups of 425 Hungary, 200 VA and 143 Zurich/Basel; prevalences 38%, 75%, 84%; calibration errors and restricted conclusion.",
+      "limits": "Does not establish the five-field panel, individual timing, exact-50 handling, license or identity with delivered UCI subsets."
+    },
+    {
+      "id": "S-DETRANO-DOI",
+      "url": "https://doi.org/10.1016/0002-9149(89)90524-9",
+      "authority": "E1",
+      "title": "Original article DOI record",
+      "establishes": "Bibliographic identity of the 1989 American Journal of Cardiology paper.",
+      "limits": "Full text was paywalled in this pass; no independent full-text page reading is claimed from this URL."
+    },
+    {
+      "id": "S-DETRANO-FULLTEXT-COPY",
+      "url": "https://www.academia.edu/4827700/International_application_of_a_new_probability_algorithm_for_the_diagnosis_of_coronary_artery_disease",
+      "authority": "E3",
+      "title": "Third-party-hosted searchable transcription of the 1989 paper",
+      "establishes": "Angiograms abnormal at >50% luminal narrowing of a major epicardial vessel; histories, examinations and noninvasive tests within six weeks before angiography; 143 Swiss patients split 58 Zurich/85 Basel in 1985.",
+      "limits": "Not an owner codebook; possible transcription errors; no per-field timestamps; does not certify delivered UCI files."
+    },
+    {
+      "id": "S-STATLOG145",
+      "url": "https://archive.ics.uci.edu/dataset/145/statlog+heart",
+      "authority": "E1",
+      "title": "UCI Statlog (Heart), dataset 145",
+      "establishes": "270 records, 13 features, target 1 absence/2 presence, similar-but-different wording, no missing values, ca-equivalent and thal fields, DOI 10.24432/C57303, CC BY 4.0.",
+      "limits": "No independent-patient evidence, stenosis threshold, reference standard or official Cleveland-subset declaration."
+    },
+    {
+      "id": "S-STATLOG-PROJECT",
+      "url": "https://archive.ics.uci.edu/dataset/98/statlog+project",
+      "authority": "E1",
+      "title": "UCI Statlog Project page",
+      "establishes": "European StatLog comparative project; heart file described as similar to the earlier UCI heart database with 13 attributes extracted from 75; DOI 10.24432/C5XS3B.",
+      "limits": "No exact subject lineage, Cleveland overlap or target equivalence."
+    },
+    {
+      "id": "S-STATLOG-BOOK",
+      "url": "https://www.ai.rug.nl/minds/uploads/MantasRecommendedBook.pdf",
+      "authority": "E1",
+      "title": "Michie, Spiegelhalter and Taylor (eds.), Machine Learning, Neural and Statistical Classification (1994)",
+      "establishes": "StatLog was a European comparative classification project distributing datasets as test cases.",
+      "limits": "Searchable copy located but not fully page-read; no heart-specific patient provenance, threshold or overlap claim."
+    },
+    {
+      "id": "S-STATLOG-ORIGIN-SECONDARY",
+      "url": "https://link.springer.com/content/pdf/10.1023/A:1007608224229.pdf",
+      "authority": "E3",
+      "title": "Peer-reviewed secondary article on StatLog datasets",
+      "establishes": "Search excerpt describes StatLog heart as 270 Cleveland Clinic Foundation records courtesy of R. Detrano.",
+      "limits": "Search-excerpt-only; full page not verified; no threshold, recoding or non-overlap proof."
+    },
+    {
+      "id": "S-STATLOG-OVERLAP-THESIS",
+      "url": "https://libres.uncg.edu/ir/ecsu/f/Brandon_Simmons_Thesis-Final.pdf",
+      "authority": "E3",
+      "title": "Academic thesis excerpt on heart dataset provenance",
+      "establishes": "Reports a proper-subset hypothesis: Statlog 270 records within Cleveland 303 (303 = 270 + 33).",
+      "limits": "Not owner-confirmed, not page-verified in full, and no auditable row mapping."
+    },
+    {
+      "id": "S-UCI411",
+      "url": "https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset",
+      "authority": "E1",
+      "title": "UCI Extension of Z-Alizadeh Sani, dataset 411",
+      "establishes": "303 patients, 59 features, extension adds LAD/LCX/RCA, CAD at >=50% and at least one stenotic artery; only one of LAD/LCX/RCA/Cath may be used; DOI 10.24432/C5461K; CC BY 4.0.",
+      "limits": "No row-level identity check here; no new independent people."
+    },
+    {
+      "id": "S-UCI412",
+      "url": "https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani",
+      "authority": "E1",
+      "title": "UCI Z-Alizadeh Sani, dataset 412",
+      "establishes": "303 patients with >=50% narrowing and 54-feature four-group description; DOI 10.24432/C5Q31T.",
+      "limits": "Used only for the existing cross-family relationship/threshold contrast; no new UCI-412 investigation."
+    },
+    {
+      "id": "S-RILEY",
+      "url": "https://onlinelibrary.wiley.com/doi/abs/10.1002/sim.9025",
+      "authority": "E1",
+      "title": "Riley et al. 2021 external-validation sample-size methods paper",
+      "establishes": "Sizing needs target SE/CI widths, validation event proportion, anticipated (mis)calibration and linear-predictor variance, and any decision thresholds; can assess an existing cohort.",
+      "limits": "Supplies no CardioAssist parameters and grants no approval."
+    },
+    {
+      "id": "S-REPO-A2-AUDIT",
+      "url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/blob/0835627d524dbe3c512c1f9bd0606b6bcb864f17/docs/research/gate-da/10_m2a_uci412_uci411_evidence_and_decisions.md",
+      "authority": "E2",
+      "title": "Repository Gate DA local read-only aggregate evidence",
+      "establishes": "Historical site class vectors, processed missing-cell totals and named-field counts, one excess full-row duplicate in Hungary and VA, with explicit inference limits.",
+      "limits": "Not re-run in this audit; aggregate metadata only, not E1 clinical truth or a missingness policy."
+    },
+    {
+      "id": "S-REPO-HUNGARY-DECISION",
+      "url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/blob/0835627d524dbe3c512c1f9bd0606b6bcb864f17/docs/research/gate-pt/07_m2f_hungary_scientific_decision_and_conditional_protocol.md",
+      "authority": "E2",
+      "title": "Repository Hungary conditional decision/protocol draft",
+      "establishes": "Historical 292/294 five-field joint availability, conditional strategy B, HOLD/NOT READY state and frozen-model/one-shot prerequisites.",
+      "limits": "Review draft, not a protocol, approval or data access."
+    },
+    {
+      "id": "S-REPO-REGISTER",
+      "url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/blob/0835627d524dbe3c512c1f9bd0606b6bcb864f17/docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
+      "authority": "E2",
+      "title": "Canonical 16-question register at verified baseline",
+      "establishes": "Official question IDs and statuses with PENDING human dispositions.",
+      "limits": "This report copies statuses and does not promote any of them."
+    },
+    {
+      "id": "S-REPO-HANDOFF",
+      "url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/blob/0835627d524dbe3c512c1f9bd0606b6bcb864f17/docs/research/next_phase/RH02_RH03_CONSOLIDATED_RESEARCH_HANDOFF_2026_11_19.md",
+      "authority": "E2",
+      "title": "PR #108 consolidated RH-02/RH-03 handoff",
+      "establishes": "Existing dataset-role matrix, Hungary priority, evidence labels and no-auto-promotion rule.",
+      "limits": "A navigation snapshot, not a new source admission or scientific approval."
+    }
+  ],
+  "datasets": [
+    {
+      "id": "UCI45_CLEVELAND",
+      "title": "UCI-45 Cleveland / DA-A2",
+      "original_sources": ["S-UCI45", "S-UCI45-NAMES", "S-DETRANO-ABSTRACT", "S-DETRANO-FULLTEXT-COPY", "S-REPO-A2-AUDIT"],
+      "linked_questions": ["Q-01", "Q-02"],
+      "known_facts": [
+        "Official sources define age, sex, cp, trestbps and restecg and give trestbps as resting blood pressure on admission in mm Hg.",
+        "UCI class vector is 164/55/36/35/13; 139 positive versus 164 negative under 0 vs 1-4 binarization (E4 arithmetic).",
+        "num is 0 <50% and 1 >50% diameter narrowing; exact 50% is undefined by the primary sources.",
+        "Original 1989 study used 303 Cleveland angiography patients and showed site-dependent calibration errors."
+      ],
+      "uncertainties": [
+        "No dated per-field evidence that all five proposed inputs existed before the reference procedure.",
+        "No primary ruling on exact-50 records or equivalence with UCI-412 >=50%.",
+        "Historical paper cohort cannot be proven identical row-for-row to the delivered processed file.",
+        "Cross-site patient overlap cannot be excluded from dummy-identifier public metadata."
+      ],
+      "leakage_risks": [
+        "ca and raw per-vessel fields 59-68 are components of the angiographic label and are prohibited pre-test predictors.",
+        "thal and the exercise-test block have unresolved acquisition timing.",
+        "Applying 1989 historical accuracy or AUROC to the five-field proposed panel would conflate different models and feature sets."
+      ],
+      "recommendation": {
+        "primary": "GO_REVIEW",
+        "development_or_external_use": "HOLD",
+        "rationale": "Owner definitions are explicit and reviewable, but five-field pre-test timing and threshold equivalence remain unresolved; no D-047 reinterpretation or new study is authorized.",
+        "decision_owner": "Clinical/research reviewer and endpoint adjudicator"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Obtain original acquisition documentation with dated, field-level timing for age, sex, cp, trestbps and restecg.",
+          "owner": "Clinical/research reviewer and data owner",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Rule on exact-50 coding and strict >50% versus >=50% equivalence without silent harmonization.",
+          "owner": "Endpoint adjudicator",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Separately approve any frozen Cleveland development protocol and artifact SHA before an external role is considered.",
+          "owner": "Named human governance and scientific reviewers",
+          "current_state": "NOT_APPROVED"
+        }
+      ]
+    },
+    {
+      "id": "UCI45_HUNGARY",
+      "title": "UCI-45 Hungary",
+      "original_sources": ["S-UCI45", "S-UCI45-NAMES", "S-DETRANO-ABSTRACT", "S-REPO-A2-AUDIT", "S-REPO-HUNGARY-DECISION", "S-REPO-HANDOFF"],
+      "linked_questions": ["Q-10", "Q-11", "Q-02"],
+      "known_facts": [
+        "Official UCI class vector is 188/37/26/28/15: 294 records, 188 negative and 106 positive (E4 arithmetic).",
+        "The 1989 original abstract describes a separate 425-patient Hungarian test group at 38% prevalence, not the delivered 294-record count.",
+        "E2 historical local audit reports 292/294 joint availability for the five resting fields and 782 recognized missing cells in 14 processed columns.",
+        "UCI-45 is displayed as CC BY 4.0; repository policy still forbids committing patient-level files."
+      ],
+      "uncertainties": [
+        "Patient-level independence from Cleveland cannot be established from public metadata with dummy identifiers.",
+        "Processed binary labels are consistent with raw 0-4 binarization at aggregate level but clinical equivalence is unverified.",
+        "No field-level timestamp demonstrates pre-angiography availability of the five inputs.",
+        "No locked Cleveland artifact or approved precision estimand exists, so Riley-style adequacy is unassessed."
+      ],
+      "leakage_risks": [
+        "Using Hungary outcomes for feature, preprocessing, calibration or model selection would convert it from an assessment set to development data.",
+        "Missing-input imputation or recoding learned after a locked test would leak assessment information.",
+        "ca and other angiography-derived fields remain prohibited despite their availability in the shared schema."
+      ],
+      "recommendation": {
+        "primary": "GO_REVIEW",
+        "real_one_shot_execution": "HOLD",
+        "rationale": "Hungary is the highest-priority candidate for a future separately approved frozen one-shot assessment, but independence, target equivalence, timing, precision and approvals are all unresolved.",
+        "decision_owner": "Named clinical/scientific reviewer, statistician, maintainer and local operator"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Document site/owner provenance and an overlap disposition; do not infer independence from site names or non-matching profiles.",
+          "owner": "Scientific reviewer and data owner",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Rule on endpoint equivalence including raw 0-4 to processed 0/1 mapping and exact-50 handling.",
+          "owner": "Clinical endpoint adjudicator",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Approve a five-field dictionary with units, categories, timestamps, sentinels and a missing-input policy before any scoring.",
+          "owner": "Clinical reviewer and statistician",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Freeze a separately approved Cleveland model and preprocessing pipeline with exact SHA-256; then approve a one-shot protocol/ledger and named local authorization.",
+          "owner": "Named human governance reviewers and local operator",
+          "current_state": "NOT_APPROVED"
+        },
+        {
+          "requirement": "Write a Riley-style precision feasibility decision with prespecified estimands, CI widths, prevalence, calibration and linear-predictor assumptions.",
+          "owner": "Statistician",
+          "current_state": "NOT_ASSESSED"
+        }
+      ]
+    },
+    {
+      "id": "UCI145_STATLOG",
+      "title": "UCI-145 Statlog (Heart)",
+      "original_sources": ["S-STATLOG145", "S-STATLOG-PROJECT", "S-STATLOG-BOOK", "S-STATLOG-ORIGIN-SECONDARY", "S-STATLOG-OVERLAP-THESIS", "S-REPO-HANDOFF"],
+      "linked_questions": ["Q-12"],
+      "known_facts": [
+        "Official owner page lists 270 instances, 13 features, target 1 absence / 2 presence, no missing values and a similar-but-different-form description referencing UCI Heart Disease.",
+        "UCI Statlog Project page says the heart database has 13 attributes extracted from a larger set of 75 and belongs to the European StatLog comparative project.",
+        "E3 sources describe Cleveland Clinic origin and a proper-subset hypothesis of 270 within 303 records."
+      ],
+      "uncertainties": [
+        "Official owner documentation does not confirm patient-level overlap or independence.",
+        "No official stenosis threshold or reference standard is printed for the 1/2 target.",
+        "The subset claim is an E3 hypothesis and was search-excerpt-only in this pass."
+      ],
+      "leakage_risks": [
+        "Probable duplication with Cleveland would inflate any train/test or external-validation metric.",
+        "The ca-equivalent fluoroscopy field and thal timing carry the same pre-test restrictions as UCI-45.",
+        "Kaggle merged copies that include Statlog and Cleveland are duplicate-suspect and are not acquisition sources."
+      ],
+      "recommendation": {
+        "primary": "NO_GO",
+        "audit_only": "GO_REVIEW",
+        "rationale": "Statlog cannot be treated as independent validation or pooled data while overlap is unresolved; a scoped lineage/duplicate review is legitimate but does not grant study use.",
+        "decision_owner": "Source-donor/auditor and named scientific reviewer"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Obtain original Statlog project or donor documentation naming the heart cohort and its relationship to Cleveland.",
+          "owner": "Source-donor and auditor",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Perform privacy-preserving exact and near-duplicate overlap analysis on shared stable fields only under a separately recorded authorization.",
+          "owner": "Authorized local data auditor",
+          "current_state": "NOT_AUTHORIZED"
+        },
+        {
+          "requirement": "Record a clinical target/threshold ruling and either exclude Statlog or relabel any analysis as sensitivity, never independent validation.",
+          "owner": "Scientific reviewer",
+          "current_state": "PENDING"
+        }
+      ]
+    },
+    {
+      "id": "UCI411_EXTENSION",
+      "title": "UCI-411 Extension of Z-Alizadeh Sani",
+      "original_sources": ["S-UCI411", "S-UCI412", "S-REPO-REGISTER", "S-REPO-A2-AUDIT"],
+      "linked_questions": ["Q-09", "Q-02"],
+      "known_facts": [
+        "Official page states 303 patients, 59 features and an extension adding LAD, LCX and RCA.",
+        "Owner text says CAD occurs when at least one of those arteries is stenotic and only one of LAD/LCX/RCA/Cath may be retained for classification.",
+        "UCI-412 owner page describes the same 303-patient baseline with a >=50% definition, creating the existing cross-family threshold contrast with UCI-45 >50%."
+      ],
+      "uncertainties": [
+        "Row-level one-to-one correspondence with UCI-412 was not examined here.",
+        "Owner file-version reconciliation is outside this report."
+      ],
+      "leakage_risks": [
+        "LAD, LCX, RCA and Cath are outcome-defining artery fields and are target leakage as pre-test predictors.",
+        "Using 411 as validation of a 412 model reuses the same patients, events and angiographic result.",
+        "Adding 303 extension rows to 303 baseline rows would falsely double the sample size."
+      ],
+      "recommendation": {
+        "primary": "NO_GO",
+        "audit_only": "GO_REVIEW",
+        "rationale": "The extension changes the feature dictionary of the same 303 participants and cannot supply independent validation; overlap study remains the only legitimate role.",
+        "decision_owner": "Scientific reviewer and authorized local auditor"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Maintain the canonical exclusion of UCI-411 from independent validation, pooled training and sample-size totals.",
+          "owner": "Scientific reviewer",
+          "current_state": "CANONICAL_STATUS_UNCHANGED"
+        },
+        {
+          "requirement": "If version reconciliation is pursued, use a separately authorized privacy-preserving same-cohort correspondence audit; never treat absence of row proof as independence.",
+          "owner": "Authorized local auditor",
+          "current_state": "NOT_AUTHORIZED"
+        }
+      ]
+    },
+    {
+      "id": "UCI45_VA_LONG_BEACH",
+      "title": "UCI-45 VA Long Beach",
+      "original_sources": ["S-UCI45", "S-UCI45-NAMES", "S-DETRANO-ABSTRACT", "S-REPO-A2-AUDIT", "S-RILEY"],
+      "linked_questions": ["Q-13", "Q-02"],
+      "known_facts": [
+        "Official UCI class vector is 51/56/41/42/10: 200 records, 149 positive (E4 arithmetic), attributed to Robert Detrano.",
+        "The original abstract reports a 200-patient VA group at 75% prevalence and a >50% epicardial-vessel endpoint.",
+        "E2 local audit reports 698 recognized missing cells in 14 processed columns, including ca=198/200, thal=166/200, slope=102/200 and trestbps=56/200."
+      ],
+      "uncertainties": [
+        "Similar counts and prevalence do not prove that delivered records are the original publication subjects.",
+        "Exact-50 coding, site reference standard and cross-site patient independence are unverified.",
+        "A five-field pre-test timestamp and site-specific delivered-file units are not documented.",
+        "No approved missingness/abstention policy or locked-model precision estimand exists."
+      ],
+      "leakage_risks": [
+        "ca is angiography-derived and must remain excluded despite its missingness.",
+        "Imputing from the assessment cohort or selecting a rule after seeing outcomes would leak test information.",
+        "Pooling with Cleveland would confound site and patient identity unless overlap is ruled out."
+      ],
+      "recommendation": {
+        "primary": "HOLD",
+        "permitted_role": " LIMITED_DESCRIPTIVE_STRESS_ROLE_ONLY_AFTER_APPROVAL",
+        "rationale": "VA has a compatible source wording and case count for a limited domain-shift/missingness question, but no approved role, endpoint ruling, precision design or independent-patient evidence.",
+        "decision_owner": "Statistician and clinical/scientific reviewer"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Complete source-pair overlap and target-semantics review before any comparison.",
+          "owner": "Scientific reviewer and authorized auditor",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Prespecify missing-input, zero/negative-value and abstention rules without using assessment outcomes.",
+          "owner": "Statistician and clinician",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Write a precision decision and explicit governance authorization naming VA and its limited role before any evaluation.",
+          "owner": "Statistician and named governance reviewer",
+          "current_state": "NOT_APPROVED"
+        }
+      ]
+    },
+    {
+      "id": "UCI45_SWITZERLAND",
+      "title": "UCI-45 Switzerland",
+      "original_sources": ["S-UCI45", "S-UCI45-NAMES", "S-DETRANO-ABSTRACT", "S-DETRANO-FULLTEXT-COPY", "S-REPO-A2-AUDIT", "S-RILEY"],
+      "linked_questions": ["Q-13", "Q-02"],
+      "known_facts": [
+        "Official UCI class vector is 8/48/32/30/5: 123 records, 115 positive and only 8 negative (E4 arithmetic).",
+        "The original abstract reports 143 Swiss patients at 84% prevalence; the E3 transcription splits 58 Zurich and 85 Basel in 1985, so the delivered 123-record file is not the full published group.",
+        "E2 local audit reports 273 recognized missing cells in 14 columns, ca=118/123, fbs=75/123, thal=52/123 and chol=0 in all 123 rows, an unresolved structural-missingness/coding question."
+      ],
+      "uncertainties": [
+        "The 123 versus 143 relationship and exact Zurich/Basel attribution of the delivered subset are unverified.",
+        "No primary source explains chol=0 or certifies five-field pre-angiography timing.",
+        "Cross-patient independence and site-specific reference-standard details are unresolved.",
+        "Exact precision cannot be computed without a frozen model and prespecified estimands."
+      ],
+      "leakage_risks": [
+        "The eight negatives are too few to support many precise specificity or calibration claims and must not be used for tuning.",
+        "Recoding chol=0 after seeing assessment results would be an unapproved outcome-informed transformation.",
+        "ca and other angiography-derived fields remain excluded."
+      ],
+      "recommendation": {
+        "primary": "NO_GO",
+        "descriptive_role": "HOLD",
+        "rationale": "Severe unresolved missingness, case-enrichment with only eight negatives and a 123-versus-143 subset mismatch make this unsuitable as a primary locked external validation; a descriptive suitability/stress role needs explicit review.",
+        "decision_owner": "Statistician and clinical/scientific reviewer"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Reconcile the 123-record UCI file with the 143-patient publication group and site attribution using owner/version evidence.",
+          "owner": "Data owner and scientific reviewer",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Rule on chol=0 and all missingness/abstention semantics before any modeling consideration.",
+          "owner": "Clinician and statistician",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Record a written precision disposition; if infeasible, label the result NO-GO rather than real validation.",
+          "owner": "Statistician",
+          "current_state": "NOT_ASSESSED"
+        }
+      ]
+    }
+  ],
+  "question_links": [
+    {
+      "id": "Q-01",
+      "canonical_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "datasets": ["UCI45_CLEVELAND", "UCI45_HUNGARY"],
+      "finding": "GO_REVIEW: owner field definitions exist; field-level pre-reference timing is unverified.",
+      "decision_requirement": "Owner acquisition documentation with dated five-field timing; clinical reviewer ruling."
+    },
+    {
+      "id": "Q-02",
+      "canonical_status": "SOURCE_WORDING_RESOLVED_EQUIVALENCE_UNRESOLVED",
+      "datasets": ["UCI45_CLEVELAND", "UCI45_HUNGARY", "UCI411_EXTENSION", "UCI45_VA_LONG_BEACH", "UCI45_SWITZERLAND"],
+      "finding": "Strict >50% and >=50% wording is primary-source verified; exact-50 and cross-family equivalence are unresolved.",
+      "decision_requirement": "Endpoint adjudicator ruling; no silent harmonization or binarization assumed clinically equivalent."
+    },
+    {
+      "id": "Q-09",
+      "canonical_status": "UNSUITABLE_FOR_THIS_EXTERNAL_CLAIM",
+      "datasets": ["UCI411_EXTENSION"],
+      "finding": "NO_GO for independence; same 303 participants with outcome-defining artery fields added.",
+      "decision_requirement": "Keep overlap/leakage exclusion; any correspondence audit remains authorized research only."
+    },
+    {
+      "id": "Q-10",
+      "canonical_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "datasets": ["UCI45_HUNGARY"],
+      "finding": "GO_REVIEW for admissibility; patient independence, target equivalence, timing and precision unresolved.",
+      "decision_requirement": "Owner provenance and named clinical/scientific disposition before any data operation."
+    },
+    {
+      "id": "Q-11",
+      "canonical_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "datasets": ["UCI45_HUNGARY"],
+      "finding": "HOLD: no frozen Cleveland artifact, locked protocol, one-shot ledger or local authorization exists.",
+      "decision_requirement": "Separate approval of frozen model SHA and protocol; no test-set tuning or repeated peeking."
+    },
+    {
+      "id": "Q-12",
+      "canonical_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "datasets": ["UCI145_STATLOG", "UCI45_CLEVELAND"],
+      "finding": "NO_GO as independent validation; E3 subset hypothesis and E1 similarity wording create a duplicate-suspect case.",
+      "decision_requirement": "Owner lineage plus authorized aggregate overlap audit before any role change."
+    },
+    {
+      "id": "Q-13",
+      "canonical_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "datasets": ["UCI45_VA_LONG_BEACH", "UCI45_SWITZERLAND"],
+      "finding": "VA HOLD for a limited stress role; Switzerland NO_GO for primary validation and HOLD for descriptive suitability only.",
+      "decision_requirement": "Site-specific target, missingness, precision and explicit limited-role decision by statistician and clinical reviewer."
+    }
+  ],
+  "governance": {
+    "canonical_question_register_modified": false,
+    "canonical_question_statuses_promoted": false,
+    "decision_ids_added": [],
+    "P1_status": "PENDING",
+    "P3_status": "CLOSED",
+    "P5_status": "NOT_MADE_PROHIBITED",
+    "D046_scope_changed": false,
+    "D047_scope_changed": false,
+    "D048_scope_changed": false,
+    "AI10_2_status": "NOT_PERFORMED",
+    "human_review_owner": "Named maintainer/scientific reviewers; agent does not approve"
+  },
+  "prohibited_claims": {
+    "external_validation_completed": false,
+    "hungary_test_executed": false,
+    "clinical_validation_claim": false,
+    "real_patient_data_uploaded": false,
+    "supervisor_approval_claimed": false,
+    "ethics_or_institutional_approval_claimed": false,
+    "dataset_license_grants_ethics_permission": false,
+    "synthetic_result_treated_as_clinical_evidence": false,
+    "unresolved_question_treated_as_approved": false,
+    "model_performance_number_reported": false
+  },
+  "deliverables": {
+    "markdown_report": "RH02_ISSUE107_PUBLIC_SOURCE_DATASET_AUDIT_2026_11_19.md",
+    "report_sha256": "cbccf7698f26f2db0c7c07834b07863ecb539c054640308aae2df4b700404f2e",
+    "validator": "scripts/validate_issue107_source_audit.py",
+    "validator_sha256": "10f56df248843277fd563eb04182d22fbc7eb1dfe93f78037714adbf7618105b",
+    "canonical_register": "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
+    "canonical_register_sha256": "9e3f5f9895f894fb603f90435a69d7b174b24bff291254e208cd7c2201f612d4"
+  },
+  "validation": {
+    "command": "python scripts/validate_issue107_source_audit.py",
+    "read_only": true,
+    "network_access": false,
+    "dataset_access": false,
+    "expected_status": "PASS"
+  },
+  "next_executable_step": "A named scientific reviewer must adjudicate Q-01/Q-02/Q-09/Q-10/Q-11/Q-12/Q-13 evidence and either approve a separately scoped source/protocol step or record an explicit HOLD/NO-GO; no real-data action follows from this document."
+}
