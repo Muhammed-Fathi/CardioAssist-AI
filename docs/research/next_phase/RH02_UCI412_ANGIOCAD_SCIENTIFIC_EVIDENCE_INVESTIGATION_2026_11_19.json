@@ -1,0 +1,871 @@
+{
+  "schema_id": "cardioassist.rh02_uci412_angiocad_scientific_evidence_investigation/v1",
+  "version": "1.0.0",
+  "prepared_at": "2026-11-19",
+  "prepared_by": "Arena Agent Mode (documentation-only public-source scientific investigation)",
+  "status": "REVIEW_DRAFT_NOT_SCIENTIFIC_ADMISSION",
+  "issue": {
+    "url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/104",
+    "title_as_supplied": "RH-02 Issue #104: deep independent public-source scientific investigation into UCI-412 (Z-Alizadeh Sani) and AngioCAD",
+    "machine_readable_issue_body": false,
+    "issue_api_observation": "GitHub Issues API returned 403 Resource not accessible by integration; specification used is the maintainer-supplied in-session text."
+  },
+  "baseline": {
+    "named_main_sha": "ab613baa3de5ec7c3442f4047b1a4cc56126d624",
+    "named_main_subject": "Merge pull request #105 from Muhammed-Fathi/arena/1138f6ea-cardioassist-ai",
+    "session_head_at_start": "ab613baa3de5ec7c3442f4047b1a4cc56126d624",
+    "baseline_is_session_start_head": true
+  },
+  "markdown_companion": "docs/research/next_phase/RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md",
+  "predecessors": [
+    "docs/research/next_phase/RH02_PRIMARY_SOURCE_ADMISSIBILITY_2026_11_19.md",
+    "docs/research/next_phase/RH02_ROUND2_SOURCE_RECONCILIATION_2026_11_19.md",
+    "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
+    "docs/research/next_phase/RH02_TECHNICAL_DATASET_METADATA_AUDIT_V1.md",
+    "docs/research/ai8r/SOURCE_ADMISSIBILITY.md"
+  ],
+  "review_state": {
+    "scientific_human_review": "PENDING",
+    "admission_decision": "NONE_MADE",
+    "acceptance_criteria_marked_passed": false,
+    "holds_lifted": false,
+    "register_json_edited": false,
+    "supervisor_csv_edited": false,
+    "frozen_contracts_modified": false
+  },
+  "scope": {
+    "statement": "Public original-author papers, owner metadata, open secondary feature tables, AngioCAD article preview/Zenodo metadata, and publicly readable secondary AngioCAD code. No patient-level files.",
+    "patient_data_accessed": false,
+    "dataset_bytes_downloaded": 0,
+    "real_data_experiments_run": false,
+    "models_fitted_or_evaluated": false,
+    "locked_hungary_dataset_accessed": false,
+    "frozen_contracts_modified": false,
+    "ai_master_progress_modified": false,
+    "scientific_holds_lifted": false,
+    "literature_colour_changed": false,
+    "external_validation_or_clinical_claims_made": false,
+    "uci412_xlsx_downloaded": false,
+    "mendeley_cad_xlsx_downloaded": false,
+    "angiocad_xlsx_or_rar_downloaded": false
+  },
+  "preserved_classifications": {
+    "angiocad_literature": {
+      "paper_id": "P25",
+      "excel_row": 30,
+      "supervisor_status": "REJECTED_RED",
+      "title": "AngioCAD: A public x-ray angiography dataset and an adaptive fusion framework for stenosis detection",
+      "url": "https://doi.org/10.1016/j.cmpb.2026.109368",
+      "changed": false
+    },
+    "angiocad_research_classification": {
+      "value": "SCIENTIFIC_HOLD_NOT_ADMITTED",
+      "is_register_status": false,
+      "changed": false
+    },
+    "uci412_preangiography_owner_verified_fields": 0,
+    "uci412_scientific_hold": true
+  },
+  "authority_classes": {
+    "ORIGINAL_AUTHOR_PAPER": "Full text or extract of a paper whose authors include the UCI-412 depositing team.",
+    "ORIGINAL_AUTHOR_COAUTHOR_PAPER": "Paper that includes Alizadehsani among authors but is not the 2013 dataset-introduction article.",
+    "OWNER_METADATA": "UCI, Mendeley or Zenodo owner/depositor landing page or machine-readable record.",
+    "OWNER_PAPER_ABSTRACT": "Abstract, Highlights, Introduction, ethics or data-availability of an owner-authored article where methods/tables are paywalled.",
+    "SECONDARY_PAPER": "Peer-reviewed third-party reanalysis; cannot authenticate original acquisition.",
+    "SECONDARY_REANALYSIS_CODE": "Public third-party source code that claims to have opened the files; not an owner codebook.",
+    "HISTORICAL_LOCAL_AGGREGATE": "Previously recorded maintainer-executed read-only observation already in this repository.",
+    "REPOSITORY_CONTRACT": "Frozen versioned artifact inspected read-only.",
+    "LICENSE_REFERENCE": "Canonical published licence deed. Not legal advice.",
+    "SUPERVISOR_CLASSIFICATION": "25-paper supervisor colour in literature_review_status.csv."
+  },
+  "finding_classes": ["SUPPORTED", "PARTIALLY_SUPPORTED", "UNRESOLVED", "DISPUTED"],
+  "status_semantics": {
+    "register_status": "Only RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json questions[].status is canonical. This investigation does not edit it.",
+    "register_status_at_baseline": {
+      "Q-03": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "Q-04": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "Q-05": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "Q-06": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "Q-07": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "Q-08": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "Q-14": "CONDITIONAL_SOURCE_REVIEW_REQUIRED"
+    },
+    "finding_class_is_not_register_status": true,
+    "research_classification_is_not_register_status": true
+  },
+  "sources": [
+    {
+      "source_id": "OA-2012-JMSS",
+      "url": "https://pdfs.semanticscholar.org/c126/774693609b7c63a8477a595d6e4850c58bc1.pdf",
+      "doi": "10.4103/2228-7477.112099",
+      "label": "Alizadehsani et al. 2012 J. Med. Signals Sens. 2:153-159 full text",
+      "authors": "Alizadehsani R, Habibi J, Bahadorian B, Mashayekhi H, Ghandeharioun A, Boghrati R, Alizadeh Sani Z",
+      "year": 2012,
+      "section": "Abstract; Section 2 Used Medical Data Set; Tables 1-3; Section 5 Conclusion",
+      "authority": "ORIGINAL_AUTHOR_PAPER",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Full text readable via Semantic Scholar PDF, four chunks.",
+      "verified_facts": [
+        "303 random visitors to Shaheed Rajaei Cardiovascular, Medical and Research Center, Tehran, 2011 fall and 2012 winter",
+        "Collected from visitors with chest pain, suspicious of CAD, volunteers for angiography",
+        "Class feature Cath determined by angiography; Cad when diameter narrowing greater or equal to 50, Normal otherwise",
+        "Table 1 demographic Yes/No or numeric ranges including DM, HTN, Current Smoker, Ex-Smoker, FH, DLP, Obesity derived if BMI>25",
+        "Table 2 BP (Blood Pressure) 90-190; PR (Pulse Rate) 50-110; Typical Chest Pain, Atypical, Nonanginal CP, Exertional CP as separate Yes/No columns; Function Class 1,2,3,4",
+        "Table 3 ECG includes Rhythm Sin/AF and does not list BBB",
+        "Author definitions: HTN history of Hypertension; DM history of Diabetes Mellitus; Current Smoker current consumption of cigarettes; Ex-Smoker previous consumption; FH heart disease in first-degree relatives",
+        "Section 5: 37 features examined; future work to add lab and echo data",
+        "Length omitted from Table 1 but used in information-gain tables"
+      ],
+      "does_not_support": [
+        "per-field timestamp versus angiography",
+        "systolic versus diastolic BP as recorded",
+        "printed unit ppm or mmHg (2012 tables give no unit for BP/PR)",
+        "workbook 0/1 direction",
+        "mutual exclusivity of chest-pain flags",
+        "delivered UCI column count of 54, 55 or 56"
+      ]
+    },
+    {
+      "source_id": "OA-2012-EJSR",
+      "url": "https://www.researchgate.net/publication/265158683_Diagnosis_of_Coronary_Artery_Disease_Using_Data_Mining_Techniques_Based_on_Symptoms_and_ECG_Features",
+      "label": "Alizadehsani et al. 2012 Eur. J. Sci. Res. 82(4):542-553 Tables 2 and 4 extract",
+      "authors": "Alizadehsani R, Habibi J, Hosseini MJ, Boghrati R, Ghandeharioun A, Bahadorian B, Sani ZA",
+      "year": 2012,
+      "section": "Table 2 Symptoms and physical examination; Table 4 Level of Features",
+      "authority": "ORIGINAL_AUTHOR_PAPER",
+      "accessed_on": "2026-11-19",
+      "access_observation": "ResearchGate extract only; full PDF not independently archived in this session.",
+      "verified_facts": [
+        "BP (Blood Pressure) range 90-190",
+        "PR (Pulse Rate) range 50-110",
+        "BP2: BP<90 low; 90<=BP<=140 normal; BP>140 high",
+        "PR2: PR<60 low; 60<=PR<=100 normal; PR>100 high"
+      ],
+      "does_not_support": [
+        "measurement device, posture, rest conditions",
+        "pre-angiography timestamp",
+        "that BP as recorded is systolic rather than another quantity — the 140 cut-off is compatible with systolic interpretation of the derived feature only"
+      ]
+    },
+    {
+      "source_id": "OA-2013-CMPB",
+      "url": "https://www.sciencedirect.com/science/article/pii/S0169260713000801",
+      "doi": "10.1016/j.cmpb.2013.03.004",
+      "pubmed": "https://pubmed.ncbi.nlm.nih.gov/23537611/",
+      "label": "Alizadehsani et al. 2013 Comput. Methods Programs Biomed. 111:52-61",
+      "authors": "Alizadehsani R, Habibi J, Hosseini MJ, Mashayekhi H, Boghrati R, Ghandeharioun A, Bahadorian B, Alizadeh Sani Z",
+      "year": 2013,
+      "section": "Abstract; snippet The medical dataset",
+      "authority": "OWNER_PAPER_ABSTRACT",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Abstract and snippets readable; Table 1 paywalled NOT_ACCESSIBLE.",
+      "verified_facts": [
+        "Dataset called Z-Alizadeh Sani with 303 patients and 54 features is introduced",
+        "216 samples had CAD",
+        "Four groups: demographic, symptom and examination, ECG, laboratory and echo",
+        "Feature creation method adds three derived features",
+        "Typical Chest Pain, Region RWMA2 and age called most effective by Information Gain"
+      ],
+      "does_not_support": [
+        "Table 1 field dictionary (unread)",
+        "per-field timing",
+        "workbook column count reconciliation"
+      ]
+    },
+    {
+      "source_id": "OA-2016-KBS",
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S0950705116302076",
+      "doi": "10.1016/j.knosys.2016.07.004",
+      "label": "Alizadehsani et al. 2016 Knowl.-Based Syst. 109:187-197",
+      "authors": "Alizadehsani R, Zangooei MH, Hosseini MJ, Habibi J, Khosravi A, Roshanzamir M, Khozeimeh F, Sarrafzadegan N, Nahavandi S",
+      "year": 2016,
+      "section": "Abstract; Introduction CAD definition; snippet Medical dataset used",
+      "authority": "ORIGINAL_AUTHOR_PAPER",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Abstract and snippets readable; Table 1 paywalled NOT_ACCESSIBLE.",
+      "verified_facts": [
+        "303 patients with 54 features; Table 1 exists but was not readable",
+        "Features from medical histories, physical examinations, laboratory data, ECGs and echocardiograms",
+        "A patient has CAD if at least one of LAD, LCX or RCA arteries is stenotic more than 50%"
+      ],
+      "does_not_support": [
+        "Table 1 contents",
+        "exact-50% handling",
+        "equivalence of 'more than 50%' with UCI >=50% wording"
+      ]
+    },
+    {
+      "source_id": "OA-2017-ARAB",
+      "url": "https://www.sciencedirect.com/science/article/pii/S0169260716309695",
+      "doi": "10.1016/j.cmpb.2017.01.004",
+      "label": "Arabasadi, Alizadehsani et al. 2017 Comput. Methods Programs Biomed. 141:19-26",
+      "authors": "Arabasadi Z, Alizadehsani R, Roshanzamir M, Moosaei H, Yarifard AA",
+      "year": 2017,
+      "section": "Abstract; snippet Dataset",
+      "authority": "ORIGINAL_AUTHOR_COAUTHOR_PAPER",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Abstract and snippets readable; Table 1 paywalled NOT_ACCESSIBLE.",
+      "verified_facts": [
+        "Z-Alizadeh Sani: 303 patients, 216 CAD, 54 features, Table 1 exists unread",
+        "CAD if at least one of LAD, LCX and RCA has a stenosis of higher than 50%"
+      ],
+      "does_not_support": [
+        "Table 1 contents",
+        "that 'higher than 50%' supersedes the UCI >=50% landing-page rule"
+      ]
+    },
+    {
+      "source_id": "P1A",
+      "url": "https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani",
+      "doi": "10.24432/C5Q31T",
+      "label": "UCI Z-Alizadeh Sani dataset 412 landing page",
+      "authors": "Alizadehsani R, Roshanzamir M, Sani Z",
+      "year": 2017,
+      "section": "Dataset Information; Additional Variable Information; Variables Table; License",
+      "authority": "OWNER_METADATA",
+      "accessed_on": "2026-11-19",
+      "access_observation": "HTTP 200. Variables table names blank; paginator 0 to 10 of 56.",
+      "verified_facts": [
+        "303 instances; donated 2017-11-16; CC BY 4.0",
+        "CAD if diameter narrowing greater than or equal to 50%",
+        "Prose: 303 patients each with 54 features in four groups",
+        "File Z-Alizadeh sani dataset.xlsx 120.7 KB",
+        "Has missing values: No"
+      ],
+      "does_not_support": [
+        "field names, types, units (displayed blank)",
+        "pre-angiography timing"
+      ]
+    },
+    {
+      "source_id": "P1B",
+      "url": "https://archive.ics.uci.edu/api/dataset?id=412",
+      "label": "UCI dataset 412 JSON API",
+      "year": 2017,
+      "section": "Root JSON record",
+      "authority": "OWNER_METADATA",
+      "accessed_on": "2026-11-19",
+      "access_observation": "HTTP 200 complete JSON.",
+      "verified_facts": [
+        "num_instances 303",
+        "num_features 0",
+        "target_col null",
+        "year_of_dataset_creation 2013",
+        "56 variable objects with blank name/type/description/units"
+      ],
+      "does_not_support": [
+        "any per-field codebook"
+      ]
+    },
+    {
+      "source_id": "P1C",
+      "url": "https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset",
+      "doi": "10.24432/C5461K",
+      "label": "UCI extension dataset 411 landing page",
+      "year": 2017,
+      "section": "Additional Information Note 1; Additional Variable Information",
+      "authority": "OWNER_METADATA",
+      "accessed_on": "2026-11-19",
+      "access_observation": "HTTP 200. Variables paginator 0 to 10 of 59.",
+      "verified_facts": [
+        "Same 303 patients; prose 59 features",
+        "LAD, LCX and RCA added; CAD when at least one of those three is stenotic",
+        "Only one of LAD, LCX, RCA or Cath must be used for classification",
+        "File extention of Z-Alizadeh sani dataset.xlsx 128.1 KB"
+      ],
+      "does_not_support": [
+        "independence from UCI-412",
+        "that artery columns are pretest predictors"
+      ]
+    },
+    {
+      "source_id": "P1D",
+      "url": "https://data.mendeley.com/datasets/vrymwyh2tg/1",
+      "doi": "10.17632/vrymwyh2tg.1",
+      "label": "Mendeley Z-Alizadeh Sani deposit v1",
+      "authors": "roohallahalizadehsani",
+      "year": 2017,
+      "section": "Description; Files; Licence",
+      "authority": "OWNER_METADATA",
+      "accessed_on": "2026-11-19",
+      "access_observation": "HTTP 200 depositor description. File not downloaded.",
+      "verified_facts": [
+        "Published 23 January 2017 Version 1",
+        "303 patients, 54 features, four groups, CAD >=50%",
+        "CC BY 4.0",
+        "CAD.xlsx 118 KB — different filename and size from the UCI xlsx"
+      ],
+      "does_not_support": [
+        "identity with the UCI 120.7 KB workbook",
+        "field codebook"
+      ]
+    },
+    {
+      "source_id": "S-EYU",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11122190/",
+      "doi": "10.3390/jcm13102868",
+      "label": "Eyupoglu and Karakus 2024 J Clin Med 13:2868 Table 1",
+      "authors": "Eyupoglu C, Karakus O",
+      "year": 2024,
+      "section": "Section 2.1 Dataset Description; Table 1",
+      "authority": "SECONDARY_PAPER",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Full PMC HTML including Table 1.",
+      "verified_facts": [
+        "303 records, 87 healthy, 216 CAD",
+        "55 attributes: 17 demographic, 14 symptom and examination, 7 ECG, 17 laboratory and echo",
+        "BP Blood Pressure mmHg 90-190",
+        "PR Pulse Rate ppm 50-110",
+        "Binaries listed Yes, No",
+        "Function Class 0,1,2,3",
+        "BBB Left, Right, Normal; Rhythm not listed",
+        "Length 140-188 listed"
+      ],
+      "does_not_support": [
+        "that 55 is the owner count",
+        "owner codebook",
+        "pre-angiography timing"
+      ]
+    },
+    {
+      "source_id": "S-SAY",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9698583/",
+      "doi": "10.3390/life12111933",
+      "label": "Sayadi et al. 2022 Life 12:1933 Table 1",
+      "year": 2022,
+      "section": "Section 2 Dataset; Table 1",
+      "authority": "SECONDARY_PAPER",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Full PMC HTML.",
+      "verified_facts": [
+        "Prose: 54 features and 303 records, 216 CAD / 87 normal",
+        "Table lists BP Blood Pressure mmHg 90-190 and PR Pulse Rate ppm 50-110",
+        "Binaries Yes, No"
+      ],
+      "does_not_support": [
+        "owner codebook",
+        "timing"
+      ]
+    },
+    {
+      "source_id": "S-ZHA",
+      "url": "https://www.mdpi.com/2079-9292/11/9/1495",
+      "doi": "10.3390/electronics11091495",
+      "label": "Zhang et al. 2022 Electronics 11(9):1495 sections 3-4.1",
+      "year": 2022,
+      "section": "Section 3 Dataset; Section 4.1 Preprocessing",
+      "authority": "SECONDARY_PAPER",
+      "accessed_on": "2026-11-19",
+      "access_observation": "MDPI HTML sections 3 and 4.1.",
+      "verified_facts": [
+        "Downloaded from UCI; 303 records; 55 features; 216 CAD (71.29%) / 87 normal (28.71%)",
+        "Exertional CP has the same values on 303 samples; then deleted as External CP"
+      ],
+      "does_not_support": [
+        "constancy on the project's protected local file",
+        "permission to drop the frozen panel member"
+      ]
+    },
+    {
+      "source_id": "S-JOL",
+      "url": "https://www.mdpi.com/1660-4601/17/3/731",
+      "doi": "10.3390/ijerph17030731",
+      "label": "Joloudari et al. 2020 Int J Environ Res Public Health 17(3):731",
+      "year": 2020,
+      "section": "Section 4.1 Description of the Dataset (as previously recorded; partial re-read via arXiv:2001.09841)",
+      "authority": "SECONDARY_PAPER",
+      "accessed_on": "2026-11-19",
+      "access_observation": "arXiv PDF partial; 216 CAD + 88 normal arithmetic carried forward and not used to overwrite 216/87.",
+      "verified_facts": [
+        "States 303 patients with 55 features",
+        "Previously recorded 216 CAD and 88 normal, summing to 304"
+      ],
+      "does_not_support": [
+        "overwriting local 216/87",
+        "owner record identity"
+      ]
+    },
+    {
+      "source_id": "P3A",
+      "url": "https://zenodo.org/api/records/15826856",
+      "doi": "10.5281/zenodo.15826856",
+      "label": "AngioCAD Zenodo record API 15826856",
+      "authors": "Hosseini MS, Naghsh-Nilchi AR, Safayani M, Sadeghi M, Shirvani E, Danesh M, Miramirkhani A",
+      "year": 2025,
+      "section": "metadata.description; metadata.license; files[]",
+      "authority": "OWNER_METADATA",
+      "accessed_on": "2026-11-19",
+      "access_observation": "HTTP 200 JSON including file manifest. No file content requested.",
+      "verified_facts": [
+        "413 patients in description",
+        "license.id cc-by-4.0; access_right open",
+        "publication_date 2025-07-15; modified 2026-04-21; revision 5",
+        "Files: four RAR parts plus AngioCAD_Features.xlsx 129493 B md5 1617d242df42367787f445392729f35e plus AngioCAD_Labels.xlsx 43267 B md5 fc97ffc2978f6cee93a1059e8b1c282f"
+      ],
+      "does_not_support": [
+        "schema, codebook, row counts",
+        "patient-to-video map",
+        "pre-angiography timing",
+        "owner patient-level binary CAD definition"
+      ]
+    },
+    {
+      "source_id": "P3B",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42033972/",
+      "doi": "10.1016/j.cmpb.2026.109368",
+      "label": "Hosseini et al. 2026 Comput Methods Programs Biomed 282:109368 PubMed abstract",
+      "year": 2026,
+      "section": "Abstract Methods",
+      "authority": "OWNER_PAPER_ABSTRACT",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Complete structured abstract.",
+      "verified_facts": [
+        "Angiographic video sequences and structured clinical data from 413 patients",
+        "Each case includes detailed stenosis annotations for every coronary artery plus demographic and laboratory information"
+      ],
+      "does_not_support": [
+        "field schema",
+        "pre-cath timing",
+        "owner binary CAD rule"
+      ]
+    },
+    {
+      "source_id": "P3C",
+      "url": "https://www.sciencedirect.com/science/article/pii/S0169260726001331",
+      "doi": "10.1016/j.cmpb.2026.109368",
+      "label": "Hosseini et al. 2026 ScienceDirect preview",
+      "year": 2026,
+      "section": "Highlights; Abstract; Introduction; contributions; Ethics; Data availability",
+      "authority": "OWNER_PAPER_ABSTRACT",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Preview only. Sections 3-5 and tables PAYWALLED.",
+      "verified_facts": [
+        "Highlights: public dataset of 413 X-ray coronary angiography videos",
+        "Abstract/Introduction/Conclusion: 413 patients",
+        "Contribution: publicly accessible, non-commercial XRA dataset",
+        "Ethics: retrospective collection Shahid Chamran Heart Center, Isfahan; Ethics Committee University of Isfahan",
+        "Data availability Zenodo 10.5281/zenodo.15826856",
+        "Introduction textbook sentence: CAD generally diagnosed when >50% blockage in at least one coronary artery"
+      ],
+      "does_not_support": [
+        "1:1 patient-video map",
+        "that >50% is the dataset label rule",
+        "identity of non-commercial wording with cc-by-4.0",
+        "schema or pretest timing"
+      ]
+    },
+    {
+      "source_id": "S-MRS",
+      "url": "https://github.com/MRS028/AngioCAD_Project",
+      "code_url": "https://raw.githubusercontent.com/MRS028/AngioCAD_Project/main/src/angiocad_common.py",
+      "label": "MRS028/AngioCAD_Project secondary benchmark README and angiocad_common.py",
+      "authors": "Md. Rifat Sheikh (MRS028)",
+      "year": 2026,
+      "section": "README Dataset/Label/Baseline; src/angiocad_common.py STENOSIS_COLS, NUMERIC_FEATURES, CATEGORICAL_FEATURES, build_labels",
+      "authority": "SECONDARY_REANALYSIS_CODE",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Public README and Python source. Patient xlsx/RAR not opened. Data not distributed in that repo. No licence file.",
+      "verified_facts": [
+        "413 patients with segment-level grades; 377 with clinical data; 376 with at least one usable frame",
+        "15 named stenosis segment columns and seven-band grades",
+        "Constructed has_cad using band midpoints and CAD_THRESHOLD 50 so 51-75 band is positive and exact 50% in 26-50 is negative",
+        "Secondary class counts 298 CAD / 79 non-CAD of 377",
+        "STEMI 186/377 (49.3%); 181/186 STEMI CAD-positive",
+        "39 model inputs: 22 numeric including LVEF plus 17 categorical; Gensini excluded as leaky",
+        "No BP, PR or chest-pain flags in NUMERIC_FEATURES or CATEGORICAL_FEATURES"
+      ],
+      "does_not_support": [
+        "owner-endorsed codebook",
+        "pre-angiography acquisition",
+        "Track A admissibility",
+        "replication of file contents by this investigation"
+      ]
+    },
+    {
+      "source_id": "LIC1",
+      "url": "https://creativecommons.org/licenses/by/4.0/deed.en",
+      "label": "Creative Commons Attribution 4.0 International deed",
+      "year": 2013,
+      "section": "You are free to; Under the following terms",
+      "authority": "LICENSE_REFERENCE",
+      "accessed_on": "2026-11-19",
+      "access_observation": "HTTP 200 canonical deed.",
+      "verified_facts": [
+        "Share and adapt for any purpose, even commercially, with attribution",
+        "No non-commercial restriction in the deed"
+      ],
+      "does_not_support": [
+        "legal advice",
+        "that AngioCAD article non-commercial wording is inoperative",
+        "operational permission to download or reuse"
+      ]
+    },
+    {
+      "source_id": "SUP-P25",
+      "url": "research/source_materials/literature_review_status.csv",
+      "label": "Supervisor 25-paper classification, AngioCAD P25",
+      "year": 2026,
+      "section": "Paper_ID P25 Excel_Row 30 Supervisor_Status",
+      "authority": "SUPERVISOR_CLASSIFICATION",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Read-only CSV. Not edited.",
+      "verified_facts": [
+        "P25 REJECTED_RED AngioCAD 2026 doi 10.1016/j.cmpb.2026.109368"
+      ],
+      "does_not_support": [
+        "scientific admission",
+        "recolouring"
+      ]
+    },
+    {
+      "source_id": "REG-412",
+      "url": "research/uci412/source_spec.py",
+      "label": "Frozen UCI-412 source_spec and audit registry feature groups",
+      "year": 2026,
+      "section": "SOURCE_COLUMNS comment; UCI_412_FEATURE_GROUPS",
+      "authority": "REPOSITORY_CONTRACT",
+      "accessed_on": "2026-11-19",
+      "access_observation": "Read-only.",
+      "verified_facts": [
+        "Owner 54-feature wording and local 55 predictors plus Cath both registered verbatim",
+        "17 demographic including Length + 14 symptom + 7 ECG including BBB + 17 lab/echo = 55 predictors"
+      ],
+      "does_not_support": [
+        "resolving 54 vs 55"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "F-2012-CORE",
+      "question_ids": ["Q-04", "Q-05", "Q-06", "Q-07", "Q-08"],
+      "source_ids": ["OA-2012-JMSS", "OA-2012-EJSR"],
+      "authority": "ORIGINAL_AUTHOR_PAPER",
+      "status": "PARTIALLY_SUPPORTED",
+      "statement": "The 2012 original-author JMSS paper supplies named Yes/No or numeric tables for the clinical/ECG core, history definitions for DM/HTN/smoking/FH, BP as Blood Pressure 90-190, PR as Pulse Rate 50-110, four parallel chest-pain flags, Cath >=50, 37 features, and a chest-pain angiography-referred cohort. EJSR derived BP2/PR2 cut-offs are compatible with systolic BP and bpm pulse-rate interpretation of the derived features."
+    },
+    {
+      "finding_id": "F-THRESHOLD",
+      "question_ids": ["Q-03"],
+      "source_ids": ["P1A", "P1D", "OA-2012-JMSS", "OA-2016-KBS", "OA-2017-ARAB"],
+      "authority": "OWNER_METADATA",
+      "status": "DISPUTED",
+      "statement": "UCI-412 and 2012 JMSS state >=50%. 2016 KBS and 2017 Arabasadi/Alizadehsani state more/higher than 50%. Exact-50% handling is unresolved. UCI landing-page >=50% remains the source-defined rule for this project."
+    },
+    {
+      "finding_id": "F-COUNT",
+      "question_ids": ["Q-08"],
+      "source_ids": ["OA-2012-JMSS", "OA-2013-CMPB", "P1A", "P1B", "P1C", "P1D", "S-EYU", "S-ZHA", "REG-412"],
+      "authority": "OWNER_METADATA",
+      "status": "DISPUTED",
+      "statement": "Original 2012: 37 features then add lab/echo. Author 2013/2016/2017/UCI/Mendeley: 54. Secondary tables: 55. UCI UI/API: 56 blank variable rows. Local audit: 55 predictors + Cath. UCI-411: 59. Arithmetic 54+3!=59 but 56+3=59. Rhythm vs BBB and Function Class 1-4 vs 0-3 and Length omitted/included remain unresolved. No count adopted."
+    },
+    {
+      "finding_id": "F-TIMING",
+      "question_ids": ["Q-04"],
+      "source_ids": ["OA-2012-JMSS", "P1A", "P1B"],
+      "authority": "ORIGINAL_AUTHOR_PAPER",
+      "status": "UNRESOLVED",
+      "statement": "0/16 owner-verified pre-angiography timestamps. 2012 describes volunteers for angiography; that is cohort design, not a field-level clock."
+    },
+    {
+      "finding_id": "F-NO-CRF",
+      "question_ids": ["Q-04", "Q-05", "Q-06", "Q-07"],
+      "source_ids": ["P1B", "OA-2013-CMPB"],
+      "authority": "OWNER_METADATA",
+      "status": "UNRESOLVED",
+      "statement": "No original case-record form, supplementary codebook or owner-signed acquisition protocol was found. UCI API field metadata is structurally present and empty."
+    },
+    {
+      "finding_id": "F-ANG-OWNER",
+      "question_ids": ["Q-14"],
+      "source_ids": ["P3A", "P3B", "P3C", "LIC1"],
+      "authority": "OWNER_METADATA",
+      "status": "PARTIALLY_SUPPORTED",
+      "statement": "Owner publishes 413 patients, 413 videos as a separate Highlights count, two XLSX files plus RAR video archive, cc-by-4.0, and retrospective angiographic collection. Schema, pretest timing and owner binary CAD rule are NOT VERIFIED IN ACCESSIBLE MATERIALS. CC BY 4.0 deed has no NC clause; article says non-commercial."
+    },
+    {
+      "finding_id": "F-ANG-SECONDARY",
+      "question_ids": ["Q-14"],
+      "source_ids": ["S-MRS"],
+      "authority": "SECONDARY_REANALYSIS_CODE",
+      "status": "PARTIALLY_SUPPORTED",
+      "statement": "Secondary code describes 377 clinical rows, 15 segment columns, constructed >50% patient label, STEMI 49.3%, 39 clinical inputs including LVEF, Gensini leaky. Not an owner codebook and not Track A eligibility."
+    },
+    {
+      "finding_id": "F-ANG-HOLD",
+      "question_ids": ["Q-14"],
+      "source_ids": ["P3A", "P3C", "S-MRS", "SUP-P25"],
+      "authority": "SUPERVISOR_CLASSIFICATION",
+      "status": "UNRESOLVED",
+      "statement": "AngioCAD remains SCIENTIFIC_HOLD_NOT_ADMITTED. Supervisor colour P25 REJECTED_RED unchanged. Not written into questions[].status."
+    },
+    {
+      "finding_id": "F-EXERTIONAL",
+      "question_ids": ["Q-07"],
+      "source_ids": ["S-ZHA", "OA-2012-JMSS"],
+      "authority": "SECONDARY_PAPER",
+      "status": "UNRESOLVED",
+      "statement": "2012 lists Exertional CP as a Yes/No column. Zhang 2022 reports constancy on that paper's copy and drops External CP. Hypothesis only; no panel change."
+    }
+  ],
+  "uci412": {
+    "owner_verified_pre_angiography_fields": 0,
+    "original_owner_codebook_obtained": false,
+    "original_2013_2016_2017_table1_read": false,
+    "original_2012_jmss_full_text_read": true,
+    "feature_count_adopted": null,
+    "cad_threshold_owner_landing_page": ">=50%",
+    "cad_threshold_original_author_conflict": true,
+    "sixteen_fields": [
+      {"index": 1, "name": "Age", "original_author_2012": "numeric 30-86", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 2, "name": "Sex", "original_author_2012": "Male, Female", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 3, "name": "BMI", "original_author_2012": "18-41 Kg/m2; Obesity derived BMI>25", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 4, "name": "DM", "original_author_2012": "Yes/No; history of Diabetes Mellitus", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 5, "name": "HTN", "original_author_2012": "Yes/No; history of Hypertension", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 6, "name": "Current Smoker", "original_author_2012": "Yes/No; current consumption of cigarettes", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 7, "name": "EX-Smoker", "original_author_2012": "Yes/No; previous consumption of cigarettes", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 8, "name": "FH", "original_author_2012": "Yes/No; heart disease in first-degree relatives", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 9, "name": "DLP", "original_author_2012": "Yes/No Dyslipidemia", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 10, "name": "BP", "original_author_2012": "Blood Pressure 90-190; EJSR BP2 high if >140", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 11, "name": "PR", "original_author_2012": "Pulse Rate 50-110; EJSR PR2 normal 60-100", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false},
+      {"index": 12, "name": "Typical Chest Pain", "original_author_2012": "separate Yes/No column", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
+      {"index": 13, "name": "Atypical", "original_author_2012": "separate Yes/No column", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
+      {"index": 14, "name": "Nonanginal", "original_author_2012": "separate Yes/No Nonanginal CP", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
+      {"index": 15, "name": "Exertional CP", "original_author_2012": "separate Yes/No", "finding": "UNRESOLVED", "owner_verified_preangiography_timing": false},
+      {"index": 16, "name": "Dyspnea", "original_author_2012": "separate Yes/No", "finding": "PARTIALLY_SUPPORTED", "owner_verified_preangiography_timing": false}
+    ]
+  },
+  "angiocad": {
+    "classification": "SCIENTIFIC_HOLD_NOT_ADMITTED",
+    "literature_colour": "REJECTED_RED",
+    "literature_paper_id": "P25",
+    "owner_patient_count_as_reported": 413,
+    "owner_video_count_as_reported_in_highlights": 413,
+    "patient_video_mapping": "UNKNOWN_NOT_ESTABLISHED",
+    "secondary_clinical_n": 377,
+    "secondary_frames_n": 376,
+    "owner_schema_verified_in_accessible_materials": false,
+    "owner_preangiography_timing_verified": false,
+    "owner_patient_level_binary_cad_rule_verified": false,
+    "declared_licence": "cc-by-4.0",
+    "article_non_commercial_wording": true,
+    "documentary_restriction_ambiguity": true,
+    "files_downloaded": false
+  },
+  "questions": [
+    {
+      "id": "Q-03",
+      "current_status": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "proposed_status": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "status_change": false,
+      "finding": "DISPUTED",
+      "source_ids": ["P1A", "P1D", "OA-2012-JMSS", "OA-2016-KBS", "OA-2017-ARAB"]
+    },
+    {
+      "id": "Q-04",
+      "current_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "status_change": false,
+      "finding": "UNRESOLVED",
+      "source_ids": ["OA-2012-JMSS", "P1A", "P1B"]
+    },
+    {
+      "id": "Q-05",
+      "current_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "status_change": false,
+      "finding": "PARTIALLY_SUPPORTED",
+      "source_ids": ["OA-2012-JMSS", "OA-2012-EJSR", "S-EYU", "P1B"]
+    },
+    {
+      "id": "Q-06",
+      "current_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "proposed_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "status_change": false,
+      "finding": "PARTIALLY_SUPPORTED",
+      "source_ids": ["OA-2012-JMSS"]
+    },
+    {
+      "id": "Q-07",
+      "current_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "status_change": false,
+      "finding": "UNRESOLVED",
+      "source_ids": ["OA-2012-JMSS", "S-ZHA"]
+    },
+    {
+      "id": "Q-08",
+      "current_status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "proposed_status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "status_change": false,
+      "finding": "DISPUTED",
+      "source_ids": ["OA-2012-JMSS", "OA-2013-CMPB", "P1A", "P1B", "P1C", "S-EYU", "REG-412"]
+    },
+    {
+      "id": "Q-14",
+      "current_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "proposed_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "status_change": false,
+      "finding": "UNRESOLVED",
+      "source_ids": ["P3A", "P3B", "P3C", "S-MRS", "LIC1", "SUP-P25"]
+    }
+  ],
+  "decision_matrix": [
+    {"id": "D-UCI-TH", "decision": "Keep UCI-412 target as source-defined >=50%; report original-author >50% conflict", "finding": "DISPUTED", "forbidden": "Harmonize with Cleveland or pick 2016 to override UCI"},
+    {"id": "D-UCI-TIME", "decision": "Do not treat the 16 fields as verified pretest inputs", "finding": "UNRESOLVED", "forbidden": "New real UCI-412 training or AI-9.2"},
+    {"id": "D-UCI-BPPR", "decision": "Do not map BP to trestbps or certify ppm", "finding": "PARTIALLY_SUPPORTED", "forbidden": "Recode PR or collapse with Cleveland BP"},
+    {"id": "D-UCI-BIN", "decision": "Keep S-9 provisional", "finding": "PARTIALLY_SUPPORTED", "forbidden": "Heuristic recoding"},
+    {"id": "D-UCI-CP", "decision": "Keep four chest-pain flags as delivered", "finding": "UNRESOLVED", "forbidden": "Drop Exertional CP because Zhang 2022 did"},
+    {"id": "D-UCI-N", "decision": "Do not choose 54 or 55 or 56", "finding": "DISPUTED", "forbidden": "Fix dictionary to 54"},
+    {"id": "D-ANG-ADM", "decision": "AngioCAD remains not admitted", "finding": "UNRESOLVED", "forbidden": "Download RAR/XLSX, train, or call it Track A"},
+    {"id": "D-ANG-LIT", "decision": "Keep P25 REJECTED_RED", "finding": "UNRESOLVED", "forbidden": "Recolour because a table exists"},
+    {"id": "D-ANG-TASK", "decision": "If ever in scope, imaging/stenosis plus mixed-ACS, separate protocol", "finding": "PARTIALLY_SUPPORTED", "forbidden": "Substitute for UCI-412/Cleveland pretest CAD"},
+    {"id": "D-HOLD", "decision": "P-3 CLOSED; P-1 PENDING; P-5 prohibited; D-046 read-only; D-047 Cleveland-only; D-048 unratified", "finding": "UNRESOLVED", "forbidden": "Infer approval from this PR"}
+  ],
+  "recommended_next_steps": [
+    "Human review of this packet before any register or colour change",
+    "UCI-412 author/curator letter: CRF, BP quantity/unit, PR unit, 0/1 map, chest-pain exclusivity, 54-vs-56-vs-59, >=50 vs >50",
+    "AngioCAD curator letter: Features/Labels schema, patient-video map, clinical chronology, owner CAD rule, CC BY 4.0 vs non-commercial",
+    "Do not recolour P25; do not lift SCIENTIFIC_HOLD_NOT_ADMITTED",
+    "Only if separately authorized: local read-only header/shape comparison of UCI vs Mendeley workbooks",
+    "Only if separately authorized: aggregate-only Exertional CP distinct-value count",
+    "Keep AngioCAD out of Track A",
+    "Do not re-fit M3a/D-047 or download Zenodo payloads"
+  ],
+  "authorization_required": [
+    {"id": "H-1", "decision": "Accept or reject this investigation as documentation only", "who": "Maintainer + scientific reviewer"},
+    {"id": "H-2", "decision": "Whether to send the UCI-412 author letter", "who": "Maintainer"},
+    {"id": "H-3", "decision": "Whether to send the AngioCAD curator letter", "who": "Maintainer"},
+    {"id": "H-4", "decision": "Clarify AngioCAD documentary restriction ambiguity before any reuse discussion", "who": "Maintainer (+ licensing advice)"},
+    {"id": "H-5", "decision": "Authorize or refuse UCI vs Mendeley header/shape comparison", "who": "Maintainer, local-only"},
+    {"id": "H-6", "decision": "Authorize or refuse Exertional CP aggregate-only count", "who": "Maintainer"},
+    {"id": "H-7", "decision": "Confirm gates unchanged and no supervisor/ethics approval inferred", "who": "Maintainer / supervisor"}
+  ],
+  "explicitly_not_done": [
+    "No UCI, Mendeley or Zenodo dataset file downloaded",
+    "No model fitted or evaluated",
+    "No frozen protocol, dictionary, panel, hash or weight changed",
+    "No literature_review_status.csv edit",
+    "No RH-02 register status edit",
+    "No scientific or clinical approval granted"
+  ],
+  "question_updates": [
+    {
+      "question_id": "Q-03",
+      "current_status": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "proposed_status": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "status_change": false,
+      "applied": false,
+      "proposed_evidence_appendix": "2012 JMSS greater or equal to 50 versus 2016/2017 original-author more/higher than 50 wording."
+    },
+    {
+      "question_id": "Q-04",
+      "current_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "status_change": false,
+      "applied": false,
+      "proposed_evidence_appendix": "2012 volunteers for angiography is cohort design, not 16 timestamps."
+    },
+    {
+      "question_id": "Q-05",
+      "current_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "status_change": false,
+      "applied": false,
+      "proposed_evidence_appendix": "2012 Blood Pressure / Pulse Rate plus EJSR BP2 140 and PR2 60-100; still no codebook."
+    },
+    {
+      "question_id": "Q-06",
+      "current_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "proposed_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "status_change": false,
+      "applied": false,
+      "proposed_evidence_appendix": "2012 history definitions for DM, HTN, Current Smoker, Ex-Smoker, FH."
+    },
+    {
+      "question_id": "Q-07",
+      "current_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "status_change": false,
+      "applied": false,
+      "proposed_evidence_appendix": "2012 four parallel Yes/No chest-pain flags."
+    },
+    {
+      "question_id": "Q-08",
+      "current_status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "proposed_status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "status_change": false,
+      "applied": false,
+      "proposed_evidence_appendix": "2012 37-feature precursor; Rhythm versus BBB; Function Class 1-4 versus 0-3; 54+3!=59."
+    },
+    {
+      "question_id": "Q-14",
+      "current_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "proposed_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "status_change": false,
+      "applied": false,
+      "proposed_evidence_appendix": "Secondary 377 clinical / STEMI 49%; constructed >50% label; P25 remains REJECTED_RED; classification remains SCIENTIFIC_HOLD_NOT_ADMITTED."
+    }
+  ],
+  "validation": {
+    "method": "stdlib structural validation + internal reference checks (jsonschema not used)",
+    "recorded_after_run": true,
+    "ran_at": "2026-11-19",
+    "structural_checks": {
+      "passed": 31,
+      "failed": 0,
+      "total": 31,
+      "exit_code": 0,
+      "results": [
+        "PASS json_parses",
+        "PASS required_keys",
+        "PASS schema_id",
+        "PASS status_review_draft",
+        "PASS unique_source_id (20)",
+        "PASS unique_finding_id",
+        "PASS source_authority_declared",
+        "PASS finding_sources_resolvable",
+        "PASS external_urls_https_or_relative",
+        "PASS semantics_match_register",
+        "PASS questions_status_equals_register_and_unchanged",
+        "PASS question_updates_unchanged_applied_false",
+        "PASS no_round2_or_hold_as_register_status",
+        "PASS angiocad_classification SCIENTIFIC_HOLD_NOT_ADMITTED",
+        "PASS angiocad_colour REJECTED_RED",
+        "PASS p25_rejected_red",
+        "PASS csv_not_implying_edit",
+        "PASS preangio_zero",
+        "PASS sixteen_fields",
+        "PASS all_sixteen_timing_false",
+        "PASS bytes_zero",
+        "PASS frozen_false",
+        "PASS holds_not_lifted",
+        "PASS acceptance_not_passed",
+        "PASS baseline_sha ab613baa3de5ec7c3442f4047b1a4cc56126d624",
+        "PASS md_exists",
+        "PASS md_companion_path",
+        "PASS relative_md_links_resolve",
+        "PASS decision_matrix_nonempty",
+        "PASS recommendations_nonempty",
+        "PASS auth_required_nonempty"
+      ]
+    },
+    "verify_sources": {
+      "command": "python3 scripts/verify_sources.py",
+      "exit_code": 0,
+      "sha256_ok": [
+        "literature_review_original.xlsx",
+        "literature_review_status.csv",
+        "project_presentation.pdf",
+        "project_presentation_speaker_notes.md"
+      ],
+      "supervisor_audit": "25 papers, APPROVED_GREEN 9 / MAYBE_PINK 1 / MAYBE_ORANGE 6 / REJECTED_RED 9"
+    },
+    "git_diff_check": {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    "does_not_mean": "Passing JSON/reference checks proves internal consistency only. It does not prove dataset truth, licence permissibility, scientific validity or clinical readiness."
+  }
+}
