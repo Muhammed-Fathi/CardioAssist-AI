@@ -1,0 +1,336 @@
+{
+  "schema_version": "cardioassist.offline_demo_card_mapping/v1",
+  "mapping_version": "1.0.0",
+  "artifact_kind": "OFFLINE_SYNTHETIC_RESEARCH_DEMO_CARD_MAPPING",
+  "persistent_warning": "Synthetic research fixture \u2014 not clinical",
+  "source_digests": {
+    "offline_fixture_pack_canonical_sha256": "0307b396cea1e620c4004647e1d82ff7f292bb5b74de7cad1661e1299c6e7049",
+    "offline_fixture_pack_bytes_sha256": "206418e5f15787c5048c1ebad86d107e40ad4dfcbf727feb6b08ed305e273ab9",
+    "offline_fixture_pack_registry_sha256": "e423882d21cf74a42a8270d5d3e929a1b0f346a7ff4ef69bbf8c0e3dc5b2fec7",
+    "offline_fixture_pack_crosswalk_sha256": "1c79195261c40ffc212d384c64b3645a2ef563f39b3b5b240a5a906c108abda7",
+    "mock_openapi_bytes_sha256": "2748ab7e09771d5ad1793d09d17d1ecef46be7ded930f5530109889ab65f567a",
+    "mock_fixture_index_bytes_sha256": "4c6cd73f3746970b9c0230b15d8b96b44b58d31b52e365e5c379f3f96fd71ada",
+    "mock_model_registry_bytes_sha256": "65f711e3b8a34148db68b30d17e21f6a8fbebfcd4835a6aff488d58f50f2b552"
+  },
+  "forbidden_display_fields": [
+    "records",
+    "features",
+    "context",
+    "patient_ref",
+    "record_ref",
+    "request_id",
+    "audit_id",
+    "generated_at",
+    "units",
+    "missing_reasons",
+    "artifact",
+    "model_source",
+    "bundle_dir",
+    "trusted_local_root",
+    "signing_key",
+    "private_key",
+    "local_path",
+    "path",
+    "model_loader",
+    "explanation",
+    "outcomes.shap",
+    "outcomes.lime",
+    "outcomes.uncertainty",
+    "outcomes.score.raw_model_score",
+    "outcomes.score.raw_model_log_odds",
+    "outcomes.score.calibrated_log_odds",
+    "outcomes.score.exploratory_above_threshold_flag",
+    "outcomes.score.exploratory_threshold",
+    "score.value",
+    "score.raw_margin",
+    "score.calibration",
+    "target",
+    "model_performance_ref",
+    "provenance.artifact_hashes",
+    "clinical_probability_claim",
+    "medical_advice",
+    "unvalidated_performance_claim"
+  ],
+  "offline_research": {
+    "presentation_contract_id": "offline_research_fixture_pack_v1",
+    "status_rules": {
+      "SYNTHETIC_RESULT": {
+        "safe_label": "Synthetic research result",
+        "allowed_display_fields": [
+          "status",
+          "route_id",
+          "panel_id",
+          "dataset_id",
+          "evidence_level",
+          "outcomes.status",
+          "outcomes.score.score_kind",
+          "outcomes.score.score_interpretation",
+          "outcomes.score.calibrated_research_score"
+        ],
+        "refusal_reason_fields": [],
+        "blocked_state_behavior": "Enable only the synthetic research fixture card; never promote it to a clinical result.",
+        "error_behavior": "Clear a stale refusal before rendering this fixture result; retain the persistent warning.",
+        "numeric_rendering": "A calibrated research score may be shown only as a neutral decimal labelled synthetic research score; never add a percent sign, risk band, prognosis, or advice."
+      },
+      "ABSTAIN": {
+        "safe_label": "No synthetic research score",
+        "allowed_display_fields": [
+          "status",
+          "route_id",
+          "panel_id",
+          "dataset_id",
+          "evidence_level",
+          "outcomes.status",
+          "outcomes.abstention_reason",
+          "outcomes.missing_fields_with_reason"
+        ],
+        "refusal_reason_fields": [
+          "outcomes.abstention_reason",
+          "outcomes.missing_fields_with_reason"
+        ],
+        "blocked_state_behavior": "Disable the result value; show the registered missing-field reason without imputation, retry, or fallback.",
+        "error_behavior": "Keep this policy abstention distinct from ERROR and do not manufacture a score.",
+        "numeric_rendering": "Do not render a numeric score, percentage, threshold, or risk band."
+      },
+      "UNAVAILABLE": {
+        "safe_label": "Synthetic research route unavailable",
+        "allowed_display_fields": [
+          "status",
+          "route_id",
+          "panel_id",
+          "dataset_id",
+          "evidence_level",
+          "error.code",
+          "error.message"
+        ],
+        "refusal_reason_fields": [
+          "error.code"
+        ],
+        "blocked_state_behavior": "Render a disabled card with the registered refusal code; do not retry, load an artifact, or switch routes.",
+        "error_behavior": "Clear prior result values and show only the static registered unavailable reason.",
+        "numeric_rendering": "Do not render a numeric score, percentage, threshold, or risk band."
+      },
+      "ERROR": {
+        "safe_label": "Synthetic research fixture refused",
+        "allowed_display_fields": [
+          "status",
+          "error.code",
+          "error.message",
+          "outcomes.status",
+          "outcomes.error.code",
+          "outcomes.error.message"
+        ],
+        "refusal_reason_fields": [
+          "error.code",
+          "outcomes.error.code"
+        ],
+        "blocked_state_behavior": "Clear the result card and block fallback, artifact access, and route substitution.",
+        "error_behavior": "Show only the static refusal code/message; never echo a request, exception detail, local location, or key material.",
+        "numeric_rendering": "Do not render a numeric score, percentage, threshold, or risk band."
+      }
+    }
+  },
+  "offline_case_cards": [
+    {
+      "case_id": "da_a2_resting_v1",
+      "status": "SYNTHETIC_RESULT",
+      "expected_projection_sha256": "77b7c91c34eda23022d140f95287444380e74b1b19e831cdf6e552960c9b6d81",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a1_basic_clinical_v1",
+      "status": "SYNTHETIC_RESULT",
+      "expected_projection_sha256": "5f0f2fc9006323ccc1f461d1b29a75bf3d6a28636c54367c213d239babc05e61",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a2_resting_labs_v1",
+      "status": "UNAVAILABLE",
+      "expected_projection_sha256": "5ce6b472cf2fe1f1caa9e3010ae4ae971f3cfba862c8900fe9097ae34326eef2",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a1_clinical_core_labs_v1",
+      "status": "UNAVAILABLE",
+      "expected_projection_sha256": "464436ec4e46d5b343f0a63c15dba4b50275474c7782ad24dd07d2b8fcf35da9",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a2_hungary_locked_transportability_v1",
+      "status": "UNAVAILABLE",
+      "expected_projection_sha256": "e9040595fb6b7a3bad735a8c449ad51f841dbb48daad086259791024d6aa177d",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "wrong-panel",
+      "status": "ERROR",
+      "expected_projection_sha256": "86fe0011b82c3747d81b43bb569722fca39f31ade1446846cb10867569023f37",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "wrong-dataset",
+      "status": "ERROR",
+      "expected_projection_sha256": "b42f81cac83cda4ac21c88f76b3e77f809ceae50b2e5021ae547fda275c752c4",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "stale-hash",
+      "status": "ERROR",
+      "expected_projection_sha256": "f54de96f4dcd0e60f6b7db8a20906d20fd2114280577714c367e13c3376e3e08",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "wrong-unit",
+      "status": "ERROR",
+      "expected_projection_sha256": "51350e5d2c553729e9bbd2ade69cdd0091e576d7560439a363f3e19026945f04",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "bad-category",
+      "status": "ERROR",
+      "expected_projection_sha256": "dd117a54535d5b1b6a7c336cd64e01e65c7a0cbb209983a00495a9fe0dc58dcd",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "bad-generator",
+      "status": "ERROR",
+      "expected_projection_sha256": "ed922601ac691aa1551ce0f6d905371db8ac1279a16f6c6c7a6dfa012ed04a63",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "patient_wearable",
+      "status": "ERROR",
+      "expected_projection_sha256": "7995786de8dec6adcbd4f61753a2d12e3f65f7a1b2a15cbbe4b318b3756dc8eb",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "uploaded_image_or_ocr",
+      "status": "ERROR",
+      "expected_projection_sha256": "1f72a339171184ae1b262f6f3af148166e36a71a0af44bc9649682f7c59595f2",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "track_b",
+      "status": "ERROR",
+      "expected_projection_sha256": "7995786de8dec6adcbd4f61753a2d12e3f65f7a1b2a15cbbe4b318b3756dc8eb",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "ca",
+      "status": "ERROR",
+      "expected_projection_sha256": "9e6ca15ffa911b1c233f88a52a126bca84eddc525493e4708ad0d675ef52fc71",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "Cath",
+      "status": "ERROR",
+      "expected_projection_sha256": "c586dde673ac6bd36f2b9a31b9c5939eb537d2ff7d4bc70d175083b945efb1b9",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "LAD",
+      "status": "ERROR",
+      "expected_projection_sha256": "c586dde673ac6bd36f2b9a31b9c5939eb537d2ff7d4bc70d175083b945efb1b9",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "required",
+      "status": "ERROR",
+      "expected_projection_sha256": "0180c3c6326f4e194c2bb82a83c52569bbf741f0731b1d644bcb77dc06bb60f6",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "optional",
+      "status": "ABSTAIN",
+      "expected_projection_sha256": "103ac47edcfe02561e3a7d45fdcb82a7c6a4facee714bea4c2cecb3cf27b7ec3",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a1_clinical_core_labs_v1-wrong-dataset",
+      "status": "ERROR",
+      "expected_projection_sha256": "b42f81cac83cda4ac21c88f76b3e77f809ceae50b2e5021ae547fda275c752c4",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a1_clinical_core_labs_v1-stale-hash",
+      "status": "ERROR",
+      "expected_projection_sha256": "f54de96f4dcd0e60f6b7db8a20906d20fd2114280577714c367e13c3376e3e08",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a2_hungary_locked_transportability_v1-wrong-dataset",
+      "status": "ERROR",
+      "expected_projection_sha256": "b42f81cac83cda4ac21c88f76b3e77f809ceae50b2e5021ae547fda275c752c4",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a2_hungary_locked_transportability_v1-stale-hash",
+      "status": "ERROR",
+      "expected_projection_sha256": "f54de96f4dcd0e60f6b7db8a20906d20fd2114280577714c367e13c3376e3e08",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a2_resting_labs_v1-wrong-dataset",
+      "status": "ERROR",
+      "expected_projection_sha256": "b42f81cac83cda4ac21c88f76b3e77f809ceae50b2e5021ae547fda275c752c4",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "da_a2_resting_labs_v1-stale-hash",
+      "status": "ERROR",
+      "expected_projection_sha256": "f54de96f4dcd0e60f6b7db8a20906d20fd2114280577714c367e13c3376e3e08",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "optional-null",
+      "status": "ABSTAIN",
+      "expected_projection_sha256": "9a2363c0fbeea26810f7a0fda2c3ed5c17b8c718973d6a751e7acfc2fa29adb1",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "optional-null-structural-reason",
+      "status": "ERROR",
+      "expected_projection_sha256": "3b08b923ee9c0a3e7b66df6d5db37852c531efe578ed7237e5891dc5ebbf297a",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "optional-null-no-reason",
+      "status": "ERROR",
+      "expected_projection_sha256": "8fea53522fd022186e72249bd5f837fd43742a5c5904c25b7f4e6e761be355e9",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    },
+    {
+      "case_id": "required-null",
+      "status": "ERROR",
+      "expected_projection_sha256": "0180c3c6326f4e194c2bb82a83c52569bbf741f0731b1d644bcb77dc06bb60f6",
+      "presentation_contract_id": "offline_research_fixture_pack_v1"
+    }
+  ],
+  "mock_synthetic_backend": {
+    "presentation_contract_id": "approved_mock_http_v1",
+    "data_class": "MOCK_SYNTHETIC",
+    "approved_http_contract": "POST /v1/predictions/cad-tabular",
+    "safe_label": "Mock synthetic backend result",
+    "allowed_display_fields": [
+      "data_class",
+      "track",
+      "model_id",
+      "feature_schema_id",
+      "score.type",
+      "score.scale",
+      "score.rendering.display_unit",
+      "score.rendering.percent_sign_allowed",
+      "score.rendering.label",
+      "score.rendering.absolute_population_probability_claim",
+      "missing_features",
+      "warnings",
+      "validation_status",
+      "review_state",
+      "provenance.dataset_access_status",
+      "disclaimer"
+    ],
+    "blocked_state_behavior": "No offline status or fixture case may select this mock HTTP card.",
+    "error_behavior": "Use only the approved mock HTTP error code/message and clear prior mock fields.",
+    "offline_case_links_forbidden": true
+  }
+}
