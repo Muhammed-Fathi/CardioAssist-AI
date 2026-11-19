@@ -20,7 +20,7 @@ from typing import Any
 
 VALIDATOR_SCHEMA_ID = "cardioassist.issue110_decision_review_validation/v1"
 REVIEW_SCHEMA_ID = "cardioassist.issue110_decision_review/v1"
-REVIEW_VERSION = "1.1.0"
+REVIEW_VERSION = "1.2.0"
 EXPECTED_BASE_COMMIT = "d45bbd44e029d3677e99d08dd4f848d5ec29fa2f"
 EXPECTED_BRANCH = "arena/252b77ec-cardioassist-ai"
 EXPECTED_REGISTER_SHA256 = "9e3f5f9895f894fb603f90435a69d7b174b24bff291254e208cd7c2201f612d4"
@@ -109,16 +109,22 @@ REPORT_REQUIRED_V11_TOKENS = (
     "`fbs`",
     "2013 RCM Table 2",
     "2015 inventor patent",
+    "`serum-chol`",          # v1.2 correction (review 5971501344)
+    "`fasting-blood-sugar`",  # v1.2 correction (review 5971501344)
 )
 REPORT_FORBIDDEN_V11_PHRASES = (
     # The review-corrected claim set. Meta-mention of the correction (e.g. in
-    # the v1.1 change log) must not re-introduce the definitive claim, so only
-    # the exact claim phrasings are forbidden and the meta text avoids them:
+    # the v1.1/v1.2 change log) must not re-introduce the definitive claim, so
+    # only the exact claim phrasings are forbidden and the meta text avoids them:
     "UCI-45 has no labs",
     "family has no labs",
     "Cleveland has no labs",
     "has **no labs**",
     "no labs anywhere",
+    "Statlog has none",       # v1.2 correction (review 5971501344)
+    "Statlog has no labs",    # v1.2 correction (review 5971501344)
+    "Statlog has no markers",  # v1.2 correction (review 5971501344)
+    "Statlog documents none",  # v1.2 correction (review 5971501344)
 )
 
 
@@ -349,6 +355,39 @@ def validate(
             errors,
             "alternative_same_source_matrix entry must explicitly exclude ADMISSIBLE",
         )
+
+    # v1.2 review correction (review 5971501344): official UCI-145 documents
+    # serum-chol / fasting-blood-sugar in its 13-feature schema. Statlog is a
+    # suspected Cleveland-derived/near-duplicate source, never an admissible
+    # labs panel or AI-9.2 substitute.
+    statlog_entry = next(
+        (
+            entry
+            for entry in datasets or []
+            if isinstance(entry, dict) and entry.get("id") == "UCI145_STATLOG"
+        ),
+        None,
+    )
+    if statlog_entry is not None:
+        statlog_facts = " ".join(str(fact) for fact in statlog_entry.get("known_facts", [])).lower()
+        require(
+            "serum-chol" in statlog_facts and "fasting-blood-sugar" in statlog_facts,
+            errors,
+            "UCI145_STATLOG known_facts no longer document the official serum-chol/fasting-blood-sugar schema acknowledgment (v1.2 correction)",
+        )
+    for item in categories["source"]:
+        if item.get("id") == "S-1":
+            blocker = str(item.get("blocker", "")).lower()
+            require(
+                "statlog has none" not in blocker,
+                errors,
+                "AI-9.2 source blocker S-1 re-introduces the definitively false Statlog no-markers claim (v1.2 correction)",
+            )
+            require(
+                "serum-chol" in blocker and "fasting-blood-sugar" in blocker,
+                errors,
+                "AI-9.2 source blocker S-1 no longer acknowledges Statlog's documented serum-chol/fasting-blood-sugar markers (v1.2 correction)",
+            )
 
     claims = review.get("prohibited_claims", {})
     require(bool(claims), errors, "prohibited_claims register is empty")

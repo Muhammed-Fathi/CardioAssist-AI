@@ -257,3 +257,51 @@ def test_report_and_validator_bindings_match_current_files() -> None:
     assert deliverables["report_sha256"] == digest(REPORT)
     assert deliverables["validator_sha256"] == digest(VALIDATOR)
     assert deliverables["canonical_register_sha256"] == digest(REGISTER)
+
+
+def test_reintroduced_definitive_statlog_no_markers_claim_fails_closed(tmp_path: Path) -> None:
+    tampered = tmp_path / "report.md"
+    tampered.write_text(
+        REPORT.read_text(encoding="utf-8") + "\nStatlog has none in its 13 features.\n",
+        encoding="utf-8",
+    )
+    completed = run_validator(report=tampered)
+    assert completed.returncode == 1
+    assert any("definitively false" in error for error in result(completed)["errors"])
+
+
+def test_statlog_known_facts_must_acknowledge_serum_chol_fbs(tmp_path: Path) -> None:
+    modified = json.loads(REVIEW.read_text(encoding="utf-8"))
+    for entry in modified["datasets"]:
+        if entry["id"] == "UCI145_STATLOG":
+            entry["known_facts"] = [
+                fact
+                for fact in entry["known_facts"]
+                if "serum-chol" not in fact.lower() and "fasting-blood-sugar" not in fact.lower()
+            ]
+    review = write_copy(tmp_path, "review.json", modified)
+    completed = run_validator(review=review)
+    assert completed.returncode == 1
+    assert any("serum-chol/fasting-blood-sugar" in error for error in result(completed)["errors"])
+
+
+def test_s1_blocker_must_not_revert_to_definitive_statlog_claim(tmp_path: Path) -> None:
+    modified = json.loads(REVIEW.read_text(encoding="utf-8"))
+    for item in modified["ai_9_2_blockers"]["categories"]["source"]:
+        if item["id"] == "S-1":
+            item["blocker"] = item["blocker"] + " Statlog has none."
+    review = write_copy(tmp_path, "review.json", modified)
+    completed = run_validator(review=review)
+    assert completed.returncode == 1
+    assert any("Statlog no-markers claim" in error for error in result(completed)["errors"])
+
+
+def test_s1_blocker_must_acknowledge_statlog_markers(tmp_path: Path) -> None:
+    modified = json.loads(REVIEW.read_text(encoding="utf-8"))
+    for item in modified["ai_9_2_blockers"]["categories"]["source"]:
+        if item["id"] == "S-1":
+            item["blocker"] = item["blocker"].replace("serum-chol", "X").replace("fasting-blood-sugar", "Y")
+    review = write_copy(tmp_path, "review.json", modified)
+    completed = run_validator(review=review)
+    assert completed.returncode == 1
+    assert any("serum-chol/fasting-blood-sugar" in error for error in result(completed)["errors"])

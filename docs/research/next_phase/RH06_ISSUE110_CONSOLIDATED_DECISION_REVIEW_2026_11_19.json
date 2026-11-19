@@ -1,7 +1,7 @@
 {
   "schema_id": "cardioassist.issue110_decision_review/v1",
-  "version": "1.1.0",
-  "document_id": "CAI-RH06-ISSUE110-DECISION-REVIEW-2026-11-19-v1.1",
+  "version": "1.2.0",
+  "document_id": "CAI-RH06-ISSUE110-DECISION-REVIEW-2026-11-19-v1.2",
   "prepared_at": "2026-11-19",
   "status": "EVIDENCE_REVIEW_DRAFT_NOT_APPROVED",
   "baseline": {
@@ -410,7 +410,8 @@
       ],
       "known_facts": [
         "Official UCI-145: 270 records, 13 features, target 1 absence / 2 presence; 'Has Missing Values? No'; heart database described as similar to the UCI Heart Disease database in 'slightly different form'; DOI 10.24432/C57303; CC BY 4.0.",
-        "E3 (search-excerpt-only): StatLog heart described as Cleveland Clinic Foundation-sourced (R. Detrano); thesis reports a proper-subset hypothesis (303 = 270 + 33). Neither is owner-confirmed."
+        "E3 (search-excerpt-only): StatLog heart described as Cleveland Clinic Foundation-sourced (R. Detrano); thesis reports a proper-subset hypothesis (303 = 270 + 33). Neither is owner-confirmed.",
+        "Official UCI-145 feature list (E1) explicitly includes serum-chol (serum cholesterol, mg/dL) and fasting-blood-sugar (binary fasting blood sugar >120 mg/dL) within its 13 features; their presence is NOT pre-angiography timestamp verification and NOT a validated labs panel, and does not alter Statlog's PROPOSED_NO_GO_FOR_NAMED_ROLE for independent validation/pooling or Q-12 status."
       ],
       "uncertainties": [
         "Donor-cohort lineage and row-level mapping to Cleveland; the meaning of the 33-record difference; recoding and threshold (none printed).",
@@ -580,8 +581,8 @@
       "source": [
         {
           "id": "S-1",
-          "blocker": "UCI-412 is the only currently investigated and registered same-source clinical+labs pairing - specifically its 17-name laboratory/echo extension - and is under SCIENTIFIC_HOLD for new real fitting; #106 forbids new real UCI-412 training / AI-9.2 pending owner CRF/codebook. The UCI-45 family (Cleveland/Hungary/VA/Switzerland) DOES document two biochemical markers in the underlying 13-predictor schema (chol serum cholesterol mg/dL; fbs binary fasting blood sugar >120 mg/dL), omitted from the frozen D-047 five-field resting panel; this is a different, unassessed estimand (see alternative_same_source_matrix), not a pairing, and carries no timing, validity or admissibility evidence. Statlog has none. AngioCAD's schema is unopened and not admitted.",
-          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md sections 9-10 (D-UCI-TIME); UCI-45 owner page / heart-disease.names (E1); report section 6.2.1"
+          "blocker": "UCI-412 is the only currently investigated and registered same-source clinical+labs pairing - specifically its 17-name laboratory/echo extension - and is under SCIENTIFIC_HOLD for new real fitting; #106 forbids new real UCI-412 training / AI-9.2 pending owner CRF/codebook. The UCI-45 family (Cleveland/Hungary/VA/Switzerland) DOES document two biochemical markers in the underlying 13-predictor schema (chol serum cholesterol mg/dL; fbs binary fasting blood sugar >120 mg/dL), omitted from the frozen D-047 five-field resting panel; this is a different, unassessed estimand (see alternative_same_source_matrix), not a pairing, and carries no timing, validity or admissibility evidence. Statlog (UCI-145) DOES include serum-chol (serum cholesterol, mg/dL) and fasting-blood-sugar (binary fasting blood sugar >120 mg/dL) in its official 13-feature schema - but it is a suspected Cleveland-derived/near-duplicate source with uncertified target/lineage/timing, so it is NOT a verified/timestamped labs panel, NOT a permitted AI-9.2 substitute, and remains PROPOSED_NO_GO_FOR_NAMED_ROLE for independent validation/pooling (audit-only lineage review only). AngioCAD's schema is unopened and not admitted.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md sections 9-10 (D-UCI-TIME); UCI-45 owner page / heart-disease.names (E1); UCI-145 owner page/statlog (E1); report sections 4.7 and 6.2"
         },
         {
           "id": "S-2",
@@ -1278,13 +1279,31 @@
   "disclaimer": "Decision-review, not a decision. Recommendations only; named humans decide. No dataset, model, protocol, gate, register status, backend capability or clinical status was changed or is implied to change by this companion.",
   "deliverables": {
     "markdown_report": "RH06_ISSUE110_CONSOLIDATED_DECISION_REVIEW_2026_11_19.md",
-    "report_sha256": "d5fe573fef13b3611f6501ca0b738c908342bdadfb7c6171dc6e79662cf0ec10",
+    "report_sha256": "4af66d4501769ba904f837cf13bf217070d501e6fe3b592444dd569db06e88f3",
     "validator": "validate_issue110_decision_review.py",
-    "validator_sha256": "bc03c97f20b01f64c3b89ab167af7db2b10e5604d07768812bacc6ea32f38118",
+    "validator_sha256": "fad739ae475abe11c7b5886631c621f2b3e60fcfa62eb487490f30e904b457e4",
     "canonical_register_sha256": "9e3f5f9895f894fb603f90435a69d7b174b24bff291254e208cd7c2201f612d4",
     "canonical_register_path": "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json"
   },
   "change_log": [
+    {
+      "version": "1.2",
+      "date": "2026-11-19",
+      "review": "5971501344",
+      "changes": [
+        "Corrected Statlog (UCI-145) source characterization: official owner page (E1) lists serum-chol (serum cholesterol, mg/dL) and fasting-blood-sugar (binary fasting blood sugar >120 mg/dL); the prior S-1 definitive no-markers statement was false and is removed.",
+        "S-1 (report/JSON) now records Statlog's markers with the bounded qualification: suspected Cleveland-derived/near-duplicate, uncertified target/lineage/timing, not a timestamp-verified or validated labs panel, PROPOSED_NO_GO_FOR_NAMED_ROLE for independent validation/pooling, no AI-9.2 substitution or new-study authorization.",
+        "Added bounded known_facts entry for UCI145_STATLOG citing official UCI-145 (E1); Statlog disposition and Q-12 status unchanged.",
+        "Validator v1.2 forbids definitive Statlog no-markers claim phrasings and requires the serum-chol/fasting-blood-sugar acknowledgment in JSON known_facts and in the S-1 blocker statement; regression tests extended; Document ID bumped to v1.2."
+      ],
+      "unchanged": [
+        "All 16 canonical question statuses (SHA-256 pinned register)",
+        "P-1 PENDING / P-3 / P-5 prohibited; D-046 read-only; D-047 Cleveland-only; D-048 unratified; P25 REJECTED_RED / SCIENTIFIC_HOLD_NOT_ADMITTED",
+        "AI-9.2 / AI-10.2 NOT_PERFORMED and HOLD_NOT_EXECUTED",
+        "Frozen D-047 five-field panel, dictionary, protocols, tracker, workflows, MOCK_SYNTHETIC backend",
+        "Statlog PROPOSED_NO_GO_FOR_NAMED_ROLE / Q-12 CONDITIONAL_SOURCE_REVIEW_REQUIRED"
+      ]
+    },
     {
       "version": "1.1",
       "date": "2026-11-19",
