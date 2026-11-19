@@ -184,21 +184,23 @@
         "Primary-source/owner question register with precise unresolved statuses",
         "Study/source GO/HOLD/NO-GO evidence and allowed actions"
       ],
-      "status": "PLANNED",
+      "status": "IN_PROGRESS",
       "assigned_roles": [
         "maintainer",
         "arena_implementer",
         "research_reviewer"
       ],
-      "implementation_pr": null,
+      "implementation_pr": "PENDING_CREATION_THIS_BRANCH",
       "reviewed_pr_head_sha": null,
       "merge_sha": null,
-      "windows_evidence": null,
-      "ci_evidence": null,
-      "evidence_record_ids": [],
-      "verified_at": null,
+      "windows_evidence": "NOT_RUN / metadata-only scientific review, no patient data accessed",
+      "ci_evidence": "GitHub CI for this proposal not yet run at record creation",
+      "evidence_record_ids": [
+        "RH-02-EV-001"
+      ],
+      "verified_at": "2026-11-19",
       "reviewer": null,
-      "notes": "No work, test or approval inferred from this planning entry."
+      "notes": "Round-1 read-only original UCI owner landing pages and methodological reporting standards inspected; 16 source questions and 16 UCI-412 registered features reviewed with explicit open source/clinical timing holds. No real source admission, new real training, author contact or scientific human approval. Signed reviewer dispositions required."
     },
     {
       "id": "RH-03",
@@ -582,6 +584,23 @@
       "review_disposition": "REVIEW_DRAFT_IN_PROGRESS_NOT_HUMAN_ACCEPTED",
       "limitations": "28 registered claims are curated from source reports and code; not an exhaustive scientific final audit. ± means repeat SD not CI. No direct access to protected underlying patient data/reports. Current PR CI/Windows not claimed.",
       "sanitized_evidence_url_or_path": "docs/research/next_phase/RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json"
+    },
+    {
+      "record_id": "RH-02-EV-001",
+      "milestone_id": "RH-02",
+      "claim_type": "PRIMARY_SOURCE_METADATA_QUESTION_REVIEW",
+      "source_pr_url": "PENDING_CREATION_THIS_BRANCH",
+      "exact_source_sha": "897eaf61030636edae8dd5ac2ecc7dacf2870f02",
+      "test_or_report_name": "UCI-45, UCI-412, UCI-411 primary owner pages; 16 question and 16 feature matrix",
+      "evidence_class": "PUBLIC_ORIGINAL_SOURCE_METADATA_REVIEW_AND_REPOSITORY_CROSSCHECK",
+      "observed_result": "16 source questions classified; 16 UCI-412 source feature acquisition timestamps still not owner verified. UCI-45 <50/>50 vs UCI-412 >=50 wording differs; UCI-411 extension same cohort; Hungary independent validation and real labs comparison remain HOLD/NOT EXECUTED.",
+      "environment": "Public source pages, read-only existing private GitHub docs; no patient data/software testing",
+      "command_or_method": "Direct original UCI dataset page metadata inspection + previous frozen source/governance review; bounded questions and source-specific decisions",
+      "checked_by": "ChatGPT draft research review; scientific owner/reviewer not yet signed",
+      "checked_on": "2026-11-19",
+      "review_disposition": "REVIEW_DRAFT_NOT_HUMAN_ACCEPTED",
+      "limitations": "Dataset landing page has empty UCI-412 field table; original owner field forms and AngioCAD Zenodo files not inspected, no new data permissions; no unearned conditional study GO or NO-GO",
+      "sanitized_evidence_url_or_path": "docs/research/next_phase/RH02_PRIMARY_SOURCE_ADMISSIBILITY_2026_11_19.md"
     }
   ],
   "evidence_record_required_fields": [
@@ -666,7 +685,7 @@
     {
       "gap_id": "GAP-03",
       "priority": "P0",
-      "status": "SCIENTIFIC_HOLD_REVIEW",
+      "status": "IN_PROGRESS",
       "description": "Source definitions, timing, owner evidence and admissibility",
       "owner_stage": "RH-02",
       "role": "medical_science_reviewer+maintainer+arena_assistance",
@@ -674,7 +693,9 @@
       "source": "docs/research/next_phase/RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md",
       "reviewer": null,
       "closed_on": null,
-      "evidence_record_ids": []
+      "evidence_record_ids": [
+        "RH-02-EV-001"
+      ]
     },
     {
       "gap_id": "GAP-04",
