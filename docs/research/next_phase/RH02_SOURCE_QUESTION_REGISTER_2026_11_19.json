@@ -64,8 +64,8 @@
       "id": "Q-05",
       "question": "UCI-412 BP and PR semantics",
       "status": "UNRESOLVED_SCIENTIFIC_HOLD",
-      "evidence_or_gap": "BP systolic/diastolic and PR notation/conditions unverified",
-      "required_action": "Original codebook and collection method",
+      "evidence_or_gap": "Peer-reviewed secondary dataset tables describe BP as mmHg and PR pulse-rate with token ppm; still no original owner field form establishing whether BP is systolic/diastolic, PR recorded unit and measurement conditions, or pre-cath chronology.",
+      "required_action": "Owner codebook or author confirmation of BP quantity, PR unit/notation, acquisition conditions and timestamps",
       "reviewer": null,
       "reviewed_at": null,
       "human_scientific_disposition": "PENDING",
@@ -86,8 +86,8 @@
       "id": "Q-07",
       "question": "UCI-412 chest-pain relationships",
       "status": "UNRESOLVED_SCIENTIFIC_HOLD",
-      "evidence_or_gap": "Exclusivity, chronology and definition unknown; no Cleveland cp crosswalk",
-      "required_action": "Owner original symptom form",
+      "evidence_or_gap": "Original source has not described whether symptom indicators are exclusive or what time they were recorded. A third-party Electronics 2022 paper §3 reports Exertional CP constant across its downloaded 303-case version: SECONDARY ONLY, not verified in the protected original and not approval to alter frozen model.",
+      "required_action": "Original symptom collection form and timing; optional narrowly authorized aggregate-only uniqueness and joint-flag counts if existing local audit policy explicitly permits; no panel change or code coercion",
       "reviewer": null,
       "reviewed_at": null,
       "human_scientific_disposition": "PENDING",
@@ -97,8 +97,8 @@
       "id": "Q-08",
       "question": "UCI-412 54 versus 55 source feature count",
       "status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
-      "evidence_or_gap": "UCI text 54; historical protected local audit reported 55+Cath; mismatch unexplained",
-      "required_action": "Owner versioned workbook schema and eligible local audit",
+      "evidence_or_gap": "Original Alizadehsani et al. 2013 abstract and author-deposited 2017 Mendeley metadata describe 303 with 54 features; third-party Electronics 2022 study describes 303 with 55 features and 216 CAD/87 normal, agreeing with previously reported local-source counts. Third-party IJERPH 2020 §4.1 says 216 CAD+88 normal =304, inconsistent with its 303 stated sample. No primary owner file-version reconciliation found.",
+      "required_action": "Compare owner-certified source schema/version to existing hash-pinned local header and counts only under separately permitted local read-only scope; do not choose one secondary paper to redefine original data",
       "reviewer": null,
       "reviewed_at": null,
       "human_scientific_disposition": "PENDING",
@@ -163,8 +163,8 @@
       "id": "Q-14",
       "question": "AngioCAD pretest tabular source",
       "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
-      "evidence_or_gap": "Public article describes 413 angiography videos and ancillary clinical data; actual pretest table unavailable to current review",
-      "required_action": "Owner original schema/access and timing evidence",
+      "evidence_or_gap": "Original AngioCAD research abstract (Hosseini et al., 2026; PMID 42033972) describes angiography VIDEO SEQUENCES and STRUCTURED CLINICAL DATA FROM 413 PATIENTS, not 413 videos. Attribute-based analysis is explicitly described. Original Zenodo manifest, license, actual tabular schema, pre-index timing, sample completeness and target suitability remain unverified.",
+      "required_action": "Inspect original Zenodo metadata/file manifest and owner-author tabular data dictionary without downloading protected data; confirm patient-level fields, pre-angiography chronology, label/endpoints and reuse rights; clinical review before any new real fitting",
       "reviewer": null,
       "reviewed_at": null,
       "human_scientific_disposition": "PENDING",
@@ -353,5 +353,62 @@
       "real_experiment_completed": false
     }
   ],
-  "next_review": "Medical/scientific human reviewer evaluates exact per-question evidence; obtain original owner codebook/methods only if permitted; no new study activation in this record."
+  "next_review": "Medical/scientific human reviewer evaluates exact per-question evidence; obtain original owner codebook/methods only if permitted; no new study activation in this record.",
+  "round2_review": {
+    "date": "2026-11-19",
+    "status": "SOURCE_RECONCILIATION_REVIEW_DRAFT_NOT_SCIENTIFIC_ADMISSION",
+    "report_path": "docs/research/next_phase/RH02_ROUND2_SOURCE_RECONCILIATION_2026_11_19.md",
+    "original_sources": [
+      {
+        "evidence_id": "P1",
+        "url": "https://data.mendeley.com/datasets/vrymwyh2tg/1",
+        "kind": "AUTHOR_DEPOSITED_DESCRIPTION",
+        "claim": "303 patients, 54 features, threshold >=50%, stated dataset CC BY 4.0",
+        "limitation": "No original per-field codebook, timestamp or workbook column reconciliation"
+      },
+      {
+        "evidence_id": "P2",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/23537611/",
+        "kind": "ORIGINAL_2013_OWNER_STUDY_ABSTRACT",
+        "claim": "303 patients, 54 features",
+        "limitation": "Full article and original collection form not inspected; no timing evidence"
+      },
+      {
+        "evidence_id": "P3",
+        "url": "https://pubmed.ncbi.nlm.nih.gov/42033972/",
+        "kind": "ORIGINAL_2026_ANGIOCAD_ARTICLE_ABSTRACT",
+        "claim": "413 patients with structured clinical data and angiography video sequences",
+        "limitation": "Archive file schema, reuse license, timing and patient-level CAD target unverified"
+      },
+      {
+        "evidence_id": "S1",
+        "url": "https://www.mdpi.com/2079-9292/11/9/1495",
+        "kind": "SECONDARY_2022_REANALYSIS",
+        "claim": "303; 216 CAD/87 normal; 55 features; Exertional CP reported constant across this paper's 303 records",
+        "limitation": "Not primary owner file-version proof; no protected source check"
+      },
+      {
+        "evidence_id": "S2",
+        "url": "https://www.mdpi.com/1660-4601/17/3/731",
+        "kind": "SECONDARY_2020_REANALYSIS",
+        "claim": "Reports 303 participants and 216 CAD plus 88 normal, arithmetic totals 304",
+        "limitation": "Arithmetic contradiction, cannot be used to override local protected aggregate"
+      }
+    ],
+    "angiocad_patient_count_as_reported": 413,
+    "angiocad_video_count": "UNKNOWN_NOT_ESTABLISHED",
+    "uci412_owner_verified_preindex_fields": 0,
+    "original_owner_codebook_obtained": false,
+    "original_zenodo_file_manifest_obtained": false,
+    "reconciliation_decisions": {
+      "Q03": "ORIGINAL_SOURCE_DATASET_THRESHOLD_DOCUMENTED_ONLY",
+      "Q04": "SCIENTIFIC_HOLD_CONTINUES",
+      "Q05": "OWNER_MEASUREMENT_SEMANTICS_UNVERIFIED",
+      "Q07": "SECONDARY_CONSTANT_FEATURE_HYPOTHESIS_ONLY",
+      "Q08": "OWNER_FILE_VERSION_FEATURE_COUNT_UNRESOLVED",
+      "Q14": "MULTIMODAL_PATIENT_SOURCE_SUPPORTED_BY_ABSTRACT_NOT_ADMITTED"
+    },
+    "scientific_human_review": "PENDING",
+    "new_real_data_access_authorized": false
+  }
 }
