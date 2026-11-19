@@ -34,6 +34,67 @@ allowlists must agree or loading fails closed; a coherence test additionally
 pins the five shared field conventions to the M2b validator below.
 **Cleveland has NOT been selected as the final project dataset.**
 
+## RH-04 — Feature acquisition-evidence crosswalk (EVIDENCE ONLY, synthetic-only tests)
+
+`feature_acquisition_crosswalk.py` implements the first engineering slice of
+RH-04 (work packages RH-04-1/RH-04-2, see
+[the RH-06 decision review §10.1](../../docs/research/next_phase/RH06_ISSUE110_CONSOLIDATED_DECISION_REVIEW_2026_11_19.md))
+over the versioned, machine-readable record
+[`schemas/feature_acquisition_evidence_crosswalk.v1.json`](schemas/feature_acquisition_evidence_crosswalk.v1.json)
+(`rh04_feature_acquisition_evidence_crosswalk.v1`, schema version `1.0.0`,
+status `EVIDENCE_ONLY_NOT_APPROVED`).
+
+It **reuses** the four registered panels (`ai.panels.REGISTERED_PANELS`) and the
+five registered research routes (`ai.research_routes.RESEARCH_ROUTE_CATALOG`).
+It defines no second clinical feature schema: no units, coding vocabularies,
+plausible ranges, missingness rules, targets, model families, seeds or
+thresholds are restated, and no new model route or endpoint exists.
+
+For each of the 30 features registered in those four panels it separates four
+questions that are routinely conflated:
+
+| Question | Crosswalk field |
+|---|---|
+| Which document establishes the **original-source feature definition**? | `definition_evidence_ids` → resolved `evidence_register` entries |
+| What **acquisition channel** is proposed, and on what basis? | `acquisition.channel`, `acquisition.channel_status` (`VERIFIED_REGISTERED_SOURCE_DOMAIN` / `PROPOSED_FUTURE_ACQUISITION_CHANNEL`) |
+| Is the **pre-angiography measurement timing** verified? | `acquisition.timing_status`, `acquisition.owner_verified_pre_angiography`, `acquisition.timing_derived_from_channel_status` |
+| What **source-specific permission and restrictions** apply? | `permission_id`, `restriction_ids`, `sources[]`, `blocked_items[]` |
+
+**`VERIFIED_REGISTERED_SOURCE_DOMAIN` is never proof of owner-verified
+pre-angiography timing.** It verifies only that a proposed channel matches the
+`source_domain`/`input_owner` already recorded in a frozen repository register.
+The validator enforces this structurally: timing may never be derived from a
+channel status, a verified channel may only carry
+`UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL`, the reserved
+`OWNER_VERIFIED_PRE_ANGIOGRAPHY` status requires owner timing evidence, the
+owner-timing evidence class list is **empty**, and the per-source
+owner-verified counts are frozen at `0` and recomputed from the records.
+UCI-412 therefore stays at **0/16** owner-verified pre-angiography timings.
+
+All scientific holds are preserved and machine-checked: Gate PT P-1 `PENDING`,
+P-3 `CLOSED`, P-5 `NOT_MADE_PROHIBITED`; the UCI-45 **labs extension**
+(`da_a2_resting_labs_v1`), the **UCI-412 labs route**
+(`da_a1_clinical_core_labs_v1`) and the **Hungary locked evaluation**
+(`da_a2_hungary_locked_transportability_v1`) remain `BLOCKED` with
+`route_contract_query` as their only permitted operation. Any activation,
+widened permitted-operation set, removed forbidden operation, promoted
+permission status or extra route fails closed.
+
+### Read-only validator and deterministic metadata query
+
+```bash
+python -m research.intake.feature_acquisition_crosswalk validate
+python -m research.intake.feature_acquisition_crosswalk describe
+python -m research.intake.feature_acquisition_crosswalk query --dataset-id DA-A1 --feature-name BP
+python -m research.intake.feature_acquisition_crosswalk query --route-id da_a1_clinical_core_labs_v1
+```
+
+The module is standard-library only, opens exactly one file, writes nothing,
+opens no socket and imports neither the backend application nor the `ai`
+package. Every query result carries
+`result_state = METADATA_ONLY_NO_CAD_PROBABILITY_COMPUTED`; no score,
+probability, calibration or explanation exists anywhere in this surface.
+
 ## Implemented foundation
 
 `synthetic_stage_validator.py` contains the exact stage allowlists, immutable
