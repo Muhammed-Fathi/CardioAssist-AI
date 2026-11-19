@@ -163,7 +163,7 @@
       "id": "Q-14",
       "question": "AngioCAD pretest tabular source",
       "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
-      "evidence_or_gap": "Original AngioCAD research abstract (Hosseini et al., 2026; PMID 42033972) describes angiography VIDEO SEQUENCES and STRUCTURED CLINICAL DATA FROM 413 PATIENTS, not 413 videos. Attribute-based analysis is explicitly described. Original Zenodo manifest, license, actual tabular schema, pre-index timing, sample completeness and target suitability remain unverified.",
+      "evidence_or_gap": "Original 2026 AngioCAD article ABSTRACT says video sequences and structured clinical data FROM 413 PATIENTS; its original HIGHLIGHTS separately say 413 X-ray coronary angiography VIDEOS. Both are author-reported publication counts, not verified Zenodo file manifest, unique-person/video 1:1 mapping, or actual patient-level tabular acquisition timing. Original record access, rights, schema, pre-index features and eligible CAD target remain unverified.",
       "required_action": "Inspect original Zenodo metadata/file manifest and owner-author tabular data dictionary without downloading protected data; confirm patient-level fields, pre-angiography chronology, label/endpoints and reuse rights; clinical review before any new real fitting",
       "reviewer": null,
       "reviewed_at": null,
@@ -396,7 +396,7 @@
       }
     ],
     "angiocad_patient_count_as_reported": 413,
-    "angiocad_video_count": "UNKNOWN_NOT_ESTABLISHED",
+    "angiocad_video_count": "413_REPORTED_IN_ORIGINAL_ARTICLE_HIGHLIGHTS_NOT_FILE_VERIFIED",
     "uci412_owner_verified_preindex_fields": 0,
     "original_owner_codebook_obtained": false,
     "original_zenodo_file_manifest_obtained": false,
@@ -409,6 +409,16 @@
       "Q14": "MULTIMODAL_PATIENT_SOURCE_SUPPORTED_BY_ABSTRACT_NOT_ADMITTED"
     },
     "scientific_human_review": "PENDING",
-    "new_real_data_access_authorized": false
+    "new_real_data_access_authorized": false,
+    "angiocad_video_patient_mapping": "UNKNOWN_NOT_ESTABLISHED",
+    "angiocad_source_count_correction": {
+      "abstract_413_patients": true,
+      "highlights_413_videos": true,
+      "record_file_manifest_verified": false,
+      "actual_patient_video_linkage_verified": false,
+      "original_article_url": "https://www.sciencedirect.com/science/article/pii/S0169260726001331",
+      "next_agent_audit": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/99",
+      "evidence_status": "TWO_AUTHOR_REPORTED_COUNTS_NOT_INDEPENDENTLY_REPRODUCED"
+    }
   }
 }
