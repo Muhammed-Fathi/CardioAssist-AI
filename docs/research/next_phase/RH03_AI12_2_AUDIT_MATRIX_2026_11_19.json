@@ -1,0 +1,2092 @@
+{
+  "schema_id": "rh03-ai12.2-independent-audit-matrix-v2",
+  "audit_base": "9606b955b5c5906031ee88de704c3825b1f8b914",
+  "audit_head_before_revision": "3a0e041469f52e6b0ca708f63938bffe82c776c9",
+  "status": "PROVENANCE_CHECKED_CONTENT_COMPARISON_PARTIAL; SCIENTIFIC_REVIEW_PENDING",
+  "method": "Read-only display of indexed source statements with source-file line excerpts and exact manuscript FR line spans; source Git blobs checked at base. Content-check is distinct from blob match. No dataset access, protected artifacts, training or experiment rerun.",
+  "content_check_enum": [
+    "PASS_SOURCE_MATCH",
+    "MISMATCH",
+    "NOT_VERIFIABLE",
+    "OUT_OF_SCOPE"
+  ],
+  "chapters": [
+    {
+      "id": "FR-01",
+      "section_heading": "manuscript:13: ## FR-01. Abstract and contribution",
+      "line_span": "13-26",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-005",
+        "CL-012",
+        "CL-016",
+        "CL-018"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-02",
+      "section_heading": "manuscript:27: ## FR-02. Clinical motivation, research question and intended use",
+      "line_span": "27-36",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-027"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-03",
+      "section_heading": "manuscript:37: ## FR-03. Related work, scientific reporting and evidence-selection policy",
+      "line_span": "37-46",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-016",
+        "CL-027"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-04",
+      "section_heading": "manuscript:47: ## FR-04. Cohorts, source provenance, permitted roles and endpoint differences",
+      "line_span": "47-66",
+      "source_claim_ids": [
+        "CL-002",
+        "CL-011",
+        "CL-017",
+        "CL-018"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-05",
+      "section_heading": "manuscript:67: ## FR-05. Predictor design and acquisition eligibility",
+      "line_span": "67-78",
+      "source_claim_ids": [
+        "CL-003",
+        "CL-011",
+        "CL-016"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-06",
+      "section_heading": "manuscript:79: ## FR-06. Methods: preprocessing, model families and nested internal evaluation",
+      "line_span": "79-98",
+      "source_claim_ids": [
+        "CL-004",
+        "CL-012",
+        "CL-027"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-07",
+      "section_heading": "manuscript:99: ## FR-07. Historical within-source real exploratory results",
+      "line_span": "99-132",
+      "source_claim_ids": [
+        "CL-002",
+        "CL-005",
+        "CL-006",
+        "CL-007",
+        "CL-008",
+        "CL-011",
+        "CL-012",
+        "CL-013",
+        "CL-027"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-08",
+      "section_heading": "manuscript:133: ## FR-08. Implemented synthetic engineering and reproducibility results",
+      "line_span": "133-164",
+      "source_claim_ids": [
+        "CL-019",
+        "CL-020",
+        "CL-021",
+        "CL-022",
+        "CL-026"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-09",
+      "section_heading": "manuscript:165: ## FR-09. Explainability: score scales, fidelity and limitations",
+      "line_span": "165-174",
+      "source_claim_ids": [
+        "CL-023",
+        "CL-024"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-10",
+      "section_heading": "manuscript:175: ## FR-10. Calibration, statistical uncertainty and sample-size constraints",
+      "line_span": "175-199",
+      "source_claim_ids": [
+        "CL-009",
+        "CL-010",
+        "CL-014",
+        "CL-015"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-11",
+      "section_heading": "manuscript:200: ## FR-11. Conditional real clinical-versus-laboratory incremental-value hypothesis (AI-9.2)",
+      "line_span": "200-209",
+      "source_claim_ids": [
+        "CL-016",
+        "CL-019"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-12",
+      "section_heading": "manuscript:210: ## FR-12. Conditional independent external transportability question (AI-10.2)",
+      "line_span": "210-219",
+      "source_claim_ids": [
+        "CL-017",
+        "CL-018",
+        "CL-020"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-13",
+      "section_heading": "manuscript:220: ## FR-13. Software interface, provenance and later app integration",
+      "line_span": "220-236",
+      "source_claim_ids": [
+        "CL-021",
+        "CL-022",
+        "CL-025"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-14",
+      "section_heading": "manuscript:237: ## FR-14. Engineering tests, source integrity, reproducibility and privacy",
+      "line_span": "237-261",
+      "source_claim_ids": [
+        "CL-020",
+        "CL-021",
+        "CL-022",
+        "CL-026"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-15",
+      "section_heading": "manuscript:262: ## FR-15. Bias, ethics, scientific validity and applicability appraisal",
+      "line_span": "262-276",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-010",
+        "CL-015",
+        "CL-016",
+        "CL-018",
+        "CL-027"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-16",
+      "section_heading": "manuscript:277: ## FR-16. Discussion, limitations, contributions and conclusions",
+      "line_span": "277-284",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-027",
+        "CL-028"
+      ],
+      "review_status": "PENDING"
+    },
+    {
+      "id": "FR-17",
+      "section_heading": "manuscript:285: ## FR-17. Appendices: defense packet, source map and reproducibility handoff",
+      "line_span": "285-334",
+      "source_claim_ids": [
+        "CL-028",
+        "CL-026",
+        "CL-025"
+      ],
+      "review_status": "PENDING"
+    }
+  ],
+  "claim_count": 28,
+  "claims": [
+    {
+      "claim_id": "CL-001",
+      "indexed_claim": "Cross-sectional source-defined angiography-referenced CAD presence only; never future event/30-day risk",
+      "source": {
+        "path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "actual_blob_sha_at_base": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "blob_match": true,
+        "indexed_section": "§§1–2 and §4.3",
+        "observed_source_excerpts": [
+          {
+            "line": 103,
+            "text": "> across four dependent repeats of the same 303 records — never a standard error or interval). The two estimates answer two different"
+          },
+          {
+            "line": 165,
+            "text": "3. **No pooled or combined estimate.** The two 303-record cohorts must never be summed (no"
+          },
+          {
+            "line": 196,
+            "text": "| Not the target (both) | Future/30-day event risk, incident disease, angiographic severity grade, population prevalence, or a clinical risk score | Same |"
+          },
+          {
+            "line": 614,
+            "text": "future-event risk; no independent validation; repeated evaluation of the same 303 participants;"
+          },
+          {
+            "line": 932,
+            "text": "| U2 | UCI-412 dispersion is now supplied, but it is the **same limited quantity** as Cleveland's: population SD across 4 dependent repeats of the same 303 people. The within-repeat bootstrap carries `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` statuses (4/4 per listed procedure); **no endpoint was supplied to the agent**, and whether conditional intervals were computed in the protected report is unverified. Separately, no SE, p-value, or valid inferential CI **for the four-repeat summary or for future clinical populations** is available on either dataset (§4.5, distinctions 1–3) | Partition-level stability is now described for AUROC/Brier, but neither dataset has a valid inferential interval for its repeat summary or for future populations. The bootstrap status must never be quoted as if such an interval had been reported, nor as proof that no conditional interval exists locally; conditional-on-fixed-folds estimation would in any case exclude refitting variability |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-02",
+          "line_span": "27-36",
+          "matched_report_lines": [
+            {
+              "line": 31,
+              "text": "Track A is a **diagnostic cross-sectional** research question and cannot be silently reinterpreted as predicting 30-day myocardial infarction, all-cause mortality, disease severity, a future treatment need, or cardiovascular risk in an unselected population. The outcome is adjudicated by each historical data source, which can have different reference standards and label conventions. Track B (`/v1/monitoring` and optional future wearable signals) concerns observation/monitoring and is intentionally isolated from the Track A feature panel. No Track B value is accepted as an unregistered CAD model predictor."
+            }
+          ]
+        },
+        {
+          "chapter": "FR-04",
+          "line_span": "47-66",
+          "matched_report_lines": [
+            {
+              "line": 53,
+              "text": "| UCI-45 processed Cleveland / DA-A2 | Historical processed cohort; **303** individuals, **139** with `num=1..4` and **164** with `num=0` in the archived local report; original UCI page describes conventional angiographic presence labels | Historical five-input internally evaluated feasibility benchmark | Original data and protected original run remain outside GitHub; pretest timing and sample-size/calibration limits |"
+            },
+            {
+              "line": 54,
+              "text": "| UCI-412 Z-Alizadeh Sani / DA-A1 | **303**, 216 `Cad` and 87 `Normal` in archived protected-run aggregates; owner defines **≥50%** stenosis | Separate historical 16-feature internally evaluated benchmark | 16/16 preangiography acquisition times unverified; new real model research **SCIENTIFIC_HOLD** |"
+            },
+            {
+              "line": 58,
+              "text": "| UCI-411 | Same named **303** UCI-412 participants, with added angiography-related LAD/LCX/RCA definitions in owner documentation | Cohort-overlap and target-leakage audit | **Never an independent external validation cohort** |"
+            }
+          ]
+        },
+        {
+          "chapter": "FR-15",
+          "line_span": "262-276",
+          "matched_report_lines": [
+            {
+              "line": 271,
+              "text": "| Analysis | 303 records per separate cohort, outer repeats are dependent, some unstable calibration slopes, no external site, limited interval evidence | Internal discrimination is descriptive feasibility; neither population calibration nor confidence in future deployment established |"
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Target wording >50% vs ≥50% not harmonized",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-002",
+      "indexed_claim": "D-047 Cleveland 303 records, 139 positive and 164 negative",
+      "source": {
+        "path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "actual_blob_sha_at_base": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "blob_match": true,
+        "indexed_section": "§2.1",
+        "observed_source_excerpts": [
+          {
+            "line": 66,
+            "text": "| Source rows parsed | 303 |"
+          },
+          {
+            "line": 67,
+            "text": "| Positive cases (`num=1..4`) | 139 |"
+          },
+          {
+            "line": 68,
+            "text": "| Negative cases (`num=0`) | 164 |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-07",
+          "line_span": "99-132",
+          "matched_report_lines": [
+            {
+              "line": 103,
+              "text": "### Table T-02. Cleveland D-047 (n=303; 139 positive, 164 negative)"
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "PASS_SOURCE_MATCH",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Literal results/transcription align in the cited archived source and manuscript lines; protected original experiment artifact not inspected, so numerical computation remains unverified."
+      },
+      "scope": "Counts source-reported, protected rows not inspected by agent",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-003",
+      "indexed_claim": "D-047 five source fields correspond to eight reference-coded logistic slope coefficients",
+      "source": {
+        "path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "actual_blob_sha_at_base": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "blob_match": true,
+        "indexed_section": "§2.2",
+        "observed_source_excerpts": [
+          {
+            "line": 1,
+            "text": "# D-047 — First Internal Exploratory Cleveland CAD Results (Review Draft)"
+          },
+          {
+            "line": 6,
+            "text": "> - **Experiment:** `CAI-T1-D047-CLEVELAND-EXPLORATORY-V0.1`"
+          },
+          {
+            "line": 31,
+            "text": "**Never accessed, requested, transmitted, or reproduced by the agent:** local protected source rows (`data/raw/uci-45/processed.cleveland.data`), `report.json`, `predictions.csv`, the D-046/D-047 signed local authorization manifests, provenance/licence snapshot hashes, per-patient fold assignments, per-patient out-of-fold scores, confusion-matrix cell counts, model artifacts, or any run-identifier/path detail. No `data/` directory exists in this repository checkout."
+          },
+          {
+            "line": 49,
+            "text": "| Experiment ID | `CAI-T1-D047-CLEVELAND-EXPLORATORY-V0.1` | **[MR]**, **[AR]** (matches `research/experiments/cleveland_d047_exploratory_plan.v0.1.json`) |"
+          },
+          {
+            "line": 87,
+            "text": "> **Human action required:** confirm that the **five pre-fit plan-file changes** were recorded as a documented pre-fit amendment to the registered plan (D-047 requires post-fit revisions to be logged as amendments; this change preceded the fit, but the traceability record should still be explicit). **[GAP]**"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-05",
+          "line_span": "67-78",
+          "matched_report_lines": [
+            {
+              "line": 69,
+              "text": "The Cleveland **DA-A2 resting five-field** panel is `age`, `sex`, `cp`, `trestbps` and `restecg`; its reference-coded logistic regression encodes **eight slope coefficients**, because `cp` and `restecg` are multi-category fields. UCI official descriptions identify `trestbps` as **resting blood pressure on hospital admission in mmHg** and `cp` as a four-level source category. A single new-app office-BP textbox is not necessarily the historical variable. The complete versioned source validator exists under `research/intake/schemas/cleveland_resting_five_field_mapping.v0.1.json`; it is explicitly a synthetic research mapping **PROPOSED_NOT_APPROVED**, not a signed clinical acquisition contract."
+            }
+          ]
+        },
+        {
+          "chapter": "FR-06",
+          "line_span": "79-98",
+          "matched_report_lines": [
+            {
+              "line": 83,
+              "text": "Candidate families and prespecified settings in the historical Cleveland D-047 protocol:"
+            },
+            {
+              "line": 95,
+              "text": "**Leakage controls** are reflected in registered prohibited-predictor lists, source-hash/preprocessing gates, model-family selection within nested CV, absence of test-derived feature selection, and separation of tracks and source-specific target maps. These controls substantially reduce software wiring errors but do **not** eliminate unobserved patient duplication, retrospective predictor timing bias or site/process proxies. This manuscript did not rerun original protected D-047 or M3a data and cannot independently audit the hidden local protected logs."
+            },
+            {
+              "line": 97,
+              "text": "**Methods original records:** [D-047 original reported results ``2–4](../gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md); [M3a source-specific synthesis ``2–4](../gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md), frozen plans under `research/experiments` and `research/uci412`. Claims `CL-003/004/011/012`."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Pre-angiography acquisition chronology not proven",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-004",
+      "indexed_claim": "D-047 outer five stratified folds × four dependent repeats and inner five folds, fold-local preprocessing and predeclared LR simplicity rule",
+      "source": {
+        "path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "actual_blob_sha_at_base": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "blob_match": true,
+        "indexed_section": "§3.1–§3.3",
+        "observed_source_excerpts": [
+          {
+            "line": 1,
+            "text": "# D-047 — First Internal Exploratory Cleveland CAD Results (Review Draft)"
+          },
+          {
+            "line": 31,
+            "text": "**Never accessed, requested, transmitted, or reproduced by the agent:** local protected source rows (`data/raw/uci-45/processed.cleveland.data`), `report.json`, `predictions.csv`, the D-046/D-047 signed local authorization manifests, provenance/licence snapshot hashes, per-patient fold assignments, per-patient out-of-fold scores, confusion-matrix cell counts, model artifacts, or any run-identifier/path detail. No `data/` directory exists in this repository checkout."
+          },
+          {
+            "line": 64,
+            "text": "| D-047 local preflight | **PASS** |"
+          },
+          {
+            "line": 87,
+            "text": "> **Human action required:** confirm that the **five pre-fit plan-file changes** were recorded as a documented pre-fit amendment to the registered plan (D-047 requires post-fit revisions to be logged as amendments; this change preceded the fit, but the traceability record should still be explicit). **[GAP]**"
+          },
+          {
+            "line": 513,
+            "text": "| D-047 internal exploratory route | Ratified by the maintainer (PR #31) and used for this bounded run; the human authorization comment and local manifest are **not** reproduced here |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-06",
+          "line_span": "79-98",
+          "matched_report_lines": [
+            {
+              "line": 83,
+              "text": "Candidate families and prespecified settings in the historical Cleveland D-047 protocol:"
+            },
+            {
+              "line": 95,
+              "text": "**Leakage controls** are reflected in registered prohibited-predictor lists, source-hash/preprocessing gates, model-family selection within nested CV, absence of test-derived feature selection, and separation of tracks and source-specific target maps. These controls substantially reduce software wiring errors but do **not** eliminate unobserved patient duplication, retrospective predictor timing bias or site/process proxies. This manuscript did not rerun original protected D-047 or M3a data and cannot independently audit the hidden local protected logs."
+            },
+            {
+              "line": 97,
+              "text": "**Methods original records:** [D-047 original reported results ``2–4](../gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md); [M3a source-specific synthesis ``2–4](../gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md), frozen plans under `research/experiments` and `research/uci412`. Claims `CL-003/004/011/012`."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Historical protocol/code-based; agent did not rerun source data",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-005",
+      "indexed_claim": "D-047 selected-procedure nested OOF AUROC mean 0.8271 ± population SD 0.0097 over four dependent CV repeats",
+      "source": {
+        "path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "actual_blob_sha_at_base": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "blob_match": true,
+        "indexed_section": "§4.1–§4.3",
+        "observed_source_excerpts": [
+          {
+            "line": 156,
+            "text": "> **Repeated nested outer out-of-fold AUROC of the complete inner-selected procedure** = **0.8271 ± 0.0097** (mean ± population SD across four dependent CV repeats)."
+          },
+          {
+            "line": 162,
+            "text": "All entries are **mean ± population SD across the four dependent CV repeats** (population SD, `ddof=0`) **[MR]**, matching the committed aggregation code **[AR]**."
+          },
+          {
+            "line": 166,
+            "text": "| **AUROC** (primary metric) | 0.4947 ± 0.0000 | 0.8292 ± 0.0062 | 0.8211 ± 0.0085 | **0.8271 ± 0.0097** |"
+          },
+          {
+            "line": 167,
+            "text": "| Average precision / AUPRC | 0.4559 ± 0.0000 | 0.7737 ± 0.0151 | 0.7544 ± 0.0151 | 0.7712 ± 0.0193 |"
+          },
+          {
+            "line": 171,
+            "text": "| Brier score | 0.2483 ± 0.0000 | 0.1658 ± 0.0026 | 0.1745 ± 0.0038 | 0.1671 ± 0.0049 |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-07",
+          "line_span": "99-132",
+          "matched_report_lines": [
+            {
+              "line": 101,
+              "text": "The following are the project's **previously recorded local/internal aggregate outcomes**, not observations from the present reporting pass. All values are **mean ± population SD across four dependent CV repeat metrics**, not participant-level uncertainty, confidence intervals, independent sites, significance tests or externally verified medical accuracy."
+            },
+            {
+              "line": 103,
+              "text": "### Table T-02. Cleveland D-047 (n=303; 139 positive, 164 negative)"
+            },
+            {
+              "line": 107,
+              "text": "| AUROC | 0.4947 ± 0.0000 | 0.8292 ± 0.0062 | 0.8211 ± 0.0085 | **0.8271 ± 0.0097** |"
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "PASS_SOURCE_MATCH",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Literal results/transcription align in the cited archived source and manuscript lines; protected original experiment artifact not inspected, so numerical computation remains unverified."
+      },
+      "scope": "Not confidence interval, standard error, external validation, clinical score or cross-dataset superiority",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-006",
+      "indexed_claim": "D-047 selected-procedure average precision 0.7712 ± 0.0193 and Brier score 0.1671 ± 0.0049",
+      "source": {
+        "path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "actual_blob_sha_at_base": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "blob_match": true,
+        "indexed_section": "§4.2",
+        "observed_source_excerpts": [
+          {
+            "line": 167,
+            "text": "| Average precision / AUPRC | 0.4559 ± 0.0000 | 0.7737 ± 0.0151 | 0.7544 ± 0.0151 | 0.7712 ± 0.0193 |"
+          },
+          {
+            "line": 171,
+            "text": "| Brier score | 0.2483 ± 0.0000 | 0.1658 ± 0.0026 | 0.1745 ± 0.0038 | 0.1671 ± 0.0049 |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-07",
+          "line_span": "99-132",
+          "matched_report_lines": [
+            {
+              "line": 108,
+              "text": "| AUPRC / average precision | 0.4559 ± 0.0000 | 0.7737 ± 0.0151 | 0.7544 ± 0.0151 | **0.7712 ± 0.0193** |"
+            },
+            {
+              "line": 112,
+              "text": "| Brier score | 0.2483 ± 0.0000 | 0.1658 ± 0.0026 | 0.1745 ± 0.0038 | **0.1671 ± 0.0049** |"
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "PASS_SOURCE_MATCH",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Literal results/transcription align in the cited archived source and manuscript lines; protected original experiment artifact not inspected, so numerical computation remains unverified."
+      },
+      "scope": "Same dependent-repeat SD; no clinical calibration claim or inferential CI",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-007",
+      "indexed_claim": "D-047 fixed 0.5 threshold and LR selected in 19/20 outer folds",
+      "source": {
+        "path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "actual_blob_sha_at_base": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "blob_match": true,
+        "indexed_section": "§3.2; §4.4",
+        "observed_source_excerpts": [
+          {
+            "line": 148,
+            "text": "Three prespecified label-shuffle runs (seeds `20262001`–`20262003`), each one outer repeat, using the same nested-CV wiring. Interpreted as a **smoke test only**: no formal permutation p-value is computed, and a result near 0.5 **does not prove** the absence of every form of leakage."
+          },
+          {
+            "line": 186,
+            "text": "| 20261025 | 0.8192 | 0.8064 | 0.8107 |"
+          },
+          {
+            "line": 203,
+            "text": "- `19/20` must **not** be read as a 95% \"probability of clinical superiority\", a confidence level, or an effect size."
+          },
+          {
+            "line": 309,
+            "text": "| 11 | Inner-selected equals LR in seeds 20261023, 20261024, 20261026 (AUROC and calibration), differs only in 20261025 | Expected if LR won every fold in those repeats and RF won in one fold of 20261025 | Matches exactly | ✅ consistent with **19/20** LR selection and with the runner reusing the selected family's predictions |"
+          },
+          {
+            "line": 382,
+            "text": "- a **supporting LR AUROC of 0.8292 ± 0.0062**, with L2 logistic regression chosen in **19 of 20** outer folds under the pre-registered selection rule;"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-06",
+          "line_span": "79-98",
+          "matched_report_lines": [
+            {
+              "line": 83,
+              "text": "Candidate families and prespecified settings in the historical Cleveland D-047 protocol:"
+            },
+            {
+              "line": 89,
+              "text": "| Constrained random forest | 200 trees; depth in {3,5}, min leaf in {5,10}, `max_features=sqrt` | Nonlinear bounded candidate |"
+            },
+            {
+              "line": 93,
+              "text": "The UCI-412 M3a experiment used a separately frozen but similar source-specific repeated nested-CV design with distinct 16-field input and target semantics, not a transfer experiment between sources. Each CV fold selection should use only its own training partition; the outer held-out fold is evaluated once under the registered procedure. The fixed **0.50** classification threshold in historic tables is descriptive only, **never an approved treatment or catheterization trigger**."
+            },
+            {
+              "line": 95,
+              "text": "**Leakage controls** are reflected in registered prohibited-predictor lists, source-hash/preprocessing gates, model-family selection within nested CV, absence of test-derived feature selection, and separation of tracks and source-specific target maps. These controls substantially reduce software wiring errors but do **not** eliminate unobserved patient duplication, retrospective predictor timing bias or site/process proxies. This manuscript did not rerun original protected D-047 or M3a data and cannot independently audit the hidden local protected logs."
+            },
+            {
+              "line": 97,
+              "text": "**Methods original records:** [D-047 original reported results ``2–4](../gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md); [M3a source-specific synthesis ``2–4](../gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md), frozen plans under `research/experiments` and `research/uci412`. Claims `CL-003/004/011/012`."
+            }
+          ]
+        },
+        {
+          "chapter": "FR-07",
+          "line_span": "99-132",
+          "matched_report_lines": [
+            {
+              "line": 103,
+              "text": "### Table T-02. Cleveland D-047 (n=303; 139 positive, 164 negative)"
+            },
+            {
+              "line": 108,
+              "text": "| AUPRC / average precision | 0.4559 ± 0.0000 | 0.7737 ± 0.0151 | 0.7544 ± 0.0151 | **0.7712 ± 0.0193** |"
+            },
+            {
+              "line": 109,
+              "text": "| Accuracy at exploratory 0.50 | 0.5413 ± 0.0000 | 0.7739 ± 0.0050 | 0.7492 ± 0.0096 | 0.7723 ± 0.0077 |"
+            },
+            {
+              "line": 110,
+              "text": "| Sensitivity at exploratory 0.50 | 0.0000 ± 0.0000 | 0.7536 ± 0.0060 | 0.7410 ± 0.0088 | 0.7536 ± 0.0060 |"
+            },
+            {
+              "line": 111,
+              "text": "| Specificity at exploratory 0.50 | 1.0000 ± 0.0000 | 0.7912 ± 0.0066 | 0.7561 ± 0.0149 | 0.7881 ± 0.0117 |"
+            },
+            {
+              "line": 114,
+              "text": "L2 logistic regression was selected in **19/20** outer folds under the simplicity rule. Three label shuffles gave a reported mean **0.4882 AUROC**. This is consistent with a chance-level negative-control smoke, **not** a p-value or definitive data-leakage exclusion. All original values and repeated AUROC entries are in [D-047 `4](../gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md); claims `CL-002…CL-009`."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "0.5 exploratory only; 19/20 partly due to simplicity preference, not LR superiority",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-008",
+      "indexed_claim": "D-047 label-shuffle mean AUROC 0.4882 over three shuffles",
+      "source": {
+        "path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "actual_blob_sha_at_base": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "blob_match": true,
+        "indexed_section": "§4.5",
+        "observed_source_excerpts": [
+          {
+            "line": 1,
+            "text": "# D-047 — First Internal Exploratory Cleveland CAD Results (Review Draft)"
+          },
+          {
+            "line": 212,
+            "text": "| Mean shuffled-label AUROC | **0.4882** |"
+          },
+          {
+            "line": 217,
+            "text": "**Prohibited readings:** that leakage is \"ruled out\"; that a mean slightly below 0.5 demonstrates anti-learning or a systematic defect (ordinary sampling variation under permutation is sufficient to produce this); or that 0.4882 constitutes a formal null distribution, p-value, or type-I-error control."
+          },
+          {
+            "line": 385,
+            "text": "- a **label-shuffle smoke test mean AUROC of 0.4882**, consistent with chance-level discrimination."
+          },
+          {
+            "line": 494,
+            "text": "| G3 | Per-shuffle negative-control AUROCs and their dispersion | Only the mean (0.4882) is known; the null's spread is unknown |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-07",
+          "line_span": "99-132",
+          "matched_report_lines": [
+            {
+              "line": 103,
+              "text": "### Table T-02. Cleveland D-047 (n=303; 139 positive, 164 negative)"
+            },
+            {
+              "line": 114,
+              "text": "L2 logistic regression was selected in **19/20** outer folds under the simplicity rule. Three label shuffles gave a reported mean **0.4882 AUROC**. This is consistent with a chance-level negative-control smoke, **not** a p-value or definitive data-leakage exclusion. All original values and repeated AUROC entries are in [D-047 `4](../gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md); claims `CL-002…CL-009`."
+            },
+            {
+              "line": 125,
+              "text": "| Brier score | 0.2047 ± 0.0000 | **0.0995 ± 0.0043** | 0.1156 ± 0.0023 | **0.0995 ± 0.0043** |"
+            }
+          ]
+        },
+        {
+          "chapter": "FR-14",
+          "line_span": "237-261",
+          "matched_report_lines": []
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "No formal permutation p-value and no proof all leakage absent",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-009",
+      "indexed_claim": "D-047 descriptive OOF calibration inner-selected slope 0.8980 (4/4 estimable), CITL −0.0212; LR and RF slopes 3/4 estimable",
+      "source": {
+        "path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "actual_blob_sha_at_base": "91924b07c51439b5da9fdad2e8c81b6185c999f0",
+        "blob_match": true,
+        "indexed_section": "§5.1–§5.5",
+        "observed_source_excerpts": [
+          {
+            "line": 253,
+            "text": "| Model | Mean slope (estimable repeats only) | Estimable | Mean CITL (4 repeats) |"
+          },
+          {
+            "line": 257,
+            "text": "| Inner-selected procedure | 0.8980 | **4/4** | −0.0212 |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-10",
+          "line_span": "175-199",
+          "matched_report_lines": [
+            {
+              "line": 181,
+              "text": "### Table T-04. Reported historical calibration diagnostics (NOT medical reliability verdicts)"
+            },
+            {
+              "line": 187,
+              "text": "| Cleveland | inner-selected | **0.8980** | 4/4 | **−0.0212** |"
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "PASS_SOURCE_MATCH",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Literal results/transcription align in the cited archived source and manuscript lines; protected original experiment artifact not inspected, so numerical computation remains unverified."
+      },
+      "scope": "No free joint intercepts/binned curve values supplied; CITL not joint intercept; no clinical calibration proof",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-010",
+      "indexed_claim": "Cleveland Riley outcome-proportion criterion at fixed half-width 0.05 requires 382, not met by n=303; additional MAPE criterion (p=8) requires 459; exploratory adequacy human NOT ASSESSED",
+      "source": {
+        "path": "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "3014d3dbfad324594154473a3d63418cd0a24f51",
+        "actual_blob_sha_at_base": "3014d3dbfad324594154473a3d63418cd0a24f51",
+        "blob_match": true,
+        "indexed_section": "§1.2 and §7",
+        "observed_source_excerpts": [
+          {
+            "line": 129,
+            "text": "| 2 | At n = 303 and event fraction 139/303 = 0.458746, the **outcome-proportion criterion alone requires 382 participants** at δ = 0.05. This value depends on neither R² nor the number of parameters. | **VERIFIED** **[AA]** |"
+          },
+          {
+            "line": 130,
+            "text": "| 3 | The **additional** minimum-MAPE criterion at p = 8 requires **459** participants for every value of the anticipated R². | **VERIFIED** **[AA]** |"
+          },
+          {
+            "line": 131,
+            "text": "| 4 | Because criterion 3 is independent of R² and of p, **the published three-criterion set cannot be satisfied at n = 303 for any R² and any parameter count**; adding criterion 4 makes p = 8 infeasible as well. | **VERIFIED** **[AA]** |"
+          },
+          {
+            "line": 132,
+            "text": "| 5 | Whether 303 is nevertheless acceptable *for this project's stated exploratory purpose* depends on tolerances and on an anticipated R² that no admissible source supplies. | **NOT ASSESSED — PENDING HUMAN REVIEW** |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-10",
+          "line_span": "175-199",
+          "matched_report_lines": [
+            {
+              "line": 196,
+              "text": "The existing M2e.1 worked calculation reports that the **Cleveland 303** records fall short of a **382**-participant outcome-fraction criterion at the stated ±0.05 tolerance; a separately reported p=8 MAPE criterion needs **459** under its specified setting. For UCI-412, a source/fraction criterion at its stated tolerance needs **315**, exceeding its historical 303; other R²-sensitive development adequacy criteria were not assessed. No valid confidence interval for headline **four-dependent-repeat mean±SD** is supplied. The reported SD is partition-level descriptive variability, **not** a confidence interval, a standard error or a distribution of new patients."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "PASS_SOURCE_MATCH",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Literal results/transcription align in the cited archived source and manuscript lines; protected original experiment artifact not inspected, so numerical computation remains unverified."
+      },
+      "scope": "Exact stated tolerances; not a retrospective performance estimate or categorical stop for all exploratory methods",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-011",
+      "indexed_claim": "UCI-412 M3a cohort 303, Cad 216 and Normal 87; source-defined ≥50% narrowing and 16-feature panel",
+      "source": {
+        "path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "actual_blob_sha_at_base": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "blob_match": true,
+        "indexed_section": "§2 and §4.2–§4.4",
+        "observed_source_excerpts": [
+          {
+            "line": 193,
+            "text": "| Records / classes | 303; 139 positive, 164 negative | 303; 216 positive (`Cad`), 87 negative (`Normal`) |"
+          },
+          {
+            "line": 194,
+            "text": "| Target construct | Historical angiography-referenced **current CAD presence**: `num = 0` vs `num = 1–4` | Angiography-referenced **CAD presence** as defined by the source: `Cath` `Cad` vs `Normal` |"
+          },
+          {
+            "line": 195,
+            "text": "| Target threshold wording | `> 50%` diameter narrowing (UCI-45 `<50%` / `>50%` wording) | `≥ 50%` diameter narrowing (UCI-412 page) — **not harmonized with UCI-45; H-01 unresolved** (§7.1) |"
+          },
+          {
+            "line": 197,
+            "text": "| Predictor panel | `age`, `sex`, `cp`, `trestbps`, `restecg` (5 fields; 8 LR slope parameters after reference coding) | `Age`, `Sex`, `BMI`, `DM`, `HTN`, `Current Smoker`, `EX-Smoker`, `FH`, `DLP`, `BP`, `PR`, `Typical Chest Pain`, `Atypical`, `Nonanginal`, `Exertional CP`, `Dyspnea` (16 columns; 16 encoded parameters) |"
+          },
+          {
+            "line": 198,
+            "text": "| Panels registered but blocked | Secondary lab/exercise panels out of scope for D-047 | Resting-ECG (23 cols), expanded-clinical (28), laboratory (30) panels `REGISTERED_BLOCKED` (timing/definition evidence insufficient) |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-04",
+          "line_span": "47-66",
+          "matched_report_lines": [
+            {
+              "line": 54,
+              "text": "| UCI-412 Z-Alizadeh Sani / DA-A1 | **303**, 216 `Cad` and 87 `Normal` in archived protected-run aggregates; owner defines **≥50%** stenosis | Separate historical 16-feature internally evaluated benchmark | 16/16 preangiography acquisition times unverified; new real model research **SCIENTIFIC_HOLD** |"
+            },
+            {
+              "line": 63,
+              "text": "**Critical endpoint distinction:** UCI-45's original documentation describes an angiographic 0 <50% vs 1 >50% contrast and historical processed labels 0 vs 1–4, whereas UCI-412 says CAD at **≥50%**. Neither owner release establishes exact-50% record equivalence across files. There is **no pooling, automatic target remapping, country-level generalization, or ranking between source-specific AUROC values**."
+            }
+          ]
+        },
+        {
+          "chapter": "FR-05",
+          "line_span": "67-78",
+          "matched_report_lines": [
+            {
+              "line": 71,
+              "text": "UCI-412 uses `uci412_basic_clinical_v1`, 16 source columns: `Age`, `Sex`, `BMI`, `DM`, `HTN`, `Current Smoker`, `EX-Smoker`, `FH`, `DLP`, `BP`, `PR`, `Typical Chest Pain`, `Atypical`, `Nonanginal`, `Exertional CP` and `Dyspnea`. The registered executable contract distinguishes continuous, numeric-binary and text-binary fields, strict source vocabulary and disallowed angiography-derived information. Three larger UCI-412 panels (resting ECG, expanded clinical and core labs) are **blocked**, not automatically selectable alternate models."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Some source-specific cohort details can be matched, but the threshold and full feature-panel claims cannot be adjudicated from this archived synthesis alone; verify against primary dataset-owner documentation and human-approved source record."
+      },
+      "scope": "55 delivered predictors vs landing page 54 features unresolved; data not re-accessed",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-012",
+      "indexed_claim": "M3a repeated nested CV inner-selected LR AUROC 0.9107 ± 0.0071; same 303 repeated people and logistic chosen in 20/20 outer folds",
+      "source": {
+        "path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "actual_blob_sha_at_base": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "blob_match": true,
+        "indexed_section": "§4.5",
+        "observed_source_excerpts": [
+          {
+            "line": 193,
+            "text": "| Records / classes | 303; 139 positive, 164 negative | 303; 216 positive (`Cad`), 87 negative (`Normal`) |"
+          },
+          {
+            "line": 200,
+            "text": "| Outer resampling | Stratified 5-fold × 4 repeats, seeds `20261023`–`20261026` | Stratified 5-fold × 4 repeats, seeds `20261024`–`20261027` |"
+          },
+          {
+            "line": 412,
+            "text": "**Model selection:** the inner-selected procedure selected **logistic regression in 20/20 outer"
+          },
+          {
+            "line": 422,
+            "text": "| **AUROC** (primary metric) | 0.4913 ± 0.0000 | 0.9107 ± 0.0071 | 0.8978 ± 0.0026 | **0.9107 ± 0.0071** |"
+          },
+          {
+            "line": 471,
+            "text": "outer fold **[MS-U412]**. All four repeats reuse the same 303 records; repeat-to-repeat"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-07",
+          "line_span": "99-132",
+          "matched_report_lines": [
+            {
+              "line": 116,
+              "text": "### Table T-03. UCI-412 M3a (n=303; 216 Cad, 87 Normal)"
+            },
+            {
+              "line": 120,
+              "text": "| AUROC | 0.4913 ± 0.0000 | **0.9107 ± 0.0071** | 0.8978 ± 0.0026 | **0.9107 ± 0.0071** |"
+            },
+            {
+              "line": 127,
+              "text": "L2 logistic regression was selected **20/20** outer folds; hence primary inner-selected and supportive LR outcomes coincide rather than constituting independent evidence. The maximum prespecified shuffled-label AUROC reported was **0.5503**, below original smoke warning/alarm boundaries, but still does not disprove all leakage. Original aggregate details and uncertainty are reported in [M3a synthesis `4.5](../gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md). Claims `CL-011…CL-014`."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "PASS_SOURCE_MATCH",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Literal results/transcription align in the cited archived source and manuscript lines; protected original experiment artifact not inspected, so numerical computation remains unverified."
+      },
+      "scope": "Not directly comparable to Cleveland; SD across dependent repeats, not CI, no external evidence",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-013",
+      "indexed_claim": "M3a LR AUPRC 0.9504 ± 0.0077 and Brier 0.0995 ± 0.0043",
+      "source": {
+        "path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "actual_blob_sha_at_base": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "blob_match": true,
+        "indexed_section": "§4.5",
+        "observed_source_excerpts": [
+          {
+            "line": 423,
+            "text": "| Average precision / AUPRC | 0.7089 ± 0.0000 | 0.9504 ± 0.0077 | 0.9471 ± 0.0032 | 0.9504 ± 0.0077 |"
+          },
+          {
+            "line": 427,
+            "text": "| Brier score | 0.2047 ± 0.0000 | 0.0995 ± 0.0043 | 0.1156 ± 0.0023 | 0.0995 ± 0.0043 |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-07",
+          "line_span": "99-132",
+          "matched_report_lines": [
+            {
+              "line": 121,
+              "text": "| AUPRC / average precision | 0.7089 ± 0.0000 | **0.9504 ± 0.0077** | 0.9471 ± 0.0032 | **0.9504 ± 0.0077** |"
+            },
+            {
+              "line": 125,
+              "text": "| Brier score | 0.2047 ± 0.0000 | **0.0995 ± 0.0043** | 0.1156 ± 0.0023 | **0.0995 ± 0.0043** |"
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "PASS_SOURCE_MATCH",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Literal results/transcription align in the cited archived source and manuscript lines; protected original experiment artifact not inspected, so numerical computation remains unverified."
+      },
+      "scope": "Within-source historical descriptive support; 0.5 threshold not clinical",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-014",
+      "indexed_claim": "M3a logistic OOF calibration slope 1.0891 (4/4 estimable) and CITL 0.0206; RF calibration slope 3/4; no reported joint free-intercepts or reliability bins",
+      "source": {
+        "path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "actual_blob_sha_at_base": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "blob_match": true,
+        "indexed_section": "§4.6",
+        "observed_source_excerpts": [
+          {
+            "line": 520,
+            "text": "**[FROZEN]**, mirroring the definitions recorded for Cleveland (doc 04 §5.1). The joint-fit"
+          },
+          {
+            "line": 521,
+            "text": "(free) calibration **intercepts** were not supplied — only the CITL intercepts below — and must"
+          },
+          {
+            "line": 529,
+            "text": "| L2 logistic regression | 1.0891 | **4/4** | 0.0206 |"
+          },
+          {
+            "line": 530,
+            "text": "| Constrained random forest | 1.5700 | **3/4** | 0.0020 |"
+          },
+          {
+            "line": 531,
+            "text": "| Inner-selected procedure | 1.0891 | **4/4** | 0.0206 |"
+          },
+          {
+            "line": 556,
+            "text": "   values are out-of-fold diagnostics computed once per repeat on 303 records with 216 events and"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-10",
+          "line_span": "175-199",
+          "matched_report_lines": [
+            {
+              "line": 181,
+              "text": "### Table T-04. Reported historical calibration diagnostics (NOT medical reliability verdicts)"
+            },
+            {
+              "line": 188,
+              "text": "| UCI-412 | LR | **1.0891** | 4/4 | **0.0206** |"
+            },
+            {
+              "line": 189,
+              "text": "| UCI-412 | constrained RF | 1.5700 | 3/4 | 0.0020 |"
+            },
+            {
+              "line": 192,
+              "text": "These source-specific values **must not be compared as a calibration contest** across incompatible cohorts. Joint free calibration intercepts and reliability-bin values were not supplied for publication; no invented calibration plots have been generated. Per-repeat details and statuses are in [Cleveland `5](../gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md) and [UCI-412 `4.6](../gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md)."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "PASS_SOURCE_MATCH",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Literal results/transcription align in the cited archived source and manuscript lines; protected original experiment artifact not inspected, so numerical computation remains unverified."
+      },
+      "scope": "Does not establish clinical calibration or individualized predicted risk reliability",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-015",
+      "indexed_claim": "UCI-412 outcome-proportion sample-size criterion at stated half-width unmet (needs 315 vs 303); R²-dependent criteria not assessed",
+      "source": {
+        "path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "actual_blob_sha_at_base": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "blob_match": true,
+        "indexed_section": "§2 and §5.2",
+        "observed_source_excerpts": [
+          {
+            "line": 688,
+            "text": "- the Riley **outcome-proportion criterion** at half-width 0.05 requires **n = 315** at"
+          },
+          {
+            "line": 689,
+            "text": "  φ = 0.7129 → at n = 303 the criterion is **`NOT_MET_AT_STATED_HALF_WIDTH`**;"
+          },
+          {
+            "line": 690,
+            "text": "- shrinkage, optimism and MAPE criteria are **`NOT ASSESSED`** — they require a human-reviewed"
+          },
+          {
+            "line": 691,
+            "text": "  anticipated Cox–Snell R², which must not be back-derived from the observed 0.9107;"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-10",
+          "line_span": "175-199",
+          "matched_report_lines": [
+            {
+              "line": 196,
+              "text": "The existing M2e.1 worked calculation reports that the **Cleveland 303** records fall short of a **382**-participant outcome-fraction criterion at the stated ±0.05 tolerance; a separately reported p=8 MAPE criterion needs **459** under its specified setting. For UCI-412, a source/fraction criterion at its stated tolerance needs **315**, exceeding its historical 303; other R²-sensitive development adequacy criteria were not assessed. No valid confidence interval for headline **four-dependent-repeat mean±SD** is supplied. The reported SD is partition-level descriptive variability, **not** a confidence interval, a standard error or a distribution of new patients."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "PASS_SOURCE_MATCH",
+        "observed_comparison": "Direct source-section and manuscript-line excerpts are paired above; a PASS establishes transcription correspondence for the indexed statement only, not source truth or independent reproduction.",
+        "reason_or_specific_reviewer_task": "Literal results/transcription align in the cited archived source and manuscript lines; protected original experiment artifact not inspected, so numerical computation remains unverified."
+      },
+      "scope": "Not claim of all research sample size infeasible under other tolerances",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-016",
+      "indexed_claim": "None of the sixteen UCI-412 fields has owner-verified pre-angiography acquisition timing; BP/PR/chest pain and binary direction questions unresolved",
+      "source": {
+        "path": "docs/research/ai8r/SOURCE_ADMISSIBILITY.md",
+        "pinned_blob_sha": "640c9f68b5698b10d6844ba0ab4de5a461dae3ca",
+        "actual_blob_sha_at_base": "640c9f68b5698b10d6844ba0ab4de5a461dae3ca",
+        "blob_match": true,
+        "indexed_section": "§All 16 fields; Adjudication",
+        "observed_source_excerpts": [
+          {
+            "line": 3,
+            "text": "**2026-10-29; baseline `081d86ca63883fce06eb3314dd8415505d94c8f1`; decision: SCIENTIFIC_HOLD.** This is a literature/documentation review, not an audit of protected workbook rows. No patient-level data was accessed. The machine-readable [register](../../../research/uci412/schemas/ai8r_eligibility.v1.json) carries each field's clinical description, registered encoding and units, proposed acquisition channel, evidence quality, timing/leakage concern, unresolved question and eligibility. “Definition” below is a *registered working description*, not a source-owner operational case definition. Likewise a possible doctor/patient input is **not** an approved workflow. No field is VERIFIED. All 16 lack documented per-field acquisition timing before angiography (U-6). The checked-in validator **hard-binds each of the 16 reviewed eligibility classifications and UNVERIFIED timing separately from JSON**: editing metadata alone to say VERIFIED/DOCUMENTED_PRE_ANGIOGRAPHY fails validation before local preflight. A future elevation requires independently reviewed primary evidence, a separately reviewed code-and-evidence change and all independent authorization gates; the validator cannot establish clinical truth or approve a protocol by itself."
+          },
+          {
+            "line": 7,
+            "text": "- **Primary dataset-owner release** [UCI-412](https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani), Alizadehsani R, Roshanzamir M, Sani Z, *Z-Alizadeh Sani* [dataset], UCI ML Repository, donated 16 Nov 2017; DOI [10.24432/C5Q31T](https://doi.org/10.24432/C5Q31T), “Dataset Information / Additional Variable Information” (retrieved 2026-10-29). Establishes 303 records, four feature groups, angiography CAD label at **≥50%**. **Does not document field-level collection protocols, BP subtype/conditions, PR unit, binary direction, chest-pain exclusivity or timestamps.** Its “54 features” wording differs from the delivered spreadsheet column counts already tracked in the repository; not evidence of per-field semantics."
+          },
+          {
+            "line": 9,
+            "text": "- **Owner-authored but NOT a field codebook for these records** Alizadehsani R et al., “A database for using machine learning and data mining techniques for coronary artery disease diagnosis,” *Scientific Data* **6**:227 (2019), DOI [10.1038/s41597-019-0206-3](https://doi.org/10.1038/s41597-019-0206-3), abstract (retrieved 2026-10-29): a curated literature database of 126 papers/68 datasets, **not** a prospective acquisition log for UCI-412."
+          },
+          {
+            "line": 12,
+            "text": "- **Secondary directional evidence** Tao et al. (2025), *Reviews in Cardiovascular Medicine* **26**(3):26204, DOI [10.31083/RCM26204](https://doi.org/10.31083/RCM26204), **Table 1**, as recorded in [Amendment A-1](../gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md): 0=false, 1=true. This is not an owner codebook and does not establish each variable's case definition or collection timing. Primary owner confirmation of S-9 was not found in the reviewed materials."
+          },
+          {
+            "line": 13,
+            "text": "- **Repository-only evidence:** [dictionary](../../../research/uci412/schemas/uci412_feature_dictionary.v1.json), [local audit record and amendment](../gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md) (2026-10-24 read-only human audit: six fields are numeric 0/1, not Y/N); [M3a specification](../gate-pt/08_m3a_uci412_source_specific_benchmark_SPECIFICATION.md) and [ratification packet](../gate-pt/09_m3a_uci412_internal_research_RATIFICATION_PACKET.md). Local audit did not establish direction or timing. Secondary typical ranges and plausible bounds are **not** clinical definitions. Text token aliases are registered, not proof of exact workbook spellings."
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-05",
+          "line_span": "67-78",
+          "matched_report_lines": [
+            {
+              "line": 71,
+              "text": "UCI-412 uses `uci412_basic_clinical_v1`, 16 source columns: `Age`, `Sex`, `BMI`, `DM`, `HTN`, `Current Smoker`, `EX-Smoker`, `FH`, `DLP`, `BP`, `PR`, `Typical Chest Pain`, `Atypical`, `Nonanginal`, `Exertional CP` and `Dyspnea`. The registered executable contract distinguishes continuous, numeric-binary and text-binary fields, strict source vocabulary and disallowed angiography-derived information. Three larger UCI-412 panels (resting ECG, expanded clinical and core labs) are **blocked**, not automatically selectable alternate models."
+            },
+            {
+              "line": 73,
+              "text": "All 16 UCI-412 fields are currently **below owner-verified preangiography timing**. Specifically, BP's type of measurement (systolic/diastolic), PR's unit/notation, the direction of six numeric 0/1 fields and the relationships among chest-pain indicators remain unresolved. Registered source encodings are protective software contracts, **not proof of original meaning or timing**. UCI-411's LAD/LCX/RCA and `Cath` encode angiography-related outcomes and cannot be pretest predictors for the same target. The two panels are deliberately not cross-translated."
+            },
+            {
+              "line": 77,
+              "text": "**Trace:** `CL-003`, `CL-011`, `CL-016`, `CL-017`; [original admissibility](../ai8r/SOURCE_ADMISSIBILITY.md), [UCI-412 frozen dictionary](../../../research/uci412/schemas/uci412_feature_dictionary.v1.json), [Cleveland mapping](../../../research/intake/schemas/cleveland_resting_five_field_mapping.v0.1.json)."
+            }
+          ]
+        },
+        {
+          "chapter": "FR-15",
+          "line_span": "262-276",
+          "matched_report_lines": [
+            {
+              "line": 269,
+              "text": "| Predictors | UCI-412 0/16 owner-verified pre-cath acquisition times, ambiguous BP/PR/chest-pain/binary definitions; Cleveland chronology also not certified | Retrospective information/leakage risk and mismatch with prospective UI measurement |"
+            },
+            {
+              "line": 270,
+              "text": "| Outcome | UCI-45 `<50/>50` versus UCI-412 `≥50`; exact boundary and source reference practice uncertain | No unverified label harmonization, direct cross-source comparison or silent pooling |"
+            }
+          ]
+        },
+        {
+          "chapter": "FR-11",
+          "line_span": "200-209",
+          "matched_report_lines": [
+            {
+              "line": 206,
+              "text": "**Actual recorded outcome as of this manuscript baseline:** **AI-9.2 REAL STUDY NOT EXECUTED; NO CLINICAL INCREMENTAL VALUE ESTABLISHED.** AI-9.1 only demonstrates a validly guarded **synthetic software** version of the paired design. UCI-412's 16 clinical variables are under source-timing hold, and that does not indirectly grant an approved clinical+labs extension. This limitation must be included in the results abstract and graduation defense."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "SCIENTIFIC_HOLD for new real development; code plausibility is not verified patient timing",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-017",
+      "indexed_claim": "UCI-411 is the same 303 participants as UCI-412 and cannot be used as independent validation",
+      "source": {
+        "path": "docs/research/ai8r/SOURCE_ADMISSIBILITY.md",
+        "pinned_blob_sha": "640c9f68b5698b10d6844ba0ab4de5a461dae3ca",
+        "actual_blob_sha_at_base": "640c9f68b5698b10d6844ba0ab4de5a461dae3ca",
+        "blob_match": true,
+        "indexed_section": "§Source hierarchy; Adjudication",
+        "observed_source_excerpts": [
+          {
+            "line": 3,
+            "text": "**2026-10-29; baseline `081d86ca63883fce06eb3314dd8415505d94c8f1`; decision: SCIENTIFIC_HOLD.** This is a literature/documentation review, not an audit of protected workbook rows. No patient-level data was accessed. The machine-readable [register](../../../research/uci412/schemas/ai8r_eligibility.v1.json) carries each field's clinical description, registered encoding and units, proposed acquisition channel, evidence quality, timing/leakage concern, unresolved question and eligibility. “Definition” below is a *registered working description*, not a source-owner operational case definition. Likewise a possible doctor/patient input is **not** an approved workflow. No field is VERIFIED. All 16 lack documented per-field acquisition timing before angiography (U-6). The checked-in validator **hard-binds each of the 16 reviewed eligibility classifications and UNVERIFIED timing separately from JSON**: editing metadata alone to say VERIFIED/DOCUMENTED_PRE_ANGIOGRAPHY fails validation before local preflight. A future elevation requires independently reviewed primary evidence, a separately reviewed code-and-evidence change and all independent authorization gates; the validator cannot establish clinical truth or approve a protocol by itself."
+          },
+          {
+            "line": 7,
+            "text": "- **Primary dataset-owner release** [UCI-412](https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani), Alizadehsani R, Roshanzamir M, Sani Z, *Z-Alizadeh Sani* [dataset], UCI ML Repository, donated 16 Nov 2017; DOI [10.24432/C5Q31T](https://doi.org/10.24432/C5Q31T), “Dataset Information / Additional Variable Information” (retrieved 2026-10-29). Establishes 303 records, four feature groups, angiography CAD label at **≥50%**. **Does not document field-level collection protocols, BP subtype/conditions, PR unit, binary direction, chest-pain exclusivity or timestamps.** Its “54 features” wording differs from the delivered spreadsheet column counts already tracked in the repository; not evidence of per-field semantics."
+          },
+          {
+            "line": 10,
+            "text": "- **Primary UCI-411 extension** [UCI-411](https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset), DOI [10.24432/C5461K](https://doi.org/10.24432/C5461K), “Dataset Information / Note 1” (retrieved 2026-10-29): extension adds LAD/LCX/RCA to the same 303 participants, not a second validation cohort; artery fields are angiographic outcome-adjacent and excluded."
+          },
+          {
+            "line": 44,
+            "text": "- **Target/source independence:** UCI-412's ≥50% angiographic CAD is cross-sectional, not 30-day risk. UCI-45 Cleveland/Hungary documentation uses >50%; exact-boundary equivalence unresolved. UCI-411 extends the same 303 patients, cannot count as independent or additive samples. No cross-source comparison or new evaluation performed."
+          },
+          {
+            "line": 102,
+            "text": "In Python 3.11.2 / pytest 9.0.3, pinned research plus backend development requirements: `pip check` exit 0; `scripts/verify_sources.py` exit 0 (four frozen source hashes and 25-paper classification); `python -m research.uci412 preflight` exit 2 (expected Linux runtime rejection before any source rows); `python -m research.uci412 readiness` exit 2 (scientific hold, Windows-local gate rejected by runtime); `git diff --check` exit 0. Tests on the final commit and CI are recorded in the PR, not evidence of clinical validity. Proposed future plan/progress update: mark engineering PR reviewed/merged only after review; **do not** set AI-8R accepted before native Windows post-merge validation; do not infer D-048 ratification or P-3 opening."
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-04",
+          "line_span": "47-66",
+          "matched_report_lines": [
+            {
+              "line": 53,
+              "text": "| UCI-45 processed Cleveland / DA-A2 | Historical processed cohort; **303** individuals, **139** with `num=1..4` and **164** with `num=0` in the archived local report; original UCI page describes conventional angiographic presence labels | Historical five-input internally evaluated feasibility benchmark | Original data and protected original run remain outside GitHub; pretest timing and sample-size/calibration limits |"
+            },
+            {
+              "line": 54,
+              "text": "| UCI-412 Z-Alizadeh Sani / DA-A1 | **303**, 216 `Cad` and 87 `Normal` in archived protected-run aggregates; owner defines **≥50%** stenosis | Separate historical 16-feature internally evaluated benchmark | 16/16 preangiography acquisition times unverified; new real model research **SCIENTIFIC_HOLD** |"
+            },
+            {
+              "line": 58,
+              "text": "| UCI-411 | Same named **303** UCI-412 participants, with added angiography-related LAD/LCX/RCA definitions in owner documentation | Cohort-overlap and target-leakage audit | **Never an independent external validation cohort** |"
+            },
+            {
+              "line": 63,
+              "text": "**Critical endpoint distinction:** UCI-45's original documentation describes an angiographic 0 <50% vs 1 >50% contrast and historical processed labels 0 vs 1–4, whereas UCI-412 says CAD at **≥50%**. Neither owner release establishes exact-50% record equivalence across files. There is **no pooling, automatic target remapping, country-level generalization, or ranking between source-specific AUROC values**."
+            }
+          ]
+        },
+        {
+          "chapter": "FR-12",
+          "line_span": "210-219",
+          "matched_report_lines": [
+            {
+              "line": 218,
+              "text": "**Actual recorded outcome as of this manuscript baseline:** **REAL AI-10.2 EXTERNAL VALIDATION NOT EXECUTED**. The thesis must explicitly state “not externally validated” and must not substitute Statlog or UCI-411 without provenance. A negative scientific eligibility outcome is a limitation and possible future work, not a completed transportability result."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Source-reported/maintainer local overlap, not 606 participants",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-018",
+      "indexed_claim": "Hungary 294 processed records is only conditional locked-site candidate, no real assessment authorized or executed",
+      "source": {
+        "path": "docs/research/gate-pt/07_m2f_hungary_scientific_decision_and_conditional_protocol.md",
+        "pinned_blob_sha": "b0e084bd6648428990f90751889c288b6b663422",
+        "actual_blob_sha_at_base": "b0e084bd6648428990f90751889c288b6b663422",
+        "blob_match": true,
+        "indexed_section": "§1–§3",
+        "observed_source_excerpts": [
+          {
+            "line": 24,
+            "text": "| Cleveland: 303 records, 164 negative / 139 positive. Hungary: 294 records, 188 negative / 106 positive. | **Maintainer-reported aggregate evidence** ([M2a evidence](../gate-da/10_m2a_uci412_uci411_evidence_and_decisions.md); [M2e.2 review](06_m2e2_dataset_compatibility_and_independent_assessment_READINESS_REVIEW_DRAFT.md)). | Cohort counts only; not model results or proof of independent persons. |"
+          },
+          {
+            "line": 25,
+            "text": "| Hungary has all five prespecified resting fields observed in 292/294 records. | **Maintainer-reported aggregate evidence** ([M2e.2 §5.3](06_m2e2_dataset_compatibility_and_independent_assessment_READINESS_REVIEW_DRAFT.md)). | Availability count, not eligible analysis denominator, imputability, or evidence of clinical availability at a proposed timepoint. |"
+          },
+          {
+            "line": 26,
+            "text": "| Raw versus processed Hungary has 293/294 order-independent matches under the binary-target full profile; positional exact agreement was 1/294 in the earlier reported profile comparison. | **Maintainer-reported aggregate evidence** ([M2e.2 §5.2](06_m2e2_dataset_compatibility_and_independent_assessment_READINESS_REVIEW_DRAFT.md)). | Does not prove patient identity, correct row linkage, corruption, or semantic equivalence. Raw and processed files are representations, not extra cohorts. |"
+          },
+          {
+            "line": 42,
+            "text": "- **Source population:** the 294-record historical Hungary cohort in UCI-45 (`processed.hungarian.data` representation), with its actual eligibility, referral mechanism, sampling, dates, and reference procedure to be confirmed from authoritative source documentation. Do not call it a contemporary or general-population sample."
+          },
+          {
+            "line": 56,
+            "text": "Only these five features are proposed. No `ca`, `thal`, vessel/angiography variables, identifiers, row order, site marker, outcome-derived variables, or post-outcome information. The 292/294 joint observed count is not permission to exclude two records, impute them, or define an abstention policy. Before assessment, approve one identical preprocessing and missing-input policy for each site; document exact raw-to-canonical category maps, units, missing sentinels and handling, and reject unrecognized codes fail-closed. All fitted preprocessing must have been estimated within the Cleveland development process and frozen with the model. No Hungary-derived imputation, encoding, recoding, or thresholds."
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-04",
+          "line_span": "47-66",
+          "matched_report_lines": [
+            {
+              "line": 55,
+              "text": "| UCI-45 Hungary | Historical processed aggregate **294**, with existing local audit 188/106 class counts, multiple source-compatibility warnings | Conditional **locked one-shot** external-site candidate for a separately frozen Cleveland model | No approved/executed real external validation; subject independence, target/feature/time equivalence and precision unresolved |"
+            }
+          ]
+        },
+        {
+          "chapter": "FR-12",
+          "line_span": "210-219",
+          "matched_report_lines": [
+            {
+              "line": 216,
+              "text": "**Known blockers:** Hungary processed 294 versus historical raw-size/correspondence questions; partial missingness; source/patient overlap not proven; target, feature and pre-cath compatibility not independently established; and no separate authorized real run. The `ExternalEvaluationLedger` and AI-10.1 synthetic fixed-site rehearsal make accidental repeat evaluation harder as software, but do **not** establish actual source independence, patient identity or clinical research ethics."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Participant independence, feature/target compatibility, missingness, clinical chronology, access and precision unverified",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-019",
+      "indexed_claim": "AI-9.1 paired clinical+labs study ran on fabricated same-source participants only; no clinical incremental laboratory evidence",
+      "source": {
+        "path": "docs/research/next_phase/AI9_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md",
+        "pinned_blob_sha": "e2c8399c39a03e8ecf1b33b1755dc6d8f6c80d09",
+        "actual_blob_sha_at_base": "e2c8399c39a03e8ecf1b33b1755dc6d8f6c80d09",
+        "blob_match": true,
+        "indexed_section": "§§1–5",
+        "observed_source_excerpts": [
+          {
+            "line": 1,
+            "text": "# AI-9.1 — merged Windows engineering closeout and synthetic paired report"
+          },
+          {
+            "line": 18,
+            "text": "| Changed scope | Six **added** files only: `ai/ai9_paired_synthetic.py`, `scripts/run_ai9_synthetic_comparison.py`, schema/README in `docs/research/ai9_1/`, and two AI-9.1 test modules |"
+          },
+          {
+            "line": 21,
+            "text": "The PR did not modify a frozen real dataset, source files, models, original D-047/M3a plans, registered UCI-412 research authorizations, real-backend provider or Hungary locked assets. Its executable output is an **in-process fabricated synthetic** cohort and a paired Clinical vs Clinical+Labs *methods* comparison."
+          },
+          {
+            "line": 77,
+            "text": "- **Accepted engineering scope:** AI-9.1 synthetic paired comparison harness, schema and tests **MERGED** and **NATIVE WINDOWS ACCEPTED** based on the exact-head full suite and exact-merge smoke above."
+          },
+          {
+            "line": 78,
+            "text": "- **Parent AI-9:** **IN_PROGRESS** — AI-9.1 engineering slice done; AI-9.2 **real** clinical+labs incremental-value study remains separately gated by verified field meaning/timing, scientific cohort feasibility and appropriately authorized local protocol/data use."
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-08",
+          "line_span": "133-164",
+          "matched_report_lines": [
+            {
+              "line": 141,
+              "text": "| AI-9.1 | Same fictional patient IDs/labels/folds in clinical-only and clinical-plus-labs paired comparison, versioned schema, controlled statistical report and refusal tests | [AI-9.1 closeout](AI9_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md); fake effect not laboratory evidence |"
+            }
+          ]
+        },
+        {
+          "chapter": "FR-11",
+          "line_span": "200-209",
+          "matched_report_lines": [
+            {
+              "line": 206,
+              "text": "**Actual recorded outcome as of this manuscript baseline:** **AI-9.2 REAL STUDY NOT EXECUTED; NO CLINICAL INCREMENTAL VALUE ESTABLISHED.** AI-9.1 only demonstrates a validly guarded **synthetic software** version of the paired design. UCI-412's 16 clinical variables are under source-timing hold, and that does not indirectly grant an approved clinical+labs extension. This limitation must be included in the results abstract and graduation defense."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Real AI-9.2 requires new scientific gates; no patient-performance inference",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-020",
+      "indexed_claim": "AI-10.1 locked-site rehearsal used fictional cohorts; premerge Windows 2615 passed, 3 skipped, native security 8/8, postmerge 18 focused tests, but no real Hungary test",
+      "source": {
+        "path": "docs/research/next_phase/AI10_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md",
+        "pinned_blob_sha": "ed885ee657f63f309287d410547238cfc8044d3f",
+        "actual_blob_sha_at_base": "ed885ee657f63f309287d410547238cfc8044d3f",
+        "blob_match": true,
+        "indexed_section": "§§1–5",
+        "observed_source_excerpts": [
+          {
+            "line": 12,
+            "text": "| Reviewed source head | `b5276717eb3cf45551141ec818beebfb291a0eff` |"
+          },
+          {
+            "line": 32,
+            "text": "| AI-10.1 focused two test modules with `-W error` | **18 passed in 7.17 s**, 0 failures |"
+          },
+          {
+            "line": 35,
+            "text": "| Final HEAD and git status | Exactly `b5276717eb3cf45551141ec818beebfb291a0eff`; `git status --porcelain --untracked-files=all` empty; **PASS** |"
+          },
+          {
+            "line": 50,
+            "text": "| AI-10.1 two focused modules | **18 passed in 7.40 s**, 0 failed |"
+          },
+          {
+            "line": 57,
+            "text": "| **Post-merge full 2,615-test suite** | **NOT RE-RUN**; the 2,615/3 full suite belongs to the pre-merge reviewed source head, and the merged six-file change has targeted 18-test/source/security/report smoke |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-08",
+          "line_span": "133-164",
+          "matched_report_lines": [
+            {
+              "line": 133,
+              "text": "## FR-08. Implemented synthetic engineering and reproducibility results"
+            },
+            {
+              "line": 139,
+              "text": "| AI-7 / AI-8 | Versioned source-specific routes, synthetic cohorts, strict original panel identity, held-out synthetic evaluation and source-guarded negative cases | [AI-7 docs](../ai7_multi_dataset_research_route_system.md), [AI-8 docs](../ai8_uci412_standalone_synthetic_research_model.md) |"
+            },
+            {
+              "line": 140,
+              "text": "| AI-8R | Source admissibility register, machine-readable guarded hold; no new patient-level research | [AI-8R](../ai8r/SOURCE_ADMISSIBILITY.md) |"
+            },
+            {
+              "line": 141,
+              "text": "| AI-9.1 | Same fictional patient IDs/labels/folds in clinical-only and clinical-plus-labs paired comparison, versioned schema, controlled statistical report and refusal tests | [AI-9.1 closeout](AI9_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md); fake effect not laboratory evidence |"
+            },
+            {
+              "line": 142,
+              "text": "| AI-10.1 | Fabricated locked external-site site-shift rehearsal with versioned fake cohorts, single-use ledger, source and schema checks and deliberate refusal branches | [AI-10.1 closeout](AI10_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md); no real Hungary assessment |"
+            },
+            {
+              "line": 143,
+              "text": "| AI-11.1 | Typed synthetic-only offline facade with `SYNTHETIC_RESULT`, `ABSTAIN`, `UNAVAILABLE` and `ERROR` | [AI-11.1/12.1 closeout](AI11_1_AI12_1_CLOSEOUT_2026_11_18.md) |"
+            }
+          ]
+        },
+        {
+          "chapter": "FR-12",
+          "line_span": "210-219",
+          "matched_report_lines": [
+            {
+              "line": 216,
+              "text": "**Known blockers:** Hungary processed 294 versus historical raw-size/correspondence questions; partial missingness; source/patient overlap not proven; target, feature and pre-cath compatibility not independently established; and no separate authorized real run. The `ExternalEvaluationLedger` and AI-10.1 synthetic fixed-site rehearsal make accidental repeat evaluation harder as software, but do **not** establish actual source independence, patient identity or clinical research ethics."
+            }
+          ]
+        },
+        {
+          "chapter": "FR-14",
+          "line_span": "237-261",
+          "matched_report_lines": [
+            {
+              "line": 243,
+              "text": "| AI-11.1/12.1 | **2,531 passed, 3 skipped, 0 failed** | Eight-stage synthetic demo; native Win32/NTFS security **8/8**; later focused and report/integrity smoke | No patient/model performance result |"
+            },
+            {
+              "line": 244,
+              "text": "| AI-11.2 | **2,553 passed, 3 skipped, 0 failed** | Catalog negative/contract tests; native security **8/8**, postmerge focused tests | Five catalog entries are not five clinically admitted models |"
+            },
+            {
+              "line": 245,
+              "text": "| AI-9.1 | **2,597 passed, 3 skipped, 0 failed** | Hosted CI 7/7 jobs, native security **8/8**, synthetic paired report | No real clinical/labs increment |"
+            },
+            {
+              "line": 246,
+              "text": "| AI-10.1 | **2,615 passed, 3 skipped, 0 failed** | Hosted CI 7/7 jobs; native security **8/8**; **18 focused postmerge** pass and schema/digest/one-shot report | **Full 2,615-test suite not rerun after merge**; no real external validation |"
+            },
+            {
+              "line": 260,
+              "text": "Safety restrictions: no protected dataset rows, patient-level predicted values, actual original `report.json`/`predictions.csv`, private SHAP backgrounds, authorization manifests, credentials, signing keys or secret-bearing file paths can be committed to GitHub. Release requirements later include a fresh exact-SHA run, pip/dependency check, source-integrity hash check, exact-head CI, Windows 8/8 ACL tests, specified negative cases, sanitized report digests, reviewer evidence, and justified skips. These are **pending RH-05/RH-07**, not assumed passed merely because this manuscript exists."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Maintainer Windows evidence historical; 2615-suite not rerun postmerge; no clinical external validation",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-021",
+      "indexed_claim": "AI-11.1 facade returns precisely SYNTHETIC_RESULT, ABSTAIN, UNAVAILABLE and ERROR for eligible local synthetic research requests",
+      "source": {
+        "path": "ai/research_facade.py",
+        "pinned_blob_sha": "43da8fe864d9cbc958fd8ca630a379da3c389512",
+        "actual_blob_sha_at_base": "43da8fe864d9cbc958fd8ca630a379da3c389512",
+        "blob_match": true,
+        "indexed_section": "Module contract/typed status enum",
+        "observed_source_excerpts": [
+          {
+            "line": 154,
+            "text": "return self is ResearchFacadeStatus.SYNTHETIC_RESULT"
+          },
+          {
+            "line": 162,
+            "text": "ResearchFacadeStatus.SYNTHETIC_RESULT,"
+          },
+          {
+            "line": 744,
+            "text": "if self.status is not ResearchFacadeStatus.SYNTHETIC_RESULT:"
+          },
+          {
+            "line": 2059,
+            "text": "status=ResearchFacadeStatus.SYNTHETIC_RESULT,"
+          },
+          {
+            "line": 2275,
+            "text": "``SYNTHETIC_RESULT``, ``ABSTAIN``, ``UNAVAILABLE`` or ``ERROR``."
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-13",
+          "line_span": "220-236",
+          "matched_report_lines": [
+            {
+              "line": 222,
+              "text": "The registered research model stack is versioned and source-specific: `ai/panels.py` defines panel semantics; `ai/research_routes.py` binds operation to source; `ai/research_registry.py` records synthetic-only model identities and governance; `ai/research_catalog.py` exports metadata without loading models; `ai/research_facade.py` validates requests and returns one of four statuses. Inferences require exact allowed source/route/panel/version/contract and eligible synthetic provenance, else fail closed. The software deliberately rejects outcome-label leakage, Track B wearable contamination, unsupported or missing field values and untrusted bundles."
+            },
+            {
+              "line": 228,
+              "text": "| `SYNTHETIC_RESULT` | Numeric score for an invented input fixture, not an individual real CAD risk | Clear “synthetic research demonstration” label |"
+            },
+            {
+              "line": 230,
+              "text": "| `UNAVAILABLE` | Valid known route/capability is blocked or not present in an admitted synthetic bundle | Show unavailable with capability/decision reason, no fallback |"
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "No real provider switch, no patient-facing prediction",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-022",
+      "indexed_claim": "AI-11.2 five-entry catalog is descriptive metadata and never authenticates/loads real bundles",
+      "source": {
+        "path": "ai/research_catalog.py",
+        "pinned_blob_sha": "740a30d8600c790e2f5b593202b48b41449045b4",
+        "actual_blob_sha_at_base": "740a30d8600c790e2f5b593202b48b41449045b4",
+        "blob_match": true,
+        "indexed_section": "Module header and build_research_model_catalog",
+        "observed_source_excerpts": [
+          {
+            "line": 1,
+            "text": "\"\"\"AI-11.2: read-only projection of the reviewed synthetic research registry."
+          },
+          {
+            "line": 3,
+            "text": "A catalog is descriptive metadata, NEVER a loader, authenticator, or an"
+          },
+          {
+            "line": 34,
+            "text": "\"\"\"Project immutable, source-derived metadata; never inspect model bundles."
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-13",
+          "line_span": "220-236",
+          "matched_report_lines": [
+            {
+              "line": 222,
+              "text": "The registered research model stack is versioned and source-specific: `ai/panels.py` defines panel semantics; `ai/research_routes.py` binds operation to source; `ai/research_registry.py` records synthetic-only model identities and governance; `ai/research_catalog.py` exports metadata without loading models; `ai/research_facade.py` validates requests and returns one of four statuses. Inferences require exact allowed source/route/panel/version/contract and eligible synthetic provenance, else fail closed. The software deliberately rejects outcome-label leakage, Track B wearable contamination, unsupported or missing field values and untrusted bundles."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Five entries do not mean five fitted deployable models",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-023",
+      "indexed_claim": "Genuine offline grouped SHAP has explicit explained scale and is not necessarily additive on calibrated probability",
+      "source": {
+        "path": "ai/explainability.py",
+        "pinned_blob_sha": "0202d1c1d9657e50c038f96263680fcffcaaa5f6",
+        "actual_blob_sha_at_base": "0202d1c1d9657e50c038f96263680fcffcaaa5f6",
+        "blob_match": true,
+        "indexed_section": "Module contract and explain_clinical_instance",
+        "observed_source_excerpts": [
+          {
+            "line": 1,
+            "text": "\"\"\"Genuine, model-faithful Grouped Interventional SHAP engine for Track A research."
+          },
+          {
+            "line": 6,
+            "text": "``additive_on_calibrated_probability`` (which is ``False`` for both log-odds"
+          },
+          {
+            "line": 8,
+            "text": "NEVER misdescribed as additive decompositions of calibrated probability)."
+          },
+          {
+            "line": 23,
+            "text": "raw-probability TreeSHAP is NEVER relabeled as calibrated-probability SHAP."
+          },
+          {
+            "line": 280,
+            "text": "scale: str  # \"calibrated_log_odds\" | \"raw_log_odds\" | \"raw_model_probability\""
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-09",
+          "line_span": "165-174",
+          "matched_report_lines": [
+            {
+              "line": 167,
+              "text": "The offline research engine includes genuine **grouped interventional SHAP** and **tabular LIME**, implemented in `ai/explainability.py`, `ai/lime_explainability.py` and `ai/lime_quality.py`. These are not simply colorful mock output strings, although the application HTTP provider is still synthetic-only."
+            },
+            {
+              "line": 169,
+              "text": "For an L2 logistic regression with a compatible cross-fitted log-odds calibrator, the SHAP composition may be additive on **calibrated log-odds**, a scale that is **not calibrated probability**. The implementation specifies the explained quantity and whether exact additivity applies; tree attributions are on the raw-model probability scale, not automatically additive on a later nonlinear calibrated score. The reported SHAP baseline/background is a versioned training-derived reference. For real source rows, background features can be re-identifiable patient-derived data even if encoded, so those artifacts are protected and **not** published as thesis examples."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Synthetic fidelity test not independent clinical explanation validity; real background may contain sensitive derivatives",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-024",
+      "indexed_claim": "Offline tabular LIME uses seeded perturbations and reports local fidelity/quality by source-specific model",
+      "source": {
+        "path": "ai/lime_explainability.py",
+        "pinned_blob_sha": "7e1656299ad05855d4c980cbc29359431f3d61bc",
+        "actual_blob_sha_at_base": "7e1656299ad05855d4c980cbc29359431f3d61bc",
+        "blob_match": true,
+        "indexed_section": "Module scientific contract and LimeConfig",
+        "observed_source_excerpts": [
+          {
+            "line": 1,
+            "text": "\"\"\"Genuine, model-faithful tabular LIME for Track A research models."
+          },
+          {
+            "line": 44,
+            "text": "compared against an actual model call, giving a genuine local-fidelity"
+          },
+          {
+            "line": 116,
+            "text": "LIME_METHOD: Final[str] = \"tabular_lime_weighted_ridge_local_surrogate\""
+          },
+          {
+            "line": 186,
+            "text": "\"LIME is a local weighted-linear approximation of the declared model output; it is not an exact Shapley decomposition and carries no efficiency/local-accuracy guarantee.\","
+          },
+          {
+            "line": 2219,
+            "text": "LimeQualityStatus.LOW_LOCAL_FIDELITY.value: 1,"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-09",
+          "line_span": "165-174",
+          "matched_report_lines": [
+            {
+              "line": 167,
+              "text": "The offline research engine includes genuine **grouped interventional SHAP** and **tabular LIME**, implemented in `ai/explainability.py`, `ai/lime_explainability.py` and `ai/lime_quality.py`. These are not simply colorful mock output strings, although the application HTTP provider is still synthetic-only."
+            },
+            {
+              "line": 171,
+              "text": "The LIME implementation perturbs an interpretable mask relative to a documented local background reference and uses a local weighted surrogate with quality/fidelity measures. Approximate surrogate fidelity can fail or be unstable, depending on feature/sample/repeat context; an explanation must report method/target/scale and quality **or decline to explain**. Neither mathematical additivity nor LIME fidelity establishes causal feature importance, individualized treatment advice, fairness, or clinical validity."
+            },
+            {
+              "line": 173,
+              "text": "**Reportable result:** The source code and prior tests implement measurable explanation-fidelity and fail-closed contracts in **synthetic/offline research**. A future study with real explanations needs separately admitted data, source background provenance, clinical review and privacy protection. Claims `CL-023/024`."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Not guaranteed stable or causally meaningful clinical explanation; background privacy restrictions",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-025",
+      "indexed_claim": "Backend active registry constructs only MOCK_SYNTHETIC provider; real provider is intentionally fail-closed",
+      "source": {
+        "path": "backend/app/inference/registry.py",
+        "pinned_blob_sha": "ec3eeecb7f127f26f7a81d76275a738d8f249698",
+        "actual_blob_sha_at_base": "ec3eeecb7f127f26f7a81d76275a738d8f249698",
+        "blob_match": true,
+        "indexed_section": "Entire file, 39 lines",
+        "observed_source_excerpts": [
+          {
+            "line": 17,
+            "text": "from .mock_synthetic import MockSyntheticProvider"
+          },
+          {
+            "line": 19,
+            "text": "MOCK_SYNTHETIC_DATA_CLASS,"
+          },
+          {
+            "line": 20,
+            "text": "MOCK_SYNTHETIC_PROVIDER_ID,"
+          },
+          {
+            "line": 24,
+            "text": "ACTIVE_PROVIDER_IDS = frozenset({MOCK_SYNTHETIC_PROVIDER_ID})"
+          },
+          {
+            "line": 29,
+            "text": "provider = MockSyntheticProvider(contracts)"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-13",
+          "line_span": "220-236",
+          "matched_report_lines": [
+            {
+              "line": 222,
+              "text": "The registered research model stack is versioned and source-specific: `ai/panels.py` defines panel semantics; `ai/research_routes.py` binds operation to source; `ai/research_registry.py` records synthetic-only model identities and governance; `ai/research_catalog.py` exports metadata without loading models; `ai/research_facade.py` validates requests and returns one of four statuses. Inferences require exact allowed source/route/panel/version/contract and eligible synthetic provenance, else fail closed. The software deliberately rejects outcome-label leakage, Track B wearable contamination, unsupported or missing field values and untrusted bundles."
+            },
+            {
+              "line": 233,
+              "text": "**Application boundary:** `backend/app/inference/registry.py` constructs **`MOCK_SYNTHETIC`** only. `backend/app/inference/real_model.py` is a deliberately unconstructible placeholder. The real medical model does **not** get silently activated just because a source report documents internal exploratory AUROC. The mock HTTP API and its SHAP-shaped fixtures are distinct from the actual offline SHAP/LIME mathematical engines."
+            }
+          ]
+        },
+        {
+          "chapter": "FR-15",
+          "line_span": "262-276",
+          "matched_report_lines": [
+            {
+              "line": 273,
+              "text": "The project also has **technology risks**: possible model and calibration artifact version mismatch, insecure local file/ACL handling, unexpected provenance, serializing sensitive SHAP backgrounds, response overinterpretation, unauthorized real-model serving and user interface “medical score” labeling. These are mitigated in the prototype through fixed contracts, signed local provenance, source-hash checks, deterministic synthetic fixtures, refusal statuses, test evidence and an intentionally mock-only backend. No software safeguard proves that the historical source predictors were captured pre-angiography."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Research inference facade is not deployed clinical model serving",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-026",
+      "indexed_claim": "AI-12.1 provides an existing eight-stage synthetic offline demo and evidence pack",
+      "source": {
+        "path": "docs/research/next_phase/AI11_1_AI12_1_CLOSEOUT_2026_11_18.md",
+        "pinned_blob_sha": "21010b8465a2f38e7052526b80634b4b862dabd2",
+        "actual_blob_sha_at_base": "21010b8465a2f38e7052526b80634b4b862dabd2",
+        "blob_match": true,
+        "indexed_section": "Windows pre/post merge closeout sections",
+        "observed_source_excerpts": [
+          {
+            "line": 1,
+            "text": "# AI-11.1 / AI-12.1 — merged engineering closeout (2026-11-18)"
+          },
+          {
+            "line": 3,
+            "text": "> **ENGINEERING CLOSEOUT: AI-11.1 and AI-12.1 merged; AI-12.1 native Windows post-merge smoke PASSED. Synthetic research engineering only.** This is a documentation proposal, not a clinical or research authorization. All Windows evidence below was supplied by the maintainer; this docs author did not execute the Windows tests."
+          },
+          {
+            "line": 24,
+            "text": "| AI-12.1 evidence twice on same machine | Byte-identical generated packs |"
+          },
+          {
+            "line": 43,
+            "text": "**No post-merge full monolithic suite was run at the merge SHA.** Do not copy the PR-head full-suite count into a claim that it ran after merge. The earlier AI-11.1 PR #79 had its own pre-merge Windows focused 150 PASS / 8-of-8 native ACL / 8-of-8 demo record; its functionality was subsequently re-exercised in integrated AI-12.1 main, **not** a separately observed run pinned to #79 merge SHA."
+          },
+          {
+            "line": 56,
+            "text": "- Record **AI-12 = IN_PROGRESS**, with **AI-12.1 = MERGED_ENGINEERING_COMPLETE_SYNTHETIC_ONLY** and **LOCALLY_ACCEPTED_ENGINEERING_ONLY** on the integrated merge SHA, limited as documented above."
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-08",
+          "line_span": "133-164",
+          "matched_report_lines": [
+            {
+              "line": 143,
+              "text": "| AI-11.1 | Typed synthetic-only offline facade with `SYNTHETIC_RESULT`, `ABSTAIN`, `UNAVAILABLE` and `ERROR` | [AI-11.1/12.1 closeout](AI11_1_AI12_1_CLOSEOUT_2026_11_18.md) |"
+            },
+            {
+              "line": 145,
+              "text": "| AI-12.1 | Deterministic eight-stage offline synthetic demonstration and canonical JSON evidence pack with privacy-safe refusals and cross-platform comparisons | [AI-12.1 runbook](../ai12_1/README.md), [merged evidence closeout](AI11_1_AI12_1_CLOSEOUT_2026_11_18.md) |"
+            }
+          ]
+        },
+        {
+          "chapter": "FR-14",
+          "line_span": "237-261",
+          "matched_report_lines": [
+            {
+              "line": 243,
+              "text": "| AI-11.1/12.1 | **2,531 passed, 3 skipped, 0 failed** | Eight-stage synthetic demo; native Win32/NTFS security **8/8**; later focused and report/integrity smoke | No patient/model performance result |"
+            }
+          ]
+        },
+        {
+          "chapter": "FR-17",
+          "line_span": "285-334",
+          "matched_report_lines": [
+            {
+              "line": 304,
+              "text": "- Main offline synthetic interface: `ai/research_facade.py`, `ai/research_demo.py`, `ai/research_evidence.py`; [AI-12.1 source runbook](../ai12_1/README.md)."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Historical tests cannot be attributed to final release without rerun at final SHA",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-027",
+      "indexed_claim": "Cleveland and UCI-412 are not comparable on AUROC since cohorts, outcomes, panels and class fractions differ",
+      "source": {
+        "path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+        "pinned_blob_sha": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "actual_blob_sha_at_base": "da82179e2729fbc4c561ae30f9e4e25a314b8365",
+        "blob_match": true,
+        "indexed_section": "§1.2, §2, §6",
+        "observed_source_excerpts": [
+          {
+            "line": 1,
+            "text": "# Two-Dataset Scientific Evidence Synthesis — Cleveland (D-047) and UCI-412 (M3a)"
+          },
+          {
+            "line": 101,
+            "text": "> (Cleveland: selected-procedure AUROC 0.8271 ± 0.0097 **[C-DOC]**; UCI-412: inner-selected"
+          },
+          {
+            "line": 750,
+            "text": "reported within-dataset AUROCs of 0.8271 (Cleveland selected procedure) and 0.9107 (UCI-412"
+          },
+          {
+            "line": 819,
+            "text": "- **Cleveland ↔ UCI-412:** different named source cohorts; **participant-level independence has"
+          },
+          {
+            "line": 932,
+            "text": "| U2 | UCI-412 dispersion is now supplied, but it is the **same limited quantity** as Cleveland's: population SD across 4 dependent repeats of the same 303 people. The within-repeat bootstrap carries `ESTIMATED_CONDITIONAL_ON_FIXED_FOLD_FITS` statuses (4/4 per listed procedure); **no endpoint was supplied to the agent**, and whether conditional intervals were computed in the protected report is unverified. Separately, no SE, p-value, or valid inferential CI **for the four-repeat summary or for future clinical populations** is available on either dataset (§4.5, distinctions 1–3) | Partition-level stability is now described for AUROC/Brier, but neither dataset has a valid inferential interval for its repeat summary or for future populations. The bootstrap status must never be quoted as if such an interval had been reported, nor as proof that no conditional interval exists locally; conditional-on-fixed-folds estimation would in any case exclude refitting variability |"
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-07",
+          "line_span": "99-132",
+          "matched_report_lines": [
+            {
+              "line": 116,
+              "text": "### Table T-03. UCI-412 M3a (n=303; 216 Cad, 87 Normal)"
+            }
+          ]
+        },
+        {
+          "chapter": "FR-16",
+          "line_span": "277-284",
+          "matched_report_lines": [
+            {
+              "line": 279,
+              "text": "The main methodological contribution is disciplined **separation of research evidence types**. The historical Cleveland and UCI-412 experiments demonstrate internally coherent, bounded within-source retrospective discrimination on two named datasets with different feature panels and targets. The software contribution is a unified source-specific, offline and fail-closed *synthetic research system* that exercises training, preprocessing, calibration, integrity, SHAP/LIME, route selection, typed inference, abstentions and evidence reporting without exposing patient data or converting an unvalidated model into a public HTTP diagnostic service."
+            },
+            {
+              "line": 281,
+              "text": "The principal scientific limitations are substantive rather than cosmetic: dataset age and selection; 303-subject cohorts; repeated nested CV dependence; lack of source pre-test timestamp validation (especially UCI-412); codebook/threshold ambiguity; incomplete calibration precision and unavailable reliability curves; unknown real person-level cross-site independence; no real incremental-labs outcome; and no independent locked external site performance. The synthetic shifted-site and paired-lab exercises therefore provide engineering readiness—not evidence that the laboratory-rich model is medically better or that a Cleveland model transports to Hungary."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "No best-dataset/model ranking from 0.8271 vs 0.9107",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "claim_id": "CL-028",
+      "indexed_claim": "Final AI-12.2 full manuscript, reviewer signoff and final-SHA Windows acceptance are not yet established",
+      "source": {
+        "path": "docs/research/ai_master_progress.json",
+        "pinned_blob_sha": "3ba67cef6721496a27ba80e53d14e751e4163d25",
+        "actual_blob_sha_at_base": "3ba67cef6721496a27ba80e53d14e751e4163d25",
+        "blob_match": true,
+        "indexed_section": "milestones.AI-12, plus RH tracker final acceptance statuses",
+        "observed_source_excerpts": [
+          {
+            "line": 124,
+            "text": "\"local_windows_acceptance\": \"LOCALLY_ACCEPTED_ENGINEERING_ONLY\","
+          },
+          {
+            "line": 234,
+            "text": "\"next_executable_step\": \"Close the accepted AI-9.1 engineering slice via this docs-only review. Scope AI-10.1 synthetic locked external-evaluation engineering next and final AI-12.2 report in parallel; real AI-9.2 stays conditional and not authorized by AI-9.1.\""
+          },
+          {
+            "line": 350,
+            "text": "\"next_executable_step\": \"Human review/merge this documentation-only tracking PR. Proceed with independent AI-10.1 synthetic locked external-evaluation engineering and AI-12.2 research/graduation handoff in parallel. Keep AI-9.2 real-data conditions unchanged.\""
+          },
+          {
+            "line": 361,
+            "text": "\"next_executable_step\": \"Complete AI-10.1 docs-only review/merge; progress AI-12.2 evidence-indexed graduation research reporting using existing Gate DA/PT, D-047 and M3a records. Keep any real external-validation decision separately gated.\""
+          },
+          {
+            "line": 480,
+            "text": "\"next_executable_step\": \"Human review and merge this docs-only evidence tracker update; then execute AI-12.2 final research/graduation report evidence indexing. Keep real external clinical work on separate approved scientific gate.\""
+          }
+        ]
+      },
+      "manuscript_occurrences": [
+        {
+          "chapter": "FR-17",
+          "line_span": "285-334",
+          "matched_report_lines": [
+            {
+              "line": 309,
+              "text": "- Scientific claims: [machine-readable original source/blob index](RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json), [RH-01 gap matrix](RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md), current [RH completion tracker](AI_RESEARCH_COMPLETION_TRACKER_2026_11_19.json), [AI-12.2 blueprint](AI12_2_FINAL_REPORT_BLUEPRINT_2026_11_19.md)."
+            }
+          ]
+        }
+      ],
+      "content_check": {
+        "status": "NOT_VERIFIABLE",
+        "observed_comparison": "Source excerpts and manuscript line excerpts are displayed above; numeric literal agreement is not treated as proof of experimental correctness.",
+        "reason_or_specific_reviewer_task": "The cited source is an archived review/governance record, not underlying protected run output; this audit records side-by-side excerpts but does not independently reproduce the historical experiment or adjudicate source truth."
+      },
+      "scope": "Source report itself is not live milestone evidence; canonical tracker confirms AI12 IN_PROGRESS",
+      "independent_review": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    }
+  ],
+  "reviewer_actions": [
+    {
+      "id": "REVIEW-01",
+      "task": "Clinical source/feature chronology and target interpretation",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    },
+    {
+      "id": "REVIEW-02",
+      "task": "Historical local protected aggregate provenance attestation where permitted",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    },
+    {
+      "id": "REVIEW-03",
+      "task": "Report numeric values and table links vs original review documents",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    },
+    {
+      "id": "REVIEW-04",
+      "task": "Scientific statistics: repeat SD not CI; no real external or labs claims",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    },
+    {
+      "id": "REVIEW-05",
+      "task": "Calibration and sample-size limitations and exact Riley assumptions",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    },
+    {
+      "id": "REVIEW-06",
+      "task": "Explainability fidelity scale and synthetic background privacy",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    },
+    {
+      "id": "REVIEW-07",
+      "task": "Dataset/protocol acceptance and original research gate statuses",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    },
+    {
+      "id": "REVIEW-08",
+      "task": "University report authorship, citations, declared contributions and formatting",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    },
+    {
+      "id": "REVIEW-09",
+      "task": "Original code/test release SHA with native Windows 8/8 and synthetic E2E revalidation",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    },
+    {
+      "id": "REVIEW-10",
+      "task": "Named independent reviewer decisions and formal acceptance",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null,
+      "audit_disposition": "UNCHANGED_PENDING",
+      "why_pending": "Requires named human/reviewer evidence or permitted local attestation; this automated archival audit cannot complete it."
+    }
+  ],
+  "high_risk_numeric_comparison_notes": [
+    "D-047 values and UCI-412 values are separately transcribed from archived review documents; source line citations included per claim. These are not verified against protected experiment outputs.",
+    "Four-repeat ± values are described in manuscript/source as population SD over dependent repeated CV, not CI; this audit does not compute uncertainty.",
+    "Sample-size quantities 382/459 (Cleveland) and 315 (UCI-412) are source transcription only; project adequacy statuses remain NOT ASSESSED / NOT_MET as recorded.",
+    "Cohorts differ in endpoint/panel/class fraction; no head-to-head ranking is valid."
+  ],
+  "global_scientific_limitations": [
+    "Pinned SHA confirms immutable source identity only. Historical experiment results are not independently reproduced; original protected aggregates/manifests were not accessed.",
+    "For claims about feature chronology, dataset linkage, calibration interpretation, SHAP/LIME scientific behavior and governance, the supplied repository review documents are secondary/implementation records; their underlying validity remains for human review.",
+    "No medical, clinical, supervisor, ethics or institutional approval is asserted."
+  ],
+  "claim_rows": 28,
+  "reviewer_action_count": 10
+}
