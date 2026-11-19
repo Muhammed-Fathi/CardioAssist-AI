@@ -369,3 +369,87 @@ def test_frozen_contracts_and_workflows_are_untouched_by_this_slice() -> None:
     assert holds["frozen_contracts_modified"] is False
     assert holds["github_workflows_modified"] is False
     assert holds["new_endpoints_added"] is False
+
+
+# --------------------------------------------------------------------------- #
+# Authorization scope: historical reference vs effective permission           #
+# --------------------------------------------------------------------------- #
+
+
+def test_historical_reference_pins_the_live_cleveland_five_field_panel() -> None:
+    crosswalk = load_crosswalk()
+    reference = crosswalk.authorization_references[0]
+    live = REGISTERED_PANELS["da_a2_resting_v1"]
+    assert reference.authorized_panel_id == live.panel_id
+    assert reference.authorized_dataset_id == live.dataset_id
+    assert reference.authorized_feature_names == tuple(live.feature_names)
+    assert reference.authorized_feature_names == (
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "restecg",
+    )
+    assert reference.authorizes_new_real_data_execution is False
+    assert reference.execution_status == "COMPLETED_HISTORICAL_INTERNAL_EXPLORATORY"
+
+
+def test_no_feature_outside_the_resting_roster_cites_a_historical_reference() -> None:
+    crosswalk = load_crosswalk()
+    for feature in crosswalk.features:
+        cites_history = bool(
+            feature.effective_permission.historical_authorization_reference_ids
+        )
+        assert cites_history is (feature.feature_name in ("age", "sex", "cp", "trestbps", "restecg"))
+        if cites_history:
+            assert "da_a2_resting_v1" in feature.panels
+        assert (
+            feature.effective_permission.real_data_execution_authorized_by_this_crosswalk
+            is False
+        )
+
+
+def test_blocked_routes_never_export_historical_authorization() -> None:
+    crosswalk = load_crosswalk()
+    for route in crosswalk.routes:
+        if not route.blocked:
+            continue
+        assert route.effective_permission.historical_authorization_reference_ids == ()
+        assert route.effective_permission.effective_permission_status in {
+            "NOT_AUTHORIZED",
+            "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        }
+    hungary = crosswalk.route("da_a2_hungary_locked_transportability_v1")
+    assert hungary.effective_permission.effective_permission_status == "NOT_AUTHORIZED"
+    assert (
+        "da_a2_resting_v1" == RESEARCH_ROUTE_CATALOG[hungary.route_id].panel_id
+    )  # the route reuses the panel, which is exactly why scope must be recorded
+
+
+def test_labs_features_never_resolve_to_the_historical_record() -> None:
+    crosswalk = load_crosswalk()
+    for name in ("chol", "fbs"):
+        feature = crosswalk.feature(f"DA-A2:{name}")
+        assert feature.permission_id != "PERM-UCI45-D047-HISTORICAL-REFERENCE"
+        assert feature.effective_permission.effective_permission_status == (
+            "NOT_AUTHORIZED"
+        )
+        assert feature.effective_permission.historical_authorization_reference_ids == ()
+    for feature in crosswalk.features:
+        if feature.dataset_id == "DA-A1":
+            assert feature.permission_id == "PERM-UCI412-SCIENTIFIC-HOLD"
+            assert (
+                feature.effective_permission.historical_authorization_reference_ids
+                == ()
+            )
+
+
+def test_historical_reference_evidence_path_still_resolves() -> None:
+    crosswalk = load_crosswalk()
+    reference = crosswalk.authorization_references[0]
+    assert reference.evidence_ids == ("EV-UCI45-D047-PLAN",)
+    evidence = {item.evidence_id: item for item in crosswalk.evidence}
+    record = evidence["EV-UCI45-D047-PLAN"]
+    assert record.evidence_class == "FROZEN_PROTOCOL_REGISTRATION"
+    assert record.establishes_acquisition_timing is False
+    assert (REPO_ROOT / record.reference_path).is_file()

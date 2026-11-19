@@ -41,8 +41,12 @@ RH-04 (work packages RH-04-1/RH-04-2, see
 [the RH-06 decision review §10.1](../../docs/research/next_phase/RH06_ISSUE110_CONSOLIDATED_DECISION_REVIEW_2026_11_19.md))
 over the versioned, machine-readable record
 [`schemas/feature_acquisition_evidence_crosswalk.v1.json`](schemas/feature_acquisition_evidence_crosswalk.v1.json)
-(`rh04_feature_acquisition_evidence_crosswalk.v1`, schema version `1.0.0`,
-status `EVIDENCE_ONLY_NOT_APPROVED`).
+(`rh04_feature_acquisition_evidence_crosswalk.v1`, schema version `1.1.0`,
+status `EVIDENCE_ONLY_NOT_APPROVED`). Schema `1.1.0` is the authorization-scope
+correction: it separates the **historical D-047 authorization evidence**
+(original Cleveland five-field internal exploratory study only) from the
+**current effective permission** of a feature, panel or route, and from the
+**absence of any new real-data authorization** in this crosswalk.
 
 It **reuses** the four registered panels (`ai.panels.REGISTERED_PANELS`) and the
 five registered research routes (`ai.research_routes.RESEARCH_ROUTE_CATALOG`).
@@ -58,7 +62,26 @@ questions that are routinely conflated:
 | Which document establishes the **original-source feature definition**? | `definition_evidence_ids` → resolved `evidence_register` entries |
 | What **acquisition channel** is proposed, and on what basis? | `acquisition.channel`, `acquisition.channel_status` (`VERIFIED_REGISTERED_SOURCE_DOMAIN` / `PROPOSED_FUTURE_ACQUISITION_CHANNEL`) |
 | Is the **pre-angiography measurement timing** verified? | `acquisition.timing_status`, `acquisition.owner_verified_pre_angiography`, `acquisition.timing_derived_from_channel_status` |
-| What **source-specific permission and restrictions** apply? | `permission_id`, `restriction_ids`, `sources[]`, `blocked_items[]` |
+| What **source-specific permission and restrictions** apply? | `permission_id`, `effective_permission` (status + historical reference ids + `real_data_execution_authorized_by_this_crosswalk`), `restriction_ids`, `sources[]`, `blocked_items[]` |
+
+### Authorization scope: historical evidence is not current permission
+
+Schema `1.1.0` exports **no** unqualified `AUTHORIZED…` status. Three distinct
+surfaces are recorded:
+
+| Surface | Field(s) | Cleveland resting five (UCI-45) | UCI-45 `chol`/`fbs` | UCI-412 (23 features) | Hungary locked route |
+|---|---|---|---|---|---|
+| Historical D-047 authorization **evidence** | `authorization_references[]` (`AUTHREF-D047-CLEVELAND-FIVE-FIELD`) | recorded: `COMPLETED_HISTORICAL_INTERNAL_EXPLORATORY`, `authorizes_new_real_data_execution: false` | **not covered** | **not covered** | **not covered** (different panel) |
+| Current **effective permission** | `effective_permission.effective_permission_status` | `HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION` | `NOT_AUTHORIZED` | `SCIENTIFIC_HOLD_NEW_REAL_FIT` | `NOT_AUTHORIZED` |
+| New real-data authorization from this crosswalk | `...real_data_execution_authorized_by_this_crosswalk`, `authorization_scope`, `holds` | `false` | `false` | `false` | `false` |
+
+Permission records are scoped rather than source-wide:
+`PERM-UCI45-D047-HISTORICAL-REFERENCE` (`HISTORICAL_D047_SCOPE_REFERENCE_ONLY`,
+covering exactly `age`/`sex`/`cp`/`trestbps`/`restecg`),
+`PERM-UCI45-LABS-NOT-AUTHORIZED` (`NOT_AUTHORIZED_OUT_OF_D047_SCOPE`, covering
+`chol`/`fbs`), and `PERM-UCI412-SCIENTIFIC-HOLD`
+(`SCIENTIFIC_HOLD_NEW_REAL_FIT`). D-047 itself is unchanged and every frozen
+panel, route, hold and timing fact is untouched.
 
 **`VERIFIED_REGISTERED_SOURCE_DOMAIN` is never proof of owner-verified
 pre-angiography timing.** It verifies only that a proposed channel matches the
@@ -78,7 +101,8 @@ P-3 `CLOSED`, P-5 `NOT_MADE_PROHIBITED`; the UCI-45 **labs extension**
 (`da_a2_hungary_locked_transportability_v1`) remain `BLOCKED` with
 `route_contract_query` as their only permitted operation. Any activation,
 widened permitted-operation set, removed forbidden operation, promoted
-permission status or extra route fails closed.
+permission status, widened historical-authorization scope, extra authorization
+reference or extra route fails closed.
 
 ### Read-only validator and deterministic metadata query
 

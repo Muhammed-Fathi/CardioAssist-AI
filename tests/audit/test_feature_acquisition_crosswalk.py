@@ -238,26 +238,267 @@ def test_source_permissions_are_specific_and_activate_nothing() -> None:
     crosswalk = load_crosswalk()
     permissions = {item.permission_id: item for item in crosswalk.permissions}
     assert set(permissions) == {
-        "PERM-UCI45-INTERNAL-EXPLORATORY",
+        "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+        "PERM-UCI45-LABS-NOT-AUTHORIZED",
         "PERM-UCI412-SCIENTIFIC-HOLD",
     }
     assert (
-        permissions["PERM-UCI45-INTERNAL-EXPLORATORY"].permission_status
-        == "AUTHORIZED_INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+        permissions["PERM-UCI45-D047-HISTORICAL-REFERENCE"].permission_status
+        == "HISTORICAL_D047_SCOPE_REFERENCE_ONLY"
+    )
+    assert (
+        permissions["PERM-UCI45-LABS-NOT-AUTHORIZED"].permission_status
+        == "NOT_AUTHORIZED_OUT_OF_D047_SCOPE"
     )
     assert (
         permissions["PERM-UCI412-SCIENTIFIC-HOLD"].permission_status
         == "SCIENTIFIC_HOLD_NEW_REAL_FIT"
     )
     for permission in permissions.values():
-        assert permission.real_data_execution_authorized_by_this_artifact is False
+        assert permission.real_data_execution_authorized_by_this_crosswalk is False
         assert permission.activation_by_this_artifact == "NONE"
+        assert not permission.permission_status.startswith("AUTHORIZED")
     sources = {item.source_id: item for item in crosswalk.sources}
     assert sources["UCI-45"].dataset_id == "DA-A2"
     assert sources["UCI-412"].dataset_id == "DA-A1"
+    assert (
+        sources["UCI-45"].effective_source_permission_status
+        == "NOT_AUTHORIZED_FOR_NEW_REAL_DATA"
+    )
+    assert (
+        sources["UCI-412"].effective_source_permission_status
+        == "SCIENTIFIC_HOLD_NEW_REAL_FIT"
+    )
     for feature in crosswalk.features:
         assert feature.permission_id in permissions
         assert permissions[feature.permission_id].source_id == feature.source_id
+        assert feature.feature_name in permissions[feature.permission_id].covered_feature_names
+
+
+def test_no_exported_status_is_an_unqualified_authorization() -> None:
+    crosswalk = load_crosswalk()
+    statuses = [item.permission_status for item in crosswalk.permissions]
+    statuses += [
+        item.effective_permission.effective_permission_status
+        for item in crosswalk.features
+    ]
+    statuses += [
+        item.effective_permission.effective_permission_status for item in crosswalk.routes
+    ]
+    statuses += [item.effective_source_permission_status for item in crosswalk.sources]
+    assert all(not status.startswith("AUTHORIZED") for status in statuses)
+    raw = CROSSWALK_PATH.read_text(encoding="utf-8")
+    assert "AUTHORIZED_INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED" not in raw
+    assert "AUTHORIZED" not in "".join(
+        status for status in statuses if not status.startswith("NOT_AUTHORIZED")
+    )
+    query = query_feature_evidence().to_dict()
+    assert query["authorization_scope"][
+        "new_real_data_authorization_granted_by_this_crosswalk"
+    ] is False
+    assert all(
+        not route["effective_permission"]["effective_permission_status"].startswith(
+            "AUTHORIZED"
+        )
+        for route in query["routes"]
+    )
+
+
+def test_chol_and_fbs_are_not_authorized_by_d047() -> None:
+    crosswalk = load_crosswalk()
+    permissions = {item.permission_id: item for item in crosswalk.permissions}
+    reference = crosswalk.authorization_references[0]
+
+    for feature_name in ("chol", "fbs"):
+        feature = crosswalk.feature(f"DA-A2:{feature_name}")
+        assert feature.permission_id == "PERM-UCI45-LABS-NOT-AUTHORIZED"
+        assert feature.effective_permission.effective_permission_status == (
+            "NOT_AUTHORIZED"
+        )
+        assert feature.effective_permission.historical_authorization_reference_ids == ()
+        assert feature_name not in reference.authorized_feature_names
+        assert reference.authorized_feature_names == (
+            "age",
+            "sex",
+            "cp",
+            "trestbps",
+            "restecg",
+        )
+        permission = permissions[feature.permission_id]
+        assert permission.permission_status == "NOT_AUTHORIZED_OUT_OF_D047_SCOPE"
+        assert permission.historical_authorization_reference_ids == ()
+
+        queried = query_feature_evidence(
+            dataset_id="DA-A2", feature_name=feature_name
+        ).to_dict()
+        assert queried["matched_feature_count"] == 1
+        exported = queried["features"][0]
+        assert exported["effective_permission"]["effective_permission_status"] == (
+            "NOT_AUTHORIZED"
+        )
+        assert (
+            exported["effective_permission"][
+                "historical_authorization_reference_ids"
+            ]
+            == []
+        )
+        assert exported["permission_id"] == "PERM-UCI45-LABS-NOT-AUTHORIZED"
+
+
+def test_hungary_locked_route_is_not_authorized_by_d047() -> None:
+    crosswalk = load_crosswalk()
+    reference = crosswalk.authorization_references[0]
+    assert reference.authorized_panel_id == "da_a2_resting_v1"
+    assert reference.authorized_dataset_id == "DA-A2"
+
+    hungary = crosswalk.route("da_a2_hungary_locked_transportability_v1")
+    assert hungary.effective_permission.effective_permission_status == (
+        "NOT_AUTHORIZED"
+    )
+    assert hungary.effective_permission.historical_authorization_reference_ids == ()
+    assert (
+        hungary.effective_permission.real_data_execution_authorized_by_this_crosswalk
+        is False
+    )
+    assert hungary.blocked is True
+
+    queried = query_feature_evidence(
+        route_id="da_a2_hungary_locked_transportability_v1"
+    ).to_dict()
+    assert queried["matched_route_count"] == 1
+    route = queried["routes"][0]
+    assert route["route_id"] == "da_a2_hungary_locked_transportability_v1"
+    assert route["effective_permission"]["effective_permission_status"] == (
+        "NOT_AUTHORIZED"
+    )
+    assert route["effective_permission"]["historical_authorization_reference_ids"] == []
+    assert (
+        route["effective_permission"][
+            "real_data_execution_authorized_by_this_crosswalk"
+        ]
+        is False
+    )
+    assert queried["authorization_scope"][
+        "new_real_data_authorization_granted_by_this_crosswalk"
+    ] is False
+    assert all(
+        "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        not in feature["effective_permission"][
+            "historical_authorization_reference_ids"
+        ]
+        if feature["dataset_id"] == "DA-A1"
+        else True
+        for feature in queried["features"]
+    )
+
+
+def test_historical_d047_five_field_scope_is_represented_accurately() -> None:
+    crosswalk = load_crosswalk()
+    assert len(crosswalk.authorization_references) == 1
+    reference = crosswalk.authorization_references[0]
+    assert reference.reference_id == "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+    assert reference.decision_id == "D-047"
+    assert reference.authorized_dataset_id == "DA-A2"
+    assert reference.authorized_panel_id == "da_a2_resting_v1"
+    assert reference.authorized_feature_names == (
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "restecg",
+    )
+    assert reference.execution_status == "COMPLETED_HISTORICAL_INTERNAL_EXPLORATORY"
+    assert reference.authorizes_new_real_data_execution is False
+    assert reference.historical_execution_label == (
+        "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+    )
+    assert reference.evidence_ids == ("EV-UCI45-D047-PLAN",)
+    assert "not a currently operative permission" in reference.statement
+    assert "new real-data execution" in reference.statement
+    assert "chol" in reference.statement and "Hungary" in reference.statement
+    assert crosswalk.feature("DA-A2:age").effective_permission.to_dict() == {
+        "effective_permission_status": (
+            "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION"
+        ),
+        "historical_authorization_reference_ids": [
+            "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": False,
+    }
+
+    resting_route = crosswalk.route("da_a2_resting_v1")
+    assert (
+        resting_route.effective_permission.effective_permission_status
+        == "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION"
+    )
+    assert resting_route.effective_permission.historical_authorization_reference_ids == (
+        "AUTHREF-D047-CLEVELAND-FIVE-FIELD",
+    )
+    assert resting_route.blocked is False
+    assert "route_contract_query" in resting_route.permitted_operations
+    assert dict(crosswalk.holds)["historical_d047_authorization_scope"] == (
+        "CLEVELAND_FIVE_FIELD_INTERNAL_EXPLORATORY_ONLY"
+    )
+
+
+def test_route_operations_holds_and_timing_evidence_are_unchanged() -> None:
+    crosswalk = load_crosswalk()
+    expected_permitted = {
+        "da_a2_resting_v1": {
+            "synthetic_training",
+            "synthetic_prediction",
+            "synthetic_external_evaluation",
+            "shap_attribution",
+            "lime_assessment",
+            "bundle_packaging",
+            "route_contract_query",
+            "synthetic_end_to_end_exercise",
+        },
+        "da_a1_basic_clinical_v1": {
+            "synthetic_training",
+            "synthetic_prediction",
+            "synthetic_external_evaluation",
+            "shap_attribution",
+            "lime_assessment",
+            "bundle_packaging",
+            "route_contract_query",
+            "synthetic_end_to_end_exercise",
+        },
+        "da_a2_resting_labs_v1": {"route_contract_query"},
+        "da_a1_clinical_core_labs_v1": {"route_contract_query"},
+        "da_a2_hungary_locked_transportability_v1": {"route_contract_query"},
+    }
+    for route in crosswalk.routes:
+        assert set(route.permitted_operations) == expected_permitted[route.route_id]
+        assert set(route.forbidden_operations) == {
+            "real_data_training",
+            "real_external_evaluation",
+            "real_bundle_inference",
+            "clinical_serving",
+        }
+    holds = dict(crosswalk.holds)
+    assert holds["gate_pt_p1_target_population_moment"] == "PENDING"
+    assert holds["gate_pt_p3_formal_research"] == "CLOSED"
+    assert holds["gate_pt_p5_clinical_readiness_claims"] == "NOT_MADE_PROHIBITED"
+    assert holds["uci412_scientific_hold"] is True
+    assert holds["new_real_data_authorization_granted_by_this_crosswalk"] is False
+    assert holds["owner_verified_pre_angiography_feature_counts"] == {
+        "UCI-45": 0,
+        "UCI-412": 0,
+    }
+    assert describe_crosswalk()["timing_status_counts"] == {
+        "UNVERIFIED_TIMING_PROPOSED_CHANNEL": 14,
+        "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL": 16,
+    }
+    assert all(
+        feature.acquisition.owner_verified_pre_angiography is False
+        for feature in crosswalk.features
+    )
+    assert all(
+        feature.acquisition.timing_status
+        != "OWNER_VERIFIED_PRE_ANGIOGRAPHY"
+        for feature in crosswalk.features
+    )
 
 
 def test_every_feature_cites_a_registered_permission_and_restriction_set() -> None:
@@ -458,7 +699,12 @@ def test_describe_is_deterministic_and_counts_match_records() -> None:
     assert summary["blocked_item_count"] == 3
     assert summary["feature_count"] == 30
     assert sum(summary["timing_status_counts"].values()) == 30
-    assert sum(summary["permission_status_counts"].values()) == 30
+    assert sum(summary["effective_permission_status_counts"].values()) == 30
+    assert summary["effective_permission_status_counts"] == {
+        "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION": 5,
+        "NOT_AUTHORIZED": 2,
+        "SCIENTIFIC_HOLD_NEW_REAL_FIT": 23,
+    }
     assert summary["result_state"] == "METADATA_ONLY_NO_CAD_PROBABILITY_COMPUTED"
 
 
@@ -575,6 +821,7 @@ def test_document_contains_no_dataset_bytes_or_patient_values() -> None:
             "registered_source_claim",
             "acquisition",
             "permission_id",
+            "effective_permission",
             "restriction_ids",
             "disposition",
         }
@@ -971,7 +1218,7 @@ def test_blocked_item_cannot_permit_more_than_contract_query() -> None:
 def test_permission_cannot_authorize_real_data_execution() -> None:
     document = _fresh_document()
     document["permissions"][1][
-        "real_data_execution_authorized_by_this_artifact"
+        "real_data_execution_authorized_by_this_crosswalk"
     ] = True
     with _rejected(document, "unauthorized_activation"):
         pass
@@ -1063,7 +1310,13 @@ def test_panel_cannot_be_redefined_here() -> None:
 def test_feature_may_not_recite_a_foreign_permission() -> None:
     document = _fresh_document()
     _feature(document, "DA-A1:Age")["permission_id"] = (
-        "PERM-UCI45-INTERNAL-EXPLORATORY"
+        "PERM-UCI45-D047-HISTORICAL-REFERENCE"
+    )
+    with _rejected(document, "permission_mismatch"):
+        pass
+    document = _fresh_document()
+    _feature(document, "DA-A2:chol")["permission_id"] = (
+        "PERM-UCI45-D047-HISTORICAL-REFERENCE"
     )
     with _rejected(document, "permission_mismatch"):
         pass
@@ -1119,3 +1372,232 @@ def test_expected_holds_constant_matches_document() -> None:
     assert set(document["acquisition_channel_taxonomy"]) == set(
         ACQUISITION_CHANNEL_TAXONOMY
     )
+
+
+# --------------------------------------------------------------------------- #
+# Fail-closed negatives: authorization-scope widening                         #
+# --------------------------------------------------------------------------- #
+
+
+def test_historical_reference_cannot_be_widened_to_lab_fields() -> None:
+    document = _fresh_document()
+    document["authorization_references"][0]["authorized_feature_names"] = [
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "restecg",
+        "chol",
+        "fbs",
+    ]
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+
+
+def test_historical_reference_cannot_be_moved_to_another_panel_or_dataset() -> None:
+    document = _fresh_document()
+    document["authorization_references"][0]["authorized_panel_id"] = (
+        "da_a2_resting_labs_v1"
+    )
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+    document = _fresh_document()
+    document["authorization_references"][0]["authorized_dataset_id"] = "DA-A1"
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+
+
+def test_historical_reference_cannot_authorize_new_execution() -> None:
+    document = _fresh_document()
+    document["authorization_references"][0][
+        "authorizes_new_real_data_execution"
+    ] = True
+    with _rejected(document, "unauthorized_activation"):
+        pass
+
+
+def test_historical_reference_execution_status_cannot_be_reopened() -> None:
+    document = _fresh_document()
+    document["authorization_references"][0]["execution_status"] = (
+        "ACTIVE_CURRENT_AUTHORIZATION"
+    )
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+
+
+def test_historical_reference_label_cannot_be_rewritten() -> None:
+    document = _fresh_document()
+    document["authorization_references"][0]["historical_execution_label"] = (
+        "SUPERVISOR_APPROVED"
+    )
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+
+
+def test_second_authorization_reference_is_rejected() -> None:
+    document = _fresh_document()
+    clone = copy.deepcopy(document["authorization_references"][0])
+    clone["reference_id"] = "AUTHREF-M3A-UCI412-FULL"
+    document["authorization_references"].append(clone)
+    with _rejected(document, "unknown_authorization_reference"):
+        pass
+
+
+def test_labs_permission_record_cannot_cite_the_d047_reference() -> None:
+    document = _fresh_document()
+    labs = next(
+        item
+        for item in document["permissions"]
+        if item["permission_id"] == "PERM-UCI45-LABS-NOT-AUTHORIZED"
+    )
+    labs["historical_authorization_reference_ids"] = [
+        "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+    ]
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+
+
+def test_labs_permission_record_cannot_widen_its_covered_features() -> None:
+    document = _fresh_document()
+    labs = next(
+        item
+        for item in document["permissions"]
+        if item["permission_id"] == "PERM-UCI45-LABS-NOT-AUTHORIZED"
+    )
+    labs["covered_feature_names"] = ["chol", "fbs", "age"]
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+
+
+def test_permission_record_cannot_export_an_authorized_status() -> None:
+    document = _fresh_document()
+    document["permissions"][0]["permission_status"] = (
+        "AUTHORIZED_INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+    )
+    with _rejected(document, "invalid_permission_status"):
+        pass
+
+
+def test_effective_permission_cannot_be_promoted_for_lab_features() -> None:
+    document = _fresh_document()
+    _feature(document, "DA-A2:chol")["effective_permission"] = {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+            "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": False,
+    }
+    with _rejected(document, "permission_mismatch"):
+        pass
+
+
+def test_effective_permission_cannot_be_an_authorized_status() -> None:
+    document = _fresh_document()
+    _feature(document, "DA-A2:age")["effective_permission"][
+        "effective_permission_status"
+    ] = "AUTHORIZED_INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+    with _rejected(document, "invalid_effective_permission_status"):
+        pass
+
+
+def test_effective_permission_cannot_claim_real_data_authorization() -> None:
+    document = _fresh_document()
+    _feature(document, "DA-A2:age")["effective_permission"][
+        "real_data_execution_authorized_by_this_crosswalk"
+    ] = True
+    with _rejected(document, "unauthorized_activation"):
+        pass
+    document = _fresh_document()
+    _route(document, "da_a2_resting_v1")["effective_permission"][
+        "real_data_execution_authorized_by_this_crosswalk"
+    ] = True
+    with _rejected(document, "unauthorized_activation"):
+        pass
+
+
+def test_hungary_route_cannot_cite_the_d047_reference() -> None:
+    document = _fresh_document()
+    _route(document, "da_a2_hungary_locked_transportability_v1")[
+        "effective_permission"
+    ] = {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+            "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": False,
+    }
+    with _rejected(document, "permission_mismatch"):
+        pass
+
+
+def test_hungary_route_effective_status_cannot_be_promoted() -> None:
+    document = _fresh_document()
+    _route(document, "da_a2_hungary_locked_transportability_v1")[
+        "effective_permission"
+    ]["effective_permission_status"] = "AUTHORIZED_INTERNAL_EXPLORATORY"
+    with _rejected(document, "invalid_effective_permission_status"):
+        pass
+
+
+def test_authorization_scope_cannot_grant_new_real_data_authorization() -> None:
+    document = _fresh_document()
+    document["authorization_scope"][
+        "new_real_data_authorization_granted_by_this_crosswalk"
+    ] = True
+    with _rejected(document, "unauthorized_activation"):
+        pass
+
+
+def test_authorization_scope_statement_cannot_be_weakened() -> None:
+    document = _fresh_document()
+    document["authorization_scope"]["authorization_statement"] = (
+        "D-047 authorizes the Cleveland study, so all Cleveland features are "
+        "approved."
+    )
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+
+
+def test_historical_scope_is_not_current_permission_flag_cannot_be_flipped() -> None:
+    document = _fresh_document()
+    document["authorization_scope"][
+        "historical_authorization_is_not_current_permission"
+    ] = False
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+
+
+def test_holds_cannot_grant_new_real_data_authorization() -> None:
+    document = _fresh_document()
+    document["holds"]["new_real_data_authorization_granted_by_this_crosswalk"] = True
+    with _rejected(document, "unauthorized_activation"):
+        pass
+
+
+def test_holds_d047_scope_cannot_be_widened() -> None:
+    document = _fresh_document()
+    document["holds"]["historical_d047_authorization_scope"] = (
+        "CLEVELAND_AND_LABS_INTERNAL_EXPLORATORY"
+    )
+    with _rejected(document, "authorization_scope_mismatch"):
+        pass
+
+
+def test_source_effective_permission_cannot_be_authorized() -> None:
+    document = _fresh_document()
+    source = next(item for item in document["sources"] if item["source_id"] == "UCI-45")
+    source["effective_source_permission_status"] = (
+        "AUTHORIZED_INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+    )
+    with _rejected(document, "invalid_effective_permission_status"):
+        pass
+
+
+def test_feature_cannot_inherit_a_permission_that_does_not_cover_it() -> None:
+    document = _fresh_document()
+    # Point age at the laboratory record: the record does not cover it.
+    _feature(document, "DA-A2:age")["permission_id"] = (
+        "PERM-UCI45-LABS-NOT-AUTHORIZED"
+    )
+    with _rejected(document, "permission_mismatch"):
+        pass

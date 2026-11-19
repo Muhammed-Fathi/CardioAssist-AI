@@ -105,7 +105,7 @@ CROSSWALK_PATH: Final[Path] = (
 CROSSWALK_SCHEMA_ID: Final[str] = (
     "cardioassist.feature_acquisition_evidence_crosswalk"
 )
-CROSSWALK_SCHEMA_VERSION: Final[str] = "1.0.0"
+CROSSWALK_SCHEMA_VERSION: Final[str] = "1.1.0"
 CROSSWALK_ID: Final[str] = "rh04_feature_acquisition_evidence_crosswalk.v1"
 CROSSWALK_ARTIFACT_KIND: Final[str] = (
     "OFFLINE_READ_ONLY_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK"
@@ -248,15 +248,63 @@ DISPOSITION_TAXONOMY: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 
+#: Status of an authorization **record**. No value here may begin with
+#: ``AUTHORIZED``: a historical authorization reference is evidence about a past,
+#: scope-limited decision, never a currently applicable permission.
 PERMISSION_STATUS_TAXONOMY: Final[Mapping[str, str]] = MappingProxyType(
     {
-        "AUTHORIZED_INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED": (
-            "D-047 internal exploratory Cleveland scope, executed only under the "
-            "historical label; no publication, clinical or external-validation claim."
+        "HISTORICAL_D047_SCOPE_REFERENCE_ONLY": (
+            "The record is a historical authorization REFERENCE only. D-047 "
+            "covered the original Cleveland five-field internal exploratory study "
+            "and nothing else; it is not a currently applicable permission."
+        ),
+        "NOT_AUTHORIZED_OUT_OF_D047_SCOPE": (
+            "No authorization covers this scope. D-047 did not cover laboratory "
+            "fields, the UCI-45 labs extension, UCI-412 or the Hungary target."
         ),
         "SCIENTIFIC_HOLD_NEW_REAL_FIT": (
             "Scientific hold on new real-data fitting or panel extension pending "
             "owner/CRF timing evidence and independent review."
+        ),
+    }
+)
+
+#: Currently effective, joined permission status for a feature, panel or route.
+#: This is what a handoff consumer must read; it is never an authorization.
+EFFECTIVE_PERMISSION_STATUS_TAXONOMY: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION": (
+            "A historical authorization reference exists for the original "
+            "Cleveland five-field study only. It is not currently operative and "
+            "grants no new real-data execution."
+        ),
+        "NOT_AUTHORIZED": (
+            "No authorization covers this scope. The scope is not covered by "
+            "D-047 and no other human authorization exists."
+        ),
+        "SCIENTIFIC_HOLD_NEW_REAL_FIT": (
+            "Held under the UCI-412 scientific hold: no new real-data fitting or "
+            "laboratory admission is authorized."
+        ),
+        "NOT_AUTHORIZED_FOR_NEW_REAL_DATA": (
+            "Source-level restatement of NOT_AUTHORIZED: nothing in this source "
+            "may be used for new real-data execution."
+        ),
+    }
+)
+
+#: Frozen statement of what this crosswalk does and does not authorize.
+AUTHORIZATION_SCOPE: Final[Mapping[str, Any]] = MappingProxyType(
+    {
+        "new_real_data_authorization_granted_by_this_crosswalk": False,
+        "historical_authorization_is_not_current_permission": True,
+        "authorization_statement": (
+            "No feature, panel or route in this crosswalk is authorized for new "
+            "real-data execution. The single historical authorization reference "
+            "(D-047) records a completed, scope-limited Cleveland five-field "
+            "internal exploratory study. It does not cover chol, fbs, the UCI-45 "
+            "labs extension, any UCI-412 scope, the Hungary locked target, or any "
+            "new execution, and it is not a currently operative permission."
         ),
     }
 )
@@ -374,6 +422,30 @@ PANELS_BY_ID: Final[Mapping[str, _PanelSpec]] = MappingProxyType(
 #: this module never imports it).
 PANEL_REGISTRY_REFERENCE: Final[str] = "ai.panels.REGISTERED_PANELS"
 
+#: Historical authorization references, carried as EVIDENCE ONLY. The frozen
+#: expectation pins the exact historical scope so a JSON-only edit cannot widen
+#: D-047 to laboratories, another panel or another site.
+AUTHORIZATION_REFERENCES: Final[Mapping[str, Mapping[str, Any]]] = MappingProxyType(
+    {
+        "AUTHREF-D047-CLEVELAND-FIVE-FIELD": MappingProxyType(
+            {
+                "decision_id": "D-047",
+                "authorized_dataset_id": "DA-A2",
+                "authorized_panel_id": "da_a2_resting_v1",
+                "authorized_feature_names": UCI45_RESTING_FEATURES,
+                "historical_execution_label": (
+                    "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+                ),
+                "execution_status": (
+                    "COMPLETED_HISTORICAL_INTERNAL_EXPLORATORY"
+                ),
+                "authorizes_new_real_data_execution": False,
+                "evidence_ids": ("EV-UCI45-D047-PLAN",),
+            }
+        )
+    }
+)
+
 # --------------------------------------------------------------------------- #
 # Frozen sources, permissions and routes                                       #
 # --------------------------------------------------------------------------- #
@@ -388,7 +460,10 @@ SOURCES: Final[Mapping[str, Mapping[str, Any]]] = MappingProxyType(
                 "dataset_id": "DA-A2",
                 "track": "A",
                 "panel_ids": ("da_a2_resting_v1", "da_a2_resting_labs_v1"),
-                "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+                "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+                "effective_source_permission_status": (
+                    "NOT_AUTHORIZED_FOR_NEW_REAL_DATA"
+                ),
             }
         ),
         SOURCE_UCI412: MappingProxyType(
@@ -400,6 +475,9 @@ SOURCES: Final[Mapping[str, Mapping[str, Any]]] = MappingProxyType(
                     "da_a1_clinical_core_labs_v1",
                 ),
                 "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+                "effective_source_permission_status": (
+                    "SCIENTIFIC_HOLD_NEW_REAL_FIT"
+                ),
             }
         ),
     }
@@ -407,20 +485,52 @@ SOURCES: Final[Mapping[str, Mapping[str, Any]]] = MappingProxyType(
 
 PERMISSIONS: Final[Mapping[str, Mapping[str, Any]]] = MappingProxyType(
     {
-        "PERM-UCI45-INTERNAL-EXPLORATORY": MappingProxyType(
+        "PERM-UCI45-D047-HISTORICAL-REFERENCE": MappingProxyType(
             {
                 "source_id": SOURCE_UCI45,
-                "permission_status": (
-                    "AUTHORIZED_INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED"
+                "permission_status": "HISTORICAL_D047_SCOPE_REFERENCE_ONLY",
+                "historical_authorization_reference_ids": (
+                    "AUTHREF-D047-CLEVELAND-FIVE-FIELD",
                 ),
+                "covered_panel_ids": ("da_a2_resting_v1",),
+                "covered_feature_names": UCI45_RESTING_FEATURES,
+            }
+        ),
+        "PERM-UCI45-LABS-NOT-AUTHORIZED": MappingProxyType(
+            {
+                "source_id": SOURCE_UCI45,
+                "permission_status": "NOT_AUTHORIZED_OUT_OF_D047_SCOPE",
+                "historical_authorization_reference_ids": (),
+                "covered_panel_ids": ("da_a2_resting_labs_v1",),
+                "covered_feature_names": UCI45_LAB_FEATURES,
             }
         ),
         "PERM-UCI412-SCIENTIFIC-HOLD": MappingProxyType(
             {
                 "source_id": SOURCE_UCI412,
                 "permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+                "historical_authorization_reference_ids": (),
+                "covered_panel_ids": (
+                    "da_a1_basic_clinical_v1",
+                    "da_a1_clinical_core_labs_v1",
+                ),
+                "covered_feature_names": (
+                    UCI412_BASIC_FEATURES + UCI412_LAB_FEATURES
+                ),
             }
         ),
+    }
+)
+
+#: The only effective status each permission record may resolve to. A record can
+#: therefore never be exported as a wider permission than it documents.
+PERMISSION_EFFECTIVE_STATUS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "PERM-UCI45-D047-HISTORICAL-REFERENCE": (
+            "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION"
+        ),
+        "PERM-UCI45-LABS-NOT-AUTHORIZED": "NOT_AUTHORIZED",
+        "PERM-UCI412-SCIENTIFIC-HOLD": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
     }
 )
 
@@ -595,6 +705,47 @@ BLOCKED_ITEMS: Final[Mapping[str, Mapping[str, str]]] = MappingProxyType(
     }
 )
 
+#: Currently effective permission per route. Nothing here grants an operation;
+#: it states what, if anything, actually authorizes the route's scope today.
+ROUTE_EFFECTIVE_PERMISSION: Final[Mapping[str, Mapping[str, Any]]] = MappingProxyType(
+    {
+        "da_a2_resting_v1": MappingProxyType(
+            {
+                "effective_permission_status": (
+                    "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION"
+                ),
+                "historical_authorization_reference_ids": (
+                    "AUTHREF-D047-CLEVELAND-FIVE-FIELD",
+                ),
+            }
+        ),
+        "da_a2_resting_labs_v1": MappingProxyType(
+            {
+                "effective_permission_status": "NOT_AUTHORIZED",
+                "historical_authorization_reference_ids": (),
+            }
+        ),
+        "da_a1_basic_clinical_v1": MappingProxyType(
+            {
+                "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+                "historical_authorization_reference_ids": (),
+            }
+        ),
+        "da_a1_clinical_core_labs_v1": MappingProxyType(
+            {
+                "effective_permission_status": "NOT_AUTHORIZED",
+                "historical_authorization_reference_ids": (),
+            }
+        ),
+        "da_a2_hungary_locked_transportability_v1": MappingProxyType(
+            {
+                "effective_permission_status": "NOT_AUTHORIZED",
+                "historical_authorization_reference_ids": (),
+            }
+        ),
+    }
+)
+
 # --------------------------------------------------------------------------- #
 # Frozen evidence register (exact ids, classes and reference paths)            #
 # --------------------------------------------------------------------------- #
@@ -757,6 +908,42 @@ UCI45_PROPOSED_CHANNELS: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 
+#: Currently effective permission per feature. The historical D-047 reference is
+#: attached only to the five original Cleveland resting features; chol/fbs and
+#: every UCI-412 feature carry no historical authorization reference at all.
+FEATURE_EFFECTIVE_PERMISSION: Final[Mapping[str, Mapping[str, Any]]] = MappingProxyType(
+    {
+        "DA-A2:RESTING": MappingProxyType(
+            {
+                "effective_permission_status": (
+                    "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION"
+                ),
+                "historical_authorization_reference_ids": (
+                    "AUTHREF-D047-CLEVELAND-FIVE-FIELD",
+                ),
+            }
+        ),
+        "DA-A2:LABS": MappingProxyType(
+            {
+                "effective_permission_status": "NOT_AUTHORIZED",
+                "historical_authorization_reference_ids": (),
+            }
+        ),
+        "DA-A1:BASIC": MappingProxyType(
+            {
+                "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+                "historical_authorization_reference_ids": (),
+            }
+        ),
+        "DA-A1:LABS": MappingProxyType(
+            {
+                "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+                "historical_authorization_reference_ids": (),
+            }
+        ),
+    }
+)
+
 #: Per-dataset definition-evidence requirement (exact set per feature).
 UCI412_BASIC_DEFINITION_EVIDENCE: Final[tuple[str, ...]] = (
     "EV-UCI412-PRIMARY-OWNER",
@@ -855,6 +1042,10 @@ EXPECTED_HOLDS: Final[Mapping[str, Any]] = MappingProxyType(
             SOURCE_UCI412: 23,
         },
         "uci412_basic_clinical_owner_verified_pre_angiography": "0/16",
+        "historical_d047_authorization_scope": (
+            "CLEVELAND_FIVE_FIELD_INTERNAL_EXPLORATORY_ONLY"
+        ),
+        "new_real_data_authorization_granted_by_this_crosswalk": False,
         "real_data_training_authorized": False,
         "real_model_artifacts_created": False,
         "patient_data_accessed": False,
@@ -881,6 +1072,9 @@ REQUIRED_TOP_LEVEL_KEYS: Final[tuple[str, ...]] = (
     "timing_status_taxonomy",
     "disposition_taxonomy",
     "permission_status_taxonomy",
+    "effective_permission_status_taxonomy",
+    "authorization_scope",
+    "authorization_references",
     "evidence_register",
     "sources",
     "permissions",
@@ -919,6 +1113,7 @@ FEATURE_KEYS: Final[tuple[str, ...]] = (
     "registered_source_claim",
     "acquisition",
     "permission_id",
+    "effective_permission",
     "restriction_ids",
     "disposition",
 )
@@ -927,6 +1122,12 @@ CLAIM_KEYS: Final[tuple[str, ...]] = (
     "source_domain",
     "availability_at_decision_time",
 )
+EFFECTIVE_PERMISSION_KEYS: Final[tuple[str, ...]] = (
+    "effective_permission_status",
+    "historical_authorization_reference_ids",
+    "real_data_execution_authorized_by_this_crosswalk",
+)
+
 ACQUISITION_KEYS: Final[tuple[str, ...]] = (
     "channel",
     "channel_status",
@@ -995,6 +1196,7 @@ class SourceRecord:
     track: str
     panel_ids: tuple[str, ...]
     permission_id: str
+    effective_source_permission_status: str
     provenance_statement: str
 
     def to_dict(self) -> dict[str, Any]:
@@ -1004,7 +1206,62 @@ class SourceRecord:
             "track": self.track,
             "panel_ids": list(self.panel_ids),
             "permission_id": self.permission_id,
+            "effective_source_permission_status": (
+                self.effective_source_permission_status
+            ),
             "provenance_statement": self.provenance_statement,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class EffectivePermission:
+    """Currently applicable permission statement for a feature, panel or route."""
+
+    effective_permission_status: str
+    historical_authorization_reference_ids: tuple[str, ...]
+    real_data_execution_authorized_by_this_crosswalk: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "effective_permission_status": self.effective_permission_status,
+            "historical_authorization_reference_ids": list(
+                self.historical_authorization_reference_ids
+            ),
+            "real_data_execution_authorized_by_this_crosswalk": (
+                self.real_data_execution_authorized_by_this_crosswalk
+            ),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalAuthorizationReference:
+    """A past, scope-limited human authorization carried as evidence only."""
+
+    reference_id: str
+    decision_id: str
+    authorized_dataset_id: str
+    authorized_panel_id: str
+    authorized_feature_names: tuple[str, ...]
+    historical_execution_label: str
+    execution_status: str
+    authorizes_new_real_data_execution: bool
+    evidence_ids: tuple[str, ...]
+    statement: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "reference_id": self.reference_id,
+            "decision_id": self.decision_id,
+            "authorized_dataset_id": self.authorized_dataset_id,
+            "authorized_panel_id": self.authorized_panel_id,
+            "authorized_feature_names": list(self.authorized_feature_names),
+            "historical_execution_label": self.historical_execution_label,
+            "execution_status": self.execution_status,
+            "authorizes_new_real_data_execution": (
+                self.authorizes_new_real_data_execution
+            ),
+            "evidence_ids": list(self.evidence_ids),
+            "statement": self.statement,
         }
 
 
@@ -1013,7 +1270,10 @@ class PermissionRecord:
     permission_id: str
     source_id: str
     permission_status: str
-    real_data_execution_authorized_by_this_artifact: bool
+    historical_authorization_reference_ids: tuple[str, ...]
+    covered_panel_ids: tuple[str, ...]
+    covered_feature_names: tuple[str, ...]
+    real_data_execution_authorized_by_this_crosswalk: bool
     activation_by_this_artifact: str
     statement: str
 
@@ -1022,8 +1282,13 @@ class PermissionRecord:
             "permission_id": self.permission_id,
             "source_id": self.source_id,
             "permission_status": self.permission_status,
-            "real_data_execution_authorized_by_this_artifact": (
-                self.real_data_execution_authorized_by_this_artifact
+            "historical_authorization_reference_ids": list(
+                self.historical_authorization_reference_ids
+            ),
+            "covered_panel_ids": list(self.covered_panel_ids),
+            "covered_feature_names": list(self.covered_feature_names),
+            "real_data_execution_authorized_by_this_crosswalk": (
+                self.real_data_execution_authorized_by_this_crosswalk
             ),
             "activation_by_this_artifact": self.activation_by_this_artifact,
             "statement": self.statement,
@@ -1077,6 +1342,7 @@ class RouteActivationRecord:
     permitted_operations: tuple[str, ...]
     forbidden_operations: tuple[str, ...]
     restriction_ids: tuple[str, ...]
+    effective_permission: EffectivePermission
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1091,6 +1357,7 @@ class RouteActivationRecord:
             "permitted_operations": list(self.permitted_operations),
             "forbidden_operations": list(self.forbidden_operations),
             "restriction_ids": list(self.restriction_ids),
+            "effective_permission": self.effective_permission.to_dict(),
         }
 
 
@@ -1161,7 +1428,7 @@ class FeatureAcquisitionEvidence:
     registered_source_claim: RegisteredSourceClaim
     acquisition: AcquisitionEvidence
     permission_id: str
-    permission_status: str
+    effective_permission: EffectivePermission
     restriction_ids: tuple[str, ...]
     disposition: str
 
@@ -1176,7 +1443,7 @@ class FeatureAcquisitionEvidence:
             "registered_source_claim": self.registered_source_claim.to_dict(),
             "acquisition": self.acquisition.to_dict(),
             "permission_id": self.permission_id,
-            "permission_status": self.permission_status,
+            "effective_permission": self.effective_permission.to_dict(),
             "restriction_ids": list(self.restriction_ids),
             "disposition": self.disposition,
         }
@@ -1193,6 +1460,8 @@ class AcquisitionEvidenceCrosswalk:
     baseline_main_sha: str
     document_digest_sha256: str
     holds: Mapping[str, Any]
+    authorization_scope: Mapping[str, Any]
+    authorization_references: tuple[HistoricalAuthorizationReference, ...]
     evidence: tuple[EvidenceRecord, ...]
     sources: tuple[SourceRecord, ...]
     permissions: tuple[PermissionRecord, ...]
@@ -1237,6 +1506,10 @@ class AcquisitionEvidenceCrosswalk:
         return {
             **self.identity(),
             "holds": _thaw(self.holds),
+            "authorization_scope": _thaw(self.authorization_scope),
+            "authorization_references": [
+                item.to_dict() for item in self.authorization_references
+            ],
             "evidence_register": [item.to_dict() for item in self.evidence],
             "sources": [item.to_dict() for item in self.sources],
             "permissions": [item.to_dict() for item in self.permissions],
@@ -1270,6 +1543,10 @@ class FeatureEvidenceQuery:
             "features": [item.to_dict() for item in self.features],
             "routes": [item.to_dict() for item in self.routes],
             "holds": _thaw(self.crosswalk.holds),
+            "authorization_scope": _thaw(self.crosswalk.authorization_scope),
+            "authorization_references": [
+                item.to_dict() for item in self.crosswalk.authorization_references
+            ],
             "result_state": RESULT_STATE,
             "cad_probability_computed": False,
             "read_only": True,
@@ -1573,6 +1850,27 @@ def _validate_holds(document: Mapping[str, Any]) -> Mapping[str, Any]:
                 f"$.holds.registered_feature_counts.{source_id}",
             )
 
+    d047_scope = _require_str(
+        block.get("historical_d047_authorization_scope"),
+        "$.holds.historical_d047_authorization_scope",
+    )
+    if d047_scope != EXPECTED_HOLDS["historical_d047_authorization_scope"]:
+        _fail(
+            "authorization_scope_mismatch",
+            "The historical D-047 scope may not be widened.",
+            "$.holds.historical_d047_authorization_scope",
+        )
+    new_authorization = _require_bool(
+        block.get("new_real_data_authorization_granted_by_this_crosswalk"),
+        "$.holds.new_real_data_authorization_granted_by_this_crosswalk",
+    )
+    if new_authorization is not False:
+        _fail(
+            "unauthorized_activation",
+            "This crosswalk grants no new real-data authorization.",
+            "$.holds.new_real_data_authorization_granted_by_this_crosswalk",
+        )
+
     covered = _require_str(
         block.get("uci412_basic_clinical_owner_verified_pre_angiography"),
         "$.holds.uci412_basic_clinical_owner_verified_pre_angiography",
@@ -1708,6 +2006,202 @@ def _validate_evidence_register(
     return tuple(records)
 
 
+def _validate_authorization_scope(document: Mapping[str, Any]) -> Mapping[str, Any]:
+    block = _require_mapping(
+        document.get("authorization_scope"), "$.authorization_scope"
+    )
+    _require_exact_keys(block, list(AUTHORIZATION_SCOPE), "$.authorization_scope")
+    granted = _require_bool(
+        block.get("new_real_data_authorization_granted_by_this_crosswalk"),
+        "$.authorization_scope.new_real_data_authorization_granted_by_this_crosswalk",
+    )
+    if granted:
+        _fail(
+            "unauthorized_activation",
+            "This crosswalk may not grant new real-data authorization.",
+            "$.authorization_scope.new_real_data_authorization_granted_by_this_crosswalk",
+        )
+    historical = _require_bool(
+        block.get("historical_authorization_is_not_current_permission"),
+        "$.authorization_scope.historical_authorization_is_not_current_permission",
+    )
+    if historical is not True:
+        _fail(
+            "authorization_scope_mismatch",
+            "A historical authorization reference must stay distinct from "
+            "current permission.",
+            "$.authorization_scope.historical_authorization_is_not_current_permission",
+        )
+    statement = _require_str(
+        block.get("authorization_statement"),
+        "$.authorization_scope.authorization_statement",
+    )
+    if statement != AUTHORIZATION_SCOPE["authorization_statement"]:
+        _fail(
+            "authorization_scope_mismatch",
+            "The authorization-scope statement may not be reworded or weakened.",
+            "$.authorization_scope.authorization_statement",
+        )
+    return block
+
+
+def _validate_authorization_references(
+    document: Mapping[str, Any],
+    evidence_by_id: Mapping[str, EvidenceRecord],
+    permission_statuses: Mapping[str, str],
+) -> tuple[HistoricalAuthorizationReference, ...]:
+    entries = _require_sequence(
+        document.get("authorization_references"), "$.authorization_references"
+    )
+    records: list[HistoricalAuthorizationReference] = []
+    seen: set[str] = set()
+    for index, entry in enumerate(entries):
+        path = f"$.authorization_references[{index}]"
+        block = _require_mapping(entry, path)
+        _require_exact_keys(
+            block,
+            (
+                "reference_id",
+                "decision_id",
+                "authorized_dataset_id",
+                "authorized_panel_id",
+                "authorized_feature_names",
+                "historical_execution_label",
+                "execution_status",
+                "authorizes_new_real_data_execution",
+                "evidence_ids",
+                "statement",
+            ),
+            path,
+        )
+        reference_id = _require_str(block.get("reference_id"), f"{path}.reference_id")
+        if reference_id in seen:
+            _fail(
+                "duplicate_authorization_reference",
+                "Duplicate authorization reference id.",
+                path,
+            )
+        seen.add(reference_id)
+        if reference_id not in AUTHORIZATION_REFERENCES:
+            _fail(
+                "unknown_authorization_reference",
+                "Reference id is not part of the frozen authorization register.",
+                f"{path}.reference_id",
+            )
+        frozen = AUTHORIZATION_REFERENCES[reference_id]
+
+        for key in ("decision_id", "authorized_dataset_id", "authorized_panel_id"):
+            value = _require_str(block.get(key), f"{path}.{key}")
+            if value != frozen[key]:
+                _fail(
+                    "authorization_scope_mismatch",
+                    f"Historical scope field '{key}' may not be widened.",
+                    f"{path}.{key}",
+                )
+        panel = PANELS_BY_ID[frozen["authorized_panel_id"]]
+        if panel.dataset_id != frozen["authorized_dataset_id"]:
+            _fail(  # pragma: no cover - frozen constants stay coherent
+                "source_mismatch",
+                "Historical reference dataset and panel disagree.",
+                f"{path}.authorized_panel_id",
+            )
+
+        feature_names = tuple(
+            _require_str(item, f"{path}.authorized_feature_names[{position}]")
+            for position, item in enumerate(
+                _require_sequence(
+                    block.get("authorized_feature_names"),
+                    f"{path}.authorized_feature_names",
+                )
+            )
+        )
+        if feature_names != tuple(frozen["authorized_feature_names"]):
+            _fail(
+                "authorization_scope_mismatch",
+                "Historical authorization covers exactly the original five "
+                "Cleveland resting fields; the field set may not be widened.",
+                f"{path}.authorized_feature_names",
+            )
+        if feature_names != UCI45_RESTING_FEATURES:
+            _fail(  # pragma: no cover - frozen constants stay coherent
+                "authorization_scope_mismatch",
+                "Historical D-047 scope is the original five-field Cleveland study.",
+                f"{path}.authorized_feature_names",
+            )
+
+        label = _require_str(
+            block.get("historical_execution_label"),
+            f"{path}.historical_execution_label",
+        )
+        if label != frozen["historical_execution_label"]:
+            _fail(
+                "authorization_scope_mismatch",
+                "The historical execution label must be preserved verbatim.",
+                f"{path}.historical_execution_label",
+            )
+        execution = _require_str(
+            block.get("execution_status"), f"{path}.execution_status"
+        )
+        if execution != frozen["execution_status"]:
+            _fail(
+                "authorization_scope_mismatch",
+                "A historical authorization stays a completed historical record.",
+                f"{path}.execution_status",
+            )
+        new_execution = _require_bool(
+            block.get("authorizes_new_real_data_execution"),
+            f"{path}.authorizes_new_real_data_execution",
+        )
+        if new_execution:
+            _fail(
+                "unauthorized_activation",
+                "A historical authorization may not authorize new execution.",
+                f"{path}.authorizes_new_real_data_execution",
+            )
+        evidence_ids = tuple(
+            _require_str(item, f"{path}.evidence_ids[{position}]")
+            for position, item in enumerate(
+                _require_sequence(block.get("evidence_ids"), f"{path}.evidence_ids")
+            )
+        )
+        if evidence_ids != tuple(frozen["evidence_ids"]):
+            _fail(
+                "evidence_set_mismatch",
+                "Historical authorization evidence set may not be restated.",
+                f"{path}.evidence_ids",
+            )
+        for evidence_id in evidence_ids:
+            if evidence_id not in evidence_by_id:
+                _fail(
+                    "unknown_evidence_id",
+                    "Historical authorization cites an unregistered evidence item.",
+                    f"{path}.evidence_ids",
+                )
+        statement = _require_str(block.get("statement"), f"{path}.statement")
+        records.append(
+            HistoricalAuthorizationReference(
+                reference_id=reference_id,
+                decision_id=frozen["decision_id"],
+                authorized_dataset_id=frozen["authorized_dataset_id"],
+                authorized_panel_id=frozen["authorized_panel_id"],
+                authorized_feature_names=feature_names,
+                historical_execution_label=label,
+                execution_status=execution,
+                authorizes_new_real_data_execution=False,
+                evidence_ids=evidence_ids,
+                statement=statement,
+            )
+        )
+    missing = sorted(set(AUTHORIZATION_REFERENCES) - seen)
+    if missing:
+        _fail(
+            "missing_authorization_reference",
+            f"Historical authorization reference '{missing[0]}' is missing.",
+            "$.authorization_references",
+        )
+    return tuple(records)
+
+
 def _validate_sources(document: Mapping[str, Any]) -> tuple[SourceRecord, ...]:
     entries = _require_sequence(document.get("sources"), "$.sources")
     records: list[SourceRecord] = []
@@ -1723,6 +2217,7 @@ def _validate_sources(document: Mapping[str, Any]) -> tuple[SourceRecord, ...]:
                 "track",
                 "panel_ids",
                 "permission_id",
+                "effective_source_permission_status",
                 "provenance_statement",
             ),
             path,
@@ -1768,6 +2263,28 @@ def _validate_sources(document: Mapping[str, Any]) -> tuple[SourceRecord, ...]:
                 "Permission id does not match the frozen source registration.",
                 f"{path}.permission_id",
             )
+        effective_status = _require_str(
+            block.get("effective_source_permission_status"),
+            f"{path}.effective_source_permission_status",
+        )
+        if effective_status not in EFFECTIVE_PERMISSION_STATUS_TAXONOMY:
+            _fail(
+                "invalid_effective_permission_status",
+                "Effective source permission status is not in the frozen taxonomy.",
+                f"{path}.effective_source_permission_status",
+            )
+        if effective_status.startswith("AUTHORIZED"):
+            _fail(
+                "unauthorized_permission_status",
+                "No source may export an unqualified AUTHORIZED permission status.",
+                f"{path}.effective_source_permission_status",
+            )
+        if effective_status != frozen["effective_source_permission_status"]:
+            _fail(
+                "permission_mismatch",
+                "Effective source permission may not be promoted by this artifact.",
+                f"{path}.effective_source_permission_status",
+            )
         statement = _require_str(
             block.get("provenance_statement"), f"{path}.provenance_statement"
         )
@@ -1778,6 +2295,7 @@ def _validate_sources(document: Mapping[str, Any]) -> tuple[SourceRecord, ...]:
                 track=track,
                 panel_ids=panel_tuple,
                 permission_id=permission_id,
+                effective_source_permission_status=effective_status,
                 provenance_statement=statement,
             )
         )
@@ -1791,7 +2309,10 @@ def _validate_sources(document: Mapping[str, Any]) -> tuple[SourceRecord, ...]:
     return tuple(records)
 
 
-def _validate_permissions(document: Mapping[str, Any]) -> tuple[PermissionRecord, ...]:
+def _validate_permissions(
+    document: Mapping[str, Any],
+    authorization_reference_ids: frozenset[str],
+) -> tuple[PermissionRecord, ...]:
     entries = _require_sequence(document.get("permissions"), "$.permissions")
     records: list[PermissionRecord] = []
     seen: set[str] = set()
@@ -1804,7 +2325,10 @@ def _validate_permissions(document: Mapping[str, Any]) -> tuple[PermissionRecord
                 "permission_id",
                 "source_id",
                 "permission_status",
-                "real_data_execution_authorized_by_this_artifact",
+                "historical_authorization_reference_ids",
+                "covered_panel_ids",
+                "covered_feature_names",
+                "real_data_execution_authorized_by_this_crosswalk",
                 "activation_by_this_artifact",
                 "statement",
             ),
@@ -1830,6 +2354,7 @@ def _validate_permissions(document: Mapping[str, Any]) -> tuple[PermissionRecord
                 "Permission is bound to a different source.",
                 f"{path}.source_id",
             )
+
         permission_status = _require_str(
             block.get("permission_status"), f"{path}.permission_status"
         )
@@ -1839,21 +2364,108 @@ def _validate_permissions(document: Mapping[str, Any]) -> tuple[PermissionRecord
                 "Permission status is not in the frozen taxonomy.",
                 f"{path}.permission_status",
             )
+        if permission_status.startswith("AUTHORIZED"):
+            _fail(
+                "unauthorized_permission_status",
+                "No permission record may export an unqualified AUTHORIZED status.",
+                f"{path}.permission_status",
+            )
         if permission_status != frozen["permission_status"]:
             _fail(
                 "permission_mismatch",
                 "Permission status may not be promoted by this artifact.",
                 f"{path}.permission_status",
             )
+
+        reference_ids = tuple(
+            _require_str(item, f"{path}.historical_authorization_reference_ids[{position}]")
+            for position, item in enumerate(
+                _require_sequence(
+                    block.get("historical_authorization_reference_ids"),
+                    f"{path}.historical_authorization_reference_ids",
+                )
+            )
+        )
+        if reference_ids != tuple(frozen["historical_authorization_reference_ids"]):
+            _fail(
+                "authorization_scope_mismatch",
+                "Historical authorization references may not be attached to, or "
+                "detached from, this permission record.",
+                f"{path}.historical_authorization_reference_ids",
+            )
+        for reference_id in reference_ids:
+            if reference_id not in authorization_reference_ids:
+                _fail(
+                    "unknown_authorization_reference",
+                    "Permission cites an unregistered authorization reference.",
+                    f"{path}.historical_authorization_reference_ids",
+                )
+        if permission_status == "NOT_AUTHORIZED_OUT_OF_D047_SCOPE" and reference_ids:
+            _fail(
+                "authorization_scope_mismatch",
+                "A NOT_AUTHORIZED record may not carry a historical reference.",
+                f"{path}.historical_authorization_reference_ids",
+            )
+
+        covered_panels = tuple(
+            _require_str(item, f"{path}.covered_panel_ids[{position}]")
+            for position, item in enumerate(
+                _require_sequence(
+                    block.get("covered_panel_ids"), f"{path}.covered_panel_ids"
+                )
+            )
+        )
+        if covered_panels != tuple(frozen["covered_panel_ids"]):
+            _fail(
+                "authorization_scope_mismatch",
+                "Covered panels do not match the frozen permission scope.",
+                f"{path}.covered_panel_ids",
+            )
+        for panel_id in covered_panels:
+            if panel_id not in PANELS_BY_ID:
+                _fail(
+                    "unknown_panel_id",
+                    "Permission covers an unregistered panel.",
+                    f"{path}.covered_panel_ids",
+                )
+
+        covered_features = tuple(
+            _require_str(item, f"{path}.covered_feature_names[{position}]")
+            for position, item in enumerate(
+                _require_sequence(
+                    block.get("covered_feature_names"),
+                    f"{path}.covered_feature_names",
+                )
+            )
+        )
+        if covered_features != tuple(frozen["covered_feature_names"]):
+            _fail(
+                "authorization_scope_mismatch",
+                "Covered feature names do not match the frozen permission scope.",
+                f"{path}.covered_feature_names",
+            )
+        roster = {
+            name
+            for panel_id in covered_panels
+            for name in PANELS_BY_ID[panel_id].features
+        }
+        for feature_name in covered_features:
+            if feature_name not in roster:
+                _fail(
+                    "source_mismatch",
+                    "Permission covers a feature outside its declared panels.",
+                    f"{path}.covered_feature_names",
+                )
+
         authorized = _require_bool(
-            block.get("real_data_execution_authorized_by_this_artifact"),
-            f"{path}.real_data_execution_authorized_by_this_artifact",
+            block.get("real_data_execution_authorized_by_this_crosswalk"),
+            f"{path}.real_data_execution_authorized_by_this_crosswalk",
         )
         if authorized:
             _fail(
                 "unauthorized_activation",
                 "This evidence artifact may not authorize real-data execution.",
-                f"{path}.real_data_execution_authorized_by_this_artifact",
+                f"{path}.real_data_execution_authorized_by_this_crosswalk",
             )
         activation = _require_str(
             block.get("activation_by_this_artifact"),
@@ -1871,7 +2483,10 @@ def _validate_permissions(document: Mapping[str, Any]) -> tuple[PermissionRecord
                 permission_id=permission_id,
                 source_id=source_id,
                 permission_status=permission_status,
-                real_data_execution_authorized_by_this_artifact=False,
+                historical_authorization_reference_ids=reference_ids,
+                covered_panel_ids=covered_panels,
+                covered_feature_names=covered_features,
+                real_data_execution_authorized_by_this_crosswalk=False,
                 activation_by_this_artifact=activation,
                 statement=statement,
             )
@@ -2040,7 +2655,89 @@ def _validate_panel_bindings(document: Mapping[str, Any]) -> tuple[PanelBindingR
     return tuple(records)
 
 
-def _validate_routes(document: Mapping[str, Any]) -> tuple[RouteActivationRecord, ...]:
+def _validate_effective_permission(
+    block: Mapping[str, Any],
+    *,
+    expected: Mapping[str, Any],
+    authorization_reference_ids: frozenset[str],
+    path: str,
+) -> EffectivePermission:
+    """Validate a joined effective-permission statement (never an authorization)."""
+    _require_exact_keys(block, EFFECTIVE_PERMISSION_KEYS, path)
+    status = _require_str(
+        block.get("effective_permission_status"),
+        f"{path}.effective_permission_status",
+    )
+    if status not in EFFECTIVE_PERMISSION_STATUS_TAXONOMY:
+        _fail(
+            "invalid_effective_permission_status",
+            "Effective permission status is not in the frozen taxonomy.",
+            f"{path}.effective_permission_status",
+        )
+    if status.startswith("AUTHORIZED"):
+        _fail(
+            "unauthorized_permission_status",
+            "No effective permission may export an unqualified AUTHORIZED status.",
+            f"{path}.effective_permission_status",
+        )
+    if status != expected["effective_permission_status"]:
+        _fail(
+            "permission_mismatch",
+            "Effective permission status may not be promoted by this artifact.",
+            f"{path}.effective_permission_status",
+        )
+    reference_ids = tuple(
+        _require_str(
+            item, f"{path}.historical_authorization_reference_ids[{position}]"
+        )
+        for position, item in enumerate(
+            _require_sequence(
+                block.get("historical_authorization_reference_ids"),
+                f"{path}.historical_authorization_reference_ids",
+            )
+        )
+    )
+    if reference_ids != tuple(expected["historical_authorization_reference_ids"]):
+        _fail(
+            "authorization_scope_mismatch",
+            "Historical authorization references may not be attached to, or "
+            "detached from, this scope.",
+            f"{path}.historical_authorization_reference_ids",
+        )
+    for reference_id in reference_ids:
+        if reference_id not in authorization_reference_ids:
+            _fail(
+                "unknown_authorization_reference",
+                "Scope cites an unregistered authorization reference.",
+                f"{path}.historical_authorization_reference_ids",
+            )
+    if status == "NOT_AUTHORIZED" and reference_ids:
+        _fail(
+            "authorization_scope_mismatch",
+            "A NOT_AUTHORIZED scope may not cite a historical authorization.",
+            f"{path}.historical_authorization_reference_ids",
+        )
+    authorized = _require_bool(
+        block.get("real_data_execution_authorized_by_this_crosswalk"),
+        f"{path}.real_data_execution_authorized_by_this_crosswalk",
+    )
+    if authorized:
+        _fail(
+            "unauthorized_activation",
+            "This evidence artifact may not authorize real-data execution.",
+            f"{path}.real_data_execution_authorized_by_this_crosswalk",
+        )
+    return EffectivePermission(
+        effective_permission_status=status,
+        historical_authorization_reference_ids=reference_ids,
+        real_data_execution_authorized_by_this_crosswalk=False,
+    )
+
+
+def _validate_routes(
+    document: Mapping[str, Any],
+    authorization_reference_ids: frozenset[str],
+) -> tuple[RouteActivationRecord, ...]:
     entries = _require_sequence(document.get("routes"), "$.routes")
     records: list[RouteActivationRecord] = []
     seen: set[str] = set()
@@ -2061,6 +2758,7 @@ def _validate_routes(document: Mapping[str, Any]) -> tuple[RouteActivationRecord
                 "permitted_operations",
                 "forbidden_operations",
                 "restriction_ids",
+                "effective_permission",
             ),
             path,
         )
@@ -2214,6 +2912,15 @@ def _validate_routes(document: Mapping[str, Any]) -> tuple[RouteActivationRecord
                 f"{path}.restriction_ids",
             )
 
+        effective = _validate_effective_permission(
+            _require_mapping(
+                block.get("effective_permission"), f"{path}.effective_permission"
+            ),
+            expected=ROUTE_EFFECTIVE_PERMISSION[route_id],
+            authorization_reference_ids=authorization_reference_ids,
+            path=f"{path}.effective_permission",
+        )
+
         records.append(
             RouteActivationRecord(
                 route_id=route_id,
@@ -2227,6 +2934,7 @@ def _validate_routes(document: Mapping[str, Any]) -> tuple[RouteActivationRecord
                 permitted_operations=tuple(sorted(permitted_tuple)),
                 forbidden_operations=tuple(sorted(forbidden_tuple)),
                 restriction_ids=restriction_ids,
+                effective_permission=effective,
             )
         )
     missing = sorted(set(ROUTE_SPECS) - seen)
@@ -2372,6 +3080,11 @@ def _expected_feature_record(dataset_id: str, feature_name: str) -> dict[str, An
         return {
             "source_id": SOURCE_UCI412,
             "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+            "effective_permission_key": (
+                "DA-A1:BASIC"
+                if feature_name in UCI412_BASIC_FEATURES
+                else "DA-A1:LABS"
+            ),
             "definition_evidence_ids": definition,
             "registered_source_claim": claim,
             "channel": channel,
@@ -2400,7 +3113,16 @@ def _expected_feature_record(dataset_id: str, feature_name: str) -> dict[str, An
         channel_evidence = ("EV-UCI45-REGISTERED-STAGE",)
     return {
         "source_id": SOURCE_UCI45,
-        "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+        "permission_id": (
+            "PERM-UCI45-D047-HISTORICAL-REFERENCE"
+            if feature_name in UCI45_RESTING_FEATURES
+            else "PERM-UCI45-LABS-NOT-AUTHORIZED"
+        ),
+        "effective_permission_key": (
+            "DA-A2:RESTING"
+            if feature_name in UCI45_RESTING_FEATURES
+            else "DA-A2:LABS"
+        ),
         "definition_evidence_ids": UCI45_DEFINITION_EVIDENCE,
         "registered_source_claim": {
             "register_evidence_id": "EV-UCI45-REGISTERED-STAGE",
@@ -2426,6 +3148,7 @@ def _validate_feature(
     index: int,
     evidence_by_id: Mapping[str, EvidenceRecord],
     permissions_by_id: Mapping[str, PermissionRecord],
+    authorization_reference_ids: frozenset[str],
 ) -> FeatureAcquisitionEvidence:
     path = f"$.features[{index}]"
     _require_exact_keys(entry, FEATURE_KEYS, path)
@@ -2731,6 +3454,38 @@ def _validate_feature(
             "Feature permission does not match the frozen source permission.",
             f"{path}.permission_id",
         )
+    if feature_name not in permission.covered_feature_names:
+        _fail(
+            "authorization_scope_mismatch",
+            "Historical or current permission does not cover this feature; an "
+            "out-of-scope feature may not inherit an authorization.",
+            f"{path}.permission_id",
+        )
+
+    effective = _validate_effective_permission(
+        _require_mapping(
+            entry.get("effective_permission"), f"{path}.effective_permission"
+        ),
+        expected=FEATURE_EFFECTIVE_PERMISSION[expected["effective_permission_key"]],
+        authorization_reference_ids=authorization_reference_ids,
+        path=f"{path}.effective_permission",
+    )
+    resolved_status = PERMISSION_EFFECTIVE_STATUS[permission_id]
+    if effective.effective_permission_status != resolved_status:
+        _fail(
+            "authorization_scope_mismatch",
+            "Effective permission must match the scope of the permission record.",
+            f"{path}.effective_permission",
+        )
+    if permission_id == "PERM-UCI45-D047-HISTORICAL-REFERENCE" and (
+        effective.historical_authorization_reference_ids
+        != permission.historical_authorization_reference_ids
+    ):
+        _fail(
+            "authorization_scope_mismatch",
+            "Historical reference ids must match the permission record scope.",
+            f"{path}.effective_permission",
+        )
 
     restriction_ids = tuple(
         _require_str(item, f"{path}.restriction_ids[{position}]")
@@ -2786,7 +3541,7 @@ def _validate_feature(
             timing_derived_from_channel_status=derived_from_channel,
         ),
         permission_id=permission_id,
-        permission_status=permission.permission_status,
+        effective_permission=effective,
         restriction_ids=restriction_ids,
         disposition=disposition,
     )
@@ -2796,6 +3551,7 @@ def _validate_features(
     document: Mapping[str, Any],
     evidence: Sequence[EvidenceRecord],
     permissions: Sequence[PermissionRecord],
+    authorization_reference_ids: frozenset[str],
 ) -> tuple[FeatureAcquisitionEvidence, ...]:
     entries = _require_sequence(document.get("features"), "$.features")
     evidence_by_id = {item.evidence_id: item for item in evidence}
@@ -2809,6 +3565,7 @@ def _validate_features(
             index=index,
             evidence_by_id=evidence_by_id,
             permissions_by_id=permissions_by_id,
+            authorization_reference_ids=authorization_reference_ids,
         )
         if record.feature_key in seen:
             _fail(
@@ -2956,17 +3713,40 @@ def validate_crosswalk(document: Mapping[str, Any]) -> AcquisitionEvidenceCrossw
         ("timing_status_taxonomy", TIMING_STATUS_TAXONOMY),
         ("disposition_taxonomy", DISPOSITION_TAXONOMY),
         ("permission_status_taxonomy", PERMISSION_STATUS_TAXONOMY),
+        (
+            "effective_permission_status_taxonomy",
+            EFFECTIVE_PERMISSION_STATUS_TAXONOMY,
+        ),
     ):
         _validate_taxonomy(root, key, taxonomy, "$")
 
+    for status in PERMISSION_STATUS_TAXONOMY:
+        if status.startswith("AUTHORIZED"):  # pragma: no cover - frozen guard
+            _fail(
+                "unauthorized_permission_status",
+                "The permission taxonomy may not contain an unqualified "
+                "AUTHORIZED status.",
+                "$.permission_status_taxonomy",
+            )
+
+    authorization_scope = _validate_authorization_scope(root)
     evidence = _validate_evidence_register(root)
+    evidence_by_id = {item.evidence_id: item for item in evidence}
+    authorization_references = _validate_authorization_references(
+        root, evidence_by_id, {status: status for status in PERMISSION_STATUS_TAXONOMY}
+    )
+    authorization_reference_ids = frozenset(
+        item.reference_id for item in authorization_references
+    )
     sources = _validate_sources(root)
-    permissions = _validate_permissions(root)
+    permissions = _validate_permissions(root, authorization_reference_ids)
     restrictions = _validate_restrictions(root)
     panels = _validate_panel_bindings(root)
-    routes = _validate_routes(root)
+    routes = _validate_routes(root, authorization_reference_ids)
     blocked_items = _validate_blocked_items(root, routes)
-    features = _validate_features(root, evidence, permissions)
+    features = _validate_features(
+        root, evidence, permissions, authorization_reference_ids
+    )
 
     return AcquisitionEvidenceCrosswalk(
         schema_id=CROSSWALK_SCHEMA_ID,
@@ -2978,6 +3758,8 @@ def validate_crosswalk(document: Mapping[str, Any]) -> AcquisitionEvidenceCrossw
         baseline_main_sha=CROSSWALK_BASELINE_MAIN_SHA,
         document_digest_sha256=crosswalk_document_digest(root),
         holds=_freeze(holds),
+        authorization_scope=_freeze(authorization_scope),
+        authorization_references=authorization_references,
         evidence=evidence,
         sources=sources,
         permissions=permissions,
@@ -3188,9 +3970,17 @@ def describe_crosswalk() -> dict[str, Any]:
         "channel_status_counts": _count_by(
             record.acquisition.channel_status for record in crosswalk.features
         ),
-        "permission_status_counts": _count_by(
-            record.permission_status for record in crosswalk.features
+        "effective_permission_status_counts": _count_by(
+            record.effective_permission.effective_permission_status
+            for record in crosswalk.features
         ),
+        "permission_record_status_counts": _count_by(
+            record.permission_status for record in crosswalk.permissions
+        ),
+        "authorization_references": [
+            item.to_dict() for item in crosswalk.authorization_references
+        ],
+        "authorization_scope": _thaw(crosswalk.authorization_scope),
         "holds": _thaw(crosswalk.holds),
         "result_state": RESULT_STATE,
         "cad_probability_computed": False,
@@ -3274,6 +4064,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 __all__ = [
     "ACQUISITION_CHANNEL_TAXONOMY",
+    "AUTHORIZATION_REFERENCES",
+    "AUTHORIZATION_SCOPE",
     "AcquisitionEvidence",
     "AcquisitionEvidenceCrosswalk",
     "BLOCKED_ITEMS",
@@ -3288,12 +4080,16 @@ __all__ = [
     "CrosswalkQueryError",
     "CrosswalkValidationError",
     "DISPOSITION_TAXONOMY",
+    "EFFECTIVE_PERMISSION_STATUS_TAXONOMY",
     "EVIDENCE_CLASS_TAXONOMY",
     "EVIDENCE_REGISTER",
     "EXPECTED_HOLDS",
+    "EffectivePermission",
     "EvidenceRecord",
+    "FEATURE_EFFECTIVE_PERMISSION",
     "FORBIDDEN_OPERATIONS_ALWAYS",
     "FeatureAcquisitionEvidence",
+    "HistoricalAuthorizationReference",
     "FeatureEvidenceQuery",
     "KNOWN_OPERATIONS",
     "OWNER_TIMING_EVIDENCE_CLASSES",
@@ -3305,6 +4101,7 @@ __all__ = [
     "RESULT_STATE",
     "RESTRICTIONS",
     "ROUTE_ACTIVATION_STATES",
+    "ROUTE_EFFECTIVE_PERMISSION",
     "ROUTE_SPECS",
     "RegisteredSourceClaim",
     "RestrictionRecord",

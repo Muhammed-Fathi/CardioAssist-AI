@@ -1,6 +1,6 @@
 {
   "schema_id": "cardioassist.feature_acquisition_evidence_crosswalk",
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "crosswalk_id": "rh04_feature_acquisition_evidence_crosswalk.v1",
   "artifact_kind": "OFFLINE_READ_ONLY_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK",
   "status": "EVIDENCE_ONLY_NOT_APPROVED",
@@ -29,6 +29,8 @@
       "UCI-412": 23
     },
     "uci412_basic_clinical_owner_verified_pre_angiography": "0/16",
+    "historical_d047_authorization_scope": "CLEVELAND_FIVE_FIELD_INTERNAL_EXPLORATORY_ONLY",
+    "new_real_data_authorization_granted_by_this_crosswalk": false,
     "real_data_training_authorized": false,
     "real_model_artifacts_created": false,
     "patient_data_accessed": false,
@@ -66,9 +68,43 @@
     "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED": "Evidence recorded only. The feature belongs to a blocked extension that stays blocked."
   },
   "permission_status_taxonomy": {
-    "AUTHORIZED_INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED": "D-047 internal exploratory Cleveland scope, executed only under the historical label; no publication, clinical or external-validation claim.",
+    "HISTORICAL_D047_SCOPE_REFERENCE_ONLY": "The record is a historical authorization REFERENCE only. D-047 covered the original Cleveland five-field internal exploratory study and nothing else; it is not a currently applicable permission.",
+    "NOT_AUTHORIZED_OUT_OF_D047_SCOPE": "No authorization covers this scope. D-047 did not cover laboratory fields, the UCI-45 labs extension, UCI-412 or the Hungary target.",
     "SCIENTIFIC_HOLD_NEW_REAL_FIT": "Scientific hold on new real-data fitting or panel extension pending owner/CRF timing evidence and independent review."
   },
+  "effective_permission_status_taxonomy": {
+    "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION": "A historical authorization reference exists for the original Cleveland five-field study only. It is not currently operative and grants no new real-data execution.",
+    "NOT_AUTHORIZED": "No authorization covers this scope. The scope is not covered by D-047 and no other human authorization exists.",
+    "SCIENTIFIC_HOLD_NEW_REAL_FIT": "Held under the UCI-412 scientific hold: no new real-data fitting or laboratory admission is authorized.",
+    "NOT_AUTHORIZED_FOR_NEW_REAL_DATA": "Source-level restatement of NOT_AUTHORIZED: nothing in this source may be used for new real-data execution."
+  },
+  "authorization_scope": {
+    "new_real_data_authorization_granted_by_this_crosswalk": false,
+    "historical_authorization_is_not_current_permission": true,
+    "authorization_statement": "No feature, panel or route in this crosswalk is authorized for new real-data execution. The single historical authorization reference (D-047) records a completed, scope-limited Cleveland five-field internal exploratory study. It does not cover chol, fbs, the UCI-45 labs extension, any UCI-412 scope, the Hungary locked target, or any new execution, and it is not a currently operative permission."
+  },
+  "authorization_references": [
+    {
+      "reference_id": "AUTHREF-D047-CLEVELAND-FIVE-FIELD",
+      "decision_id": "D-047",
+      "authorized_dataset_id": "DA-A2",
+      "authorized_panel_id": "da_a2_resting_v1",
+      "authorized_feature_names": [
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "restecg"
+      ],
+      "historical_execution_label": "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
+      "execution_status": "COMPLETED_HISTORICAL_INTERNAL_EXPLORATORY",
+      "authorizes_new_real_data_execution": false,
+      "evidence_ids": [
+        "EV-UCI45-D047-PLAN"
+      ],
+      "statement": "D-047 authorized one internal exploratory study of the original Cleveland five resting fields defined in the D-047 frozen plan (evidence EV-UCI45-D047-PLAN). The human local operator executed that study under a locally signed, hash-bound, Git-ignored manifest with the historical INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED label. This reference records that completed historical fact only. It is not a currently operative permission, it is not supervisor, ethics or institutional approval, and it does not authorize chol, fbs, the UCI-45 labs extension, UCI-412, the Hungary locked target or any new real-data execution."
+    }
+  ],
   "evidence_register": [
     {
       "evidence_id": "EV-UCI412-PRIMARY-OWNER",
@@ -122,7 +158,7 @@
       "establishes_feature_definition": false,
       "establishes_acquisition_timing": false,
       "owner_attested_timing_evidence": false,
-      "summary": "RH-02 source-question register Q-04: 0 of 16 UCI-412 fields has owner-verified pre-angiography acquisition timing."
+      "summary": "RH-02 source-question register Q-O4: 0 of 16 UCI-412 fields has owner-verified pre-angiography acquisition timing."
     },
     {
       "evidence_id": "EV-UCI45-PROCESSED-COLUMNS",
@@ -140,7 +176,7 @@
       "establishes_feature_definition": true,
       "establishes_acquisition_timing": false,
       "owner_attested_timing_evidence": false,
-      "summary": "M2b stage-aware intake allowlist: frozen stage rosters and field definitions used by the synthetic-only intake prototype. Reproposed here as a repository register, not owner evidence."
+      "summary": "M2b stage-aware intake allowlist: frozen stage rosters and field definitions used by the synthetic-only intake prototype. A repository register, not owner evidence."
     },
     {
       "evidence_id": "EV-UCI45-D047-PLAN",
@@ -149,7 +185,7 @@
       "establishes_feature_definition": false,
       "establishes_acquisition_timing": false,
       "owner_attested_timing_evidence": false,
-      "summary": "D-047 internal exploratory Cleveland plan: registers the executed internal-only protocol. Confers no new permission and no timing evidence."
+      "summary": "D-047 internal exploratory Cleveland plan: registers the executed Cleveland five resting-field internal-only protocol. Confers no new permission and no timing evidence."
     },
     {
       "evidence_id": "EV-R1-CLEVELAND-MAPPING",
@@ -170,8 +206,9 @@
         "da_a2_resting_v1",
         "da_a2_resting_labs_v1"
       ],
-      "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
-      "provenance_statement": "UCI-45 heart-disease processed cohorts (DA-A2). Registered repository stage contract and D-047 internal exploratory plan; no owner codebook establishes per-field pre-angiography timing."
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_source_permission_status": "NOT_AUTHORIZED_FOR_NEW_REAL_DATA",
+      "provenance_statement": "UCI-45 heart-disease processed cohorts (DA-A2). Registered repository stage contract plus a historical D-047 internal exploratory record limited to the original five resting fields; no owner codebook establishes per-field pre-angiography timing and nothing here is authorized for new real-data execution."
     },
     {
       "source_id": "UCI-412",
@@ -182,23 +219,83 @@
         "da_a1_clinical_core_labs_v1"
       ],
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_source_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
       "provenance_statement": "UCI-412 Z-Alizadeh Sani (DA-A1), CC BY 4.0, DOI 10.24432/C5Q31T. Registered feature dictionary 1.1.0 and AI-8R evidence register; no owner CRF or acquisition codebook establishes per-feature timing."
     }
   ],
   "permissions": [
     {
-      "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
       "source_id": "UCI-45",
-      "permission_status": "AUTHORIZED_INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
-      "real_data_execution_authorized_by_this_artifact": false,
+      "permission_status": "HISTORICAL_D047_SCOPE_REFERENCE_ONLY",
+      "historical_authorization_reference_ids": [
+        "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+      ],
+      "covered_panel_ids": [
+        "da_a2_resting_v1"
+      ],
+      "covered_feature_names": [
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "restecg"
+      ],
+      "real_data_execution_authorized_by_this_crosswalk": false,
       "activation_by_this_artifact": "NONE",
-      "statement": "D-047 internal exploratory Cleveland scope only, under the historical INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED label. No publication, clinical or external-validation claim; this artifact activates nothing."
+      "statement": "HISTORICAL AUTHORIZATION REFERENCE ONLY. D-047 covered the original Cleveland five resting fields (age, sex, cp, trestbps, restecg) in da_a2_resting_v1. That internal exploratory study was already executed by the human local operator under a locally signed, hash-bound, Git-ignored manifest with the historical INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED label. The record does not cover chol, fbs, the UCI-45 labs extension, Hungary, UCI-412 or any new real-data execution, and it is not a currently operative permission. This crosswalk activates nothing."
+    },
+    {
+      "permission_id": "PERM-UCI45-LABS-NOT-AUTHORIZED",
+      "source_id": "UCI-45",
+      "permission_status": "NOT_AUTHORIZED_OUT_OF_D047_SCOPE",
+      "historical_authorization_reference_ids": [],
+      "covered_panel_ids": [
+        "da_a2_resting_labs_v1"
+      ],
+      "covered_feature_names": [
+        "chol",
+        "fbs"
+      ],
+      "real_data_execution_authorized_by_this_crosswalk": false,
+      "activation_by_this_artifact": "NONE",
+      "statement": "NOT AUTHORIZED. chol and fbs belong only to da_a2_resting_labs_v1 and are outside the historical D-047 five-field scope. The UCI-45 labs extension stays blocked; no human authorization exists and this crosswalk grants none."
     },
     {
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
       "source_id": "UCI-412",
       "permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
-      "real_data_execution_authorized_by_this_artifact": false,
+      "historical_authorization_reference_ids": [],
+      "covered_panel_ids": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "covered_feature_names": [
+        "Age",
+        "Sex",
+        "BMI",
+        "DM",
+        "HTN",
+        "Current Smoker",
+        "EX-Smoker",
+        "FH",
+        "DLP",
+        "BP",
+        "PR",
+        "Typical Chest Pain",
+        "Atypical",
+        "Nonanginal",
+        "Exertional CP",
+        "Dyspnea",
+        "FBS",
+        "CR",
+        "TG",
+        "LDL",
+        "HDL",
+        "HB",
+        "WBC"
+      ],
+      "real_data_execution_authorized_by_this_crosswalk": false,
       "activation_by_this_artifact": "NONE",
       "statement": "Scientific hold on new real-data fitting or panel extension pending owner/CRF acquisition timing evidence and independent review. No real data execution, model fitting or laboratory admission is approved."
     }
@@ -275,7 +372,7 @@
     },
     {
       "restriction_id": "RES-UCI45-LABS-EXTENSION-BLOCKED",
-      "statement": "The UCI-45 resting-plus-labs extension (chol, fbs) stays blocked: staged lab availability, timing and missingness handling are unverified and execution requires separate authorization.",
+      "statement": "The UCI-45 resting-plus-labs extension (chol, fbs) stays blocked: it is outside the historical D-047 five-field authorization, staged lab availability, timing and missingness handling are unverified, and execution requires separate authorization.",
       "applies_to_route_ids": [
         "da_a2_resting_labs_v1"
       ],
@@ -306,7 +403,7 @@
     },
     {
       "restriction_id": "RES-HUNGARY-LOCKED-NEVER-TRAIN",
-      "statement": "Hungary is a locked external target site: never trained, tuned, feature-selected or threshold-selected on; one-shot locked evaluation requires Gate PT P-3 plus separate dataset and ledger authorization.",
+      "statement": "Hungary is a locked external target site: never trained, tuned, feature-selected or threshold-selected on, and not covered by the historical D-047 five-field authorization; one-shot locked evaluation requires Gate PT P-3 plus separate dataset and ledger authorization.",
       "applies_to_route_ids": [
         "da_a2_hungary_locked_transportability_v1"
       ],
@@ -375,7 +472,14 @@
         "RES-NO-POOLING",
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
         "RES-UCI45-NO-SELECTION-DECISION"
-      ]
+      ],
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
     },
     {
       "route_id": "da_a2_resting_labs_v1",
@@ -400,7 +504,12 @@
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
         "RES-UCI45-LABS-EXTENSION-BLOCKED",
         "RES-UCI45-NO-SELECTION-DECISION"
-      ]
+      ],
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
     },
     {
       "route_id": "da_a1_basic_clinical_v1",
@@ -431,7 +540,12 @@
         "RES-NO-POOLING",
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
-      ]
+      ],
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
     },
     {
       "route_id": "da_a1_clinical_core_labs_v1",
@@ -455,7 +569,12 @@
         "RES-NO-POOLING",
         "RES-UCI412-LABS-BLOCKED",
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
-      ]
+      ],
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
     },
     {
       "route_id": "da_a2_hungary_locked_transportability_v1",
@@ -478,7 +597,12 @@
       "restriction_ids": [
         "RES-HUNGARY-LOCKED-NEVER-TRAIN",
         "RES-NO-POOLING"
-      ]
+      ],
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
     }
   ],
   "blocked_items": [
@@ -538,6 +662,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -576,6 +705,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -614,6 +748,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -652,6 +791,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -690,6 +834,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -728,6 +877,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -766,6 +920,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -804,6 +963,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -842,6 +1006,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -880,6 +1049,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -918,6 +1092,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -956,6 +1135,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -994,6 +1178,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -1032,6 +1221,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -1070,6 +1264,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -1108,6 +1307,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED"
       ],
@@ -1145,6 +1349,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED",
         "RES-UCI412-LABS-BLOCKED"
@@ -1183,6 +1392,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED",
         "RES-UCI412-LABS-BLOCKED"
@@ -1221,6 +1435,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED",
         "RES-UCI412-LABS-BLOCKED"
@@ -1259,6 +1478,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED",
         "RES-UCI412-LABS-BLOCKED"
@@ -1297,6 +1521,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED",
         "RES-UCI412-LABS-BLOCKED"
@@ -1335,6 +1564,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED",
         "RES-UCI412-LABS-BLOCKED"
@@ -1373,6 +1607,11 @@
         "timing_derived_from_channel_status": false
       },
       "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI412-OWNER-TIMING-UNVERIFIED",
         "RES-UCI412-LABS-BLOCKED"
@@ -1410,7 +1649,14 @@
         ],
         "timing_derived_from_channel_status": false
       },
-      "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI45-NO-SELECTION-DECISION",
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
@@ -1448,7 +1694,14 @@
         ],
         "timing_derived_from_channel_status": false
       },
-      "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI45-NO-SELECTION-DECISION",
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
@@ -1486,7 +1739,14 @@
         ],
         "timing_derived_from_channel_status": false
       },
-      "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI45-NO-SELECTION-DECISION",
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
@@ -1524,7 +1784,14 @@
         ],
         "timing_derived_from_channel_status": false
       },
-      "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI45-NO-SELECTION-DECISION",
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
@@ -1562,7 +1829,14 @@
         ],
         "timing_derived_from_channel_status": false
       },
-      "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI45-NO-SELECTION-DECISION",
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
@@ -1599,7 +1873,12 @@
         ],
         "timing_derived_from_channel_status": false
       },
-      "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+      "permission_id": "PERM-UCI45-LABS-NOT-AUTHORIZED",
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI45-NO-SELECTION-DECISION",
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
@@ -1637,7 +1916,12 @@
         ],
         "timing_derived_from_channel_status": false
       },
-      "permission_id": "PERM-UCI45-INTERNAL-EXPLORATORY",
+      "permission_id": "PERM-UCI45-LABS-NOT-AUTHORIZED",
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
       "restriction_ids": [
         "RES-UCI45-NO-SELECTION-DECISION",
         "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
@@ -1652,6 +1936,12 @@
     "statement": "Every query returns documentation metadata only. No CAD probability, score, calibration, explanation or clinical interpretation is produced, and none may be inferred from an empty or populated result set."
   },
   "revision_history": [
+    {
+      "version": "1.1.0",
+      "date": "2026-11-19",
+      "change": "Authorization-scope correction after independent review of PR #113: split the historical D-047 authorization reference (original Cleveland five resting fields only, completed internal exploratory study) from the currently effective permission of each feature, panel and route. chol/fbs, the UCI-45 labs extension, the UCI-412 labs route and the Hungary locked route now export NOT_AUTHORIZED; no status beginning with AUTHORIZED is exported anywhere. No operation set, hold, timing evidentiary fact or scope changed.",
+      "authorization_impact": "None. Strictly narrows exported metadata scope; grants and lifts nothing."
+    },
     {
       "version": "1.0.0",
       "date": "2026-11-19",
