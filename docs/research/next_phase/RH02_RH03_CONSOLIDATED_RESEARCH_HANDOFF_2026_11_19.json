@@ -1,0 +1,367 @@
+{
+  "schema_id": "cardioassist.rh02_rh03_consolidated_research_handoff/v1",
+  "version": "1.0.0",
+  "captured_on": "2026-11-19",
+  "status": "EVIDENCE_SNAPSHOT_FOR_REVIEW_NOT_ACCEPTANCE",
+  "main_baseline_sha": "d8a0090b1827504532a2f938f200eedcfd86af28",
+  "document_path": "docs/research/next_phase/RH02_RH03_CONSOLIDATED_RESEARCH_HANDOFF_2026_11_19.md",
+  "canonical_precedence": [
+    "AGENTS.md",
+    "docs/DECISIONS.md",
+    "docs/research/ai_master_progress.json",
+    "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
+    "research/source_materials/literature_review_status.csv",
+    "frozen Gate DA/PT and hash-bound authorizations"
+  ],
+  "source_prs": [
+    {
+      "pr": 101,
+      "status": "MERGED",
+      "merge_sha": "9606b955b5c5906031ee88de704c3825b1f8b914",
+      "result": "RH02_TECHNICAL_METADATA_AUDIT",
+      "checks_success": 4
+    },
+    {
+      "pr": 105,
+      "status": "MERGED",
+      "merge_sha": "ab613baa3de5ec7c3442f4047b1a4cc56126d624",
+      "result": "RH03_CLAIM_EVIDENCE_AUDIT",
+      "checks_success": 4
+    },
+    {
+      "pr": 106,
+      "status": "MERGED",
+      "merge_sha": "d8a0090b1827504532a2f938f200eedcfd86af28",
+      "result": "RH02_PRIMARY_AUTHOR_PATENT_ANGIOCAD_PUBLIC_SOURCE_HUNT",
+      "checks_success": 4
+    }
+  ],
+  "rh03_summary": {
+    "manuscript_chapters": 17,
+    "claim_rows": 28,
+    "source_report_transcription_matches_limited": 9,
+    "content_not_verifiable": 19,
+    "established_mismatches": 0,
+    "pending_human_reviewer_actions": 10,
+    "protected_experiments_rerun": false,
+    "human_scientific_signoff": false
+  },
+  "rh02_source_hunt_summary": {
+    "sources": 22,
+    "findings": 11,
+    "uci412_owner_verified_preangio_fields": 0,
+    "primary_original_years": [
+      2012,
+      2013
+    ],
+    "original_inventor_patent_publication": 2015,
+    "abandoned_patent_not_owner_dictionary": true,
+    "original_author_2013_lab_echo_count": 17,
+    "patent_embodiment_people": 335,
+    "patent_embodiment_feature_count": 50,
+    "uci412_owner_people": 303,
+    "official_owner_feature_wording": 54,
+    "historical_local_delivery_predictors": 55,
+    "historical_local_delivery_predictors_plus_target": 56,
+    "feature_count_equivalence_established": false,
+    "angiocad_patients_reported": 413,
+    "angiocad_video_patient_mapping_verified": false,
+    "rights_resolved": false
+  },
+  "dataset_roles": [
+    {
+      "id": "CLEVELAND",
+      "name": "UCI-45 Cleveland",
+      "role": "DEVELOPMENT_AND_HISTORICAL_INTERNAL_EXPLORATORY",
+      "evidence": "HISTORICAL_AGGREGATE_NO_EXTERNAL_VALIDATION",
+      "status": "CONDITIONAL_SOURCE_REVIEW",
+      "questions": [
+        "Q-01",
+        "Q-02"
+      ],
+      "next": "CLEVELAND_SOURCE_AUDIT",
+      "real_study_executed_in_this_handoff": false
+    },
+    {
+      "id": "UCI412",
+      "name": "UCI-412 Z-Alizadeh Sani",
+      "role": "SEPARATE_RESEARCH_ROUTE_AND_CONDITIONAL_LABS",
+      "evidence": "ORIGINAL_SOURCES_WITH_CRITICAL_UNRESOLVED_DELIVERED_WORKBOOK_SEMANTICS",
+      "status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+      "owner_verified_preangio_fields": 0,
+      "questions": [
+        "Q-03",
+        "Q-04",
+        "Q-05",
+        "Q-06",
+        "Q-07",
+        "Q-08",
+        "Q-15"
+      ],
+      "next": "FOCUSED_OWNER_CLARIFICATION_AND_AUTHORIZED_LOCAL_HEADERS_ONLY"
+    },
+    {
+      "id": "HUNGARY",
+      "name": "UCI-45 Hungary",
+      "role": "LOCKED_EXTERNAL_CANDIDATE",
+      "evidence": "NOT_EXECUTED",
+      "status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "questions": [
+        "Q-10",
+        "Q-11"
+      ],
+      "next": "HUNGARY_INDEPENDENCE_COMPATIBILITY_PRECISION_REVIEW"
+    },
+    {
+      "id": "VA",
+      "name": "UCI-45 VA Long Beach",
+      "role": "DOMAIN_SHIFT_AND_MISSINGNESS_SUITABILITY",
+      "evidence": "NO_REAL_STUDY",
+      "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "questions": [
+        "Q-13"
+      ],
+      "next": "OWNER_METADATA_AUDIT"
+    },
+    {
+      "id": "SWITZERLAND",
+      "name": "UCI-45 Switzerland",
+      "role": "MISSINGNESS_AND_SMALL_SOURCE_SUITABILITY",
+      "evidence": "NO_REAL_STUDY",
+      "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "questions": [
+        "Q-13"
+      ],
+      "next": "OWNER_METADATA_AUDIT"
+    },
+    {
+      "id": "UCI411",
+      "name": "UCI-411 extension",
+      "role": "SAME_COHORT_LEAKAGE_AND_OVERLAP_AUDIT",
+      "evidence": "OWNER_SAYS_SAME_303_AS_UCI412",
+      "status": "UNSUITABLE_AS_INDEPENDENT_VALIDATION",
+      "questions": [
+        "Q-09"
+      ],
+      "next": "PRESERVE_OVERLAP_WARNING"
+    },
+    {
+      "id": "STATLOG",
+      "name": "Statlog Heart",
+      "role": "CLEVELAND_OVERLAP_PROVENANCE_AUDIT",
+      "evidence": "INDEPENDENCE_UNVERIFIED",
+      "status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "questions": [
+        "Q-12"
+      ],
+      "next": "OFFICIAL_PROVENANCE_REVIEW"
+    },
+    {
+      "id": "ANGIOCAD",
+      "name": "AngioCAD",
+      "role": "MODERN_METADATA_ONLY_UNADMITTED_CANDIDATE",
+      "evidence": "OWNER_SCHEMA_TIMING_LABEL_AND_RIGHTS_NOT_VERIFIED",
+      "status": "SCIENTIFIC_HOLD_NOT_ADMITTED",
+      "literature_classification": "REJECTED_RED",
+      "literature_id": "P25",
+      "questions": [
+        "Q-14"
+      ],
+      "next": "OWNER_SCOPED_DOCS_THEN_POSSIBLE_SEPARATE_D021"
+    }
+  ],
+  "canonical_question_statuses_unchanged": [
+    {
+      "id": "Q-01",
+      "question": "Cleveland pretest five-field semantics",
+      "canonical_status_at_baseline": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "next_action": "CLEVELAND_SOURCE_AUDIT",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-02",
+      "question": "UCI-45 endpoint exact boundary",
+      "canonical_status_at_baseline": "SOURCE_WORDING_RESOLVED_EQUIVALENCE_UNRESOLVED",
+      "next_action": "CLEVELAND_SOURCE_AUDIT",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-03",
+      "question": "UCI-412 >=50% source metadata",
+      "canonical_status_at_baseline": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "next_action": "NO_STATUS_CHANGE_SOURCE_CONFLICT_DOCUMENTED",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-04",
+      "question": "UCI-412 16-field preangiography timing",
+      "canonical_status_at_baseline": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "next_action": "OWNER_CRF_PROOF_REQUIRED",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-05",
+      "question": "UCI-412 BP and PR semantics",
+      "canonical_status_at_baseline": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "next_action": "OWNER_UNITS_MEASUREMENT_PROOF_REQUIRED",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-06",
+      "question": "UCI-412 binary direction",
+      "canonical_status_at_baseline": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "next_action": "OWNER_SOURCE_CODING_REQUIRED",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-07",
+      "question": "UCI-412 chest-pain flags",
+      "canonical_status_at_baseline": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "next_action": "OWNER_ELICITATION_PROOF_REQUIRED",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-08",
+      "question": "UCI-412 count/version",
+      "canonical_status_at_baseline": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "next_action": "AUTHORIZED_LOCAL_HEADERS_ONLY_VERSION_AUDIT",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-09",
+      "question": "UCI-411 independent cohort",
+      "canonical_status_at_baseline": "UNSUITABLE_FOR_THIS_EXTERNAL_CLAIM",
+      "next_action": "PRESERVE_NONINDEPENDENCE",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-10",
+      "question": "Hungary source independence and suitability",
+      "canonical_status_at_baseline": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "next_action": "HUNGARY_SOURCE_AUDIT",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-11",
+      "question": "Hungary one-shot freeze and protocol",
+      "canonical_status_at_baseline": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "next_action": "HUMAN_LOCKED_PROTOCOL_DECISION",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-12",
+      "question": "Statlog and Cleveland overlap",
+      "canonical_status_at_baseline": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "next_action": "STATLOG_PROVENANCE_AUDIT",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-13",
+      "question": "VA Long Beach and Switzerland suitability",
+      "canonical_status_at_baseline": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "next_action": "VA_SWITZERLAND_SOURCE_AUDIT",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-14",
+      "question": "AngioCAD source eligibility",
+      "canonical_status_at_baseline": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "next_action": "OWNER_SCHEMA_RIGHTS_CLARIFICATION",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-15",
+      "question": "Real matched clinical/labs AI-9.2",
+      "canonical_status_at_baseline": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "next_action": "SEPARATE_AUTHORIZATION_OR_NO_GO",
+      "status_modified_by_handoff": false
+    },
+    {
+      "id": "Q-16",
+      "question": "TRIPOD+AI PROBAST+AI use",
+      "canonical_status_at_baseline": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "next_action": "REPORT_REVIEW_ONLY",
+      "status_modified_by_handoff": false
+    }
+  ],
+  "conditional_real_studies": [
+    {
+      "id": "AI-9.2",
+      "status": "NOT_PERFORMED",
+      "gate": "HOLD_REQUIRES_SOURCE_TIMING_UNITS_COMPARABILITY_AND_AUTHORIZATION",
+      "real_performance_claim": false
+    },
+    {
+      "id": "AI-10.2",
+      "status": "NOT_PERFORMED",
+      "gate": "HOLD_REQUIRES_HUNGARY_INDEPENDENCE_LOCKED_PLAN_PRECISION_RIGHTS_AND_AUTHORIZATION",
+      "real_external_validation_claim": false
+    }
+  ],
+  "research_milestones_at_tracker_snapshot": [
+    {
+      "id": "RH-00",
+      "status": "READY_FOR_REVIEW"
+    },
+    {
+      "id": "RH-01",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "RH-02",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "RH-03",
+      "status": "IN_PROGRESS"
+    },
+    {
+      "id": "RH-04",
+      "status": "PLANNED"
+    },
+    {
+      "id": "RH-05",
+      "status": "PLANNED"
+    },
+    {
+      "id": "RH-06",
+      "status": "CONDITIONAL_GATED"
+    },
+    {
+      "id": "RH-07",
+      "status": "PLANNED"
+    },
+    {
+      "id": "RH-08",
+      "status": "PLANNED"
+    }
+  ],
+  "tracker_snapshot_not_updated_for_latest_prs": true,
+  "pending_final_prototype_acceptance_criteria": 15,
+  "backend_active_provider": "MOCK_SYNTHETIC",
+  "new_real_training_authorized": false,
+  "real_patient_data_accessed_in_handoff": false,
+  "source_holds_lifted": false,
+  "graduation_manuscript_final_signoff": false,
+  "research_prototype_handoff_accepted": false,
+  "clinical_validation_claim": false,
+  "next_task": {
+    "issue_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/107",
+    "focus": "Cleveland/Hungary/Statlog/UCI411/VA/Switzerland source/overlap research",
+    "public_metadata_only": true
+  },
+  "owner_outreach": {
+    "issue_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/102",
+    "status": "PREPARED_NOT_SENT"
+  },
+  "main_citation_paths": [
+    "docs/research/CARDIOASSIST_AI_MASTER_COMPLETION_PLAN.md",
+    "docs/research/next_phase/AI_RESEARCH_COMPLETION_TRACKER_2026_11_19.json",
+    "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
+    "docs/research/next_phase/RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md",
+    "docs/research/next_phase/RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.json",
+    "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+    "docs/research/next_phase/AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md"
+  ],
+  "disclaimer": "All statuses are report/handoff snapshots only; new source admission, source reclassification, permission to access patient data or train/evaluate real clinical models, and scientific/clinical acceptance require separate review."
+}
