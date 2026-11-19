@@ -1,0 +1,316 @@
+{
+  "schema_id": "cardioassist.ai12_2_manuscript_coverage/v1",
+  "prepared_on": "2026-11-19",
+  "status": "DRAFT_NOT_RELEASE_ACCEPTED",
+  "source_main_sha": "897eaf61030636edae8dd5ac2ecc7dacf2870f02",
+  "manuscript_path": "docs/research/next_phase/AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md",
+  "claim_index": "docs/research/next_phase/RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json",
+  "report_chapters": [
+    {
+      "id": "FR-01",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-005",
+        "CL-012",
+        "CL-016",
+        "CL-018"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-02",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-027"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-03",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-016",
+        "CL-027"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-04",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-002",
+        "CL-011",
+        "CL-017",
+        "CL-018"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-05",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-003",
+        "CL-011",
+        "CL-016"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-06",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-004",
+        "CL-012",
+        "CL-027"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-07",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-002",
+        "CL-005",
+        "CL-006",
+        "CL-007",
+        "CL-008",
+        "CL-011",
+        "CL-012",
+        "CL-013",
+        "CL-027"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-08",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-019",
+        "CL-020",
+        "CL-021",
+        "CL-022",
+        "CL-026"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-09",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-023",
+        "CL-024"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-10",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-009",
+        "CL-010",
+        "CL-014",
+        "CL-015"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-11",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-016",
+        "CL-019"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-12",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-017",
+        "CL-018",
+        "CL-020"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-13",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-021",
+        "CL-022",
+        "CL-025"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-14",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-020",
+        "CL-021",
+        "CL-022",
+        "CL-026"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-15",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-010",
+        "CL-015",
+        "CL-016",
+        "CL-018",
+        "CL-027"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-16",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-001",
+        "CL-027",
+        "CL-028"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    },
+    {
+      "id": "FR-17",
+      "content_state": "SUBSTANTIVE_DRAFT_WRITTEN",
+      "scientific_review": "PENDING",
+      "source_claim_ids": [
+        "CL-028",
+        "CL-026",
+        "CL-025"
+      ],
+      "numerical_evidence_grade": "ARCHIVED_AND_UNVERIFIED_DIRECTLY",
+      "completion_note": "Section contains drafted content at report v0.1; no independent academic reviewer has signed it."
+    }
+  ],
+  "unperformed_real_studies": [
+    "AI-9.2",
+    "AI-10.2"
+  ],
+  "external_validation_performed": false,
+  "clinical_use_authorized": false,
+  "actual_final_release_sha": null,
+  "actual_final_release_report_hash": null,
+  "reviewer_actions": [
+    {
+      "id": "REVIEW-01",
+      "task": "Clinical source/feature chronology and target interpretation",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    },
+    {
+      "id": "REVIEW-02",
+      "task": "Historical local protected aggregate provenance attestation where permitted",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    },
+    {
+      "id": "REVIEW-03",
+      "task": "Report numeric values and table links vs original review documents",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    },
+    {
+      "id": "REVIEW-04",
+      "task": "Scientific statistics: repeat SD not CI; no real external or labs claims",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    },
+    {
+      "id": "REVIEW-05",
+      "task": "Calibration and sample-size limitations and exact Riley assumptions",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    },
+    {
+      "id": "REVIEW-06",
+      "task": "Explainability fidelity scale and synthetic background privacy",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    },
+    {
+      "id": "REVIEW-07",
+      "task": "Dataset/protocol acceptance and original research gate statuses",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    },
+    {
+      "id": "REVIEW-08",
+      "task": "University report authorship, citations, declared contributions and formatting",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    },
+    {
+      "id": "REVIEW-09",
+      "task": "Original code/test release SHA with native Windows 8/8 and synthetic E2E revalidation",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    },
+    {
+      "id": "REVIEW-10",
+      "task": "Named independent reviewer decisions and formal acceptance",
+      "status": "PENDING",
+      "reviewer": null,
+      "observed_evidence": null
+    }
+  ],
+  "safety": {
+    "protected_patient_data_used": false,
+    "new_training_or_external_model_validation_run": false,
+    "local_windows_rerun_this_pr": false,
+    "synthetic_tests_in_this_pr": "NOT_RUN_YET",
+    "original_exploratory_results": "HISTORICAL_MAINTAINER_REPORTED",
+    "ui_serving": "MOCK_SYNTHETIC_ONLY"
+  },
+  "next_action": "Run exact-head CI/Markdown and source-reference review, obtain scientific human review; merge as substantive draft only, then complete RH-02/RH-05/06 and final report freeze."
+}
