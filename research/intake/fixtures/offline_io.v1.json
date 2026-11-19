@@ -1,0 +1,975 @@
+{
+  "bindings": {
+    "crosswalk_sha256": "1c79195261c40ffc212d384c64b3645a2ef563f39b3b5b240a5a906c108abda7",
+    "crosswalk_version": "1.1.0",
+    "registry_sha256": "e423882d21cf74a42a8270d5d3e929a1b0f346a7ff4ef69bbf8c0e3dc5b2fec7",
+    "response_schema": "cardioassist.ai.research_inference_response/v1",
+    "route_sha256": {
+      "da_a1_basic_clinical_v1": "63fb81492e0bdf7de6713dd2a88282b7bed2749513edc6d83f979eb1fc66b69b",
+      "da_a1_clinical_core_labs_v1": "a6eb18d3e5bf07dad9d9505e2abbdf70d410d3a28fe6411bbf73cbb06805268d",
+      "da_a2_hungary_locked_transportability_v1": "b214a6d966ee427d6855be345290751cefdfe2d644bad196da91d934b3654478",
+      "da_a2_resting_labs_v1": "9c71e2568c11488d02a6f417f403f9adb2dd756c8b0d668e207c646fca9d2d1a",
+      "da_a2_resting_v1": "5640215ba89a413d0940cc531d4ae00d390e766f0a665d173c0483a6fc7f5a75"
+    },
+    "version": "1.0.0"
+  },
+  "cases": [
+    {
+      "edits": [],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": null,
+            "missing_fields_with_reason": [],
+            "present_fields": [
+              "age",
+              "sex",
+              "cp",
+              "trestbps",
+              "restecg"
+            ],
+            "score": {
+              "calibrated_log_odds": 1.1439672594951131,
+              "calibrated_research_score": 0.7584072878055222,
+              "calibration_reason": null,
+              "clinical_probability_claim": false,
+              "exploratory_above_threshold_flag": true,
+              "exploratory_threshold": 0.5,
+              "exploratory_threshold_clinically_validated": false,
+              "raw_model_log_odds": 1.144313724957358,
+              "raw_model_score": 0.7584707634896621,
+              "scale_declaration": "calibrated_research_score = expit(intercept + slope * raw_log_odds) on the calibrated log-odds scale fitted on development out-of-fold predictions; raw_model_score is the uncalibrated model probability.",
+              "score_interpretation": "RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK",
+              "score_kind": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC"
+            },
+            "status": "SYNTHETIC_RESULT",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "SYNTHETIC_RESULT"
+      },
+      "id": "da_a2_resting_v1",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [],
+      "expected": {
+        "dataset_id": "DA-A1",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": null,
+            "missing_fields_with_reason": [],
+            "present_fields": [
+              "Age",
+              "Sex",
+              "BMI",
+              "DM",
+              "HTN",
+              "Current Smoker",
+              "EX-Smoker",
+              "FH",
+              "DLP",
+              "BP",
+              "PR",
+              "Typical Chest Pain",
+              "Atypical",
+              "Nonanginal",
+              "Exertional CP",
+              "Dyspnea"
+            ],
+            "score": {
+              "calibrated_log_odds": 2.6971396718292335,
+              "calibrated_research_score": 0.9368576513885218,
+              "calibration_reason": null,
+              "clinical_probability_claim": false,
+              "exploratory_above_threshold_flag": true,
+              "exploratory_threshold": 0.5,
+              "exploratory_threshold_clinically_validated": false,
+              "raw_model_log_odds": 2.1293412528962987,
+              "raw_model_score": 0.8937224550197632,
+              "scale_declaration": "calibrated_research_score = expit(intercept + slope * raw_log_odds) on the calibrated log-odds scale fitted on development out-of-fold predictions; raw_model_score is the uncalibrated model probability.",
+              "score_interpretation": "RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK",
+              "score_kind": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC"
+            },
+            "status": "SYNTHETIC_RESULT",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a1_basic_clinical_v1",
+        "route_id": "da_a1_basic_clinical_v1",
+        "status": "SYNTHETIC_RESULT"
+      },
+      "id": "da_a1_basic_clinical_v1",
+      "route": "da_a1_basic_clinical_v1"
+    },
+    {
+      "edits": [],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": {
+          "code": "model_entry_blocked_pending_authorization",
+          "field": "entry_state",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request was refused by a registered fail-closed check.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": "da_a2_resting_labs_v1",
+        "route_id": "da_a2_resting_labs_v1",
+        "status": "UNAVAILABLE"
+      },
+      "id": "da_a2_resting_labs_v1",
+      "route": "da_a2_resting_labs_v1"
+    },
+    {
+      "edits": [],
+      "expected": {
+        "dataset_id": "DA-A1",
+        "error": {
+          "code": "model_entry_blocked_source_timing_unverified",
+          "field": "entry_state",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request was refused by a registered fail-closed check.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": "da_a1_clinical_core_labs_v1",
+        "route_id": "da_a1_clinical_core_labs_v1",
+        "status": "UNAVAILABLE"
+      },
+      "id": "da_a1_clinical_core_labs_v1",
+      "route": "da_a1_clinical_core_labs_v1"
+    },
+    {
+      "edits": [],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": {
+          "code": "model_entry_locked_external_target",
+          "field": "entry_state",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request was refused by a registered fail-closed check.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_hungary_locked_transportability_v1",
+        "status": "UNAVAILABLE"
+      },
+      "id": "da_a2_hungary_locked_transportability_v1",
+      "route": "da_a2_hungary_locked_transportability_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "panel_id"
+          ],
+          "da_a1_basic_clinical_v1"
+        ]
+      ],
+      "expected": {
+        "dataset_id": null,
+        "error": {
+          "code": "panel_id_mismatch",
+          "field": "panel_id",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request panel id does not match the registry binding.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": null,
+        "route_id": null,
+        "status": "ERROR"
+      },
+      "id": "wrong-panel",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "dataset_id"
+          ],
+          "foreign"
+        ]
+      ],
+      "expected": {
+        "dataset_id": null,
+        "error": {
+          "code": "dataset_id_mismatch",
+          "field": "dataset_id",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request dataset id does not match the registry binding.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": null,
+        "route_id": null,
+        "status": "ERROR"
+      },
+      "id": "wrong-dataset",
+      "route": "da_a1_basic_clinical_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "panel_contract_sha256"
+          ],
+          "0000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      ],
+      "expected": {
+        "dataset_id": null,
+        "error": {
+          "code": "panel_contract_hash_mismatch",
+          "field": "panel_contract_sha256",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request panel contract hash does not match the pinned panel contract.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": null,
+        "route_id": null,
+        "status": "ERROR"
+      },
+      "id": "stale-hash",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "units",
+            "trestbps"
+          ],
+          "kPa"
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "unit_mismatch",
+              "field": "trestbps",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "A supplied unit token does not match the registered unit for that field.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ERROR"
+      },
+      "id": "wrong-unit",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "features",
+            "cp"
+          ],
+          99
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "unknown_categorical_code",
+              "field": "cp",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "A supplied categorical code is outside the registered vocabulary.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ERROR"
+      },
+      "id": "bad-category",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "synthetic_provenance",
+            "generator_id"
+          ],
+          "foreign"
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A1",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "synthetic_provenance_generator_not_admissible",
+              "field": "synthetic_provenance.generator_id",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "The declared fixture generator is not on this entry's pinned generator allowlist.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a1_basic_clinical_v1",
+        "route_id": "da_a1_basic_clinical_v1",
+        "status": "ERROR"
+      },
+      "id": "bad-generator",
+      "route": "da_a1_basic_clinical_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "input_source"
+          ],
+          "patient_wearable"
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "unsupported_input_source",
+              "field": "declared_input_context",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "The declared input source is not a registered synthetic research source.",
+              "stage": "route"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ERROR"
+      },
+      "id": "patient_wearable",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "input_source"
+          ],
+          "uploaded_image_or_ocr"
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A1",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "unsupported_input_source",
+              "field": "declared_input_context",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "The declared input source is not a registered synthetic research source.",
+              "stage": "route"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a1_basic_clinical_v1",
+        "route_id": "da_a1_basic_clinical_v1",
+        "status": "ERROR"
+      },
+      "id": "uploaded_image_or_ocr",
+      "route": "da_a1_basic_clinical_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "input_source"
+          ],
+          "track_b"
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "unsupported_input_source",
+              "field": "declared_input_context",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "The declared input source is not a registered synthetic research source.",
+              "stage": "route"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ERROR"
+      },
+      "id": "track_b",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "features",
+            "ca"
+          ],
+          1
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "prohibited_leakage_or_wearable_field",
+              "field": null,
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ERROR"
+      },
+      "id": "ca",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "features",
+            "Cath"
+          ],
+          1
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A1",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "prohibited_leakage_or_wearable_field",
+              "field": null,
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a1_basic_clinical_v1",
+        "route_id": "da_a1_basic_clinical_v1",
+        "status": "ERROR"
+      },
+      "id": "Cath",
+      "route": "da_a1_basic_clinical_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "features",
+            "LAD"
+          ],
+          1
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A1",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "prohibited_leakage_or_wearable_field",
+              "field": null,
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a1_basic_clinical_v1",
+        "route_id": "da_a1_basic_clinical_v1",
+        "status": "ERROR"
+      },
+      "id": "LAD",
+      "route": "da_a1_basic_clinical_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "features",
+            "age"
+          ],
+          null
+        ],
+        [
+          [
+            "records",
+            0,
+            "units",
+            "age"
+          ],
+          null
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "missing_required_field",
+              "field": "age",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "A required panel field is omitted or null.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ERROR"
+      },
+      "id": "required",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        [
+          [
+            "records",
+            0,
+            "features",
+            "trestbps"
+          ],
+          null
+        ],
+        [
+          [
+            "records",
+            0,
+            "units",
+            "trestbps"
+          ],
+          null
+        ],
+        [
+          [
+            "records",
+            0,
+            "missing_reasons",
+            "trestbps"
+          ],
+          "not_provided"
+        ]
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": "registry_abstain_policy_optional_field_missing",
+            "error": null,
+            "missing_fields_with_reason": [
+              [
+                "trestbps",
+                "not_provided"
+              ]
+            ],
+            "present_fields": [
+              "age",
+              "sex",
+              "cp",
+              "restecg"
+            ],
+            "score": null,
+            "status": "ABSTAIN",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ABSTAIN"
+      },
+      "id": "optional",
+      "route": "da_a2_resting_v1"
+    }
+  ],
+  "requests": {
+    "da_a1_basic_clinical_v1": {
+      "dataset_id": "DA-A1",
+      "explainability": {
+        "include_lime": false,
+        "include_shap": true,
+        "lime_num_perturbations": 192,
+        "lime_seed": 20261026
+      },
+      "exploratory_threshold": 0.5,
+      "model_id": "synth_ai8_uci412_da_a1_basic_clinical",
+      "model_version": "0.1.0",
+      "operation": "synthetic_prediction",
+      "panel_contract_sha256": "efd51491c06d808ac3e02a62c45302dd9a57966b6f619b0c604df980ba71a208",
+      "panel_id": "da_a1_basic_clinical_v1",
+      "panel_version": "1.1.0",
+      "records": [
+        {
+          "acquisition_stage": "basic_clinical",
+          "features": {
+            "Age": 39.0,
+            "Atypical": 1,
+            "BMI": 27.655325674545153,
+            "BP": 145.0,
+            "Current Smoker": 0,
+            "DLP": 0,
+            "DM": 0,
+            "Dyspnea": 1,
+            "EX-Smoker": 1,
+            "Exertional CP": 1,
+            "FH": 0,
+            "HTN": 1,
+            "Nonanginal": 1,
+            "PR": 108.0,
+            "Sex": 1,
+            "Typical Chest Pain": 1
+          },
+          "input_source": "structured_synthetic_research",
+          "missing_reasons": {},
+          "record_ref": "demo00",
+          "synthetic_provenance": {
+            "declaration": "DELIBERATELY_FABRICATED_SYNTHETIC_FIXTURE",
+            "fixture_ref": "rh04_basic",
+            "generator_id": "ai.research_routes.build_synthetic_uci412_basic_clinical_cohort",
+            "seed": 42
+          },
+          "units": {
+            "Age": "years",
+            "BMI": "kg/m^2",
+            "BP": "mmHg",
+            "PR": "beats/min"
+          }
+        }
+      ],
+      "request_schema_version": "cardioassist.ai.research_inference_request/v1",
+      "route_id": "da_a1_basic_clinical_v1",
+      "route_version": "1.1.0"
+    },
+    "da_a1_clinical_core_labs_v1": {
+      "dataset_id": "DA-A1",
+      "explainability": {
+        "include_lime": false,
+        "include_shap": true,
+        "lime_num_perturbations": 192,
+        "lime_seed": 20261026
+      },
+      "exploratory_threshold": 0.5,
+      "model_id": "synth_ai7_da_a1_clinical_core_labs_v1",
+      "model_version": "0.1.0",
+      "operation": "synthetic_prediction",
+      "panel_contract_sha256": "fe6fca9b53410b6870e2bfcb206627d70c75b64746d6f8b638191f8728c984cd",
+      "panel_id": "da_a1_clinical_core_labs_v1",
+      "panel_version": "1.1.0",
+      "records": [
+        {
+          "acquisition_stage": "resting_assessment",
+          "features": {
+            "age": 67.0,
+            "cp": 1,
+            "restecg": 0,
+            "sex": 0,
+            "trestbps": 177.0
+          },
+          "input_source": "structured_synthetic_research",
+          "missing_reasons": {},
+          "record_ref": "demo00",
+          "synthetic_provenance": {
+            "declaration": "DELIBERATELY_FABRICATED_SYNTHETIC_FIXTURE",
+            "fixture_ref": "synth-fixture-da-a2-resting",
+            "generator_id": "ai.research_routes.build_synthetic_uci45_resting_cohort",
+            "seed": 20261117
+          },
+          "units": {
+            "age": "years",
+            "trestbps": "mmHg"
+          }
+        }
+      ],
+      "request_schema_version": "cardioassist.ai.research_inference_request/v1",
+      "route_id": "da_a1_clinical_core_labs_v1",
+      "route_version": "1.1.0"
+    },
+    "da_a2_hungary_locked_transportability_v1": {
+      "dataset_id": "DA-A2",
+      "explainability": {
+        "include_lime": false,
+        "include_shap": true,
+        "lime_num_perturbations": 192,
+        "lime_seed": 20261026
+      },
+      "exploratory_threshold": 0.5,
+      "model_id": "synth_ai7_da_a2_hungary_locked_transportability_v1",
+      "model_version": "0.1.0",
+      "operation": "synthetic_prediction",
+      "panel_contract_sha256": "c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8",
+      "panel_id": "da_a2_resting_v1",
+      "panel_version": "1.0.0",
+      "records": [
+        {
+          "acquisition_stage": "resting_assessment",
+          "features": {
+            "age": 67.0,
+            "cp": 1,
+            "restecg": 0,
+            "sex": 0,
+            "trestbps": 177.0
+          },
+          "input_source": "structured_synthetic_research",
+          "missing_reasons": {},
+          "record_ref": "demo00",
+          "synthetic_provenance": {
+            "declaration": "DELIBERATELY_FABRICATED_SYNTHETIC_FIXTURE",
+            "fixture_ref": "synth-fixture-da-a2-resting",
+            "generator_id": "ai.research_routes.build_synthetic_uci45_resting_cohort",
+            "seed": 20261117
+          },
+          "units": {
+            "age": "years",
+            "trestbps": "mmHg"
+          }
+        }
+      ],
+      "request_schema_version": "cardioassist.ai.research_inference_request/v1",
+      "route_id": "da_a2_hungary_locked_transportability_v1",
+      "route_version": "1.0.0"
+    },
+    "da_a2_resting_labs_v1": {
+      "dataset_id": "DA-A2",
+      "explainability": {
+        "include_lime": false,
+        "include_shap": true,
+        "lime_num_perturbations": 192,
+        "lime_seed": 20261026
+      },
+      "exploratory_threshold": 0.5,
+      "model_id": "synth_ai7_da_a2_resting_labs_v1",
+      "model_version": "0.1.0",
+      "operation": "synthetic_prediction",
+      "panel_contract_sha256": "2a822095917cd7dfbadd2edc1be9537aa68322dfe8191576265623c96762584b",
+      "panel_id": "da_a2_resting_labs_v1",
+      "panel_version": "1.0.0",
+      "records": [
+        {
+          "acquisition_stage": "resting_assessment",
+          "features": {
+            "age": 67.0,
+            "cp": 1,
+            "restecg": 0,
+            "sex": 0,
+            "trestbps": 177.0
+          },
+          "input_source": "structured_synthetic_research",
+          "missing_reasons": {},
+          "record_ref": "demo00",
+          "synthetic_provenance": {
+            "declaration": "DELIBERATELY_FABRICATED_SYNTHETIC_FIXTURE",
+            "fixture_ref": "synth-fixture-da-a2-resting",
+            "generator_id": "ai.research_routes.build_synthetic_uci45_resting_cohort",
+            "seed": 20261117
+          },
+          "units": {
+            "age": "years",
+            "trestbps": "mmHg"
+          }
+        }
+      ],
+      "request_schema_version": "cardioassist.ai.research_inference_request/v1",
+      "route_id": "da_a2_resting_labs_v1",
+      "route_version": "1.0.0"
+    },
+    "da_a2_resting_v1": {
+      "dataset_id": "DA-A2",
+      "explainability": {
+        "include_lime": false,
+        "include_shap": true,
+        "lime_num_perturbations": 192,
+        "lime_seed": 20261026
+      },
+      "exploratory_threshold": 0.5,
+      "model_id": "synth_ai7_da_a2_resting_v1",
+      "model_version": "0.1.0",
+      "operation": "synthetic_prediction",
+      "panel_contract_sha256": "c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8",
+      "panel_id": "da_a2_resting_v1",
+      "panel_version": "1.0.0",
+      "records": [
+        {
+          "acquisition_stage": "resting_assessment",
+          "features": {
+            "age": 67.0,
+            "cp": 1,
+            "restecg": 0,
+            "sex": 0,
+            "trestbps": 177.0
+          },
+          "input_source": "structured_synthetic_research",
+          "missing_reasons": {},
+          "record_ref": "demo00",
+          "synthetic_provenance": {
+            "declaration": "DELIBERATELY_FABRICATED_SYNTHETIC_FIXTURE",
+            "fixture_ref": "synth-fixture-da-a2-resting",
+            "generator_id": "ai.research_routes.build_synthetic_uci45_resting_cohort",
+            "seed": 20261117
+          },
+          "units": {
+            "age": "years",
+            "trestbps": "mmHg"
+          }
+        }
+      ],
+      "request_schema_version": "cardioassist.ai.research_inference_request/v1",
+      "route_id": "da_a2_resting_v1",
+      "route_version": "1.0.0"
+    }
+  }
+}
