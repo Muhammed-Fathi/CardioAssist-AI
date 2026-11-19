@@ -1,6 +1,18 @@
 {
   "schema_id": "cardioassist.rh02_technical_dataset_metadata_audit/v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "revision_history": [
+    {
+      "version": "1.0.0",
+      "date": "2026-11-19",
+      "change": "Initial documentation-only audit."
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-11-19",
+      "change": "Maintainer review corrections on PR #101: current_status values aligned to the canonical questions[].status field of the RH-02 register (the earlier values came from round2_review.reconciliation_decisions, a different field); baseline ancestry statement corrected (092b0f5 IS an ancestor of a57220c, first parent); schema/binary-outcome/timing statements reworded as NOT VERIFIED IN ACCESSIBLE MATERIALS rather than assertions of non-existence; licence finding reframed as a documentary restriction ambiguity with the official CC BY 4.0 deed cited. No status change, hold or contract touched."
+    }
+  ],
   "prepared_at": "2026-11-19",
   "prepared_by": "Arena Agent Mode (documentation-only research task)",
   "status": "REVIEW_DRAFT_NOT_SCIENTIFIC_ADMISSION",
@@ -14,7 +26,7 @@
     "issue_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/99",
     "issue_title": "RH-02: Agent task — public AngioCAD/UCI-412 metadata and feature-schema audit (NO real-data access)",
     "issue_baseline_sha": "092b0f528d8d6c00101d5e013dc8221ebf8f5896",
-    "issue_baseline_note": "Baseline object was not present in the default shallow clone and is not an ancestor of current main; it was fetched explicitly and compared. Audit reconciled against the latest merged main as instructed.",
+    "issue_baseline_note": "The baseline object was not present in the initial shallow clone. It was fetched explicitly and VERIFIED TO BE AN ANCESTOR of the audited main: a57220c's first parent is 092b0f5, GitHub compare reports status ahead, ahead_by 5, behind_by 0. An earlier revision of this document wrongly stated the baseline was not an ancestor; that reading was an artifact of the depth-1 clone (no parent pointers), not a diverged history, and is corrected here. Changes between the two commits were measured and reconciled against the latest merged main as the issue instructs.",
     "audited_main_sha": "a57220c2151680fe53e561dceddbcf88c481196f",
     "audited_main_commit": "Merge pull request #100 (docs(rh02): distinguish AngioCAD article's 413 patients and 413-video Highlights)",
     "markdown_companion": "docs/research/next_phase/RH02_TECHNICAL_DATASET_METADATA_AUDIT_V1.md"
@@ -43,7 +55,21 @@
     "SECONDARY_PAPER": "Peer-reviewed third-party analysis or reanalysis; corroborates or conflicts but cannot authenticate original acquisition.",
     "SECONDARY_PAPER_EXCERPT_ONLY": "Third-party text reached only as a published excerpt/search-index snippet; not full-text verified.",
     "HISTORICAL_LOCAL_AGGREGATE": "Previously recorded maintainer-executed read-only aggregate observation already in the repository; not re-derived here.",
-    "REPOSITORY_CONTRACT": "Frozen versioned artifact in this repository, inspected read-only."
+    "REPOSITORY_CONTRACT": "Frozen versioned artifact in this repository, inspected read-only.",
+    "LICENSE_REFERENCE": "Canonical published text of a licence instrument (e.g. the Creative Commons deed), used to characterise what a declared licence does and does not permit."
+  },
+  "status_semantics": {
+    "register_status": "Only question_updates[].current_status participates in canonical register mapping, and it must equal questions[].status in RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json at audited main.",
+    "register_status_at_audited_main": {
+      "Q-04": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "Q-05": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "Q-07": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "Q-08": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "Q-14": "CONDITIONAL_SOURCE_REVIEW_REQUIRED"
+    },
+    "finding_status": "findings[].status is a finding-level evidence label and is NOT a register status.",
+    "research_classification": "angiocad.classification = SCIENTIFIC_HOLD_NOT_ADMITTED is the AngioCAD research classification, not a register status and not proposed as one.",
+    "round2_labels_are_not_statuses": "Values such as SECONDARY_CONSTANT_FEATURE_HYPOTHESIS_ONLY, OWNER_FILE_VERSION_FEATURE_COUNT_UNRESOLVED and MULTIMODAL_PATIENT_SOURCE_SUPPORTED_BY_ABSTRACT_NOT_ADMITTED come from round2_review.reconciliation_decisions, a different field, and must never be written into questions[].status."
   },
   "sources": [
     {
@@ -64,11 +90,11 @@
         "statistics at access: 7228 downloads (1637 unique), 1204 views (1042 unique)"
       ],
       "does_not_support": [
-        "no data dictionary, codebook, README, schema, column list or sheet inventory",
+        "no schema, codebook, README, column list or sheet inventory is published in the record metadata — schema documentation NOT VERIFIED IN ACCESSIBLE MATERIALS (the XLSX files were not opened; the article methods are paywalled)",
         "no per-file record/row count",
         "no patient-to-video or patient-to-row mapping",
-        "no statement of when clinical/laboratory values were captured relative to angiography",
-        "no patient-level binary CAD target definition or threshold",
+        "no statement of when clinical/laboratory values were captured relative to angiography appears in accessible materials — acquisition timing NOT VERIFIED IN ACCESSIBLE MATERIALS",
+        "no patient-level binary CAD target definition or threshold appears in accessible materials — binary CAD outcome NOT VERIFIED IN ACCESSIBLE MATERIALS",
         "no record-side relation to the published article (no related_identifiers)",
         "does not assign file content to filenames (Features.xlsx = clinical; Labels.xlsx = stenosis is a filename inference only)"
       ]
@@ -112,11 +138,11 @@
         "Third task reported: 'CAD detection using structured clinical attributes' via conventional machine learning"
       ],
       "does_not_support": [
-        "no accessible statement that the tabular attributes were acquired before angiography",
-        "no accessible patient-level CAD label definition or threshold for the dataset (the Introduction's '>50% blockage' sentence is generic textbook framing, not a dataset rule)",
-        "no accessible field list, units, coding, missingness or class balance",
+        "no statement that the tabular attributes were acquired before angiography appears in the accessible preview — timing NOT VERIFIED IN ACCESSIBLE MATERIALS",
+        "no patient-level CAD label definition or threshold appears in the accessible preview — NOT VERIFIED IN ACCESSIBLE MATERIALS; the Introduction's '>50% blockage' sentence is generic textbook framing, not a dataset rule",
+        "no field list, units, coding, missingness or class balance appears in the accessible preview — NOT VERIFIED IN ACCESSIBLE MATERIALS (Sections 3-5 paywalled)",
         "no statement establishing a 1:1 patient-to-video map",
-        "'non-commercial' prose conflicts with the record's CC BY 4.0 declaration"
+        "'non-commercial' prose differs from the record's `cc-by-4.0` declaration - a documentary restriction ambiguity to clarify, since CC BY 4.0 is not a non-commercial licence"
       ]
     },
     {
@@ -267,6 +293,22 @@
       ]
     },
     {
+      "source_id": "LIC1",
+      "url": "https://creativecommons.org/licenses/by/4.0/deed.en",
+      "label": "Creative Commons Attribution 4.0 International — official deed",
+      "authority": "LICENSE_REFERENCE",
+      "accessed_on": "2026-11-19",
+      "access_observation": "HTTP 200 canonical deed page referenced; used only to characterise the licence instrument, not to give legal advice.",
+      "verified_facts": [
+        "CC BY 4.0 is an attribution licence permitting sharing and adaptation 'for any purpose, even commercially' provided attribution is given.",
+        "CC BY 4.0 contains no non-commercial restriction."
+      ],
+      "does_not_support": [
+        "does not resolve which statement governs the AngioCAD deposit",
+        "does not constitute legal advice or a reuse approval"
+      ]
+    },
+    {
       "source_id": "R1",
       "url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/blob/main/research/uci412/schemas/uci412_feature_dictionary.v1.json",
       "label": "Frozen UCI-412 research feature dictionary (schema 1.1.0)",
@@ -378,13 +420,13 @@
       ],
       "evidence_authority": ["OWNER_METADATA"],
       "conflicting_evidence": [
-        "Article contribution text describes the resource as 'non-commercial', which conflicts with CC BY 4.0 (see F-03)."
+        "Article contribution text describes the resource as 'non-commercial' while the same record declares cc-by-4.0 (see F-03); recorded as a documentary restriction ambiguity."
       ],
       "verified": [
         "Structured tabular files exist, in XLSX format.",
         "Formats, byte sizes and MD5 checksums are published.",
         "Access right is 'open' and the declared licence is CC BY 4.0.",
-        "No field/schema documentation is published.",
+        "No field/schema documentation is published in the record metadata; schema documentation is NOT VERIFIED IN ACCESSIBLE MATERIALS.",
         "No per-file row/column counts are published.",
         "No CSV exists in the record."
       ],
@@ -393,38 +435,39 @@
         "row counts, sheet names, headers, dtypes, missingness",
         "whether an XLSX-level data dictionary is embedded inside the workbooks"
       ],
-      "scientific_or_technical_consequence": "AngioCAD cannot be positioned as a tabular Track A source on documentation alone; any future use would begin with an authorized schema read under separate scope.",
+      "scientific_or_technical_consequence": "AngioCAD cannot be positioned as a tabular Track A source on available documentation; any future use would begin with an authorized schema read under separate scope.",
       "owner_evidence_required": "Sheet- and column-level schema for both XLSX files, with units, value sets and row counts.",
       "proposed_question_updates": ["Q-14"],
-      "status": "ARCHIVE_METADATA_VERIFIED_SCHEMA_NOT_PUBLISHED"
+      "status": "ARCHIVE_METADATA_VERIFIED_SCHEMA_NOT_VERIFIED_IN_ACCESSIBLE_MATERIALS"
     },
     {
       "finding_id": "F-03",
       "dataset": "AngioCAD",
-      "question_or_claim": "Do the declared licence and the authors' prose agree on reuse permission?",
-      "source_ids": ["P3A", "P3C"],
-      "source_url": "https://www.sciencedirect.com/science/article/pii/S0169260726001331",
-      "access_observation": "Record licence field and article contribution bullet both readable on 2026-11-19.",
+      "question_or_claim": "Is there a documentary restriction ambiguity between the Zenodo licence field and the authors' prose, and what does it require before any reuse?",
+      "source_ids": ["P3A", "P3C", "LIC1"],
+      "source_url": "https://zenodo.org/api/records/15826856",
+      "access_observation": "Record licence field, article contribution bullet and the official CC BY 4.0 deed were readable on 2026-11-19. No reuse was attempted or approved.",
       "supporting_evidence": [
-        "Zenodo record: license id 'cc-by-4.0', access_right 'open'.",
-        "Article contribution bullet: 'a publicly accessible, non-commercial XRA dataset'."
+        "Zenodo record declares license id 'cc-by-4.0' with access_right 'open'.",
+        "CC BY 4.0 is an attribution licence that permits sharing and adaptation for any purpose, even commercially, with attribution; it contains no non-commercial restriction.",
+        "Article contribution bullet describes 'a publicly accessible, non-commercial XRA dataset'."
       ],
-      "evidence_authority": ["OWNER_METADATA", "OWNER_PAPER_ABSTRACT"],
+      "evidence_authority": ["OWNER_METADATA", "OWNER_PAPER_ABSTRACT", "LICENSE_REFERENCE"],
       "conflicting_evidence": [
-        "CC BY 4.0 permits commercial reuse with attribution; the article wording asserts a non-commercial restriction."
+        "The declared licence and the article's 'non-commercial' description point to different reuse permissions."
       ],
       "verified": [
         "Both statements exist as published.",
-        "They are not equivalent permissions."
+        "CC BY 4.0 is not itself a non-commercial licence, so the article wording is not a restatement of the declared licence instrument."
       ],
       "unresolved": [
-        "which statement governs reuse",
-        "whether the article wording is a description of intent rather than a licence term"
+        "which statement governs reuse of the archive",
+        "whether the 'non-commercial' wording records an author intent, an institutional restriction, or a description of the intended research use"
       ],
-      "scientific_or_technical_consequence": "No reuse, redistribution or commercial-use assumption may be made. This audit does not interpret licences.",
+      "scientific_or_technical_consequence": "Recorded as a documentary restriction ambiguity to clarify with the curator. No reuse, redistribution or commercial-use approval is inferred, and no download or access step follows from this finding; this is not legal advice.",
       "owner_evidence_required": "Curator/legal clarification of the governing terms.",
       "proposed_question_updates": ["Q-14"],
-      "status": "UNRESOLVED_LICENCE_CONFLICT"
+      "status": "UNRESOLVED_DOCUMENTARY_RESTRICTION_AMBIGUITY"
     },
     {
       "finding_id": "F-04",
@@ -445,11 +488,11 @@
       "verified": [
         "The imaging and stenosis/label layer is post-catheterization by construction.",
         "Collection was retrospective.",
-        "No pre-angiography acquisition moment is documented for any tabular field."
+        "No pre-angiography acquisition timing is documented in the accessible materials for any tabular field; timing is NOT VERIFIED IN ACCESSIBLE MATERIALS."
       ],
       "unresolved": [
         "whether any tabular field was recorded before the procedure",
-        "the patient-level binary CAD target (existence, threshold, adjudication, class counts)"
+        "the patient-level binary CAD target (existence, threshold, adjudication, class counts) - NOT VERIFIED IN ACCESSIBLE MATERIALS"
       ],
       "scientific_or_technical_consequence": "AngioCAD's imaging/stenosis task is a distinct post-catheterization research task, not the CardioAssist Track A target; its tabular layer cannot yet cross the pre-procedure boundary.",
       "owner_evidence_required": "Per-field acquisition chronology and the patient-level label definition with class counts.",
@@ -614,7 +657,7 @@
       "Public metadata confirms a tabular component (two XLSX files), so AngioCAD is not imaging-only.",
       "No published schema, no acquisition chronology, no patient-level binary CAD target definition and no patient-to-row identity statement.",
       "Its documented core tasks are post-catheterization imaging/stenosis tasks, which are outside the CardioAssist Track A target.",
-      "A licence conflict (CC BY 4.0 vs 'non-commercial') is unresolved."
+      "A documentary restriction ambiguity (declared cc-by-4.0 vs 'non-commercial' article wording) is unresolved; CC BY 4.0 carries no non-commercial restriction."
     ],
     "tabular_component_exists": true,
     "tabular_files": [
@@ -635,10 +678,10 @@
     "third_party_count_conflict": "excerpt-level 'n=412' in arXiv:2609.06931 (SECONDARY_PAPER_EXCERPT_ONLY)",
     "declared_license": "cc-by-4.0",
     "access_right": "open",
-    "license_wording_conflict": "article contribution text says 'non-commercial'",
-    "schema_documentation_published": false,
-    "pre_angiography_predictors_documented": false,
-    "patient_level_binary_cad_target_documented": false,
+    "license_documentary_ambiguity": "record declares cc-by-4.0 (an attribution licence with no non-commercial restriction) while the article contribution text calls the resource 'non-commercial'; to be clarified with the curator, no reuse approval inferred",
+    "schema_documentation_status": "NOT_VERIFIED_IN_ACCESSIBLE_MATERIALS",
+    "pre_angiography_predictor_status": "NOT_VERIFIED_IN_ACCESSIBLE_MATERIALS",
+    "patient_level_binary_cad_target_status": "NOT_VERIFIED_IN_ACCESSIBLE_MATERIALS",
     "label_structure_published": "artery-level stenosis labels in seven severity categories",
     "collection_mode": "retrospective",
     "site_as_stated_in_article": "Shahid Chamran Heart Center (Isfahan, Iran)",
@@ -714,7 +757,7 @@
     {"id": "D-3", "subject": "UCI API metadata defect", "parties": ["OWNER_METADATA"], "detail": "num_features 0 while prose says 54 and the variables array holds 56 blank-name entries.", "status": "RECORDED"},
     {"id": "D-4", "subject": "Two owner deliveries", "parties": ["OWNER_METADATA"], "detail": "UCI 'Z-Alizadeh sani dataset.xlsx' (120.7 KB) vs Mendeley 'CAD.xlsx' (118 KB); not byte-identical artifacts by name/size.", "status": "RECORDED"},
     {"id": "D-5", "subject": "AngioCAD count", "parties": ["OWNER_METADATA", "OWNER_PAPER_ABSTRACT", "SECONDARY_PAPER_EXCERPT_ONLY"], "detail": "413 patients (record/abstract) vs 413 videos (Highlights) vs n=412 (third-party excerpt).", "status": "MAPPING_UNKNOWN"},
-    {"id": "D-6", "subject": "AngioCAD licence", "parties": ["OWNER_METADATA", "OWNER_PAPER_ABSTRACT"], "detail": "CC BY 4.0 declared vs 'non-commercial' article wording.", "status": "UNRESOLVED"},
+    {"id": "D-6", "subject": "AngioCAD documentary restriction", "parties": ["OWNER_METADATA", "OWNER_PAPER_ABSTRACT", "LICENSE_REFERENCE"], "detail": "Record declares CC BY 4.0 (attribution licence, no non-commercial restriction) while the article calls the resource 'non-commercial'; a documentary ambiguity to clarify, not a licence interpretation by this project.", "status": "UNRESOLVED"},
     {"id": "D-7", "subject": "AngioCAD record-article linkage", "parties": ["OWNER_METADATA"], "detail": "Zenodo record has no related_identifiers; the article's Data-availability statement is the only bridge.", "status": "RECORDED"},
     {"id": "D-8", "subject": "Exertional CP vs frozen panel", "parties": ["SECONDARY_PAPER", "REPOSITORY_CONTRACT"], "detail": "Secondary paper reports the column constant and drops it; the frozen panel admits it.", "status": "HYPOTHESIS_ONLY_NO_CHANGE"}
   ],
@@ -722,38 +765,44 @@
     {
       "question_id": "Q-05",
       "register_path": "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
+      "register_field": "questions[].status",
       "current_status": "UNRESOLVED_SCIENTIFIC_HOLD",
       "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
       "status_change": false,
-      "proposed_evidence_text": "Owner machine-readable field metadata verified empty (UCI API num_features 0; 56 blank variable objects). BP quantity and PR units/conditions therefore cannot be resolved from public metadata; the six 0/1 directions remain provisional (S-9) because the cited secondary Table 1 could not be re-retrieved this pass. Owner codebook or author statement required.",
+      "proposed_evidence_text": "Owner machine-readable field metadata verified empty (UCI API num_features 0; 56 blank variable objects). BP quantity and PR units/conditions therefore cannot be resolved from public metadata; the six 0/1 directions remain provisional (S-9) because the cited secondary Table 1 could not be re-retrieved this pass. Owner codebook or author statement required. No canonical status change proposed.",
       "applied": false
     },
     {
       "question_id": "Q-07",
       "register_path": "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
-      "current_status": "SECONDARY_CONSTANT_FEATURE_HYPOTHESIS_ONLY",
-      "proposed_status": "SECONDARY_CONSTANT_FEATURE_HYPOTHESIS_ONLY",
+      "register_field": "questions[].status",
+      "current_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "proposed_status": "UNRESOLVED_SCIENTIFIC_HOLD",
       "status_change": false,
-      "proposed_evidence_text": "2022 Electronics §3 and §4.1 re-verified: Exertional CP constant across that copy's 303 samples and then dropped; delivery/hash unspecified; the same paragraph spells the field 'External CP'. Test requires an aggregate-only distinct-value count (non-null, distinct, per-value counts) inside the authorized local read-only chain under separate written scope; no panel change proposed.",
+      "mapping_correction": "An earlier revision of this document used SECONDARY_CONSTANT_FEATURE_HYPOTHESIS_ONLY as current_status. That label belongs to round2_review.reconciliation_decisions.Q07, a different register field; the canonical questions[].status value is recorded here.",
+      "proposed_evidence_text": "2022 Electronics section 3 and 4.1 re-verified: Exertional CP constant across that copy's 303 samples and then dropped; delivery/hash unspecified; the same paragraph spells the field 'External CP'. Test requires an aggregate-only distinct-value count (non-null, distinct, per-value counts) inside the authorized local read-only chain under separate written scope; no panel change proposed.",
       "applied": false
     },
     {
       "question_id": "Q-08",
       "register_path": "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
-      "current_status": "OWNER_FILE_VERSION_FEATURE_COUNT_UNRESOLVED",
-      "proposed_status": "OWNER_FILE_VERSION_FEATURE_COUNT_UNRESOLVED",
+      "register_field": "questions[].status",
+      "current_status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "proposed_status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
       "status_change": false,
-      "proposed_evidence_text": "Arithmetic inconsistency inside owner metadata: UCI-411 states 59 features for 412 + 3 artery columns, but 54 + 3 = 57; the locally observed 56 columns (55 + Cath) satisfy 56 + 3 = 59. Two owner deliveries exist (UCI 120.7 KB; Mendeley 118 KB). Neither H-56 nor H-55 adopted; original schema or an authorized header/shape comparison required.",
+      "mapping_correction": "An earlier revision used OWNER_FILE_VERSION_FEATURE_COUNT_UNRESOLVED as current_status. That label belongs to round2_review.reconciliation_decisions.Q08, a different register field; the canonical questions[].status value is recorded here.",
+      "proposed_evidence_text": "Arithmetic inconsistency inside owner metadata: UCI-411 states 59 features for 412 + 3 artery columns, but 54 + 3 = 57; the locally observed 56 columns (55 + Cath) satisfy 56 + 3 = 59. Two owner deliveries exist (UCI 120.7 KB; Mendeley 118 KB). Neither H-56 nor H-55 adopted; original schema or an authorized header/shape comparison required. No canonical status change proposed.",
       "applied": false
     },
     {
       "question_id": "Q-14",
       "register_path": "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
-      "current_status": "MULTIMODAL_PATIENT_SOURCE_SUPPORTED_BY_ABSTRACT_NOT_ADMITTED",
-      "proposed_status": "SCIENTIFIC_HOLD_NOT_ADMITTED",
+      "register_field": "questions[].status",
+      "current_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "proposed_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
       "status_change": false,
-      "proposed_evidence_text": "Zenodo record 15826856 verified: 4 RAR parts (16,401,400,789 B total) plus AngioCAD_Features.xlsx (129,493 B) and AngioCAD_Labels.xlsx (43,267 B); access_right open; license CC BY 4.0 conflicting with the article's 'non-commercial' wording; no schema, no data dictionary, no per-file counts, no patient-to-video mapping, no pre-angiography chronology, no published patient-level binary CAD definition. Classification SCIENTIFIC_HOLD_NOT_ADMITTED.",
-      "note": "proposed_status restates the same non-admission using the classification label requested by the issue; it is not an upgrade.",
+      "mapping_correction": "An earlier revision used MULTIMODAL_PATIENT_SOURCE_SUPPORTED_BY_ABSTRACT_NOT_ADMITTED as current_status. That label belongs to round2_review.reconciliation_decisions.Q14, a different register field; the canonical questions[].status value is recorded here. SCIENTIFIC_HOLD_NOT_ADMITTED is the AngioCAD research classification (see the angiocad block) and is NOT proposed as, or recorded as, a canonical register status.",
+      "proposed_evidence_text": "Zenodo record 15826856 verified: 4 RAR parts (16,401,400,789 B total) plus AngioCAD_Features.xlsx (129,493 B) and AngioCAD_Labels.xlsx (43,267 B); access_right open; licence declared CC BY 4.0 while the article calls the resource 'non-commercial' (documentary ambiguity to clarify); schema, per-file counts, patient-to-video mapping, pre-angiography chronology and a patient-level binary CAD outcome are NOT VERIFIED IN ACCESSIBLE MATERIALS. No canonical status change proposed.",
       "applied": false
     }
   ],
@@ -782,7 +831,7 @@
   ],
   "authorization_required": [
     {"id": "H-1", "decision": "Accept or reject the AngioCAD classification SCIENTIFIC_HOLD_NOT_ADMITTED as the project position.", "owner": "Maintainer + scientific reviewer"},
-    {"id": "H-2", "decision": "Resolve the CC BY 4.0 vs 'non-commercial' conflict before any reuse discussion.", "owner": "Maintainer (+ legal/licensing advice)"},
+    {"id": "H-2", "decision": "Clarify the documentary restriction ambiguity (declared cc-by-4.0 vs 'non-commercial' article wording) before any reuse discussion.", "owner": "Maintainer (+ legal/licensing advice)"},
     {"id": "H-3", "decision": "Decide whether to approach the AngioCAD curator with the schema/chronology/target question set.", "owner": "Maintainer"},
     {"id": "H-4", "decision": "Decide whether to approach the UCI-412 depositing author for codebook, timing and direction evidence.", "owner": "Maintainer"},
     {"id": "H-5", "decision": "Authorize or refuse a read-only header/shape comparison of the two owner deliveries (names and counts only).", "owner": "Maintainer, local-only execution under separate written scope"},
@@ -807,9 +856,12 @@
   ],
   "validation": {
     "json_parses": "PASS (json.load)",
-    "structural_checks": "PASS — 22/22 stdlib checks (required keys, unique ids, required finding fields, safety flags)",
+    "structural_checks": "PASS — 36/36 stdlib checks (required keys, unique ids, required finding fields, safety flags, status semantics)",
     "internal_reference_checks": "PASS — every finding source_id resolves; every question_update targets a real register question; all applied=false",
-    "source_url_checks": "PASS — all 15 source URLs are https and each finding cites a URL present in sources",
+    "canonical_status_equality": "PASS — current_status equals questions[].status for Q-05/Q-07/Q-08/Q-14; proposed_status equals current_status; no Round-2 reconciliation label used as a status; SCIENTIFIC_HOLD_NOT_ADMITTED confined to angiocad.classification",
+    "baseline_ancestry_check": "PASS — git merge-base --is-ancestor 092b0f528d8d6c00101d5e013dc8221ebf8f5896 a57220c2151680fe53e561dceddbcf88c481196f exit 0",
+    "wording_precision_check": "PASS — AngioCAD schema / binary-CAD-outcome / timing recorded as NOT_VERIFIED_IN_ACCESSIBLE_MATERIALS; CC BY 4.0 deed cited as LIC1",
+    "source_url_checks": "PASS — all 16 source URLs are https and each finding cites a URL present in sources",
     "source_hash_verification": "PASS — scripts/verify_sources.py exit 0 (4 frozen source hashes OK; supervisor audit 25 papers: 9 green / 1 pink / 6 orange / 9 red)",
     "git_diff_check": "PASS — exit 0",
     "patch_scope_check": "PASS — 2 added files under docs/research/next_phase/, no other path touched",
@@ -819,7 +871,7 @@
   "recommended_next_steps": [
     "Human review of this audit and of the proposed register text; apply nothing before a named human decision.",
     "Send owner-first evidence requests (zero data access): schema/chronology/target to the AngioCAD curator; codebook/timing/direction to the UCI-412 depositing author.",
-    "Resolve the AngioCAD licence wording conflict before considering any download.",
+    "Clarify the AngioCAD documentary restriction ambiguity before considering any download.",
     "If authorized (H-5), run the read-only header/shape comparison of the two owner deliveries emitting column names and counts only.",
     "If authorized (H-6), run the aggregate-only Exertional CP distinct-value count inside the existing authorized chain.",
     "Keep AngioCAD out of the Track A candidate set; any imaging/stenosis work is a separate protocol for a different task.",
@@ -832,6 +884,7 @@
     "The 2020 IJERPH secondary source was not re-fetched; its arithmetic inconsistency is carried from the RH-02 register.",
     "Issue #99 body was not machine-retrievable (Issues API 403); the maintainer supplied the specification verbatim.",
     "Metadata is not data: a record description, licence field and manifest do not certify chronology, identity, label quality, missingness or fitness for modelling.",
+    "Schema, binary-CAD-outcome and acquisition-timing statements are recorded as NOT VERIFIED IN ACCESSIBLE MATERIALS rather than as claims that such information does not exist: the article methods are paywalled and neither XLSX was opened.",
     "Secondary sources cannot authenticate source acquisition and cannot override protected local evidence."
   ]
 }
