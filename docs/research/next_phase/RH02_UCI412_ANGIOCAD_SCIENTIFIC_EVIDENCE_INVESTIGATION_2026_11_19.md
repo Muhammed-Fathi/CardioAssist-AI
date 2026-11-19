@@ -1,8 +1,9 @@
 # RH-02 Issue #104 — UCI-412 and AngioCAD primary-source scientific evidence investigation
 
-**Document ID:** `CAI-RH02-ISSUE104-UCI412-ANGIOCAD-SCIENTIFIC-EVIDENCE-2026-11-19-v1.1`
+**Document ID:** `CAI-RH02-ISSUE104-UCI412-ANGIOCAD-SCIENTIFIC-EVIDENCE-2026-11-19-v1.2`
 **Status:** `REVIEW_DRAFT_NOT_SCIENTIFIC_ADMISSION` — documentation-only public-source investigation. **Not** a source-admission decision, supervisor signature, training authorization, ethics approval or clinical validation.
-**Addendum (PR #106 review, same branch):** Independent review identified a second original-author **open full text** that v1 omitted: Alizadehsani et al. 2013 *Res. Cardiovasc. Med.* 2(3):133–139, DOI [10.5812/cardiovascmed.10888](https://doi.org/10.5812/cardiovascmed.10888), PMCID [PMC4253773](https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/), PMID [25478509](https://pubmed.ncbi.nlm.nih.gov/25478509/). This revision inspects that paper’s Tables 1–2. It does **not** lift holds, choose 54 vs 55, or treat 303 as a verified patient-level join across publications or workbooks.
+**Addendum v1.1 (PR #106 review):** Independent review identified a second original-author **open full text** that v1 omitted: Alizadehsani et al. 2013 *Res. Cardiovasc. Med.* 2(3):133–139, DOI [10.5812/cardiovascmed.10888](https://doi.org/10.5812/cardiovascmed.10888), PMCID [PMC4253773](https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/), PMID [25478509](https://pubmed.ncbi.nlm.nih.gov/25478509/).
+**Addendum v1.2 (PR #106 review 5970218809, same branch):** Original-inventor U.S. patent application [US20150370996A1](https://patents.google.com/patent/US20150370996A1/en) (filed 2014-06-23, published 2015-12-24, **Abandoned**). Inventor Table 1 prints **BP mmHg 90–190** and **PR ppm 50–110**. The patent’s **335-patient / 50-feature** embodiment is **not** the UCI-412 303-patient deposit. This addendum does **not** infer systolic BP, exact PR-unit meaning, pre-angiography timestamps, workbook identity, or 54 vs 50/55, and does **not** import the patent’s 100% sensitivity claim.
 **Issue:** [Issue #104](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/104) (Issues API returned `403 Resource not accessible by integration`; the maintainer supplied the specification verbatim in-session).
 **Exact `main` baseline named by the issue:** `ab613baa3de5ec7c3442f4047b1a4cc56126d624` (“Merge pull request #105”). This object **is** `HEAD` of the session branch at the start of the investigation (`git rev-parse HEAD`).
 **Machine-readable companion:** [`RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.json`](RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.json) (schema `cardioassist.rh02_uci412_angiocad_scientific_evidence_investigation/v1`).
@@ -29,7 +30,8 @@
 | Activity | Performed | Detail |
 |---|---|---|
 | Public landing-page, API and article-preview reads | **Yes** | UCI-412/411 pages and JSON API; Mendeley deposit page; Zenodo record HTML and `/api/records/15826856`; PubMed 23537611 and 42033972; ScienceDirect previews of 2013/2016/2017/2026 papers; CC BY 4.0 deed. |
-| Original-author full text | **Yes, two papers** | **(1)** Alizadehsani et al. 2012 *J. Med. Signals Sens.* 2:153–159, DOI [10.4103/2228-7477.112099](https://doi.org/10.4103/2228-7477.112099) — **clinical/ECG** Tables 1–3. **(2)** Alizadehsani et al. 2013 *Res. Cardiovasc. Med.* 2(3):133–139, DOI [10.5812/cardiovascmed.10888](https://doi.org/10.5812/cardiovascmed.10888), [PMC4253773](https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/) — **demographic Table 1 and laboratory/echocardiography Table 2**. These are two different 2013-era papers; (2) is **not** the paywalled 2013 CMPB article. |
+| Original-author full text | **Yes, two papers** | **(1)** Alizadehsani et al. 2012 *J. Med. Signals Sens.* 2:153–159 — **clinical/ECG** Tables 1–3. **(2)** Alizadehsani et al. 2013 *Res. Cardiovasc. Med.* 2(3):133–139, [PMC4253773](https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/) — **demographic Table 1 and laboratory/echocardiography Table 2**. These are two different 2013-era papers; (2) is **not** the paywalled 2013 CMPB article. |
+| Original-inventor patent application | **Yes, one abandoned application** | [US20150370996A1](https://patents.google.com/patent/US20150370996A1/en) Google Patents public text (5 chunks). **Not** an issued patent. **Not** a UCI-412 codebook. Table 1 and ¶¶0014–0022 / 0026–0027 read. |
 | Original-author abstracts and paywalled snippets | **Yes** | 2013 CMPB (`10.1016/j.cmpb.2013.03.004`), 2016 *Knowl.-Based Syst.*, 2017 Arabasadi/Alizadehsani CMPB. **Table 1 of each of those three papers remains paywalled and was not read.** |
 | Secondary open-access feature tables | **Yes** | Eyupoglu & Karakuş 2024 PMC11122190 Table 1; Sayadi et al. 2022 PMC9698583 Table 1; Zhang et al. 2022 *Electronics* 11(9):1495 §3–4.1. |
 | Secondary AngioCAD code/README (no patient files) | **Yes** | [MRS028/AngioCAD_Project](https://github.com/MRS028/AngioCAD_Project) README and `src/angiocad_common.py`. Column names are **that repository’s code**, not an owner codebook. |
@@ -43,6 +45,7 @@
 |---|---|
 | `ORIGINAL_AUTHOR_PAPER` | Full text or extract of a paper whose authors include the UCI-412 depositing team (Alizadehsani / Alizadeh Sani). |
 | `ORIGINAL_AUTHOR_COAUTHOR_PAPER` | Paper whose authors include Alizadehsani but which is not the 2013 dataset-introduction article (notably Arabasadi et al. 2017). |
+| `ORIGINAL_INVENTOR_PATENT_APPLICATION` | Published U.S. patent **application** whose named inventors include Z-Alizadeh Sani researchers. Inventor-authored disclosure, **not** a granted patent, **not** UCI owner metadata, and **not** verified delivered-workbook semantics. |
 | `OWNER_METADATA` | UCI, Mendeley or Zenodo owner/depositor landing page or machine-readable record. |
 | `OWNER_PAPER_ABSTRACT` | Abstract, Highlights, Introduction, ethics/data-availability of an owner-authored article, where the methods/tables are paywalled. |
 | `SECONDARY_PAPER` | Peer-reviewed third-party reanalysis. Can corroborate or conflict; **cannot** authenticate original acquisition. |
@@ -66,6 +69,7 @@ Finding classes: **`SUPPORTED`**, **`PARTIALLY_SUPPORTED`**, **`UNRESOLVED`**, *
 | `OA-2013-CMPB` | [ScienceDirect preview, *Comput. Methods Programs Biomed.* 111:52–61](https://www.sciencedirect.com/science/article/pii/S0169260713000801) · [PubMed 23537611](https://pubmed.ncbi.nlm.nih.gov/23537611/) · DOI 10.1016/j.cmpb.2013.03.004 | Abstract + snippets; Table 1 **paywalled** | 303 patients / 54 features; 216 CAD; four feature groups; feature-creation method; 94.08% accuracy claim. **Not the same article as `OA-2013-RCM`.** |
 | `OA-2016-KBS` | [ScienceDirect preview, *Knowl.-Based Syst.* 109:187–197](https://www.sciencedirect.com/science/article/abs/pii/S0950705116302076) · DOI 10.1016/j.knosys.2016.07.004 | Abstract + snippets; Table 1 **paywalled** | 303 patients / 54 features; “stenotic more than 50%”; Table 1 exists but was not readable. |
 | `OA-2017-ARAB` | [ScienceDirect preview, Arabasadi/Alizadehsani *Comput. Methods Programs Biomed.* 141:19–26](https://www.sciencedirect.com/science/article/pii/S0169260716309695) · DOI 10.1016/j.cmpb.2017.01.004 | Abstract + snippets; Table 1 **paywalled** | 303 patients / 54 features / 216 CAD; “stenosis of higher than 50%”. |
+| `OA-2015-USPAT` | [Google Patents US20150370996A1](https://patents.google.com/patent/US20150370996A1/en) · USPTO App. [14/312,648](https://patentcenter.uspto.gov/applications/14312648) | Google Patents HTML, 5 chunks | Abandoned application, inventors Alizadehsani / Hosseini / Alizadehsani et al.; Table 1 **BP (Blood Pressure: mmHg) 90–190**, **PR (Pulse Rate) (ppm) 50–110**; 335 patients / 50-feature Z-AlizadehSani embodiment; CAD ≥50%; cites 2013 CMPB as different/better; 94.28% accuracy / 100% sensitivity **not imported**. |
 | `P1A` | [UCI-412](https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani) | `200` | 303; ≥50% CAD; 54-feature prose; 56 blank variable rows; `Z-Alizadeh sani dataset.xlsx` 120.7 KB; CC BY 4.0; donated 2017-11-16. |
 | `P1B` | [UCI-412 API](https://archive.ics.uci.edu/api/dataset?id=412) | `200` JSON | `num_instances: 303`, **`num_features: 0`**, `target_col: null`, 56 blank variable objects, `year_of_dataset_creation: 2013`. |
 | `P1C` | [UCI-411](https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset) | `200` | Same 303; **59 features** prose; LAD/LCX/RCA added; 59 blank variable rows; `extention of Z-Alizadeh sani dataset.xlsx` 128.1 KB. |
@@ -186,6 +190,33 @@ This is the strongest original-author **semantic** evidence located for five of 
 
 **What this paper does not supply:** BP, PR, chest-pain flags, Function Class, ECG/`BBB`/`Rhythm`, 0/1 workbook coding, lab units, a 50% CAD rule, a CRF, per-feature clocks, or proof that these 303 rows are the UCI-412 workbook.
 
+### 2.5 Original-inventor patent application US20150370996A1 (`OA-2015-USPAT`)
+
+**Authority:** `ORIGINAL_INVENTOR_PATENT_APPLICATION`. Google Patents public text of **US20150370996A1**, “System for determining the need for Angiography in patients with symptoms of Coronary Artery disease.” Inventors include **Roohallah Alizadehsani, Mohammad Javad Hosseini, Zahra Alizadehsani**, Mohammad Hassan Mohammadi, Ozra Barati, Fahimeh Khozeimeh. Application US14/312,648; filed 2014-06-23; published 2015-12-24; Google Patents legal status **Abandoned**. **Not** an issued patent. **Not** UCI owner metadata. **Not** a verified codebook for the delivered 303-row workbook.
+
+**What the inventor text prints (Table 1; ¶¶0014–0018, 0021–0022):**
+
+| Inventor statement | Location | What it is | What it is not |
+|---|---|---|---|
+| `BP (Blood Pressure: mmHg)` range 90–190 | Table 1, Symptom and Examination | Inventor-authored **printed unit token `mmHg`** and the same 90–190 range as 2012 JMSS | Systolic vs diastolic vs MAP; posture/device; that the UCI-412 xlsx stores mmHg |
+| `PR (Pulse Rate) (ppm)` range 50–110 | Table 1 | Inventor-authored **printed token `ppm`** and the same 50–110 range as 2012 JMSS | Clinical meaning of `ppm` (e.g. vs beats/min); device; that the UCI-412 xlsx uses this token |
+| CAD if diameter narrowing **greater than or equal to 50%** | ¶0018 | Inventor wording matching UCI landing-page ≥50% | Resolution of the 2016/2017 “more than 50%” conflict; exact-50% row handling |
+| Z-AlizadehSani feature set, **50 features**, four groups | Abstract; ¶¶0014, 0017, 0021 | A **patent embodiment** count | UCI-412’s 54-feature prose, local 55+Cath, or a chosen dictionary size |
+| Features extracted for **335 patients** | ¶¶0015, 0017, 0048 | A **patent-embodiment cohort size** | Identity with the UCI-412 **303**-patient deposit, 2012 JMSS, or 2013 RCM |
+| Table 2 `BP2` / `PulseRate2` cut-offs 140 and 60–100 | Table 2 | Same derived bins as 2012 EJSR | Proof that recorded BP is systolic |
+| Accuracy 94.28% and sensitivity **100%** on 335 patients | ¶¶0015–0016, 0048; claim 1 | Patent performance **claims** | CardioAssist results, clinical suitability, or ethics/scientific approval |
+| Invention “completely different and better” than Alizadehsani et al. 2013 CMPB | ¶0027 | Inventors distinguish this embodiment from the 2013 CMPB article | A join key to the UCI workbook |
+
+Table 1 demographic block lists **Length 150–210** (frozen secondary range is 140–188) and omits CRF / CVA / Airway Disease relative to 2012 Table 1. ECG lists **Rhythm Sin, AF**, not `BBB`. Function Class **1, 2, 3, 4**. Lab/echo ranges match 2013 RCM Table 2 numerically and **do** print units here (mg/dl, mm/h, g/dl, mEq/lit, cells/ml, %, 1000/ml). Region with RWMA is **0,1,2,3,4** (frozen secondary 0–3). Claim 4/8 laundry lists are **claim language**, not Table 1, and must not be mixed with the table.
+
+**Finding on units (Q-05):** `PARTIALLY_SUPPORTED` for **inventor-printed provenance** of the tokens `mmHg` and `ppm`. **Not `VERIFIED`** as delivered-workbook semantics. Systolic/diastolic remains `UNRESOLVED`. Exact clinical meaning of `ppm` remains `UNRESOLVED`.
+
+**Finding on version (Q-08):** 335 vs 303 and 50 vs 54/55/56 are an **unreconciled alternative embodiment**. Do **not** rewrite UCI-412 *n* to 335 or the frozen dictionary to 50.
+
+**Finding on timing (Q-04):** The patent describes a proposed algorithm “for determining the need for angiography.” That is modelling **intent**, not a per-field acquisition log. **0/16 unchanged.**
+
+**Forbidden imports:** patent 100% sensitivity / 94.28% accuracy as CardioAssist metrics; treating 335=303; treating Table 1 as the UCI xlsx schema.
+
 ---
 
 ## 3. The 54-versus-55-versus-56 discrepancy (Q-08)
@@ -196,6 +227,7 @@ This is the strongest original-author **semantic** evidence located for five of 
 |---|---|---|
 | **37 features** | 2012 JMSS §5 | `ORIGINAL_AUTHOR_PAPER` |
 | **16 named demographics + 17 named lab/echo (this paper does not state 54)** | 2013 RCM Tables 1–2; Length used only in Gini | `ORIGINAL_AUTHOR_PAPER` |
+| **50 features / 335 patients** | US20150370996A1 Abstract, ¶¶0014–0017, Table 1 | `ORIGINAL_INVENTOR_PATENT_APPLICATION` — **unreconciled alternative embodiment**, not UCI-412 |
 | **54 features** | 2013 **CMPB** abstract; 2016 snippet; 2017 co-author snippet; UCI-412 prose; Mendeley | `ORIGINAL_AUTHOR_PAPER` / `OWNER_METADATA` |
 | **55 attributes / 55 features** | Eyupoglu 2024 Table 1 (17+14+7+17); Zhang 2022 §3; Joloudari 2020 | `SECONDARY_PAPER` |
 | **56 variable rows** | UCI-412 page “0 to 10 of 56”; API `variables` length 56 | `OWNER_METADATA` (names blank) |
@@ -218,7 +250,7 @@ This is the strongest original-author **semantic** evidence located for five of 
 | ECG | **Rhythm** Sin/AF | not in this paper (previous work) | **BBB** Left/Right/Normal; Rhythm absent |
 | Function Class | 1, 2, 3, 4 | not in this paper | 0, 1, 2, 3 |
 | Obesity | derived, BMI&gt;25 | derived, BMI &gt; 25, with counts | Yes/No |
-| Lab units | n/a | **none** except EF(%) | mmHg/ppm and mg/dL etc. are **secondary** |
+| Lab units | n/a | **none** except EF(%) | 2015 patent Table 1 prints mmHg/ppm and lab units; still **not** verified xlsx semantics. Secondary tables also print mmHg/ppm. |
 
 **Finding:** `UNRESOLVED` / `DISPUTED` across source versions. **Neither 54 nor 55 nor 56 is chosen.** The frozen dictionary remains 56 registered entries. Original-author 2013 RCM Table 2 **supports the 17-name laboratory/echo inventory** as an author-published list; it does **not** certify the delivered column count. Choosing a secondary table — or this RCM paper — to “correct” the owner prose is prohibited.
 
@@ -241,8 +273,8 @@ Registered panel `uci412_basic_clinical_v1` (`REPOSITORY_CONTRACT`, dictionary 1
 | 7 | EX-Smoker | Yes/No; **“history of previous consumption of cigarettes”**; 2013 RCM Yes 10 / No 293 | Former-smoking history, distinct from current | Exclusive vs overlapping with Current Smoker; 0/1 | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
 | 8 | FH | Yes/No; **“history of heart disease in first-degree relatives”**; 2013 RCM Yes 48 / No 255 | First-degree family history | Age-of-onset threshold; 0/1; timing | `PARTIALLY_SUPPORTED`; S-9 `UNRESOLVED` |
 | 9 | DLP | Yes/No “Dyslipidemia”; 2013 RCM Yes 191 / No 112 | Named history/diagnosis flag | Lab-derived vs recorded diagnosis; Y/N vs Yes/No tokens | `PARTIALLY_SUPPORTED` |
-| 10 | BP | “Blood Pressure” 90–190; EJSR `BP2` uses **140** as high cut-off. **Absent from 2013 RCM Tables 1–2** (examination features are future work). | Single numeric; 140-cut-off is the classic **systolic** threshold, so a systolic-like quantity is **the intended reading of the derived feature** | Systolic vs diastolic vs MAP as recorded; mmHg (2012 table has **no unit**); posture, device, rest; pre-cath time. Must not be mapped to Cleveland `trestbps`. 2013 RCM does **not** add a BP subtype. | `PARTIALLY_SUPPORTED` (pulse-pressure-like single value, systolic-compatible cut-off); quantity/unit/timing `UNRESOLVED` |
-| 11 | PR | “Pulse Rate” 50–110; EJSR `PR2` uses 60–100 as normal. **Absent from 2013 RCM Tables 1–2.** | Named pulse rate; 60–100 is the classic **beats/min** adult range | Printed secondary unit `ppm`; device; conditions; timing. 2013 RCM does **not** document `ppm`. | `PARTIALLY_SUPPORTED` (pulse rate, bpm-compatible); unit/timing `UNRESOLVED` |
+| 10 | BP | “Blood Pressure” 90–190 (2012, no unit). 2015 inventor patent Table 1: **`BP (Blood Pressure: mmHg) 90–190`**. **Absent from 2013 RCM Tables 1–2.** | Inventor-printed **token `mmHg`** and a single numeric 90–190. 2012/EJSR/patent `BP2` uses a 140 cut-off. | **Not** systolic vs diastolic vs MAP. **Not** verified UCI-412 xlsx units. Posture, device, rest, pre-cath time unknown. Must not be mapped to Cleveland `trestbps`. | `PARTIALLY_SUPPORTED` (inventor-printed mmHg provenance); quantity/timing `UNRESOLVED`; **not VERIFIED** workbook semantics |
+| 11 | PR | “Pulse Rate” 50–110 (2012, no unit). 2015 inventor patent Table 1: **`PR (Pulse Rate) (ppm) 50–110`**. **Absent from 2013 RCM Tables 1–2.** | Inventor-printed **token `ppm`** and range 50–110. | **Not** a clinical explanation of `ppm`. **Not** verified UCI-412 xlsx units. Device, conditions, timing unknown. | `PARTIALLY_SUPPORTED` (inventor-printed ppm provenance); meaning/timing `UNRESOLVED`; **not VERIFIED** workbook semantics |
 | 12 | Typical Chest Pain | Separate Yes/No column; highest IG for LAD/RCA | A typical-pain flag existed | Case definition; 0/1; exclusivity vs other flags; timing | `UNRESOLVED` |
 | 13 | Atypical | Separate Yes/No | Distinct column | Exclusive vs overlapping; timing | `UNRESOLVED` |
 | 14 | Nonanginal | Separate Yes/No (“Nonanginal CP”) | Distinct column | Exclusive vs overlapping; timing | `UNRESOLVED` |
@@ -297,9 +329,9 @@ Registered panel `uci412_basic_clinical_v1` (`REPOSITORY_CONTRACT`, dictionary 1
 
 ### 6.3 BP and PR (Q-05)
 
-See row 10–11 of §4. Original 2012 names and ranges plus EJSR derived cut-offs **support a systolic-compatible single BP and a bpm-compatible pulse rate as the authors’ modelling interpretation**. They do **not** certify the recorded quantity, the printed `ppm` token, device, posture, or time. Do not map BP to `trestbps`.
+See row 10–11 of §4. Original 2012 names and ranges (no unit). Original-inventor patent Table 1 **prints** `mmHg` and `ppm`. That is inventor-token provenance, **not** verified delivered-workbook semantics, **not** a systolic/diastolic determination, and **not** a clinical definition of `ppm`. Do not map BP to `trestbps`.
 
-**Finding:** `PARTIALLY_SUPPORTED` (author terminology + derived cut-offs); measurement semantics `UNRESOLVED`. Register status remains `UNRESOLVED_SCIENTIFIC_HOLD`.
+**Finding:** `PARTIALLY_SUPPORTED` (inventor-printed unit tokens); measurement semantics and workbook binding `UNRESOLVED`. **Not `VERIFIED`.** Register status remains `UNRESOLVED_SCIENTIFIC_HOLD`.
 
 ---
 
@@ -365,27 +397,27 @@ Canonical `questions[].status` values below are **unchanged** from `RH02_SOURCE_
 
 ### Q-03 — UCI-412 CAD threshold
 
-1. **Sources:** UCI-412 Additional Information (owner, 2017 page); 2012 JMSS §2; 2016 KBS Introduction; 2017 Arabasadi Dataset snippet.
-2. **Evidence / authority:** Owner + 2012 original: ≥50%. 2016/2017 original-author(–coauthor): &gt;50%.
-3. **Proves / does not:** Proves UCI landing-page rule is ≥50%. Does not prove exact-50% row handling or equivalence to UCI-45.
-4. **Conflicts:** Original-author &gt;50% vs ≥50% (§2.3).
+1. **Sources:** UCI-412 Additional Information (owner, 2017 page); 2012 JMSS §2; 2016 KBS Introduction; 2017 Arabasadi Dataset snippet; US20150370996A1 ¶0018.
+2. **Evidence / authority:** Owner + 2012 original + 2015 inventor patent: ≥50%. 2016/2017 original-author(–coauthor): &gt;50%.
+3. **Proves / does not:** Proves UCI landing-page rule is ≥50%. Patent corroborates inventor ≥50% wording. Does not prove exact-50% row handling or equivalence to UCI-45.
+4. **Conflicts:** Original-author &gt;50% vs ≥50% (§2.3). Patent does not resolve the edge.
 5. **Finding:** `DISPUTED` (edge); owner-page ≥50% `SUPPORTED`. **Register status unchanged:** `RESOLVED_PRIMARY_METADATA_ONLY`.
 
 ### Q-04 — 16-field pre-angiography timing
 
-1. **Sources:** 2012 JMSS §2; 2013 RCM Abstract/§3/§5; UCI/Mendeley (no timestamps); 2013 CMPB / 2016 snippets.
-2. **Evidence:** Referred chest-pain angiography volunteers (2012) and chest-pain referrals whose lab/echo features are used to “obviate angiography” (2013 RCM). **Neither paper states a per-feature clock vs angiography or vs knowledge of the stenosis label.**
-3. **Proves / does not:** Cohort design ≠ field-level pretest certification. 2013 RCM echo/lab inputs do not become pretest-certified by being called non-invasive. Same *n* = 303 is not a row join.
+1. **Sources:** 2012 JMSS §2; 2013 RCM Abstract/§3/§5; US20150370996A1 Abstract/¶0006/¶0016; UCI/Mendeley (no timestamps); 2013 CMPB / 2016 snippets.
+2. **Evidence:** Referred chest-pain angiography volunteers (2012); lab/echo used to “obviate angiography” (2013 RCM); patent proposes an algorithm “for determining the need for angiography.” **No source states a per-feature clock vs angiography or vs knowledge of the stenosis label.**
+3. **Proves / does not:** Cohort/algorithm design ≠ field-level pretest certification. The patent’s 335-patient embodiment is not a join to UCI-412’s 303 rows.
 4. **Conflicts:** None on timestamps (universal silence).
 5. **Finding:** `UNRESOLVED` (0/16). **Status unchanged:** `UNRESOLVED_SCIENTIFIC_HOLD`.
 
 ### Q-05 — BP and PR
 
-1. **Sources:** 2012 JMSS Table 2; 2012 EJSR Table 4; Eyupoglu 2024 Table 1; UCI API empty units; 2013 RCM Tables 1–2 (negative: BP/PR absent).
-2. **Evidence:** “Blood Pressure” 90–190, `BP2` high if &gt;140; “Pulse Rate” 50–110, `PR2` normal 60–100; secondary mmHg / ppm. 2013 RCM does **not** document BP subtype or `PR ppm`.
-3. **Proves / does not:** Author modelling interpretation is systolic-compatible BP and bpm-compatible pulse. Not a codebook for quantity, device, `ppm`, or time.
-4. **Conflicts:** 2012 no unit vs secondary mmHg/ppm.
-5. **Finding:** `PARTIALLY_SUPPORTED` (terminology); measurement `UNRESOLVED`. **Status unchanged:** `UNRESOLVED_SCIENTIFIC_HOLD`.
+1. **Sources:** 2012 JMSS Table 2 (no unit); 2012 EJSR Table 4; US20150370996A1 Table 1; Eyupoglu 2024 Table 1; UCI API empty units; 2013 RCM Tables 1–2 (BP/PR absent).
+2. **Evidence:** 2012: “Blood Pressure” 90–190, “Pulse Rate” 50–110. Inventor patent Table 1: **`BP (Blood Pressure: mmHg) 90–190`**, **`PR (Pulse Rate) (ppm) 50–110`**. Secondary tables reprint mmHg/ppm. Patent Table 2 repeats BP2 140 / PulseRate2 60–100 bins.
+3. **Proves / does not:** Proves **inventor-printed provenance** of the tokens `mmHg` and `ppm`. Does **not** prove systolic vs diastolic, the clinical meaning of `ppm`, device/posture, time, or that the UCI-412 xlsx stores these units.
+4. **Conflicts:** 2012 tables have no unit; patent and secondary tables print mmHg/ppm; UCI API units blank.
+5. **Finding:** `PARTIALLY_SUPPORTED` (inventor-printed unit tokens); **not `VERIFIED`** workbook semantics. Quantity/meaning/timing `UNRESOLVED`. **Status unchanged:** `UNRESOLVED_SCIENTIFIC_HOLD`.
 
 ### Q-06 — numeric binary direction
 
@@ -405,11 +437,11 @@ Canonical `questions[].status` values below are **unchanged** from `RH02_SOURCE_
 
 ### Q-08 — 54 vs 55 vs 56
 
-1. **Sources:** §3 table; 2013 RCM Tables 1–2.
-2. **Evidence:** Original 2012 **37**; original 2013 RCM **16 demo + 17 lab/echo** (paper never says 54); 2013 CMPB/2016/2017/UCI/Mendeley **54**; secondary 55; local 55+Cath; UCI 56 blank rows; 411 = 59. 37+17=54 is now an original-author-table **hypothesis**, not a chosen count.
-3. **Proves / does not:** A real version/count discrepancy. 2013 RCM **supports the 17 lab/echo names**. Does not identify the extra column without a header audit. Does not prove 303-row identity.
-4. **Conflicts:** 54+3≠59 vs 56+3=59; Rhythm vs BBB; Function Class 1–4 vs 0–3; Length omitted from both original Table 1s but used in IG/Gini; several lab **ranges** differ from frozen secondary ranges.
-5. **Finding:** `DISPUTED` / `UNRESOLVED`. **Status unchanged:** `DOCUMENTED_REPOSITORY_AGGREGATE_ONLY`. **54 vs 55 is not inferred as resolved.**
+1. **Sources:** §3 table; 2013 RCM Tables 1–2; US20150370996A1 Abstract/Table 1/¶0014–0017.
+2. **Evidence:** Original 2012 **37**; original 2013 RCM **16 demo + 17 lab/echo** (paper never says 54); 2013 CMPB/2016/2017/UCI/Mendeley **54**; secondary 55; local 55+Cath; UCI 56 blank rows; 411 = 59; inventor patent **50 features / 335 patients**. 37+17=54 is an original-author-table **hypothesis**, not a chosen count.
+3. **Proves / does not:** A real version/count discrepancy. 2013 RCM **supports the 17 lab/echo names**. Patent 335/50 is an **unreconciled alternative embodiment**, not a rewrite of UCI-412. Does not identify the extra column without a header audit. Does not prove 303-row identity.
+4. **Conflicts:** 54+3≠59 vs 56+3=59; 50≠54≠55; 335≠303; Rhythm vs BBB; Function Class 1–4 vs 0–3; Length 150–210 in patent vs 140–188 secondary vs omitted from 2012/2013 Table 1.
+5. **Finding:** `DISPUTED` / `UNRESOLVED`. **Status unchanged:** `DOCUMENTED_REPOSITORY_AGGREGATE_ONLY`. **54 vs 55 vs 50 is not inferred as resolved. Do not set n=335.**
 
 ### Q-14 — AngioCAD pretest tabular source
 
@@ -427,10 +459,10 @@ Canonical `questions[].status` values below are **unchanged** from `RH02_SOURCE_
 |---|---|---|---|---|---|
 | D-UCI-TH | Keep UCI-412 target as source-defined ≥50%; report original-author &gt;50% conflict | `DISPUTED` edge | Owner page + original papers | Quote both wordings in FR-04 | Harmonize with Cleveland; pick 2016 to override UCI |
 | D-UCI-TIME | Do not treat the 16 fields as verified pretest inputs | `UNRESOLVED` | 2012 and 2013 RCM design intent only; **no per-feature clocks** | Owner CRF request | New real UCI-412 training / AI-9.2; treat 303 as a verified join |
-| D-UCI-BPPR | Do not map BP→`trestbps` or certify `ppm` | `PARTIALLY_SUPPORTED` | 2012 tables + EJSR BP2/PR2 | Ask owner: systolic? unit? conditions? | Recode PR or collapse with Cleveland BP |
+| D-UCI-BPPR | Do not map BP→`trestbps` or treat patent `mmHg`/`ppm` as verified xlsx units; do not infer systolic BP or ppm meaning | `PARTIALLY_SUPPORTED` | 2012 names + inventor-printed tokens | Ask owner: SBP/DBP? ppm vs bpm? xlsx binding? | Recode PR; collapse with Cleveland BP; mark units VERIFIED |
 | D-UCI-BIN | Keep S-9 provisional | `PARTIALLY_SUPPORTED` | 2012 Yes/No history | Owner 0/1 statement | Heuristic recoding |
 | D-UCI-CP | Keep four flags as delivered | `UNRESOLVED` | 2012 parallel columns | Optional authorized aggregate uniqueness of Exertional CP | Drop column because Zhang 2022 did |
-| D-UCI-N | Do not choose 54 or 55 or 56 | `DISPUTED` | Owner + 2012/2013 RCM tables + local + secondary | Cite 2013 RCM Table 2 as original-author **17 lab/echo names**; authorized header/shape audit of **named** delivery | “Fix” dictionary to 54 because 37+17=54 |
+| D-UCI-N | Do not choose 54 or 55 or 56 or patent 50; do not set n=335 | `DISPUTED` | Owner + 2012/2013 RCM + inventor patent embodiment + local + secondary | Cite 2013 RCM Table 2 as original-author **17 lab/echo names**; treat 335/50 as unreconciled embodiment | “Fix” dictionary to 54 or 50; rewrite UCI-412 n to 335 |
 | D-ANG-ADM | AngioCAD remains **not admitted** | `SCIENTIFIC_HOLD_NOT_ADMITTED` | Owner + secondary | Curator schema/timing/licence questions | Download RAR/XLSX; train; call it Track A |
 | D-ANG-LIT | Keep **P25 `REJECTED_RED`** | `SUPERVISOR_CLASSIFICATION` | Supervisor sheet | Cite as rejected-from-selected-scope | Recolour because a table exists |
 | D-ANG-TASK | If ever in scope, it is an **imaging/stenosis + mixed-ACS** task | `PARTIALLY_SUPPORTED` (secondary) | MRS028 README | Separate protocol, separate estimand | Substitute for UCI-412/Cleveland pretest CAD |
@@ -443,7 +475,7 @@ Canonical `questions[].status` values below are **unchanged** from `RH02_SOURCE_
 ## 10. Ranked recommendations (cheapest–safest first)
 
 1. **Human review of this packet.** No register JSON, supervisor CSV, dictionary or protocol should change until a named reviewer accepts specific rows.
-2. **UCI-412 author/curator letter (zero data access):** (a) original CRF for the 16 fields with clock vs angiography; (b) BP quantity (SBP/DBP/other), unit, posture; (c) PR unit and the `ppm` token; (d) Yes/No → 0/1 map; (e) chest-pain exclusivity; (f) why prose says 54, UCI UI has 56 rows, 411 says 59; (g) ≥50 vs &gt;50 in 2016/2017 papers; (h) whether 2012 JMSS, 2013 RCM, 2013 CMPB and the UCI/Mendeley workbooks are the **same 303 rows**; (i) lab units and the Cr/“Creatine” token.
+2. **UCI-412 author/curator letter (zero data access):** (a) original CRF for the 16 fields with clock vs angiography; (b) BP quantity (SBP/DBP/other), unit, posture; (c) PR unit and the `ppm` token, and whether patent Table 1 binds to the UCI xlsx; (d) Yes/No → 0/1 map; (e) chest-pain exclusivity; (f) why prose says 54, UCI UI has 56 rows, 411 says 59, patent says 50; (g) ≥50 vs &gt;50 in 2016/2017 papers; (h) whether 2012 JMSS, 2013 RCM, 2013 CMPB, the patent 335-patient embodiment, and the UCI/Mendeley workbooks are the **same rows**; (i) lab units and the Cr/“Creatine” token.
 3. **AngioCAD curator letter (zero download):** schema of Features/Labels; patient↔video map; clinical/lab chronology; owner patient-level CAD rule if any; which text governs reuse (CC BY 4.0 vs “non-commercial”).
 4. **Do not recolour P25 and do not lift `SCIENTIFIC_HOLD_NOT_ADMITTED`.**
 5. **If and only if separately authorized:** local read-only header/shape comparison of UCI vs Mendeley UCI-412 files (names/counts only).
@@ -459,12 +491,12 @@ The file `RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json` is **not edited**. If a
 
 | Question | Canonical status (unchanged) | Proposed appendix only |
 |---|---|---|
-| Q-03 | `RESOLVED_PRIMARY_METADATA_ONLY` | 2012 JMSS ≥50 vs 2016/2017 original-author &gt;50 wording. |
-| Q-04 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 “volunteers for angiography” and 2013 RCM “obviate angiography” are cohort design, not 16 timestamps. Same *n*=303 is not a row join. |
-| Q-05 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 “Blood Pressure”/“Pulse Rate” + EJSR BP2 140 / PR2 60–100; 2013 RCM has no BP/PR; still no codebook. |
+| Q-03 | `RESOLVED_PRIMARY_METADATA_ONLY` | 2012 JMSS ≥50 vs 2016/2017 original-author &gt;50 wording. 2015 inventor patent ¶0018 also ≥50%; does not resolve the edge. |
+| Q-04 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012/2013 RCM/2015 patent angiography-need intent is not 16 timestamps. Patent 335 ≠ UCI 303. |
+| Q-05 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 names/ranges (no unit). 2015 inventor patent Table 1 prints mmHg and ppm — provenance only, not verified xlsx, not systolic, not ppm meaning. |
 | Q-06 | `CONDITIONAL_SOURCE_REVIEW_REQUIRED` | 2012 history definitions for DM/HTN/smoker/FH; 2013 RCM Yes/No counts. |
 | Q-07 | `UNRESOLVED_SCIENTIFIC_HOLD` | 2012 four parallel Yes/No flags. 2013 RCM does not list chest-pain columns. |
-| Q-08 | `DOCUMENTED_REPOSITORY_AGGREGATE_ONLY` | 2012 37-feature precursor; 2013 RCM original 17 lab/echo names (not a 54-count); Rhythm vs BBB; Function Class 1–4 vs 0–3; Length omitted from both Table 1s; 54+3≠59. 54 vs 55 **not** inferred. |
+| Q-08 | `DOCUMENTED_REPOSITORY_AGGREGATE_ONLY` | 2012 37-feature precursor; 2013 RCM original 17 lab/echo names; 2015 inventor patent 50 features / 335 patients as **unreconciled embodiment** (not UCI-412); Rhythm vs BBB; 54+3≠59. 54 vs 55 vs 50 **not** inferred. |
 | Q-14 | `CONDITIONAL_SOURCE_REVIEW_REQUIRED` | Secondary 377 clinical / STEMI 49%; constructed &gt;50% label; P25 remains REJECTED_RED; classification remains SCIENTIFIC_HOLD_NOT_ADMITTED. |
 
 **Explicitly not proposed:** any `decision_id`, any status string change, any colour change, any dictionary/panel/hash change.
@@ -497,9 +529,10 @@ Documentation-level only. Commands and results are recorded in the JSON `validat
 6. **MRS028** is independent secondary code, not Hosseini et al.
 7. **Issue #104** not machine-read (`403`).
 8. **Secondary tables are not owner CRFs.** 2013 RCM Tables 1–2 are original-author **published tables**, still not a CRF or workbook.
-9. **303 is a published sample size**, not a verified patient-level identity across papers or deposits.
-10. This PR **must not** be cited as scientific or clinical approval.
+9. **303 is a published sample size**, not a verified patient-level identity across papers or deposits. Patent **335** is a separate embodiment size.
+10. **US20150370996A1** is an abandoned application read via Google Patents HTML, not USPTO XML and not an issued patent. Patent 100% sensitivity is **not** a CardioAssist result.
+11. This PR **must not** be cited as scientific or clinical approval.
 
 ---
 
-**Bottom line.** Original-author **2012 JMSS** tables name BP, PR, and history flags (clinical/ECG). Original-author **2013 RCM** (PMC4253773) — a **different paper** from paywalled 2013 CMPB — supplies **demographic Table 1 and 17 laboratory/echo names with ranges**. v1’s “only one original-author full text” claim is corrected. Neither paper certifies pre-cath timestamps (still **0/16**), 0/1 direction, BP systolic-vs-diastolic, `PR ppm`, or a single feature count. 37+17=54 is an original-author-table **hypothesis, not adopted**; 303 is not a verified row join. AngioCAD remains a post-cath multimodal resource with a CC BY 4.0 vs “non-commercial” documentary clash. **`REJECTED_RED` (P25) and `SCIENTIFIC_HOLD_NOT_ADMITTED` are preserved. No hold was lifted. No patient file was downloaded. No model was fitted.**
+**Bottom line.** Original-author **2012 JMSS** names BP/PR without units. Original-inventor **US20150370996A1 Table 1** prints **BP mmHg** and **PR ppm** — inventor-token provenance only, **not** verified UCI-412 xlsx semantics, **not** systolic vs diastolic, **not** a clinical definition of `ppm`. The patent’s **335-patient / 50-feature** embodiment is **not** the UCI-412 303/54 deposit. 2013 RCM remains the open original-author lab/echo table for the 303-era papers. Still **0/16** pre-cath times. Holds, P25 `REJECTED_RED`, and `SCIENTIFIC_HOLD_NOT_ADMITTED` unchanged. No patient file downloaded. No model fitted. Patent 100% sensitivity **not imported**.
