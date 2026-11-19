@@ -3,13 +3,13 @@
 **Audit date:** 2026-11-19 (UTC)
 **Baseline:** `9606b955b5c5906031ee88de704c3825b1f8b914`
 **Audit scope:** read-only review of the graduation manuscript, its coverage JSON and RH-01 claim index; Git object provenance check for all 28 indexed source documents.
-**Disposition:** provenance checks pass; scientific review and final manuscript graduation remain pending. This is not a scientific approval, reproducibility rerun, clinical validation, or lifting of any hold.
+**Disposition:** provenance checks pass. Content comparison is partial: 9 claims have a narrow source-to-report transcription match, while 19 are explicitly `NOT_VERIFIABLE` by this audit. The task is not represented as a completed scientific verification; final scientific review and manuscript graduation remain pending. This is not scientific approval, reproducibility rerun, clinical validation, or lifting of any hold.
 
 ## Executive result
 
-All 28 RH-01 `source_path` entries exist at the baseline and their actual Git blob IDs exactly match the pinned SHA values in the index. The manuscript coverage enumerates FR-01–FR-17 and the claim index enumerates CL-001–CL-028. I found no source-blob discrepancy and no clearly supportable numerical correction to make from this archival, read-only check. This does **not** mean the archived experiments were rerun or that the manuscript values are independently reproduced: the source documents themselves characterize key real-data results as historical/internal exploratory evidence.
+All 28 RH-01 `source_path` entries resolve at baseline and their Git blob IDs match the pinned SHA values. Coverage enumerates FR-01–FR-17 and the source index enumerates CL-001–CL-028. The revised matrix now gives each claim a manuscript chapter/line span, direct source excerpts with source line numbers, report excerpts and a distinct content-check status. Nine rows are limited transcription matches; 19 are `NOT_VERIFIABLE`, because repository-level archived prose is insufficient to establish the underlying research result or semantic truth. No result was rerun.
 
-The complete 28-row claim matrix, including exact source path, source section, report destination, match disposition, and reviewer requirement, is in `RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json`. The validator checks structural coverage and source-object identity only.
+The complete 28-row matrix, including exact source paths, source line excerpts, manuscript line spans, independent content status and limitations, is in `RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json`.
 
 ## High-risk scientific checks
 
@@ -31,20 +31,38 @@ The manuscript appropriately distinguishes the research explainers from the acti
 
 The evidence records leave UCI-412 field timing/direction questions unresolved, identify UCI-411 as the same 303 participants (not independent validation), and treat Hungary as a conditional locked-site candidate without a real assessment. Fictional-cohort AI-9.1/AI-10.1 rehearsals are engineering demonstrations, not clinical incremental-value or external-validation findings. No patient-level dataset was accessed, no model was trained, no external validation was performed, and no approval or scientific hold was changed in this task. Source references are exact repository paths and pinned object IDs; a human academic reviewer must still verify source interpretation and bibliographic adequacy.
 
-## Numerical discrepancy ledger
+## Content-check result and numerical discrepancy ledger
+
+Only nine claim rows are marked `PASS_SOURCE_MATCH`, and only as **transcription checks** of displayed source/report text—not validation of the historical computation. The remaining 19 claims are individually `NOT_VERIFIABLE`; many concern protected experimental provenance, secondary-source meaning, implementation semantics, or protocol/governance facts requiring a qualified human reviewer. No mismatch has been established.
 
 - **Pinned source hash discrepancies:** 0 / 28.
 - **Coverage inventory discrepancies:** 0; 17 FR identifiers and 28 CL identifiers present.
+- **Claim content disposition:** 9 limited transcription matches; 19 `NOT_VERIFIABLE`; 0 `MISMATCH`; 0 `OUT_OF_SCOPE`.
 - **Numerical corrections established by this audit:** none.
 - **Potential interpretation hazard explicitly guarded:** treating ± repeated-CV SD as a CI or comparing the Cleveland and UCI-412 AUROCs as a same-cohort model comparison. Do not do either.
 
 This is an archival consistency result only. It is not an independent numeric recomputation; consequently, any unobserved arithmetic or source-to-run discrepancy remains unresolved until an authorized, qualified reviewer inspects protected experiment provenance.
 
+## Ten pending reviewer actions
+
+All ten canonical actions from the coverage file are reproduced in the JSON matrix with their original `PENDING` status; none is marked complete:
+
+REVIEW-01 — **PENDING:** Clinical source/feature chronology and target interpretation
+REVIEW-02 — **PENDING:** Historical local protected aggregate provenance attestation where permitted
+REVIEW-03 — **PENDING:** Report numeric values and table links vs original review documents
+REVIEW-04 — **PENDING:** Scientific statistics: repeat SD not CI; no real external or labs claims
+REVIEW-05 — **PENDING:** Calibration and sample-size limitations and exact Riley assumptions
+REVIEW-06 — **PENDING:** Explainability fidelity scale and synthetic background privacy
+REVIEW-07 — **PENDING:** Dataset/protocol acceptance and original research gate statuses
+REVIEW-08 — **PENDING:** University report authorship, citations, declared contributions and formatting
+REVIEW-09 — **PENDING:** Original code/test release SHA with native Windows 8/8 and synthetic E2E revalidation
+REVIEW-10 — **PENDING:** Named independent reviewer decisions and formal acceptance
+
 ## Validator and test outcomes
 
-`research/manuscript_audit/validate_integrity.py` is standard-library-only and read-only: it parses the two JSON inventories, verifies 17/28 identifier completeness, confirms manuscript chapter identifiers, and resolves every pinned source blob with `git rev-parse <base>:<path>`. It does not read dataset files, execute models, change artifacts or make a scientific truth judgment.
+`research/manuscript_audit/validate_integrity.py` is standard-library-only and read-only: it checks the new matrix against RH-01 and coverage, validates 17 FR / 28 CL cross-links, content-status enum, source mappings and SHAs, manuscript line spans/excerpts, all ten pending reviewer actions, and rejects affirmative clinical-go/approval fields. It does not read datasets, execute models or make scientific truth judgments.
 
-Synthetic-only tests: `python -m unittest discover -s tests/manuscript_audit -v` — expected 2 tests covering missing inventory and pinned-hash mismatch. Direct check: `python research/manuscript_audit/validate_integrity.py` — expected PASS, 17 chapters, 28 sources.
+Synthetic-only tests: `python -m unittest discover -s tests/manuscript_audit -v` — 5 tests passed: positive complete-matrix test plus negative cases for omitted row, wrong source mapping, reviewer status drift and stale excerpt anchor. Direct check: `python research/manuscript_audit/validate_integrity.py` — PASS with 17 chapters, 28 claims, 10 still-pending actions; content status counts: 9 `PASS_SOURCE_MATCH` (transcription only), 19 `NOT_VERIFIABLE`, 0 `MISMATCH`, 0 `OUT_OF_SCOPE`.
 
 ## Remaining reviewer requirements / blockers
 
