@@ -1,0 +1,1952 @@
+{
+  "schema_id": "cardioassist.feature_acquisition_evidence_crosswalk",
+  "schema_version": "1.1.0",
+  "crosswalk_id": "rh04_feature_acquisition_evidence_crosswalk.v1",
+  "artifact_kind": "OFFLINE_READ_ONLY_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK",
+  "status": "EVIDENCE_ONLY_NOT_APPROVED",
+  "status_statement": "EVIDENCE ARTIFACT ONLY. This crosswalk records what repository-registered sources do and do not establish for each already-registered feature. It is not an approved clinical schema, not a model input contract, not an authorization, not owner-verified timing evidence, not supervisor, ethics or institutional approval, and not permission to process a real cohort. No feature is clinically verified, no route is activated, and no scientific hold is lifted by this document.",
+  "prepared_on": "2026-11-19",
+  "baseline_main_sha": "545d0d835ecb64a6b1aaeb3957705a30bb2ce760",
+  "offline_clauses": [
+    "Read-only: the validator opens exactly one file (this crosswalk) and writes nothing.",
+    "No network access, no subprocess, no environment switch and no telemetry.",
+    "No backend route, database, migration, contract, frontend or model artifact is touched.",
+    "No scoring, inference, prediction, calibration or explanation path exists in this module.",
+    "No real patient data is read, stored or derived; every test fixture is invented in memory.",
+    "The result state of every query is METADATA_ONLY_NO_CAD_PROBABILITY_COMPUTED."
+  ],
+  "holds": {
+    "gate_pt_p1_target_population_moment": "PENDING",
+    "gate_pt_p3_formal_research": "CLOSED",
+    "gate_pt_p5_clinical_readiness_claims": "NOT_MADE_PROHIBITED",
+    "uci412_scientific_hold": true,
+    "owner_verified_pre_angiography_feature_counts": {
+      "UCI-45": 0,
+      "UCI-412": 0
+    },
+    "registered_feature_counts": {
+      "UCI-45": 7,
+      "UCI-412": 23
+    },
+    "uci412_basic_clinical_owner_verified_pre_angiography": "0/16",
+    "historical_d047_authorization_scope": "CLEVELAND_FIVE_FIELD_INTERNAL_EXPLORATORY_ONLY",
+    "new_real_data_authorization_granted_by_this_crosswalk": false,
+    "real_data_training_authorized": false,
+    "real_model_artifacts_created": false,
+    "patient_data_accessed": false,
+    "new_endpoints_added": false,
+    "frozen_contracts_modified": false,
+    "github_workflows_modified": false
+  },
+  "evidence_class_taxonomy": {
+    "OWNER_DATASET_DESCRIPTION": "Public dataset-owner landing page or attribute documentation. Establishes dataset identity, groups and published column names; it does not document per-field collection protocols or timing.",
+    "FROZEN_FEATURE_DICTIONARY_REGISTRY": "Repository-frozen feature dictionary or stage allowlist. Establishes the registered working definition, unit and coding of a feature; it is a repository record, not owner timing evidence.",
+    "FROZEN_PROTOCOL_REGISTRATION": "Registered exploratory protocol or experiment plan. Establishes what was proposed and executed internally; it grants no new permission.",
+    "MAINTAINER_LOCAL_READ_ONLY_AUDIT": "Maintainer-executed, read-only, aggregate audit record. Establishes observed representation (for example numeric 0/1 cells); it does not establish direction, case definition or acquisition moment.",
+    "PEER_REVIEWED_SECONDARY_PUBLICATION": "Peer-reviewed secondary publication. May support a provisional reading; it is not an owner codebook and does not establish timing.",
+    "PROPOSED_RESEARCH_MAPPING": "Repository PROPOSED research mapping specification. Establishes a proposal under review, never an approved acquisition workflow.",
+    "REPOSITORY_EVIDENCE_REGISTER": "Repository evidence/adjudication register. Records unresolved questions and eligibility classes without approving them.",
+    "REPOSITORY_TIMING_GAP_REGISTER": "Repository register that documents the ABSENCE of owner timing evidence for a field. It is the positive record of an unverified-timing finding, not proof of any acquisition moment."
+  },
+  "acquisition_channel_taxonomy": {
+    "structured_history": "Structured history capture by a clinician from the participant.",
+    "clinician_assessment": "Clinician observation or interpretation recorded as a structured field.",
+    "measurement": "Device or examination measurement recorded as a structured field.",
+    "laboratory_document": "Routine laboratory report value transcribed into a structured field."
+  },
+  "channel_status_taxonomy": {
+    "VERIFIED_REGISTERED_SOURCE_DOMAIN": "The proposed channel matches the source_domain/input_owner already recorded in a frozen repository register. Verifies domain only.",
+    "PROPOSED_FUTURE_ACQUISITION_CHANNEL": "The channel is a reviewable proposal with no registered source-domain record behind it."
+  },
+  "timing_status_taxonomy": {
+    "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL": "The channel matches a registered source domain, but no owner-verified pre-angiography acquisition timing exists. A verified channel is not a verified measurement moment.",
+    "UNVERIFIED_TIMING_PROPOSED_CHANNEL": "The acquisition channel is itself only proposed, and no owner-verified pre-angiography acquisition timing exists.",
+    "OWNER_VERIFIED_PRE_ANGIOGRAPHY": "Reserved status: requires an owner-signed acquisition codebook or owner-attested CRF timestamp. No registered feature may carry it in schema version 1.0.0 because no such evidence item exists."
+  },
+  "disposition_taxonomy": {
+    "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE": "Evidence recorded only. The feature's panel membership, route activation, authorization status and scientific holds are unchanged.",
+    "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED": "Evidence recorded only. The feature belongs to a blocked extension that stays blocked."
+  },
+  "permission_status_taxonomy": {
+    "HISTORICAL_D047_SCOPE_REFERENCE_ONLY": "The record is a historical authorization REFERENCE only. D-047 covered the original Cleveland five-field internal exploratory study and nothing else; it is not a currently applicable permission.",
+    "NOT_AUTHORIZED_OUT_OF_D047_SCOPE": "No authorization covers this scope. D-047 did not cover laboratory fields, the UCI-45 labs extension, UCI-412 or the Hungary target.",
+    "SCIENTIFIC_HOLD_NEW_REAL_FIT": "Scientific hold on new real-data fitting or panel extension pending owner/CRF timing evidence and independent review."
+  },
+  "effective_permission_status_taxonomy": {
+    "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION": "A historical authorization reference exists for the original Cleveland five-field study only. It is not currently operative and grants no new real-data execution.",
+    "NOT_AUTHORIZED": "No authorization covers this scope. The scope is not covered by D-047 and no other human authorization exists.",
+    "SCIENTIFIC_HOLD_NEW_REAL_FIT": "Held under the UCI-412 scientific hold: no new real-data fitting or laboratory admission is authorized.",
+    "NOT_AUTHORIZED_FOR_NEW_REAL_DATA": "Source-level restatement of NOT_AUTHORIZED: nothing in this source may be used for new real-data execution."
+  },
+  "authorization_scope": {
+    "new_real_data_authorization_granted_by_this_crosswalk": false,
+    "historical_authorization_is_not_current_permission": true,
+    "authorization_statement": "No feature, panel or route in this crosswalk is authorized for new real-data execution. The single historical authorization reference (D-047) records a completed, scope-limited Cleveland five-field internal exploratory study. It does not cover chol, fbs, the UCI-45 labs extension, any UCI-412 scope, the Hungary locked target, or any new execution, and it is not a currently operative permission."
+  },
+  "authorization_references": [
+    {
+      "reference_id": "AUTHREF-D047-CLEVELAND-FIVE-FIELD",
+      "decision_id": "D-047",
+      "authorized_dataset_id": "DA-A2",
+      "authorized_panel_id": "da_a2_resting_v1",
+      "authorized_feature_names": [
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "restecg"
+      ],
+      "historical_execution_label": "INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED",
+      "execution_status": "COMPLETED_HISTORICAL_INTERNAL_EXPLORATORY",
+      "authorizes_new_real_data_execution": false,
+      "evidence_ids": [
+        "EV-UCI45-D047-PLAN"
+      ],
+      "statement": "D-047 authorized one internal exploratory study of the original Cleveland five resting fields defined in the D-047 frozen plan (evidence EV-UCI45-D047-PLAN). The human local operator executed that study under a locally signed, hash-bound, Git-ignored manifest with the historical INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED label. This reference records that completed historical fact only. It is not a currently operative permission, it is not supervisor, ethics or institutional approval, and it does not authorize chol, fbs, the UCI-45 labs extension, UCI-412, the Hungary locked target or any new real-data execution."
+    }
+  ],
+  "evidence_register": [
+    {
+      "evidence_id": "EV-UCI412-PRIMARY-OWNER",
+      "evidence_class": "OWNER_DATASET_DESCRIPTION",
+      "reference_path": "docs/research/ai8r/SOURCE_ADMISSIBILITY.md",
+      "establishes_feature_definition": true,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "Public UCI-412 owner landing page and attribute information: dataset identity, four feature groups, published column names and the >=50% angiographic target wording."
+    },
+    {
+      "evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+      "evidence_class": "FROZEN_FEATURE_DICTIONARY_REGISTRY",
+      "reference_path": "research/uci412/schemas/uci412_feature_dictionary.v1.json",
+      "establishes_feature_definition": true,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "Frozen repository feature dictionary 1.1.0: registered working definition, unit, coding, source_domain, input_owner and the EXPECTED/PLAUSIBLE availability class. A repository record only."
+    },
+    {
+      "evidence_id": "EV-UCI412-AI8R-ELIGIBILITY",
+      "evidence_class": "REPOSITORY_EVIDENCE_REGISTER",
+      "reference_path": "research/uci412/schemas/ai8r_eligibility.v1.json",
+      "establishes_feature_definition": true,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "AI-8R per-field evidence register (16 fields, pre_angiography=UNVERIFIED): documents unresolved semantics and the absence of owner timing evidence."
+    },
+    {
+      "evidence_id": "EV-UCI412-LOCAL-ENCODING-AUDIT",
+      "evidence_class": "MAINTAINER_LOCAL_READ_ONLY_AUDIT",
+      "reference_path": "docs/research/gate-pt/10_m3a_uci412_source_encoding_AMENDMENT_A1.md",
+      "establishes_feature_definition": true,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "Maintainer-executed read-only aggregate audit recorded in Amendment A-1: six categorical columns are delivered as numeric 0/1 cells. Representation only; no direction, case definition or timing."
+    },
+    {
+      "evidence_id": "EV-UCI412-M3A-SPECIFICATION",
+      "evidence_class": "FROZEN_PROTOCOL_REGISTRATION",
+      "reference_path": "docs/research/gate-pt/08_m3a_uci412_source_specific_benchmark_SPECIFICATION.md",
+      "establishes_feature_definition": true,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "M3a/D-048 registered benchmark specification: registers the 23-column clinical core plus routine-labs panel as proposed-only. Authorizes nothing."
+    },
+    {
+      "evidence_id": "EV-RH02-Q04-UCI412-TIMING-GAP",
+      "evidence_class": "REPOSITORY_TIMING_GAP_REGISTER",
+      "reference_path": "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
+      "establishes_feature_definition": false,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "RH-02 source-question register Q-O4: 0 of 16 UCI-412 fields has owner-verified pre-angiography acquisition timing."
+    },
+    {
+      "evidence_id": "EV-UCI45-PROCESSED-COLUMNS",
+      "evidence_class": "OWNER_DATASET_DESCRIPTION",
+      "reference_path": "docs/research/ai8r/SOURCE_ADMISSIBILITY.md",
+      "establishes_feature_definition": true,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "Public UCI-45 heart-disease attribute information: processed column names, categorical codings and the >50% target wording. No per-field acquisition log or timing."
+    },
+    {
+      "evidence_id": "EV-UCI45-REGISTERED-STAGE",
+      "evidence_class": "FROZEN_FEATURE_DICTIONARY_REGISTRY",
+      "reference_path": "research/intake/synthetic_stage_validator.py",
+      "establishes_feature_definition": true,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "M2b stage-aware intake allowlist: frozen stage rosters and field definitions used by the synthetic-only intake prototype. A repository register, not owner evidence."
+    },
+    {
+      "evidence_id": "EV-UCI45-D047-PLAN",
+      "evidence_class": "FROZEN_PROTOCOL_REGISTRATION",
+      "reference_path": "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+      "establishes_feature_definition": false,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "D-047 internal exploratory Cleveland plan: registers the executed Cleveland five resting-field internal-only protocol. Confers no new permission and no timing evidence."
+    },
+    {
+      "evidence_id": "EV-R1-CLEVELAND-MAPPING",
+      "evidence_class": "PROPOSED_RESEARCH_MAPPING",
+      "reference_path": "research/intake/schemas/cleveland_resting_five_field_mapping.v0.1.json",
+      "establishes_feature_definition": true,
+      "establishes_acquisition_timing": false,
+      "owner_attested_timing_evidence": false,
+      "summary": "R1 PROPOSED five-field Cleveland mapping: records each field's proposed channel and states that pre-angiography timing is a workflow hypothesis the source does not certify."
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "UCI-45",
+      "dataset_id": "DA-A2",
+      "track": "A",
+      "panel_ids": [
+        "da_a2_resting_v1",
+        "da_a2_resting_labs_v1"
+      ],
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_source_permission_status": "NOT_AUTHORIZED_FOR_NEW_REAL_DATA",
+      "provenance_statement": "UCI-45 heart-disease processed cohorts (DA-A2). Registered repository stage contract plus a historical D-047 internal exploratory record limited to the original five resting fields; no owner codebook establishes per-field pre-angiography timing and nothing here is authorized for new real-data execution."
+    },
+    {
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "track": "A",
+      "panel_ids": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_source_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+      "provenance_statement": "UCI-412 Z-Alizadeh Sani (DA-A1), CC BY 4.0, DOI 10.24432/C5Q31T. Registered feature dictionary 1.1.0 and AI-8R evidence register; no owner CRF or acquisition codebook establishes per-feature timing."
+    }
+  ],
+  "permissions": [
+    {
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "source_id": "UCI-45",
+      "permission_status": "HISTORICAL_D047_SCOPE_REFERENCE_ONLY",
+      "historical_authorization_reference_ids": [
+        "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+      ],
+      "covered_panel_ids": [
+        "da_a2_resting_v1"
+      ],
+      "covered_feature_names": [
+        "age",
+        "sex",
+        "cp",
+        "trestbps",
+        "restecg"
+      ],
+      "real_data_execution_authorized_by_this_crosswalk": false,
+      "activation_by_this_artifact": "NONE",
+      "statement": "HISTORICAL AUTHORIZATION REFERENCE ONLY. D-047 covered the original Cleveland five resting fields (age, sex, cp, trestbps, restecg) in da_a2_resting_v1. That internal exploratory study was already executed by the human local operator under a locally signed, hash-bound, Git-ignored manifest with the historical INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED label. The record does not cover chol, fbs, the UCI-45 labs extension, Hungary, UCI-412 or any new real-data execution, and it is not a currently operative permission. This crosswalk activates nothing."
+    },
+    {
+      "permission_id": "PERM-UCI45-LABS-NOT-AUTHORIZED",
+      "source_id": "UCI-45",
+      "permission_status": "NOT_AUTHORIZED_OUT_OF_D047_SCOPE",
+      "historical_authorization_reference_ids": [],
+      "covered_panel_ids": [
+        "da_a2_resting_labs_v1"
+      ],
+      "covered_feature_names": [
+        "chol",
+        "fbs"
+      ],
+      "real_data_execution_authorized_by_this_crosswalk": false,
+      "activation_by_this_artifact": "NONE",
+      "statement": "NOT AUTHORIZED. chol and fbs belong only to da_a2_resting_labs_v1 and are outside the historical D-047 five-field scope. The UCI-45 labs extension stays blocked; no human authorization exists and this crosswalk grants none."
+    },
+    {
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "source_id": "UCI-412",
+      "permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+      "historical_authorization_reference_ids": [],
+      "covered_panel_ids": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "covered_feature_names": [
+        "Age",
+        "Sex",
+        "BMI",
+        "DM",
+        "HTN",
+        "Current Smoker",
+        "EX-Smoker",
+        "FH",
+        "DLP",
+        "BP",
+        "PR",
+        "Typical Chest Pain",
+        "Atypical",
+        "Nonanginal",
+        "Exertional CP",
+        "Dyspnea",
+        "FBS",
+        "CR",
+        "TG",
+        "LDL",
+        "HDL",
+        "HB",
+        "WBC"
+      ],
+      "real_data_execution_authorized_by_this_crosswalk": false,
+      "activation_by_this_artifact": "NONE",
+      "statement": "Scientific hold on new real-data fitting or panel extension pending owner/CRF acquisition timing evidence and independent review. No real data execution, model fitting or laboratory admission is approved."
+    }
+  ],
+  "restrictions": [
+    {
+      "restriction_id": "RES-NO-POOLING",
+      "statement": "Never pool UCI-412 with UCI-411 (same 303 participants) or Cleveland with Hungary, VA Long Beach, Switzerland or Statlog. No cross-source harmonization is approved.",
+      "applies_to_route_ids": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1",
+        "da_a2_hungary_locked_transportability_v1",
+        "da_a2_resting_labs_v1",
+        "da_a2_resting_v1"
+      ],
+      "applies_to_source_ids": [
+        "UCI-45",
+        "UCI-412"
+      ]
+    },
+    {
+      "restriction_id": "RES-NO-CROSSWALK-TRANSLATION",
+      "statement": "No feature value, code, unit or target may be translated between the UCI-45 and UCI-412 schemas; this crosswalk records evidence only and defines no harmonized schema.",
+      "applies_to_route_ids": [
+        "da_a2_resting_v1",
+        "da_a2_resting_labs_v1",
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "applies_to_source_ids": [
+        "UCI-45",
+        "UCI-412"
+      ]
+    },
+    {
+      "restriction_id": "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
+      "statement": "Synthetic results are software evidence only: never CAD performance, clinical validity, calibration or external-validation evidence.",
+      "applies_to_route_ids": [
+        "da_a2_resting_v1",
+        "da_a2_resting_labs_v1",
+        "da_a1_basic_clinical_v1"
+      ],
+      "applies_to_source_ids": [
+        "UCI-45",
+        "UCI-412"
+      ]
+    },
+    {
+      "restriction_id": "RES-NO-PERFORMANCE-RANKING",
+      "statement": "A source, panel or model family is never selected because it shows the highest cross-dataset AUROC.",
+      "applies_to_route_ids": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1",
+        "da_a2_hungary_locked_transportability_v1",
+        "da_a2_resting_labs_v1",
+        "da_a2_resting_v1"
+      ],
+      "applies_to_source_ids": [
+        "UCI-45",
+        "UCI-412"
+      ]
+    },
+    {
+      "restriction_id": "RES-UCI45-NO-SELECTION-DECISION",
+      "statement": "Cleveland has NOT been selected as the final project dataset; this evidence record is not a dataset-selection decision.",
+      "applies_to_route_ids": [
+        "da_a2_resting_v1",
+        "da_a2_resting_labs_v1",
+        "da_a2_hungary_locked_transportability_v1"
+      ],
+      "applies_to_source_ids": [
+        "UCI-45"
+      ]
+    },
+    {
+      "restriction_id": "RES-UCI45-LABS-EXTENSION-BLOCKED",
+      "statement": "The UCI-45 resting-plus-labs extension (chol, fbs) stays blocked: it is outside the historical D-047 five-field authorization, staged lab availability, timing and missingness handling are unverified, and execution requires separate authorization.",
+      "applies_to_route_ids": [
+        "da_a2_resting_labs_v1"
+      ],
+      "applies_to_source_ids": [
+        "UCI-45"
+      ]
+    },
+    {
+      "restriction_id": "RES-UCI412-OWNER-TIMING-UNVERIFIED",
+      "statement": "0 of 16 UCI-412 basic-clinical features has owner-verified pre-angiography acquisition timing. A verified registered source domain is not a verified measurement moment.",
+      "applies_to_route_ids": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "applies_to_source_ids": [
+        "UCI-412"
+      ]
+    },
+    {
+      "restriction_id": "RES-UCI412-LABS-BLOCKED",
+      "statement": "The UCI-412 clinical core plus routine-labs route stays blocked: the seven laboratory fields are proposed-only, timing is unverified and no laboratory admission is approved.",
+      "applies_to_route_ids": [
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "applies_to_source_ids": [
+        "UCI-412"
+      ]
+    },
+    {
+      "restriction_id": "RES-HUNGARY-LOCKED-NEVER-TRAIN",
+      "statement": "Hungary is a locked external target site: never trained, tuned, feature-selected or threshold-selected on, and not covered by the historical D-047 five-field authorization; one-shot locked evaluation requires Gate PT P-3 plus separate dataset and ledger authorization.",
+      "applies_to_route_ids": [
+        "da_a2_hungary_locked_transportability_v1"
+      ],
+      "applies_to_source_ids": [
+        "UCI-45"
+      ]
+    }
+  ],
+  "panels": [
+    {
+      "panel_id": "da_a2_resting_v1",
+      "dataset_id": "DA-A2",
+      "panel_version": "1.0.0",
+      "feature_count": 5,
+      "registered_in": "ai.panels.REGISTERED_PANELS"
+    },
+    {
+      "panel_id": "da_a2_resting_labs_v1",
+      "dataset_id": "DA-A2",
+      "panel_version": "1.0.0",
+      "feature_count": 7,
+      "registered_in": "ai.panels.REGISTERED_PANELS"
+    },
+    {
+      "panel_id": "da_a1_basic_clinical_v1",
+      "dataset_id": "DA-A1",
+      "panel_version": "1.1.0",
+      "feature_count": 16,
+      "registered_in": "ai.panels.REGISTERED_PANELS"
+    },
+    {
+      "panel_id": "da_a1_clinical_core_labs_v1",
+      "dataset_id": "DA-A1",
+      "panel_version": "1.1.0",
+      "feature_count": 23,
+      "registered_in": "ai.panels.REGISTERED_PANELS"
+    }
+  ],
+  "routes": [
+    {
+      "route_id": "da_a2_resting_v1",
+      "dataset_id": "DA-A2",
+      "panel_id": "da_a2_resting_v1",
+      "activation_state": "ACTIVE_SYNTHETIC_ONLY",
+      "prediction_time_admissibility": "ADMISSIBLE_SYNTHETIC_TEST_ONLY",
+      "authorization_status": "AUTHORIZED_SYNTHETIC_TESTS_ONLY_REAL_DATA_BLOCKED_GATE_PT",
+      "evaluation_status": "SYNTHETIC_TEST",
+      "blocked": false,
+      "permitted_operations": [
+        "bundle_packaging",
+        "lime_assessment",
+        "route_contract_query",
+        "shap_attribution",
+        "synthetic_end_to_end_exercise",
+        "synthetic_external_evaluation",
+        "synthetic_prediction",
+        "synthetic_training"
+      ],
+      "forbidden_operations": [
+        "clinical_serving",
+        "real_bundle_inference",
+        "real_data_training",
+        "real_external_evaluation"
+      ],
+      "restriction_ids": [
+        "RES-NO-POOLING",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
+        "RES-UCI45-NO-SELECTION-DECISION"
+      ],
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
+    },
+    {
+      "route_id": "da_a2_resting_labs_v1",
+      "dataset_id": "DA-A2",
+      "panel_id": "da_a2_resting_labs_v1",
+      "activation_state": "BLOCKED_PENDING_AUTHORIZATION",
+      "prediction_time_admissibility": "PLANNED_BLOCKED_PENDING_AUTHORIZATION",
+      "authorization_status": "PROPOSED_NOT_AUTHORIZED",
+      "evaluation_status": "NOT_EVALUATED",
+      "blocked": true,
+      "permitted_operations": [
+        "route_contract_query"
+      ],
+      "forbidden_operations": [
+        "clinical_serving",
+        "real_bundle_inference",
+        "real_data_training",
+        "real_external_evaluation"
+      ],
+      "restriction_ids": [
+        "RES-NO-POOLING",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
+        "RES-UCI45-LABS-EXTENSION-BLOCKED",
+        "RES-UCI45-NO-SELECTION-DECISION"
+      ],
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
+    },
+    {
+      "route_id": "da_a1_basic_clinical_v1",
+      "dataset_id": "DA-A1",
+      "panel_id": "da_a1_basic_clinical_v1",
+      "activation_state": "ACTIVE_SYNTHETIC_ONLY",
+      "prediction_time_admissibility": "ADMISSIBLE_SYNTHETIC_TEST_ONLY",
+      "authorization_status": "ADMITTED_FOR_INTERNAL_RESEARCH_SUBJECT_TO_M3A_AUTHORIZATION",
+      "evaluation_status": "SYNTHETIC_TEST",
+      "blocked": false,
+      "permitted_operations": [
+        "bundle_packaging",
+        "lime_assessment",
+        "route_contract_query",
+        "shap_attribution",
+        "synthetic_end_to_end_exercise",
+        "synthetic_external_evaluation",
+        "synthetic_prediction",
+        "synthetic_training"
+      ],
+      "forbidden_operations": [
+        "clinical_serving",
+        "real_bundle_inference",
+        "real_data_training",
+        "real_external_evaluation"
+      ],
+      "restriction_ids": [
+        "RES-NO-POOLING",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
+    },
+    {
+      "route_id": "da_a1_clinical_core_labs_v1",
+      "dataset_id": "DA-A1",
+      "panel_id": "da_a1_clinical_core_labs_v1",
+      "activation_state": "BLOCKED_TIMING_UNVERIFIED",
+      "prediction_time_admissibility": "PROPOSED_PRE_ANGIOGRAPHY_TIMING_UNVERIFIED_BLOCKED",
+      "authorization_status": "PROPOSED_NOT_AUTHORIZED",
+      "evaluation_status": "NOT_EVALUATED",
+      "blocked": true,
+      "permitted_operations": [
+        "route_contract_query"
+      ],
+      "forbidden_operations": [
+        "clinical_serving",
+        "real_bundle_inference",
+        "real_data_training",
+        "real_external_evaluation"
+      ],
+      "restriction_ids": [
+        "RES-NO-POOLING",
+        "RES-UCI412-LABS-BLOCKED",
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
+    },
+    {
+      "route_id": "da_a2_hungary_locked_transportability_v1",
+      "dataset_id": "DA-A2",
+      "panel_id": "da_a2_resting_v1",
+      "activation_state": "LOCKED_EXTERNAL_TARGET_NEVER_TRAIN",
+      "prediction_time_admissibility": "LOCKED_EXTERNAL_TARGET_NEVER_TRAIN_ON_LOCKED_SET",
+      "authorization_status": "PROPOSED_NOT_AUTHORIZED",
+      "evaluation_status": "NOT_AUTHORIZED",
+      "blocked": true,
+      "permitted_operations": [
+        "route_contract_query"
+      ],
+      "forbidden_operations": [
+        "clinical_serving",
+        "real_bundle_inference",
+        "real_data_training",
+        "real_external_evaluation"
+      ],
+      "restriction_ids": [
+        "RES-HUNGARY-LOCKED-NEVER-TRAIN",
+        "RES-NO-POOLING"
+      ],
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      }
+    }
+  ],
+  "blocked_items": [
+    {
+      "item_id": "BLOCK-UCI45-LABS-EXTENSION",
+      "route_id": "da_a2_resting_labs_v1",
+      "state": "BLOCKED",
+      "max_permitted_operation": "route_contract_query",
+      "reason_restriction_id": "RES-UCI45-LABS-EXTENSION-BLOCKED"
+    },
+    {
+      "item_id": "BLOCK-UCI412-LABS-ROUTE",
+      "route_id": "da_a1_clinical_core_labs_v1",
+      "state": "BLOCKED",
+      "max_permitted_operation": "route_contract_query",
+      "reason_restriction_id": "RES-UCI412-LABS-BLOCKED"
+    },
+    {
+      "item_id": "BLOCK-HUNGARY-LOCKED-EVALUATION",
+      "route_id": "da_a2_hungary_locked_transportability_v1",
+      "state": "BLOCKED",
+      "max_permitted_operation": "route_contract_query",
+      "reason_restriction_id": "RES-HUNGARY-LOCKED-NEVER-TRAIN"
+    }
+  ],
+  "features": [
+    {
+      "feature_key": "DA-A1:Age",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "Age",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:Sex",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "Sex",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:BMI",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "BMI",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "physical_examination",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "measurement",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:DM",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "DM",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:HTN",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "HTN",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:Current Smoker",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "Current Smoker",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:EX-Smoker",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "EX-Smoker",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:FH",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "FH",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:DLP",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "DLP",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:BP",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "BP",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "vital_signs",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "measurement",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:PR",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "PR",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "vital_signs",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "measurement",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:Typical Chest Pain",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "Typical Chest Pain",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:Atypical",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "Atypical",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:Nonanginal",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "Nonanginal",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:Exertional CP",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "Exertional CP",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:Dyspnea",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "Dyspnea",
+      "panels": [
+        "da_a1_basic_clinical_v1",
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-AI8R-ELIGIBILITY"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "patient_history",
+        "availability_at_decision_time": "EXPECTED_AVAILABLE_BEFORE_ANGIOGRAPHY"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "VERIFIED_REGISTERED_SOURCE_DOMAIN",
+        "channel_evidence_ids": [
+          "EV-UCI412-REGISTERED-DICTIONARY"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A1:FBS",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "FBS",
+      "panels": [
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-M3A-SPECIFICATION"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "laboratory",
+        "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING"
+      },
+      "acquisition": {
+        "channel": "laboratory_document",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-UCI412-M3A-SPECIFICATION"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED",
+        "RES-UCI412-LABS-BLOCKED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED"
+    },
+    {
+      "feature_key": "DA-A1:CR",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "CR",
+      "panels": [
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-M3A-SPECIFICATION"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "laboratory",
+        "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING"
+      },
+      "acquisition": {
+        "channel": "laboratory_document",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-UCI412-M3A-SPECIFICATION"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED",
+        "RES-UCI412-LABS-BLOCKED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED"
+    },
+    {
+      "feature_key": "DA-A1:TG",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "TG",
+      "panels": [
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-M3A-SPECIFICATION"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "laboratory",
+        "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING"
+      },
+      "acquisition": {
+        "channel": "laboratory_document",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-UCI412-M3A-SPECIFICATION"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED",
+        "RES-UCI412-LABS-BLOCKED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED"
+    },
+    {
+      "feature_key": "DA-A1:LDL",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "LDL",
+      "panels": [
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-M3A-SPECIFICATION"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "laboratory",
+        "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING"
+      },
+      "acquisition": {
+        "channel": "laboratory_document",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-UCI412-M3A-SPECIFICATION"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED",
+        "RES-UCI412-LABS-BLOCKED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED"
+    },
+    {
+      "feature_key": "DA-A1:HDL",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "HDL",
+      "panels": [
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-M3A-SPECIFICATION"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "laboratory",
+        "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING"
+      },
+      "acquisition": {
+        "channel": "laboratory_document",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-UCI412-M3A-SPECIFICATION"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED",
+        "RES-UCI412-LABS-BLOCKED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED"
+    },
+    {
+      "feature_key": "DA-A1:HB",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "HB",
+      "panels": [
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-M3A-SPECIFICATION"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "laboratory",
+        "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING"
+      },
+      "acquisition": {
+        "channel": "laboratory_document",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-UCI412-M3A-SPECIFICATION"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED",
+        "RES-UCI412-LABS-BLOCKED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED"
+    },
+    {
+      "feature_key": "DA-A1:WBC",
+      "source_id": "UCI-412",
+      "dataset_id": "DA-A1",
+      "feature_name": "WBC",
+      "panels": [
+        "da_a1_clinical_core_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI412-PRIMARY-OWNER",
+        "EV-UCI412-REGISTERED-DICTIONARY",
+        "EV-UCI412-M3A-SPECIFICATION"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI412-REGISTERED-DICTIONARY",
+        "source_domain": "laboratory",
+        "availability_at_decision_time": "PLAUSIBLE_UNVERIFIED_TIMING"
+      },
+      "acquisition": {
+        "channel": "laboratory_document",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-UCI412-M3A-SPECIFICATION"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-RH02-Q04-UCI412-TIMING-GAP"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI412-SCIENTIFIC-HOLD",
+      "effective_permission": {
+        "effective_permission_status": "SCIENTIFIC_HOLD_NEW_REAL_FIT",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI412-OWNER-TIMING-UNVERIFIED",
+        "RES-UCI412-LABS-BLOCKED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED"
+    },
+    {
+      "feature_key": "DA-A2:age",
+      "source_id": "UCI-45",
+      "dataset_id": "DA-A2",
+      "feature_name": "age",
+      "panels": [
+        "da_a2_resting_v1",
+        "da_a2_resting_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI45-PROCESSED-COLUMNS",
+        "EV-UCI45-REGISTERED-STAGE"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI45-REGISTERED-STAGE",
+        "source_domain": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT",
+        "availability_at_decision_time": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI45-NO-SELECTION-DECISION",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A2:sex",
+      "source_id": "UCI-45",
+      "dataset_id": "DA-A2",
+      "feature_name": "sex",
+      "panels": [
+        "da_a2_resting_v1",
+        "da_a2_resting_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI45-PROCESSED-COLUMNS",
+        "EV-UCI45-REGISTERED-STAGE"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI45-REGISTERED-STAGE",
+        "source_domain": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT",
+        "availability_at_decision_time": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI45-NO-SELECTION-DECISION",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A2:cp",
+      "source_id": "UCI-45",
+      "dataset_id": "DA-A2",
+      "feature_name": "cp",
+      "panels": [
+        "da_a2_resting_v1",
+        "da_a2_resting_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI45-PROCESSED-COLUMNS",
+        "EV-UCI45-REGISTERED-STAGE"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI45-REGISTERED-STAGE",
+        "source_domain": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT",
+        "availability_at_decision_time": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT"
+      },
+      "acquisition": {
+        "channel": "structured_history",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI45-NO-SELECTION-DECISION",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A2:trestbps",
+      "source_id": "UCI-45",
+      "dataset_id": "DA-A2",
+      "feature_name": "trestbps",
+      "panels": [
+        "da_a2_resting_v1",
+        "da_a2_resting_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI45-PROCESSED-COLUMNS",
+        "EV-UCI45-REGISTERED-STAGE"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI45-REGISTERED-STAGE",
+        "source_domain": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT",
+        "availability_at_decision_time": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT"
+      },
+      "acquisition": {
+        "channel": "measurement",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI45-NO-SELECTION-DECISION",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A2:restecg",
+      "source_id": "UCI-45",
+      "dataset_id": "DA-A2",
+      "feature_name": "restecg",
+      "panels": [
+        "da_a2_resting_v1",
+        "da_a2_resting_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI45-PROCESSED-COLUMNS",
+        "EV-UCI45-REGISTERED-STAGE"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI45-REGISTERED-STAGE",
+        "source_domain": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT",
+        "availability_at_decision_time": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT"
+      },
+      "acquisition": {
+        "channel": "clinician_assessment",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-R1-CLEVELAND-MAPPING"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI45-D047-HISTORICAL-REFERENCE",
+      "effective_permission": {
+        "effective_permission_status": "HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION",
+        "historical_authorization_reference_ids": [
+          "AUTHREF-D047-CLEVELAND-FIVE-FIELD"
+        ],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI45-NO-SELECTION-DECISION",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM"
+      ],
+      "disposition": "EVIDENCE_RECORDED_NO_ACTIVATION_CHANGE"
+    },
+    {
+      "feature_key": "DA-A2:chol",
+      "source_id": "UCI-45",
+      "dataset_id": "DA-A2",
+      "feature_name": "chol",
+      "panels": [
+        "da_a2_resting_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI45-PROCESSED-COLUMNS",
+        "EV-UCI45-REGISTERED-STAGE"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI45-REGISTERED-STAGE",
+        "source_domain": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT",
+        "availability_at_decision_time": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT"
+      },
+      "acquisition": {
+        "channel": "laboratory_document",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-UCI45-REGISTERED-STAGE"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-UCI45-REGISTERED-STAGE"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI45-LABS-NOT-AUTHORIZED",
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI45-NO-SELECTION-DECISION",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
+        "RES-UCI45-LABS-EXTENSION-BLOCKED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED"
+    },
+    {
+      "feature_key": "DA-A2:fbs",
+      "source_id": "UCI-45",
+      "dataset_id": "DA-A2",
+      "feature_name": "fbs",
+      "panels": [
+        "da_a2_resting_labs_v1"
+      ],
+      "definition_evidence_ids": [
+        "EV-UCI45-PROCESSED-COLUMNS",
+        "EV-UCI45-REGISTERED-STAGE"
+      ],
+      "registered_source_claim": {
+        "register_evidence_id": "EV-UCI45-REGISTERED-STAGE",
+        "source_domain": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT",
+        "availability_at_decision_time": "NOT_RECORDED_BY_REGISTERED_SOURCE_CONTRACT"
+      },
+      "acquisition": {
+        "channel": "laboratory_document",
+        "channel_status": "PROPOSED_FUTURE_ACQUISITION_CHANNEL",
+        "channel_evidence_ids": [
+          "EV-UCI45-REGISTERED-STAGE"
+        ],
+        "timing_status": "UNVERIFIED_TIMING_PROPOSED_CHANNEL",
+        "owner_verified_pre_angiography": false,
+        "timing_evidence_ids": [
+          "EV-UCI45-REGISTERED-STAGE"
+        ],
+        "timing_derived_from_channel_status": false
+      },
+      "permission_id": "PERM-UCI45-LABS-NOT-AUTHORIZED",
+      "effective_permission": {
+        "effective_permission_status": "NOT_AUTHORIZED",
+        "historical_authorization_reference_ids": [],
+        "real_data_execution_authorized_by_this_crosswalk": false
+      },
+      "restriction_ids": [
+        "RES-UCI45-NO-SELECTION-DECISION",
+        "RES-SYNTHETIC-ONLY-NO-CLINICAL-CLAIM",
+        "RES-UCI45-LABS-EXTENSION-BLOCKED"
+      ],
+      "disposition": "EVIDENCE_RECORDED_EXTENSION_REMAINS_BLOCKED"
+    }
+  ],
+  "no_result_contract": {
+    "result_state": "METADATA_ONLY_NO_CAD_PROBABILITY_COMPUTED",
+    "cad_probability_computed": "false",
+    "statement": "Every query returns documentation metadata only. No CAD probability, score, calibration, explanation or clinical interpretation is produced, and none may be inferred from an empty or populated result set."
+  },
+  "revision_history": [
+    {
+      "version": "1.1.0",
+      "date": "2026-11-19",
+      "change": "Authorization-scope correction after independent review of PR #113: split the historical D-047 authorization reference (original Cleveland five resting fields only, completed internal exploratory study) from the currently effective permission of each feature, panel and route. chol/fbs, the UCI-45 labs extension, the UCI-412 labs route and the Hungary locked route now export NOT_AUTHORIZED; no status beginning with AUTHORIZED is exported anywhere. No operation set, hold, timing evidentiary fact or scope changed.",
+      "authorization_impact": "None. Strictly narrows exported metadata scope; grants and lifts nothing."
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-11-19",
+      "change": "Initial evidence-only crosswalk for all 30 features registered in the four existing panels and all five existing research routes: definition evidence, proposed acquisition channel, verified/unverified pre-angiography timing and source permission/restrictions, with a fail-closed offline validator and deterministic metadata query.",
+      "authorization_impact": "None. No route activation, permission, scientific hold, source status, model artifact, contract or workflow changes."
+    }
+  ]
+}

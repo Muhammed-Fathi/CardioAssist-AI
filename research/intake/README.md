@@ -34,6 +34,91 @@ allowlists must agree or loading fails closed; a coherence test additionally
 pins the five shared field conventions to the M2b validator below.
 **Cleveland has NOT been selected as the final project dataset.**
 
+## RH-04 — Feature acquisition-evidence crosswalk (EVIDENCE ONLY, synthetic-only tests)
+
+`feature_acquisition_crosswalk.py` implements the first engineering slice of
+RH-04 (work packages RH-04-1/RH-04-2, see
+[the RH-06 decision review §10.1](../../docs/research/next_phase/RH06_ISSUE110_CONSOLIDATED_DECISION_REVIEW_2026_11_19.md))
+over the versioned, machine-readable record
+[`schemas/feature_acquisition_evidence_crosswalk.v1.json`](schemas/feature_acquisition_evidence_crosswalk.v1.json)
+(`rh04_feature_acquisition_evidence_crosswalk.v1`, schema version `1.1.0`,
+status `EVIDENCE_ONLY_NOT_APPROVED`). Schema `1.1.0` is the authorization-scope
+correction: it separates the **historical D-047 authorization evidence**
+(original Cleveland five-field internal exploratory study only) from the
+**current effective permission** of a feature, panel or route, and from the
+**absence of any new real-data authorization** in this crosswalk.
+
+It **reuses** the four registered panels (`ai.panels.REGISTERED_PANELS`) and the
+five registered research routes (`ai.research_routes.RESEARCH_ROUTE_CATALOG`).
+It defines no second clinical feature schema: no units, coding vocabularies,
+plausible ranges, missingness rules, targets, model families, seeds or
+thresholds are restated, and no new model route or endpoint exists.
+
+For each of the 30 features registered in those four panels it separates four
+questions that are routinely conflated:
+
+| Question | Crosswalk field |
+|---|---|
+| Which document establishes the **original-source feature definition**? | `definition_evidence_ids` → resolved `evidence_register` entries |
+| What **acquisition channel** is proposed, and on what basis? | `acquisition.channel`, `acquisition.channel_status` (`VERIFIED_REGISTERED_SOURCE_DOMAIN` / `PROPOSED_FUTURE_ACQUISITION_CHANNEL`) |
+| Is the **pre-angiography measurement timing** verified? | `acquisition.timing_status`, `acquisition.owner_verified_pre_angiography`, `acquisition.timing_derived_from_channel_status` |
+| What **source-specific permission and restrictions** apply? | `permission_id`, `effective_permission` (status + historical reference ids + `real_data_execution_authorized_by_this_crosswalk`), `restriction_ids`, `sources[]`, `blocked_items[]` |
+
+### Authorization scope: historical evidence is not current permission
+
+Schema `1.1.0` exports **no** unqualified `AUTHORIZED…` status. Three distinct
+surfaces are recorded:
+
+| Surface | Field(s) | Cleveland resting five (UCI-45) | UCI-45 `chol`/`fbs` | UCI-412 (23 features) | Hungary locked route |
+|---|---|---|---|---|---|
+| Historical D-047 authorization **evidence** | `authorization_references[]` (`AUTHREF-D047-CLEVELAND-FIVE-FIELD`) | recorded: `COMPLETED_HISTORICAL_INTERNAL_EXPLORATORY`, `authorizes_new_real_data_execution: false` | **not covered** | **not covered** | **not covered** (different panel) |
+| Current **effective permission** | `effective_permission.effective_permission_status` | `HISTORICAL_REFERENCE_ONLY_NO_NEW_AUTHORIZATION` | `NOT_AUTHORIZED` | `SCIENTIFIC_HOLD_NEW_REAL_FIT` | `NOT_AUTHORIZED` |
+| New real-data authorization from this crosswalk | `...real_data_execution_authorized_by_this_crosswalk`, `authorization_scope`, `holds` | `false` | `false` | `false` | `false` |
+
+Permission records are scoped rather than source-wide:
+`PERM-UCI45-D047-HISTORICAL-REFERENCE` (`HISTORICAL_D047_SCOPE_REFERENCE_ONLY`,
+covering exactly `age`/`sex`/`cp`/`trestbps`/`restecg`),
+`PERM-UCI45-LABS-NOT-AUTHORIZED` (`NOT_AUTHORIZED_OUT_OF_D047_SCOPE`, covering
+`chol`/`fbs`), and `PERM-UCI412-SCIENTIFIC-HOLD`
+(`SCIENTIFIC_HOLD_NEW_REAL_FIT`). D-047 itself is unchanged and every frozen
+panel, route, hold and timing fact is untouched.
+
+**`VERIFIED_REGISTERED_SOURCE_DOMAIN` is never proof of owner-verified
+pre-angiography timing.** It verifies only that a proposed channel matches the
+`source_domain`/`input_owner` already recorded in a frozen repository register.
+The validator enforces this structurally: timing may never be derived from a
+channel status, a verified channel may only carry
+`UNVERIFIED_TIMING_REGISTERED_DOMAIN_CHANNEL`, the reserved
+`OWNER_VERIFIED_PRE_ANGIOGRAPHY` status requires owner timing evidence, the
+owner-timing evidence class list is **empty**, and the per-source
+owner-verified counts are frozen at `0` and recomputed from the records.
+UCI-412 therefore stays at **0/16** owner-verified pre-angiography timings.
+
+All scientific holds are preserved and machine-checked: Gate PT P-1 `PENDING`,
+P-3 `CLOSED`, P-5 `NOT_MADE_PROHIBITED`; the UCI-45 **labs extension**
+(`da_a2_resting_labs_v1`), the **UCI-412 labs route**
+(`da_a1_clinical_core_labs_v1`) and the **Hungary locked evaluation**
+(`da_a2_hungary_locked_transportability_v1`) remain `BLOCKED` with
+`route_contract_query` as their only permitted operation. Any activation,
+widened permitted-operation set, removed forbidden operation, promoted
+permission status, widened historical-authorization scope, extra authorization
+reference or extra route fails closed.
+
+### Read-only validator and deterministic metadata query
+
+```bash
+python -m research.intake.feature_acquisition_crosswalk validate
+python -m research.intake.feature_acquisition_crosswalk describe
+python -m research.intake.feature_acquisition_crosswalk query --dataset-id DA-A1 --feature-name BP
+python -m research.intake.feature_acquisition_crosswalk query --route-id da_a1_clinical_core_labs_v1
+```
+
+The module is standard-library only, opens exactly one file, writes nothing,
+opens no socket and imports neither the backend application nor the `ai`
+package. Every query result carries
+`result_state = METADATA_ONLY_NO_CAD_PROBABILITY_COMPUTED`; no score,
+probability, calibration or explanation exists anywhere in this surface.
+
 ## Implemented foundation
 
 `synthetic_stage_validator.py` contains the exact stage allowlists, immutable
