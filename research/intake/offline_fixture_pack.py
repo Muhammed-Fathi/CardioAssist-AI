@@ -93,7 +93,7 @@ def bindings():
     if walk.schema_version != "1.1.0":
         raise ValueError("unsupported crosswalk")
     return {
-        "version": "1.0.0",
+        "version": "1.1.0",
         "crosswalk_sha256": walk.document_digest_sha256,
         "crosswalk_version": walk.schema_version,
         "registry_sha256": registry_digest_sha256(),
@@ -125,15 +125,31 @@ def sources(root):
 
 
 def materialize(base, edits):
+    """Apply ordered object-field edits; JSON null is a value, never deletion."""
     request = deepcopy(base)
-    for path, value in edits:
+    for edit in edits:
+        if not isinstance(edit, dict) or edit.get("op") not in ("set", "delete"):
+            raise ValueError("unknown fixture edit")
+        setting = edit["op"] == "set"
+        if set(edit) != ({"op", "path", "value"} if setting else {"op", "path"}):
+            raise ValueError("invalid fixture edit members")
+        path = edit["path"]
+        if not isinstance(path, list) or not path or not isinstance(path[-1], str):
+            raise ValueError("expected path to an object field")
         parent = request
         for key in path[:-1]:
+            if not (
+                (isinstance(parent, dict) and isinstance(key, str))
+                or (isinstance(parent, list) and type(key) is int and key >= 0)
+            ):
+                raise ValueError("invalid fixture path segment")
             parent = parent[key]
-        if value is None:
-            del parent[path[-1]]
+        if not isinstance(parent, dict):
+            raise ValueError("expected object field parent")
+        if setting:
+            parent[path[-1]] = deepcopy(edit["value"])
         else:
-            parent[path[-1]] = value
+            del parent[path[-1]]
     return request
 
 
@@ -195,7 +211,7 @@ def validate(pack):
     return len(pack["cases"])
 
 
-PACK_SHA256 = "6c628c6d2e99cfab08036818c6b6a3231c19f2aecac3fb512273baea8110d346"
+PACK_SHA256 = "0307b396cea1e620c4004647e1d82ff7f292bb5b74de7cad1661e1299c6e7049"
 
 if __name__ == "__main__":
     print(

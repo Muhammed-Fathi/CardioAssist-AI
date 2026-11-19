@@ -11,7 +11,7 @@
       "da_a2_resting_labs_v1": "9c71e2568c11488d02a6f417f403f9adb2dd756c8b0d668e207c646fca9d2d1a",
       "da_a2_resting_v1": "5640215ba89a413d0940cc531d4ae00d390e766f0a665d173c0483a6fc7f5a75"
     },
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "cases": [
     {
@@ -176,12 +176,13 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "panel_id"
           ],
-          "da_a1_basic_clinical_v1"
-        ]
+          "value": "da_a1_basic_clinical_v1"
+        }
       ],
       "expected": {
         "dataset_id": null,
@@ -204,12 +205,13 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "dataset_id"
           ],
-          "foreign"
-        ]
+          "value": "foreign"
+        }
       ],
       "expected": {
         "dataset_id": null,
@@ -232,12 +234,13 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "panel_contract_sha256"
           ],
-          "0000000000000000000000000000000000000000000000000000000000000000"
-        ]
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
       ],
       "expected": {
         "dataset_id": null,
@@ -260,15 +263,16 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "units",
             "trestbps"
           ],
-          "kPa"
-        ]
+          "value": "kPa"
+        }
       ],
       "expected": {
         "dataset_id": "DA-A2",
@@ -301,15 +305,16 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "features",
             "cp"
           ],
-          99
-        ]
+          "value": 99
+        }
       ],
       "expected": {
         "dataset_id": "DA-A2",
@@ -342,15 +347,16 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "synthetic_provenance",
             "generator_id"
           ],
-          "foreign"
-        ]
+          "value": "foreign"
+        }
       ],
       "expected": {
         "dataset_id": "DA-A1",
@@ -383,14 +389,15 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "input_source"
           ],
-          "patient_wearable"
-        ]
+          "value": "patient_wearable"
+        }
       ],
       "expected": {
         "dataset_id": "DA-A2",
@@ -423,14 +430,15 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "input_source"
           ],
-          "uploaded_image_or_ocr"
-        ]
+          "value": "uploaded_image_or_ocr"
+        }
       ],
       "expected": {
         "dataset_id": "DA-A1",
@@ -463,14 +471,15 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "input_source"
           ],
-          "track_b"
-        ]
+          "value": "track_b"
+        }
       ],
       "expected": {
         "dataset_id": "DA-A2",
@@ -503,15 +512,16 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "features",
             "ca"
           ],
-          1
-        ]
+          "value": 1
+        }
       ],
       "expected": {
         "dataset_id": "DA-A2",
@@ -544,15 +554,16 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "features",
             "Cath"
           ],
-          1
-        ]
+          "value": 1
+        }
       ],
       "expected": {
         "dataset_id": "DA-A1",
@@ -585,15 +596,16 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "features",
             "LAD"
           ],
-          1
-        ]
+          "value": 1
+        }
       ],
       "expected": {
         "dataset_id": "DA-A1",
@@ -626,24 +638,24 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "delete",
+          "path": [
             "records",
             0,
             "features",
             "age"
-          ],
-          null
-        ],
-        [
-          [
+          ]
+        },
+        {
+          "op": "delete",
+          "path": [
             "records",
             0,
             "units",
             "age"
-          ],
-          null
-        ]
+          ]
+        }
       ],
       "expected": {
         "dataset_id": "DA-A2",
@@ -676,33 +688,34 @@
     },
     {
       "edits": [
-        [
-          [
+        {
+          "op": "delete",
+          "path": [
             "records",
             0,
             "features",
             "trestbps"
-          ],
-          null
-        ],
-        [
-          [
+          ]
+        },
+        {
+          "op": "delete",
+          "path": [
             "records",
             0,
             "units",
             "trestbps"
-          ],
-          null
-        ],
-        [
-          [
+          ]
+        },
+        {
+          "op": "set",
+          "path": [
             "records",
             0,
             "missing_reasons",
             "trestbps"
           ],
-          "not_provided"
-        ]
+          "value": "not_provided"
+        }
       ],
       "expected": {
         "dataset_id": "DA-A2",
@@ -734,6 +747,407 @@
         "status": "ABSTAIN"
       },
       "id": "optional",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "dataset_id"
+          ],
+          "value": "foreign"
+        }
+      ],
+      "expected": {
+        "dataset_id": null,
+        "error": {
+          "code": "dataset_id_mismatch",
+          "field": "dataset_id",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request dataset id does not match the registry binding.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": null,
+        "route_id": null,
+        "status": "ERROR"
+      },
+      "id": "da_a1_clinical_core_labs_v1-wrong-dataset",
+      "route": "da_a1_clinical_core_labs_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "panel_contract_sha256"
+          ],
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "expected": {
+        "dataset_id": null,
+        "error": {
+          "code": "panel_contract_hash_mismatch",
+          "field": "panel_contract_sha256",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request panel contract hash does not match the pinned panel contract.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": null,
+        "route_id": null,
+        "status": "ERROR"
+      },
+      "id": "da_a1_clinical_core_labs_v1-stale-hash",
+      "route": "da_a1_clinical_core_labs_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "dataset_id"
+          ],
+          "value": "foreign"
+        }
+      ],
+      "expected": {
+        "dataset_id": null,
+        "error": {
+          "code": "dataset_id_mismatch",
+          "field": "dataset_id",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request dataset id does not match the registry binding.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": null,
+        "route_id": null,
+        "status": "ERROR"
+      },
+      "id": "da_a2_hungary_locked_transportability_v1-wrong-dataset",
+      "route": "da_a2_hungary_locked_transportability_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "panel_contract_sha256"
+          ],
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "expected": {
+        "dataset_id": null,
+        "error": {
+          "code": "panel_contract_hash_mismatch",
+          "field": "panel_contract_sha256",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request panel contract hash does not match the pinned panel contract.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": null,
+        "route_id": null,
+        "status": "ERROR"
+      },
+      "id": "da_a2_hungary_locked_transportability_v1-stale-hash",
+      "route": "da_a2_hungary_locked_transportability_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "dataset_id"
+          ],
+          "value": "foreign"
+        }
+      ],
+      "expected": {
+        "dataset_id": null,
+        "error": {
+          "code": "dataset_id_mismatch",
+          "field": "dataset_id",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request dataset id does not match the registry binding.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": null,
+        "route_id": null,
+        "status": "ERROR"
+      },
+      "id": "da_a2_resting_labs_v1-wrong-dataset",
+      "route": "da_a2_resting_labs_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "panel_contract_sha256"
+          ],
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "expected": {
+        "dataset_id": null,
+        "error": {
+          "code": "panel_contract_hash_mismatch",
+          "field": "panel_contract_sha256",
+          "input_values_echoed": false,
+          "local_paths_echoed": false,
+          "message": "The request panel contract hash does not match the pinned panel contract.",
+          "stage": "registry"
+        },
+        "evidence_level": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+        "outcomes": [],
+        "panel_id": null,
+        "route_id": null,
+        "status": "ERROR"
+      },
+      "id": "da_a2_resting_labs_v1-stale-hash",
+      "route": "da_a2_resting_labs_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "records",
+            0,
+            "features",
+            "trestbps"
+          ],
+          "value": null
+        },
+        {
+          "op": "delete",
+          "path": [
+            "records",
+            0,
+            "units",
+            "trestbps"
+          ]
+        },
+        {
+          "op": "set",
+          "path": [
+            "records",
+            0,
+            "missing_reasons",
+            "trestbps"
+          ],
+          "value": "not_measured"
+        }
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": "registry_abstain_policy_optional_field_missing",
+            "error": null,
+            "missing_fields_with_reason": [
+              [
+                "trestbps",
+                "not_measured"
+              ]
+            ],
+            "present_fields": [
+              "age",
+              "sex",
+              "cp",
+              "restecg"
+            ],
+            "score": null,
+            "status": "ABSTAIN",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ABSTAIN"
+      },
+      "id": "optional-null",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "records",
+            0,
+            "features",
+            "trestbps"
+          ],
+          "value": null
+        },
+        {
+          "op": "delete",
+          "path": [
+            "records",
+            0,
+            "units",
+            "trestbps"
+          ]
+        },
+        {
+          "op": "set",
+          "path": [
+            "records",
+            0,
+            "missing_reasons",
+            "trestbps"
+          ],
+          "value": "not_provided"
+        }
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "invalid_missing_reason",
+              "field": "trestbps",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "The supplied missing reason is not a registered missing reason.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ERROR"
+      },
+      "id": "optional-null-structural-reason",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "records",
+            0,
+            "features",
+            "trestbps"
+          ],
+          "value": null
+        },
+        {
+          "op": "delete",
+          "path": [
+            "records",
+            0,
+            "units",
+            "trestbps"
+          ]
+        }
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "missing_reason_mismatch",
+              "field": "missing_reasons",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "Every omitted or null optional field requires exactly one registered missing reason.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ERROR"
+      },
+      "id": "optional-null-no-reason",
+      "route": "da_a2_resting_v1"
+    },
+    {
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "records",
+            0,
+            "features",
+            "age"
+          ],
+          "value": null
+        },
+        {
+          "op": "delete",
+          "path": [
+            "records",
+            0,
+            "units",
+            "age"
+          ]
+        }
+      ],
+      "expected": {
+        "dataset_id": "DA-A2",
+        "error": null,
+        "evidence_level": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+        "outcomes": [
+          {
+            "abstention_reason": null,
+            "error": {
+              "code": "missing_required_field",
+              "field": "age",
+              "input_values_echoed": false,
+              "local_paths_echoed": false,
+              "message": "A required panel field is omitted or null.",
+              "stage": "record"
+            },
+            "missing_fields_with_reason": [],
+            "present_fields": [],
+            "score": null,
+            "status": "ERROR",
+            "unavailable_reason": null
+          }
+        ],
+        "panel_id": "da_a2_resting_v1",
+        "route_id": "da_a2_resting_v1",
+        "status": "ERROR"
+      },
+      "id": "required-null",
       "route": "da_a2_resting_v1"
     }
   ],
