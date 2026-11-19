@@ -1,0 +1,1257 @@
+{
+  "schema_id": "cardioassist.issue110_decision_review/v1",
+  "version": "1.0.0",
+  "document_id": "CAI-RH06-ISSUE110-DECISION-REVIEW-2026-11-19-v1",
+  "prepared_at": "2026-11-19",
+  "status": "EVIDENCE_REVIEW_DRAFT_NOT_APPROVED",
+  "baseline": {
+    "branch": "arena/252b77ec-cardioassist-ai",
+    "commit": "d45bbd44e029d3677e99d08dd4f848d5ec29fa2f",
+    "main_baseline_verified_by_requester": true
+  },
+  "issue_access": {
+    "issue": "https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/110",
+    "gh_commands": [
+      "gh issue view 110 --repo Muhammed-Fathi/CardioAssist-AI",
+      "gh api repos/Muhammed-Fathi/CardioAssist-AI/issues/110"
+    ],
+    "result": "HTTP_403",
+    "error": "GraphQL: Resource not accessible by integration (repository.issue)",
+    "rest_error": "Resource not accessible by integration",
+    "fallback_executed": "COMPLETE_FALLBACK_SCOPE_GIVEN_IN_REQUEST"
+  },
+  "scope": {
+    "public_sources_only": true,
+    "fallback_scope": [
+      "Consolidate research evidence for all eight datasets into a source-by-source scientific decision-review matrix",
+      "AI-9.2 Clinical + Labs: exact feature, timing, source, protocol and authorization blockers",
+      "AI-10.2 Cleveland to Hungary: all prerequisites (frozen full-cohort artifact, source compatibility, independence, one-shot protocol, precision, authorization)",
+      "Per-study dispositions GO_FOR_REVIEW_ONLY / HOLD_WITH_SPECIFIC_MISSING_EVIDENCE / PROPOSED_NO_GO_FOR_NAMED_ROLE (recommendations only)",
+      "Triage outstanding questions: original-author clarification / separately authorized local audits / independent scientific review / governance acts",
+      "Map unresolved work to RH-04 and RH-05; identify synthetic-data engineering that can proceed immediately",
+      "Comprehensive Markdown report + JSON companion with evidence references, owners, blockers, next actions"
+    ],
+    "general_dataset_literature_search_performed": false,
+    "original_patient_datasets_downloaded": false,
+    "patient_rows_accessed": false,
+    "patient_level_outputs_created": false,
+    "models_trained": false,
+    "models_scored": false,
+    "locked_external_test_outcomes_inspected": false,
+    "frozen_protocols_modified": false,
+    "scientific_approvals_changed": false,
+    "canonical_register_modified": false,
+    "author_emails_sent": false,
+    "real_backend_inference_enabled": false,
+    "dataset_files_written": false,
+    "network_calls_by_validator": false,
+    "frozen_artifact_hashes_modified": false,
+    "frozen_dictionary_modified": false
+  },
+  "precedence": [
+    "AGENTS.md",
+    "docs/DECISIONS.md",
+    "docs/research/CARDIOASSIST_AI_MASTER_COMPLETION_PLAN.md",
+    "docs/research/next_phase/RH02_RH03_CONSOLIDATED_RESEARCH_HANDOFF_2026_11_19.md",
+    "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json",
+    "research/source_materials/literature_review_status.csv",
+    "frozen Gate DA/PT protocols",
+    "hash-bound local authorizations"
+  ],
+  "evidence_grades": {
+    "E1": "Official dataset-owner documentation, original publication or registry",
+    "E2": "Reproducible local audited aggregate under a recorded scope (carried forward, never re-derived)",
+    "E3": "Peer-reviewed/reputable secondary research or secondary transcription",
+    "E4": "Explicit inference/arithmetic from cited facts",
+    "E5": "Synthetic software fixture (software evidence only; never scientific evidence)"
+  },
+  "datasets": [
+    {
+      "id": "UCI45_CLEVELAND",
+      "title": "UCI-45 Cleveland / DA-A2",
+      "intended_role": "Existing five-field historical D-047 internal development baseline; candidate for a future separately approved frozen model that could be assessed externally. Never its own external test.",
+      "sources": [
+        "S-UCI45",
+        "S-UCI45-NAMES",
+        "S-DETRANO-ABSTRACT",
+        "S-DETRANO-FULLTEXT-COPY",
+        "S-REPO-A2-AUDIT"
+      ],
+      "linked_questions": [
+        "Q-01",
+        "Q-02"
+      ],
+      "known_facts": [
+        "303 headline instances; class vector 164/55/36/35/13; under 0 vs 1-4 binarization: 139 positive / 164 negative (E4 arithmetic from E1).",
+        "Official sources define age, sex, cp, trestbps and restecg; trestbps is resting blood pressure on admission in mm Hg; num wording is 0 <50% and 1 >50%.",
+        "Historical internal exploratory D-047 result (INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED), not re-executed: source-reported repeated nested-CV AUROC 0.8271 +/- 0.0097 over four dependent repeats; outcome-proportion adequacy targets 382 and MAPE criterion 459 unmet at n=303."
+      ],
+      "uncertainties": [
+        "No dated per-field evidence that all five proposed inputs existed before the reference procedure (six-week window exists only in an E3 transcription, not per-field clocks).",
+        "No primary ruling on exact-50 records or equivalence with UCI-412 >=50%.",
+        "Cross-site patient overlap cannot be excluded from dummy-identifier public metadata; raw-to-processed identity unverified."
+      ],
+      "leakage_risks": [
+        "ca, thal, exang, oldpeak and slope are outcome-adjacent or procedure-adjacent; prohibited as pre-test predictors.",
+        "Row order and identifiers are never predictors.",
+        "Applying the 1989 historical accuracy figure to the five-field panel would conflate different models and feature sets."
+      ],
+      "recommendation": {
+        "primary": "GO_FOR_REVIEW_ONLY",
+        "development_or_external_use": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
+        "named_role": "Development baseline candidate for a future frozen Cleveland model (not its own external test)",
+        "rationale": "Owner definitions are explicit and reviewable (GO_FOR_REVIEW_ONLY for Q-01/Q-02 source clarification), but timing and threshold equivalence remain unresolved and no frozen full-cohort artifact or approved development protocol exists; any new development/freeze role is HOLD_WITH_SPECIFIC_MISSING_EVIDENCE and serving/validity claims remain rejected.",
+        "decision_owner": "Clinical/research reviewer and endpoint adjudicator; maintainer + supervisor for any protocol/authorization act"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Obtain original acquisition documentation with dated, field-level timing for age, sex, cp, trestbps and restecg.",
+          "owner": "Clinical/research reviewer and data owner",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Rule on exact-50 coding and strict >50% versus >=50% equivalence without silent harmonization.",
+          "owner": "Endpoint adjudicator",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Separately approve any frozen Cleveland development protocol and artifact SHA before an external role is considered.",
+          "owner": "Named human governance and scientific reviewers",
+          "current_state": "NOT_APPROVED"
+        }
+      ]
+    },
+    {
+      "id": "UCI412_Z_ALIZADEH_SANI",
+      "title": "UCI-412 Z-Alizadeh Sani / DA-A1",
+      "intended_role": "Separate 16-field historical M3a internal-research route; the only candidate same-source Clinical+Labs pairing source, currently inadmissible for it. Never pooled; never compared head-to-head with Cleveland.",
+      "sources": [
+        "OA-2012-JMSS",
+        "OA-2013-RCM",
+        "OA-2013-CMPB",
+        "OA-2015-USPAT",
+        "PS412",
+        "S-UCI412"
+      ],
+      "linked_questions": [
+        "Q-03",
+        "Q-04",
+        "Q-05",
+        "Q-06",
+        "Q-07",
+        "Q-08"
+      ],
+      "known_facts": [
+        "303 participants (216 Cad / 87 Normal); owner page states >=50% narrowing; owner prose describes a 54-feature dataset; local historical audit reported 55 predictors + Cath = 56 registered columns.",
+        "Historical M3a repeated nested-CV OOF AUROC 0.9107 +/- 0.0071 over four dependent repeats (not re-executed); sample-size adequacy target 315 unmet at n=303; R^2-dependent criteria NOT ASSESSED.",
+        "2013 RCM Table 2 (PMC4253773) prints the 17-name laboratory/echo inventory (FBS, Cr, TG, LDL, HDL, BUN, ESR, HB, K, Na, WBC, Lymph, Neut, PLT, EF(%), Region with RWMA, VHD) with no units except EF(%); token-level correspondence to the frozen dictionary is not a workbook audit."
+      ],
+      "uncertainties": [
+        "0/16 owner-verified pre-angiography predictor timestamps (Q-04); labs have no per-field clocks at all.",
+        "BP quantity/unit semantics unresolved; inventor patent prints mmHg 90-190 and PR ppm 50-110 (provenance only, abandoned 335-patient/50-feature embodiment, not the UCI-412 deposit).",
+        "S-9 six binary directions (DM, HTN, Current Smoker, EX-Smoker, FH, Typical Chest Pain) provisional; Q-07 chest-pain exclusivity unresolved; 54 vs 55 vs 56 vs patent 50/335 unreconciled."
+      ],
+      "leakage_risks": [
+        "Cath/LAD/LCX/RCA outcome-derived; echo (EF, RWMA) and labs plausibly same-admission workup with timing unresolved - not licensed as pre-outcome.",
+        "No field may be promoted on plausibility; 43 non-admitted columns remain unverified.",
+        "Exertional CP secondary-constancy observation is hypothesis-only and never grounds for dropping the frozen route's feature."
+      ],
+      "recommendation": {
+        "primary": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
+        "development_or_external_use": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "named_role": "Conditional same-source Clinical+Labs pairing source (currently inadmissible); M3a basic-panel internal exploratory at most",
+        "rationale": "New real fitting, panel extension or an AI-9.2 labs arm are each blocked on 0/16 timing, unresolved Q-04/Q-05/Q-06/Q-07/Q-08, M3a inadequacy, and an unratified D-048; #106 forbids new real UCI-412 training / AI-9.2 pending owner CRF/codebook; owner-clarification review only.",
+        "decision_owner": "Named scientific reviewer + maintainer; owner/curator via maintainer-approved letters; D-048 named human decision if M3a is reconsidered"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Obtain original CRF/codebook: 16-field timing, BP quantity/unit, PR unit and ppm token, 0/1 direction, chest-pain exclusivity, file-version/count reconciliation, lab units and Cr/Creatine alias.",
+          "owner": "Owner/curator (maintainer-sent letter) or independent scientific review of any response",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Resolve or explicitly bound S-9 direction and Q-04 timing before any model-facing use.",
+          "owner": "Independent scientific reviewer + named human decision-maker",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "M3a activation requires the D-048 named human decision, human-approved merge and a new locally signed hash-bound manifest; even then labs stay registered-but-blocked.",
+          "owner": "Maintainer (named human act)",
+          "current_state": "NOT_APPROVED"
+        }
+      ]
+    },
+    {
+      "id": "UCI45_HUNGARY",
+      "title": "UCI-45 Hungary",
+      "intended_role": "Highest-priority candidate for a future separately authorized, one-shot, frozen Cleveland-model external assessment. Never a development source; never used to tune; synthetic AI-10.1 rehearsal is not evidence.",
+      "sources": [
+        "S-UCI45",
+        "S-UCI45-NAMES",
+        "S-DETRANO-ABSTRACT",
+        "S-REPO-A2-AUDIT",
+        "S-REPO-HUNGARY-DECISION"
+      ],
+      "linked_questions": [
+        "Q-10",
+        "Q-11",
+        "Q-02",
+        "Q-01"
+      ],
+      "known_facts": [
+        "Official class vector 188/37/26/28/15: 294 records, 188 negative / 106 positive (E4 arithmetic from E1); the 1989 original abstract describes a 425-patient Hungarian test group at 38% prevalence - delivered 294-record file is not the full published group.",
+        "E2 aggregate record: 292/294 joint five-field availability (one trestbps missing); 782 recognized missing cells in 14 processed columns (ca=291, thal=266, slope=190); one excess processed full-row duplicate; processed target 0/1 vs raw 0-4 with aggregate correspondence consistent with binarization.",
+        "Raw-vs-processed order-independent 13-predictor profile overlap 293/294; positional exact agreement 1/294 - neither figure proves patient identity, correct linkage or independence."
+      ],
+      "uncertainties": [
+        "Patient-level independence from Cleveland cannot be established from public sources (dummy identifiers; 425 vs 294; reported profile collisions; 1 excess full-row duplicate).",
+        "Processed 0/1 to raw 0-4 clinical equivalence and exact-50 handling unresolved; no per-field pre-test timing evidence.",
+        "No frozen Cleveland artifact, no precision estimand, no protocol, no authorization; Riley inputs unfrozen; external-validation sizing cannot be guessed from n."
+      ],
+      "leakage_risks": [
+        "Same ca/thal/exercise leakage block as Cleveland; never usable as pre-test predictors.",
+        "Any Hungary-driven model or preprocessing change after outcome access voids the one-shot interpretation."
+      ],
+      "recommendation": {
+        "primary": "GO_FOR_REVIEW_ONLY",
+        "development_or_external_use": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
+        "named_role": "Frozen Cleveland-model one-shot external site-shift assessment (separately authorized, protocol-locked)",
+        "rationale": "Source admissibility review (provenance, overlap, endpoint ruling) may proceed as review only (GO_FOR_REVIEW_ONLY); any real one-shot execution is HOLD_WITH_SPECIFIC_MISSING_EVIDENCE pending frozen Cleveland artifact, compatibility rulings, independence disposition, locked protocol, Riley-style precision decision and the full authorization chain (section 7 of the report).",
+        "decision_owner": "Maintainer + independent scientific reviewer + statistician + local operator; supervisor-grade protocol sign-off for any assessment"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Ruling on raw 0-4 to processed 0/1 target equivalence including exact-50 and site reference-standard equivalence.",
+          "owner": "Clinical endpoint adjudicator + named scientific reviewer",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Patient-level independence/overlap disposition Cleveland vs Hungary (residual local aggregate confirmation review or owner/curator statement).",
+          "owner": "Independent scientific reviewer; separately authorized local audit if chosen",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Frozen Cleveland development protocol + artifact freeze package with SHA-256, independently reviewed and governance-approved.",
+          "owner": "Maintainer + supervisor-grade approval + named independent reviewer",
+          "current_state": "NOT_APPROVED"
+        },
+        {
+          "requirement": "Riley-style precision plan for the fixed n=294 (106 events, 36.1%): estimands, target SE/CI widths, CI method; feasibility judged before unblinding.",
+          "owner": "Statistician + maintainer",
+          "current_state": "NOT_PRESPECIFIED"
+        },
+        {
+          "requirement": "Locked one-shot protocol: model/schema/mapping/inclusion/estimands frozen before any Hungary outcome access; one-shot ledger; named independent reviewer; explicit authorization naming Hungary; local manifest.",
+          "owner": "Maintainer + supervisor-grade approval + local operator",
+          "current_state": "NOT_GRANTED"
+        }
+      ]
+    },
+    {
+      "id": "UCI45_VA_LONG_BEACH",
+      "title": "UCI-45 VA Long Beach",
+      "intended_role": "At most a narrowly scoped, separately approved domain-shift/missingness stress assessment. Never pooling, calibration transfer, or a current external-validation claim.",
+      "sources": [
+        "S-UCI45",
+        "S-UCI45-NAMES",
+        "S-DETRANO-ABSTRACT",
+        "S-REPO-A2-AUDIT"
+      ],
+      "linked_questions": [
+        "Q-13"
+      ],
+      "known_facts": [
+        "Class vector 51/56/41/42/10: 200 records, 149 positive (E4 arithmetic from E1); the 1989 original describes a 200-patient VA test group with 75% prevalence - size/prevalence consistent, identity unproven.",
+        "E2 aggregate record: 698 recognized missing cells in 14 processed columns (24.93%); ca=198/200, thal=166/200, slope=102/200, oldpeak=56/200, trestbps=56/200; one excess processed full-row duplicate."
+      ],
+      "uncertainties": [
+        "Five-field timing/units as delivered; joint availability unresolved; patient overlap with Cleveland unresolved (dummy identifiers).",
+        "chol/oldpeak missingness policy undefined; precision for any stress-assessment estimand never assessed (Riley inputs unfrozen)."
+      ],
+      "leakage_risks": [
+        "ca/thal/exercise block dominates missingness and is outcome-adjacent; never predictors.",
+        "Any VA-driven selection would contaminate the frozen Cleveland model and any future external role."
+      ],
+      "recommendation": {
+        "primary": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
+        "development_or_external_use": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "named_role": "Limited domain-shift/missingness stress assessment (separately approved) or reasoned NO-GO",
+        "rationale": "A narrowly scoped stress role may be reviewable only after a statistician writes the precision estimand and an evaluator confirms the five-field policy under a VA-named governance authorization; pooling, calibration transfer and validation claims are rejected on current evidence.",
+        "decision_owner": "Statistician + clinical reviewer + maintainer"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Source-pair overlap and target-semantics disposition for VA.",
+          "owner": "Independent scientific reviewer",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Written precision estimand and missingness/abstention rule before any scoring; D-046 read-only permission cannot be relabelled as model-use permission.",
+          "owner": "Statistician + evaluator",
+          "current_state": "NOT_PRESPECIFIED"
+        },
+        {
+          "requirement": "Explicit governance authorization naming VA and its limited role.",
+          "owner": "Maintainer (+ supervisor-grade approval as applicable)",
+          "current_state": "NOT_GRANTED"
+        }
+      ]
+    },
+    {
+      "id": "UCI45_SWITZERLAND",
+      "title": "UCI-45 Switzerland",
+      "intended_role": "Source-suitability/descriptive documentation only; never a primary locked validation cohort.",
+      "sources": [
+        "S-UCI45",
+        "S-UCI45-NAMES",
+        "S-DETRANO-ABSTRACT",
+        "S-DETRANO-FULLTEXT-COPY",
+        "S-REPO-A2-AUDIT"
+      ],
+      "linked_questions": [
+        "Q-13"
+      ],
+      "known_facts": [
+        "Class vector 8/48/32/30/5: 123 records, 115 positive and only 8 num=0 negatives (E4 arithmetic from E1); the 1989 original reports a 143-patient Zurich/Basel group (58/85, 1985) at 84% prevalence - delivered file is not the full published group.",
+        "E2 aggregate record: 273 recognized missing cells (15.85%); ca=118/123, fbs=75/123, thal=52/123, slope=17/123, trestbps=2/123; chol=0 for all 123 rows - physiologically implausible; unresolved structural-missingness/coding question, not a proven patient value and not a recoding license."
+      ],
+      "uncertainties": [
+        "123-vs-143 reconciliation and Zurich/Basel attribution; site reference-standard equivalence; per-field timing.",
+        "chol=0 structural coding unresolved; with 8 negatives, specificity and calibration-intercept/slope estimates are highly imprecise for many plausible locked estimands."
+      ],
+      "leakage_risks": [
+        "Severe missingness in exactly the outcome-adjacent fields (ca/thal) makes any complete-case usable arm indistinguishable from leakage curation.",
+        "Eight negatives forbid any tuning or threshold selection on this source."
+      ],
+      "recommendation": {
+        "primary": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "development_or_external_use": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "named_role": "Primary locked external validation (rejected); descriptive source-suitability or explicitly limited stress only",
+        "rationale": "Eight negatives plus unresolved structural coding and subset mismatch defeat any primary validation role; a descriptive/limited analysis may be considered only after owner/version reconciliation, a clinical ruling on chol=0, and a statistician's precision disposition, and the output would be descriptive only.",
+        "decision_owner": "Statistician + clinical reviewer + maintainer"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Owner/version reconciliation of 123 vs 143 and Zurich/Basel attribution.",
+          "owner": "Clinical/scientific reviewer; owner/curator channel if elected",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Clinical ruling on chol=0 and the missingness/abstention rule; no recoding license may be inferred.",
+          "owner": "Clinical reviewer + statistician",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Written precision disposition; explicit reviewer decision that only descriptive outputs are permissible, or written NO-GO.",
+          "owner": "Statistician + named scientific reviewer",
+          "current_state": "NOT_PRESPECIFIED"
+        }
+      ]
+    },
+    {
+      "id": "UCI411_EXTENSION",
+      "title": "UCI-411 Extension of Z-Alizadeh Sani / DA-B1",
+      "intended_role": "Overlap/leakage audit of the UCI-412 family only. Never independent validation, training addition, or sample-size doubling (n=606).",
+      "sources": [
+        "S-UCI411",
+        "S-UCI412"
+      ],
+      "linked_questions": [
+        "Q-09"
+      ],
+      "known_facts": [
+        "Owner states: 303 patients, 59 features, extension adding LAD/LCX/RCA; CAD iff >=50% narrowing in at least one of those arteries; only one of LAD/LCX/RCA/Cath may be used for classification; CC BY 4.0; DOI 10.24432/C5461K.",
+        "The owner explicitly describes the same 303-patient baseline as UCI-412; no row-level comparison was performed and none is permitted here."
+      ],
+      "uncertainties": [
+        "Row-level 411<->412 correspondence is unaudited in this pass (audit-only candidate).",
+        "No independent subjects exist by construction; artery fields are outcome components."
+      ],
+      "leakage_risks": [
+        "LAD/LCX/RCA/Cath are components of the outcome definition; any predictor use is target leakage.",
+        "Counting UCI-411 as a second cohort would double-count the same events."
+      ],
+      "recommendation": {
+        "primary": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "development_or_external_use": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "named_role": "Independent validation / n=303+303 pooling (rejected); authorized overlap/leakage audit only",
+        "rationale": "Owner-stated extension of the identical 303 participants; artery-defined outcome; DA-B1 remains audit-only by governance; independence cannot be manufactured by adding artery columns.",
+        "decision_owner": "Scientific reviewer; any audit requires its own written scope and DA-B1 remains audit-only"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Recorded owner/version reconciliation and privacy-preserving same-cohort correspondence ruling, if an audit is authorized.",
+          "owner": "Maintainer + auditor + scientific reviewer",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Never count 606 patients, never treat as independent validation, never use artery fields as predictors.",
+          "owner": "All reviewers (binding governance)",
+          "current_state": "UNCHANGED"
+        }
+      ]
+    },
+    {
+      "id": "UCI145_STATLOG",
+      "title": "Statlog Heart / UCI-145 / DA-B2",
+      "intended_role": "Overlap/provenance suspect; lineage audit-only. Never independent validation or pooling.",
+      "sources": [
+        "S-STATLOG145",
+        "S-STATLOG-PROJECT",
+        "S-STATLOG-ORIGIN-SECONDARY",
+        "S-STATLOG-OVERLAP-THESIS"
+      ],
+      "linked_questions": [
+        "Q-12"
+      ],
+      "known_facts": [
+        "Official UCI-145: 270 records, 13 features, target 1 absence / 2 presence; 'Has Missing Values? No'; heart database described as similar to the UCI Heart Disease database in 'slightly different form'; DOI 10.24432/C57303; CC BY 4.0.",
+        "E3 (search-excerpt-only): StatLog heart described as Cleveland Clinic Foundation-sourced (R. Detrano); thesis reports a proper-subset hypothesis (303 = 270 + 33). Neither is owner-confirmed."
+      ],
+      "uncertainties": [
+        "Donor-cohort lineage and row-level mapping to Cleveland; the meaning of the 33-record difference; recoding and threshold (none printed).",
+        "Absence of any owner independence declaration; 'slightly different form' is not a provenance statement."
+      ],
+      "leakage_risks": [
+        "ca-equivalent fluoroscopy and thal fields present - same outcome-adjacent leakage; never predictors.",
+        "Any pooled evaluation would be fitting on Cleveland's own people."
+      ],
+      "recommendation": {
+        "primary": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "development_or_external_use": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "named_role": "Independent external validation / pooling (rejected); audit-only overlap investigation if authorized",
+        "rationale": "Official 'similar' wording plus E3 subset hypothesis suffice to forbid independence claims; an authorized aggregate exact/near-duplicate audit may be reviewable, but no independent-test or pooling role may proceed on current evidence.",
+        "decision_owner": "Source-donor/auditor + named scientific reviewer"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Source-donor/original Statlog documentation of the heart file's donor cohort.",
+          "owner": "Source-donor/auditor",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Privacy-preserving exact and near-duplicate overlap analysis on shared stable fields under a separately recorded authorization.",
+          "owner": "Maintainer + auditor",
+          "current_state": "NOT_GRANTED"
+        },
+        {
+          "requirement": "Explicit clinical ruling on target wording/threshold; decision to exclude permanently or relabel any analysis as sensitivity, never independent validation.",
+          "owner": "Clinical endpoint adjudicator + named reviewer",
+          "current_state": "PENDING"
+        }
+      ]
+    },
+    {
+      "id": "ANGIOCAD_P25",
+      "title": "AngioCAD / P25",
+      "intended_role": "Not admitted to tabular Track A. Potential different task (imaging/stenosis, ACS case-mix) only via its own future protocol. Never a UCI-412/Cleveland substitute.",
+      "sources": [
+        "PSANG",
+        "PSANG_ZENODO",
+        "P3B",
+        "OA-2015-USPAT"
+      ],
+      "linked_questions": [
+        "Q-14"
+      ],
+      "known_facts": [
+        "Original 2026 MRS028 article (E1 abstract/highlights): 413 patients with structured clinical data plus angiography video sequences; highlights report 413 videos; retrospective Shahid Chamran ethics; data availability via Zenodo DOI 10.5281/zenodo.15826856; Section 3-5 paywalled and unread.",
+        "Zenodo record lists feature/label XLSX files that were never opened; declared instrument CC BY 4.0 vs article wording 'non-commercial' - conflicting rights texts; neither grants project permission; rights clarification outstanding.",
+        "Secondary reanalysis (377-row constructed >50% label; STEMI 49% mix) is not an owner codebook and may not be cited as one; supervisor sheet P25 remains REJECTED_RED; source classification remains SCIENTIFIC_HOLD_NOT_ADMITTED."
+      ],
+      "uncertainties": [
+        "Patient-to-video-to-row mapping unknown; Features/Labels schema unopened; pretest clinical chronology unknown; subject-level binary CAD target unverified.",
+        "Whether 413 refers to patients or videos in every table; STEMI/NSTEMI case mix; third-party reanalysis provenance; which rights text governs reuse."
+      ],
+      "leakage_risks": [
+        "Angiographic findings, Gensini grades and stenosis measurements are the outcome or its direct derivatives - catastrophic pre-test leakage as CAD predictors.",
+        "Sequence/order could reconstruct outcome order; any naive tabular use inherits this."
+      ],
+      "recommendation": {
+        "primary": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "development_or_external_use": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+        "named_role": "Tabular Track A / M3a / AI-9.2 / pooling / substitution (all rejected); curator clarification letter only, zero download",
+        "rationale": "No verified patient-level binary CAD target, no opened schema, no chronology, unresolved rights conflict, and a supervisor REJECTED_RED classification; the only admissible step is a curator question set with zero download; classification is never agent-changeable.",
+        "decision_owner": "Maintainer + supervisor (classification colour); curator clarification only if maintainer elects to send"
+      },
+      "decision_requirements": [
+        {
+          "requirement": "Curator/owner answers: schema of Features/Labels XLSX, patient-to-video map, clinical/lab chronology, subject-level binary CAD rule if any, which text governs reuse (CC BY 4.0 vs 'non-commercial').",
+          "owner": "Maintainer (+ supervisor if classification revisited)",
+          "current_state": "PENDING"
+        },
+        {
+          "requirement": "Any future admission requires its own protocol, estimand, leakage controls and named human decisions; P25 stays REJECTED_RED and SCIENTIFIC_HOLD_NOT_ADMITTED regardless.",
+          "owner": "Supervisor + maintainer",
+          "current_state": "UNCHANGED"
+        }
+      ]
+    }
+  ],
+  "conditional_studies": [
+    {
+      "id": "AI-9.2",
+      "name": "Same-source Clinical vs Clinical+Labs paired incremental-value study (UCI-412)",
+      "status": "NOT_PERFORMED",
+      "recommendation": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+      "standing_disposition": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
+      "software_evidence": "AI-9.1 synthetic-only paired harness (PR #87, merge b21ca074e9ef609894354e6d0327c4b7cc717093)"
+    },
+    {
+      "id": "AI-10.2",
+      "name": "Frozen Cleveland five-field model, one-shot Hungary external assessment",
+      "status": "NOT_PERFORMED",
+      "recommendation": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
+      "standing_disposition": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
+      "software_evidence": "AI-10.1 synthetic-only locked-site rehearsal (PR #90, merge 5786424593c5fa9387a1bf382b2233b02779de42)"
+    }
+  ],
+  "ai_9_2_blockers": {
+    "summary": "Real same-source Clinical vs Clinical+Labs paired incremental-value study on UCI-412; currently inadmissible on feature, timing, source, protocol and authorization grounds.",
+    "categories": {
+      "feature": [
+        {
+          "id": "F-1",
+          "blocker": "The 17 laboratory/echo field names exist only as an original-author published table (2013 RCM Table 2); 17/17 token-level correspondence is not a certified workbook header audit.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md section 2.4; OA-2013-RCM (PMC4253773)"
+        },
+        {
+          "id": "F-2",
+          "blocker": "No printed units anywhere except EF(%); frozen secondary units and ranges conflict in places (TG 37-1050 vs 50-400; PLT 25-742 vs 100-450; K 3.0-6.6 vs 3.0-6.0; WBC 3700-18000 vs 2000-15000; ESR 1-90 vs 0-60) and may not be adopted as original-author units.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md section 2.4 table"
+        },
+        {
+          "id": "F-3",
+          "blocker": "Cr/CR glossed 'C, Creatine' in the paper footnote - not verified as serum creatinine; no assay method, unit, specimen or timing.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md section 2.4"
+        },
+        {
+          "id": "F-4",
+          "blocker": "EF(%) is echocardiographic; Region with RWMA has a blank range and frozen 0-3 coding conflicts with the paper mean 0.620 +/- 1.133; VHD is ordinal Normal/Mild/Moderate/Severe with known/predominant valvular disease excluded - selection, not a free predictor; never routine 'labs'.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md section 2.4"
+        },
+        {
+          "id": "F-5",
+          "blocker": "No owner confirmation of missing-value sentinels/codes in labs (raw -9.0 vs processed '?'); lab-specific per-field missingness unknown; abstention vs impute undefinable.",
+          "evidence": "RH02_ISSUE107_PUBLIC_SOURCE_DATASET_AUDIT_2026_11_19.md (E2 limits); RH02_UCI412 investigation limits"
+        },
+        {
+          "id": "F-6",
+          "blocker": "Six clinical binary predictors remain S-9 provisional (DM, HTN, Current Smoker, EX-Smoker, FH, Typical Chest Pain); a labs-augmented model inherits this unresolved encoding.",
+          "evidence": "AGENTS.md M3a Amendment A-1; register Q-06; RH02_UCI412 investigation"
+        },
+        {
+          "id": "F-7",
+          "blocker": "0/16 owner-verified pre-angiography clinical timestamps; labs have no per-field clocks at all; 2013 RCM frames labs/echo as inputs to a per-artery study with same-admission workup compatible - timing is unprovable from current public evidence.",
+          "evidence": "register Q-04; RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md section 5; D-UCI-TIME"
+        },
+        {
+          "id": "F-8",
+          "blocker": "Estimand feasibility at n=303 (216 Cad/87 Normal) vs already-unmet basic-panel target 315; no adequacy estimate for the paired delta-AUROC/delta-Brier estimand; R^2 criteria NOT ASSESSED.",
+          "evidence": "RH02_RH03_CONSOLIDATED_RESEARCH_HANDOFF_2026_11_19.md section 5; gate-pt 05_m2e1 review"
+        }
+      ],
+      "timing": [
+        {
+          "id": "T-1",
+          "blocker": "No per-field timestamps for any of the 16 clinical or 17 lab/echo fields exist in any owner or author material reviewed.",
+          "evidence": "register Q-04 (UNRESOLVED_SCIENTIFIC_HOLD); RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md sections 2.4, 5"
+        },
+        {
+          "id": "T-2",
+          "blocker": "2013 RCM explicitly positions labs/echo as the inputs of a per-artery (LAD/LCX/RCA) prediction study; same-admission measurement is fully compatible with the text - no pre-angiography or pre-knowledge-of-outcome clock is stated for any lab.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md section 2.4 (Patients and Methods)"
+        },
+        {
+          "id": "T-3",
+          "blocker": "Cleveland/UCI-45 contains no routine labs; Hungary/VA/Switzerland have no labs dictionary with any timing evidence; the only same-person pairing is UCI-412, whose labs fail T-1/T-2.",
+          "evidence": "RH02_ISSUE107_PUBLIC_SOURCE_DATASET_AUDIT_2026_11_19.md sections 4.1-4.6"
+        },
+        {
+          "id": "T-4",
+          "blocker": "Patent angiography-need design intent (algorithm for determining need for angiography) is modelling intent, not an acquisition log; the abandoned 335-patient/50-feature embodiment does not bind the delivered UCI-412 rows.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md sections 2.5 and Q-04 finding"
+        }
+      ],
+      "source": [
+        {
+          "id": "S-1",
+          "blocker": "UCI-412 is the only in-portfolio same-source clinical+labs pairing and is under SCIENTIFIC_HOLD for new real fitting; #106 forbids new real UCI-412 training / AI-9.2 pending owner CRF/codebook.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md sections 9-10 (D-UCI-TIME)"
+        },
+        {
+          "id": "S-2",
+          "blocker": "Row identity across 2012 JMSS, 2013 RCM, 2013 CMPB, the 2015 patent (335/50) and the UCI/Mendeley workbooks is not proven; 37 + 17 = 54 is an explicit hypothesis, not adopted; no labs row-join can rest on it.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md sections 2.3-2.4 and 3.2"
+        },
+        {
+          "id": "S-3",
+          "blocker": "UCI-411 adds outcome-derived artery fields to the same 303 - not independent, no labs for AI-9.2, zero added people.",
+          "evidence": "RH02_ISSUE107_PUBLIC_SOURCE_DATASET_AUDIT_2026_11_19.md section 4.4; register Q-09"
+        },
+        {
+          "id": "S-4",
+          "blocker": "2013 CMPB Table 1 (lab names/units/ranges) and 2016/2017 original tables are unread (paywalled); absence in accessible materials does not prove non-existence, but until read/obtained the study is blocked.",
+          "evidence": "RH02_UCI412_ANGIOCAD_SCIENTIFIC_EVIDENCE_INVESTIGATION_2026_11_19.md section 14"
+        },
+        {
+          "id": "S-5",
+          "blocker": "No other reputable source with verified pre-outcome labs and a target-compatible label exists or was introduced (out of scope); substitution requires a fresh, separately reviewed suitability pass.",
+          "evidence": "Scope of this decision review; RH02_RH03_CONSOLIDATED_RESEARCH_HANDOFF_2026_11_19.md section 6 Priority 1"
+        }
+      ],
+      "protocol": [
+        {
+          "id": "PR-1",
+          "blocker": "No approved/prespecified real-data incremental-value protocol exists; AI-9.1 is synthetic-only software evidence; M3a's registered plan contains no labs arm - the laboratory panel is registered but blocked in D-048.",
+          "evidence": "docs/research/ai_master_progress.json (AI-9, AI-9.1); docs/DECISIONS.md D-048; AI_RESEARCH_HANDOFF_EXECUTION_LEDGER_2026_11_18.md"
+        },
+        {
+          "id": "PR-2",
+          "blocker": "Frozen feature dictionary uci412_research_feature_dictionary 1.1.0 and panel uci412_basic_clinical_v1 1.1.0 contain no admissible labs panel; adding one requires a new human-reviewed amendment, new hashes and a new manifest - none exists, none prepared here.",
+          "evidence": "research/uci412/schemas/uci412_feature_dictionary.v1.json; AGENTS.md M3a A-1"
+        },
+        {
+          "id": "PR-3",
+          "blocker": "No prespecified paired design (same-people folds, matched clinical-only vs clinical+labs, fold-local preprocessing/imputation/calibration, paired uncertainty, missingness denominators, feasibility gate) for real data; AI-9.1 implements this only synthetically.",
+          "evidence": "docs/research/next_phase/AI9_AI12_EXECUTION_SLICES.md (AI-9.1); docs/research/ai_master_progress.json"
+        },
+        {
+          "id": "PR-4",
+          "blocker": "No missingness/abstention rule for labs; no handling for structural codes; no sensitivity-analysis spec; no leakage/negative-control registration for labs (classic same-admission leakage path).",
+          "evidence": "RH02_ISSUE107_PUBLIC_SOURCE_DATASET_AUDIT_2026_11_19.md section 4.6 caution; gate-pt 06_m2e2 review"
+        },
+        {
+          "id": "PR-5",
+          "blocker": "No TRIPOD+AI / PROBAST+AI appraisal of a labs-augmented protocol; no named scientific reviewer disposition; P-1 PENDING; Q-16 guidance grants no approval.",
+          "evidence": "docs/DECISIONS.md governance gates; register Q-16"
+        },
+        {
+          "id": "PR-6",
+          "blocker": "No calibration plan for a labs arm (slope/intercept/CITL, calibration plot) and no prespecified decision-threshold analysis; the study may not discover its analysis plan after seeing outcomes.",
+          "evidence": "Master AI Completion Plan section 1; AI_RESEARCH_PROTOTYPE_COMPLETION_CHARTER_2026_11_19.md (RH-06)"
+        }
+      ],
+      "authorization": [
+        {
+          "id": "A-1",
+          "blocker": "P-1 PENDING; P-3 recorded PENDING in DECISIONS.md and treated as CLOSED (not granted) throughout the research corpus; P-5 NOT MADE - prohibited. No gate passage exists.",
+          "evidence": "docs/DECISIONS.md governance gates; AGENTS.md"
+        },
+        {
+          "id": "A-2",
+          "blocker": "D-047 (activated Cleveland-only internal exploratory, five-field) cannot be relabelled to UCI-412 or to labs.",
+          "evidence": "AGENTS.md D-047 section; docs/DECISIONS.md D-047"
+        },
+        {
+          "id": "A-3",
+          "blocker": "D-048 remains PROPOSED_NOT_AUTHORIZED; even a ratified D-048 covers the basic 16-field panel only - labs stay registered-but-blocked; activation requires AUTHORIZE-M3A-UCI412-INTERNAL-RESEARCH, human-approved merge and a new locally signed hash-bound manifest.",
+          "evidence": "docs/DECISIONS.md D-048; AGENTS.md M3a A-1"
+        },
+        {
+          "id": "A-4",
+          "blocker": "Canonical conditional-study entry: AI-9.2 HOLD_NOT_EXECUTED, real_data_authorized=false, real_experiment_completed=false - unchanged by this document; Q-15 UNRESOLVED_SCIENTIFIC_HOLD; all human dispositions PENDING.",
+          "evidence": "RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json (conditional_studies, Q-15)"
+        },
+        {
+          "id": "A-5",
+          "blocker": "AGENTS.md and Master Plan section 8 (AI-9 exit criteria): AI-9 routine-labs comparison and any real-model fit/serving remain blocked until separate evidence and authorization gates are satisfied; none is.",
+          "evidence": "AGENTS.md; docs/research/CARDIOASSIST_AI_MASTER_COMPLETION_PLAN.md section 8"
+        },
+        {
+          "id": "A-6",
+          "blocker": "No ethics/institutional approval recorded; UCI-412 CC BY 4.0 is a licence for reuse of the deposit, not consent for clinical research, not an accuracy claim, and not permission to change project gates.",
+          "evidence": "RH02_ISSUE107_PUBLIC_SOURCE_DATASET_AUDIT_2026_11_19.md section 4.2 (licensing/custody)"
+        },
+        {
+          "id": "A-7",
+          "blocker": "No named human reviewer has recorded GO_EXECUTED or any disposition; this document records none.",
+          "evidence": "This document, sections 1 and 8"
+        }
+      ]
+    },
+    "disposition": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+    "standing_disposition": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
+    "review_only_path": "GO_FOR_REVIEW_ONLY",
+    "real_study_status": "NOT_PERFORMED",
+    "honest_completion_statement": "NOT_PERFORMED - not failed, not pending-data; not executed and not authorized. Incremental diagnostic benefit of labs is NOT ESTABLISHED."
+  },
+  "ai_10_2_prerequisites": {
+    "summary": "Approved frozen full-cohort Cleveland artifact does not exist; source compatibility, independence, one-shot protocol and precision all open; execution stays NOT_PERFORMED.",
+    "prerequisites": [
+      {
+        "id": "frozen_cleveland_model_artifact",
+        "requirement": "Approved, frozen, full-cohort Cleveland model artifact with SHA-256 (model + preprocessing + feature order/category maps/units + training/source provenance + environment record + model specification) existing before any Hungary access.",
+        "current_state": "NOT_MET",
+        "owner": "Maintainer + supervisor-grade approval + named independent reviewer",
+        "evidence": "gate-pt 07_m2f section 3.4; D-047 explicitly produced no saved full-cohort model artifact; AI-10.1 is synthetic"
+      },
+      {
+        "id": "cleveland_development_protocol",
+        "requirement": "Approved/frozen Cleveland development protocol: target (num=0 vs 1-4), five-field dictionary, prediction timepoint, statistical adequacy review, missingness + preprocessing plan, applicable supervisor approval and governance authorization for real fitting.",
+        "current_state": "NOT_MET",
+        "owner": "Maintainer + supervisor + named reviewer",
+        "evidence": "Master Plan section 8; gate-pt 07_m2f section 3.4; DECISIONS P-1 PENDING / P-3 not granted; D-047 scope limited to the activated internal exploratory exception"
+      },
+      {
+        "id": "freeze_package_review",
+        "requirement": "Independent review and governance approval of the freeze package; frozen D-047 guards must not be repurposed; no serving artifact, no product integration implied.",
+        "current_state": "NOT_MET",
+        "owner": "Named independent reviewer + maintainer",
+        "evidence": "gate-pt 07_m2f section 3.4; M1c boundary"
+      },
+      {
+        "id": "endpoint_equivalence_ruling",
+        "requirement": "Clinical adjudication that Cleveland and Hungary answer the same binary endpoint: UCI-45 wording, exact-50 undefined, raw 0-4 to processed 0/1 equivalence, reference-standard equivalence per site.",
+        "current_state": "NOT_RULED",
+        "owner": "Clinical endpoint adjudicator + named scientific reviewer",
+        "evidence": "register Q-02 (SOURCE_WORDING_RESOLVED_EQUIVALENCE_UNRESOLVED); gate-pt 07_m2f section 2; slice 4.2 of the Issue #107 audit"
+      },
+      {
+        "id": "five_field_site_equivalence",
+        "requirement": "Five-field (age, sex, cp, trestbps, restecg) cross-site dictionary/units/category equivalence, incl. trestbps mm Hg on-admission semantics both sites.",
+        "current_state": "NOT_VERIFIED",
+        "owner": "Clinical/research reviewer + data owner (audit if authorized)",
+        "evidence": "register Q-01 (CONDITIONAL_SOURCE_REVIEW_REQUIRED); RH02_ISSUE107 sections 4.1-4.2"
+      },
+      {
+        "id": "timing_both_sites",
+        "requirement": "Pre-reference timing evidence at both sites (per-field clocks or an explicit DEFER of the question); the E3 six-week group window is not per-field evidence.",
+        "current_state": "UNRESOLVED",
+        "owner": "Clinical/research reviewer; owner/curator channel if elected",
+        "evidence": "register Q-01; RH02_ISSUE107 and RH02_UCI412 timing findings; academia.edu E3 transcription"
+      },
+      {
+        "id": "missingness_abstention_policy",
+        "requirement": "Missingness/abstention policy fixed before unblinding: 292/294 five-field joint availability (one trestbps missing), 782 cells missing overall, ca/thal/slope unusable; no post-freeze imputation; one excess full-row duplicate handled by prespecified rule, never deletion.",
+        "current_state": "NOT_DEFINED",
+        "owner": "Statistician + evaluator + maintainer",
+        "evidence": "RH02_ISSUE107 section 4.2; gate-da 10_m2a aggregate record"
+      },
+      {
+        "id": "raw_to_processed_target_ruling",
+        "requirement": "Ruling on Hungary raw 0-4 to processed 0/1 mapping with per-record clinical equivalence unproven; order-independent 293/294 profile overlap and 1/294 positional agreement are not proof; target recoding ruled acceptable or assessment void.",
+        "current_state": "NOT_RULED",
+        "owner": "Clinical endpoint adjudicator + named scientific reviewer",
+        "evidence": "gate-pt 07_m2f section 2; gate-da 10_m2a interpretation boundary"
+      },
+      {
+        "id": "patient_level_independence",
+        "requirement": "Patient-level independence/overlap disposition Cleveland vs Hungary: distinct institutions supported (E1) but dummy identifiers, 425 (published) vs 294 (delivered), profile collisions and 1 excess full-row duplicate leave independence unproven (B-04 in the cross-site handoff).",
+        "current_state": "UNRESOLVED",
+        "owner": "Independent scientific reviewer; separately authorized local audit or owner/curator statement if elected",
+        "evidence": "register Q-10; gate-pt 06_m2e2 and 07_m2f; RH02_ISSUE107 section 4.2"
+      },
+      {
+        "id": "one_shot_locked_protocol",
+        "requirement": "Locked one-shot protocol before any Hungary outcome access: model, preprocessing, target mapping, inclusion/abstention, estimands, analysis plan; one-shot ledger; no test-set tuning of any kind; violation => stop and report; any change requires a new transparent protocol.",
+        "current_state": "NOT_GRANTED",
+        "owner": "Maintainer + supervisor-grade approval + named independent reviewer + local operator",
+        "evidence": "register Q-11 (UNRESOLVED_SCIENTIFIC_HOLD); gate-pt 07_m2f sections 1 and 3.5; AI-10.1 ledger rehearsal is synthetic mechanics only"
+      },
+      {
+        "id": "precision_riley_plan",
+        "requirement": "Riley et al. 2021 (Stat Med 40:4230-4251) external-validation sizing: prespecified estimands with target SE/CI widths and confidence level; validation event proportion 106/294 = 36.1%; anticipated linear-predictor distribution/miscalibration from Cleveland development only; judge whether the fixed 294-cohort supports the claim; if inadequate => descriptive-only or NO-GO; M2e.1 development sizing (382/459 unmet) is NOT external-validation sizing.",
+        "current_state": "NOT_PRESPECIFIED",
+        "owner": "Statistician + maintainer",
+        "evidence": "S-RILEY DOI 10.1002/sim.9025; gate-pt 05_m2e1 and 07_m2f section 3.5; register Q-11"
+      },
+      {
+        "id": "licensing_custody",
+        "requirement": "UCI-45 CC BY 4.0 + codebook citation request; repository policy forbids committing patient files; no acquisition authorized by this document; local-only, hash-bound custody if ever authorized.",
+        "current_state": "AUDIT_ONLY",
+        "owner": "Maintainer (custody); every executor (policy)",
+        "evidence": "RH02_ISSUE107 section 4.2 (licensing/custody); docs/DECISIONS.md D-046 scope"
+      },
+      {
+        "id": "governance_authorization",
+        "requirement": "Explicit governance authorization naming Hungary and the assessment tasks, separate from D-046 (read-only) and D-047 (Cleveland-only); locally signed, hash-bound, git-ignored manifest for the local operator.",
+        "current_state": "ABSENT",
+        "owner": "Maintainer + local operator",
+        "evidence": "docs/DECISIONS.md D-046/D-047; gate-pt 07_m2f sections 4-5"
+      },
+      {
+        "id": "supervisor_protocol_approval",
+        "requirement": "Supervisor P-3-grade protocol approval (endpoint, timepoint, estimands, precision method, population); DECISIONS.md register records P-3 PENDING, research corpus treats Gate PT as CLOSED; P-1 PENDING; P-5 prohibited for any external-validity/clinical claim.",
+        "current_state": "NOT_GRANTED",
+        "owner": "Supervisor + research lead",
+        "evidence": "docs/DECISIONS.md governance gates; AGENTS.md; register conditional_studies"
+      }
+    ],
+    "disposition": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE",
+    "review_only_path": "GO_FOR_REVIEW_ONLY",
+    "immediate_execution_recommendation": "PROPOSED_NO_GO_FOR_NAMED_ROLE",
+    "real_study_status": "NOT_PERFORMED",
+    "honest_completion_statement": "NOT_PERFORMED - no frozen Cleveland artifact exists; Hungary assessment unauthorized and unexecuted; AI-10.1 rehearsal is software mechanics only."
+  },
+  "study_dispositions_s01_s10": [
+    {
+      "id": "S-01",
+      "study": "AI-9.2 real paired Clinical vs Clinical+Labs (UCI-412)",
+      "recommendation": "PROPOSED_NO_GO_FOR_NAMED_ROLE"
+    },
+    {
+      "id": "S-02",
+      "study": "AI-10.2 frozen Cleveland to Hungary one-shot",
+      "recommendation": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE"
+    },
+    {
+      "id": "S-03",
+      "study": "Cleveland full-cohort development + freeze (prerequisite for AI-10.2)",
+      "recommendation": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE"
+    },
+    {
+      "id": "S-04",
+      "study": "UCI-412 M3a basic-panel re-activation",
+      "recommendation": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE"
+    },
+    {
+      "id": "S-05",
+      "study": "UCI-411 overlap/leakage audit",
+      "recommendation": "GO_FOR_REVIEW_ONLY"
+    },
+    {
+      "id": "S-06",
+      "study": "Statlog overlap investigation",
+      "recommendation": "GO_FOR_REVIEW_ONLY"
+    },
+    {
+      "id": "S-07",
+      "study": "VA Long Beach limited stress assessment",
+      "recommendation": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE"
+    },
+    {
+      "id": "S-08",
+      "study": "Switzerland descriptive source audit",
+      "recommendation": "HOLD_WITH_SPECIFIC_MISSING_EVIDENCE"
+    },
+    {
+      "id": "S-09",
+      "study": "AngioCAD curator clarification letter (zero download)",
+      "recommendation": "GO_FOR_REVIEW_ONLY"
+    },
+    {
+      "id": "S-10",
+      "study": "Hungary as fitted model/validation/pooling; Switzerland primary; Statlog external; UCI-411 validation; AngioCAD Track A",
+      "recommendation": "PROPOSED_NO_GO_FOR_NAMED_ROLE"
+    }
+  ],
+  "outstanding_question_triage": {
+    "summary": "Every open question routed to the only party competent to close it: original authors, a separately authorized local auditor, an independent scientific reviewer, or a governance human act.",
+    "routes": {
+      "original_author_clarification": [
+        {
+          "question": "Q-03",
+          "ask": "Why 2016/2017 papers say >50%; whether exact-50 records exist in the deposit; which text governs.",
+          "owner": "Maintainer-sent owner/curator letter (Issue #102 draft remains unsent)"
+        },
+        {
+          "question": "Q-04",
+          "ask": "Original CRF / collection chronology with clocks vs angiography for all 16 fields.",
+          "owner": "Maintainer-sent owner letter; independent review of any response"
+        },
+        {
+          "question": "Q-05",
+          "ask": "BP quantity (SBP/DBP/MAP), unit binding to xlsx, device/posture/conditions; PR unit and the ppm token; patent Table 1 binding.",
+          "owner": "Maintainer-sent owner letter"
+        },
+        {
+          "question": "Q-06",
+          "ask": "Owner statement that 0/1 means absent/present for DM, HTN, Current Smoker, EX-Smoker, FH, Typical Chest Pain.",
+          "owner": "Maintainer-sent owner letter"
+        },
+        {
+          "question": "Q-07",
+          "ask": "Mutual exclusivity, missingness and recording moment of the four chest-pain Yes/No flags.",
+          "owner": "Maintainer-sent owner letter"
+        },
+        {
+          "question": "Q-08",
+          "ask": "Owner-authoritative file version and schema reconciliation (37 precursor; 17 lab/echo; 54 prose; patent 50/335 embodiment; local 55+Cath=56; UCI UI 56 blank rows; 411 says 59).",
+          "owner": "Maintainer-sent owner letter"
+        },
+        {
+          "question": "Q-15 (labs semantics)",
+          "ask": "Lab codebook/collection form: units, Cr/'Creatine' alias, assay, timing, missing codes, EF(%), RWMA coding 0-4 vs 0-3, VHD exclusion note.",
+          "owner": "Maintainer-sent owner letter"
+        },
+        {
+          "question": "Hungary subset identity",
+          "ask": "Delivered 294 vs published 425 Hungarian group; recoding rule raw 0-4 to processed 0/1.",
+          "owner": "Owner/curator (UCI-45 / Hungarian site) via maintainer-sent letter"
+        },
+        {
+          "question": "Q-14 (AngioCAD)",
+          "ask": "Features/Labels schema, 413 patients vs 413 videos, clinical chronology, subject-level binary CAD rule, governing rights text.",
+          "owner": "Maintainer-sent curator letter; P25 stays REJECTED_RED and SCIENTIFIC_HOLD_NOT_ADMITTED regardless"
+        },
+        {
+          "question": "S-9",
+          "ask": "First-party codebook restating True=1/False=0 for the six encoded binary fields (Tao 2025 Table 1 remains SECONDARY only).",
+          "owner": "Maintainer-sent owner letter; any change stays provisional pending named human acceptance"
+        }
+      ],
+      "separately_authorized_local_audits": [
+        {
+          "question": "Q-07",
+          "audit": "Aggregate-only distinct-value count / joint-flag counts of Exertional CP on the hash-pinned local source.",
+          "ceiling": "Uniqueness/constancy description only; never grounds to alter panel or dictionary",
+          "authorization_status": "NOT_GRANTED"
+        },
+        {
+          "question": "Q-08",
+          "audit": "Headers-only (names/counts) version comparison of UCI-412 deposit vs local hash-pinned file.",
+          "ceiling": "Schema-level reconciliation; no values, no fitting",
+          "authorization_status": "NOT_GRANTED"
+        },
+        {
+          "question": "Q-09",
+          "audit": "Row-correspondence check UCI-411 vs UCI-412 (same 303).",
+          "ceiling": "Correspondence statement only; never independence",
+          "authorization_status": "NOT_GRANTED"
+        },
+        {
+          "question": "Q-12",
+          "audit": "Exact and near-duplicate overlap analysis Statlog vs Cleveland on shared stable fields (aggregate, privacy-preserving).",
+          "ceiling": "Overlap disposition for human accept/reject; never pooling authorization",
+          "authorization_status": "NOT_GRANTED"
+        },
+        {
+          "question": "Q-01",
+          "audit": "Cleveland five-field joint availability/missingness recount on hash-pinned local processed file (descriptive only; already aggregate-audited once).",
+          "ceiling": "Denominators only; never timing inference; separate re-authorization required",
+          "authorization_status": "NOT_GRANTED"
+        },
+        {
+          "question": "Q-10",
+          "audit": "Hungary five-field joint availability and duplicate recount (descriptive confirmation of 292/294).",
+          "ceiling": "Descriptive denominators only; never independence inference",
+          "authorization_status": "NOT_GRANTED"
+        },
+        {
+          "question": "Q-10 / Q-02",
+          "audit": "M2e.2 follow-ups: target distribution and per-column missingness reports (aggregate-only).",
+          "ceiling": "Aggregate-only; never row listings; never model-use permission",
+          "authorization_status": "NOT_GRANTED"
+        }
+      ],
+      "independent_scientific_review": [
+        {
+          "question": "Q-02",
+          "review": "UCI-45 label boundary: >50% vs >=50% and exact-50; per-source equivalence ruling; no silent harmonization.",
+          "reviewer": "Clinical endpoint adjudicator (cardiology-experienced)"
+        },
+        {
+          "question": "Q-04",
+          "review": "Per-field timing adjudication after CRF (if any): VERIFIED/PROPOSED/UNRESOLVED register.",
+          "reviewer": "Independent scientific reviewer + clinical reviewer"
+        },
+        {
+          "question": "Q-10",
+          "review": "Hungary eligibility bundle: independence, endpoint, five-field equivalence, missingness, precision, rights; GO_REVIEW-admissible packet or NO-GO with cause.",
+          "reviewer": "Named clinical/scientific reviewer"
+        },
+        {
+          "question": "Q-11",
+          "review": "Hungary one-shot freeze review: protocol + artifact + precision + authorization chain.",
+          "reviewer": "Maintainer + independent reviewer + statistician + local operator"
+        },
+        {
+          "question": "Q-13",
+          "review": "VA / Switzerland suitability for a declared, limited role (or reasoned NO-GO).",
+          "reviewer": "Statistician + clinical reviewer"
+        },
+        {
+          "question": "Q-14",
+          "review": "AngioCAD admission question - only if reconsidered at all.",
+          "reviewer": "Maintainer + supervisor"
+        },
+        {
+          "question": "Q-15",
+          "review": "AI-9.2 paired-study design appraisal and GO/NO-GO disposition.",
+          "reviewer": "Named scientific reviewer + statistician"
+        },
+        {
+          "question": "Q-16",
+          "review": "TRIPOD+AI / PROBAST+AI structured appraisal of any realized protocol (not a certificate).",
+          "reviewer": "Expert methodological assessor"
+        },
+        {
+          "question": "Freeze review (M-4)",
+          "review": "Full-cohort Cleveland freeze-package review (model + preprocessing + hashes + provenance + environment).",
+          "reviewer": "Named independent reviewer + governance approver"
+        },
+        {
+          "question": "Adequacy acceptance",
+          "review": "Sample-size adequacy decision per estimand (Cleveland 382/459 unmet; M3a 315 unmet; external-validation sizing for n=294).",
+          "reviewer": "Statistician + supervisor"
+        }
+      ],
+      "governance_human_authorization": [
+        {
+          "act": "Ratify or reject any re-scoped AI-9.2 protocol (new decision id).",
+          "owner": "Maintainer (+ supervisor as applicable)"
+        },
+        {
+          "act": "Authorize full-cohort Cleveland development fitting (new decision id).",
+          "owner": "Maintainer + supervisor-grade approval"
+        },
+        {
+          "act": "Authorize Hungary one-shot assessment (new decision id naming Hungary + tasks).",
+          "owner": "Maintainer + supervisor-grade approval + local operator manifest"
+        },
+        {
+          "act": "Ratify M3a (D-048) or explicitly decline it (AUTHORIZE-M3A-UCI412-INTERNAL-RESEARCH or a named rejection).",
+          "owner": "Maintainer (named human act)"
+        },
+        {
+          "act": "Change P-1/P-3/P-4/P-5/P-6 or any register status; set RESEARCH_PROTOTYPE_HANDOFF_ACCEPTED; revise the historical tracker.",
+          "owner": "Named humans per docs/DECISIONS.md and the tracker's own rules"
+        }
+      ]
+    }
+  },
+  "rh_mapping": {
+    "summary": "RH-04 (contracts) and RH-05 (deterministic reproducibility/security acceptance) are engineering milestones; they may proceed in parallel on synthetic fixtures without any scientific approval. RH-06 dispositions feed RH-03/RH-07/RH-08 only. No synthetic progress is scientific progress.",
+    "rh_04_work_packages": [
+      {
+        "id": "RH-04-1",
+        "work_package": "Feature acquisition-status taxonomy as code (VERIFIED/PROPOSED/UNRESOLVED/REJECTED; default UNRESOLVED; fail-closed on unknown).",
+        "output": "research/ or ai/ schema + tests",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-04-2",
+        "work_package": "Machine-readable feature-to-acquisition crosswalk for the registered panels (Cleveland 5-field; UCI-412 16-field; UCI-412 labs stub marked UNRESOLVED/REJECTED-for-use) with unit, timing, provenance, missingness, pre_test_available tri-state.",
+        "output": "JSON + schema + validator",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-04-3",
+        "work_package": "Synthetic I/O fixtures incl. negatives per route (wrong unit, wrong provenance/Track-B payload, ca/LAD injection, missing required feature, stale hash, out-of-vocabulary category, explicit-null optional).",
+        "output": "tests/ fixtures",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-04-4",
+        "work_package": "Typed response examples + refusal taxonomy (SYNTHETIC_RESULT / ABSTAIN / UNAVAILABLE / ERROR) with no input echo, no path/secret leakage; synthetic-vs-calibrated labeling enforced.",
+        "output": "docs + schema + tests",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-04-5",
+        "work_package": "Backend handoff note + /v1 mock-contract regression: Track A/Track B one-way rule intact (F-09 class); zero new endpoints; additive-only if any.",
+        "output": "docs + contract tests",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-04-6",
+        "work_package": "Flutter/React demo handoff mapping: fixtures to demo screens; 'synthetic, not clinical' banner requirement; no real-scoring switch.",
+        "output": "handoff doc",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-04-7",
+        "work_package": "Deterministic synthetic report pack (AI-12.1 schema reuse) labelled synthetic end-to-end; usable for manuscript limitation language.",
+        "output": "report builder + tests",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-04-8",
+        "work_package": "Synthetic locked-site ledger rehearsal docs/tests bound to AI-10.1; real use stays gated on section 7 approvals.",
+        "output": "docs + tests",
+        "synthetic_only": true
+      }
+    ],
+    "rh_05_work_packages": [
+      {
+        "id": "RH-05-1",
+        "work_package": "Reproducibility matrix per accepted synthetic pipeline (AI-7/8/8W/8R, AI-9.1, AI-10.1, AI-11.x, AI-12.1): exact commands, OS/Python/deps, pass/fail/skip exit codes; never a monolithic PASS claim.",
+        "output": "matrix doc + JSON",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-05-2",
+        "work_package": "At least three rejected scenarios per route as automated tests (route/panel mismatch; invalid value/unit; unknown provenance; tampered bundle/HMAC; missing calibration/XAI; path redaction; leakage-field injection).",
+        "output": "tests/ additions",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-05-3",
+        "work_package": "Exact-SHA synthetic rerun of one pinned route in a clean venv; digests recorded; tracked-skip register with reasons and compensating native tests.",
+        "output": "report JSON",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-05-4",
+        "work_package": "Deterministic AI-12.1-style demo re-run + checksum stability excluding timestamps.",
+        "output": "report + checksum",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-05-5",
+        "work_package": "Maintainer Windows replay checklist (exact commands, pip check, source-integrity, native 8/8 security steps); agent never runs native Windows.",
+        "output": "checklist doc",
+        "synthetic_only": true
+      },
+      {
+        "id": "RH-05-6",
+        "work_package": "Propose (patch-only) the Issue #110 decision-review validator as an evidence-PR CI check; workflows are NOT modified in this branch.",
+        "output": ".patch proposal",
+        "synthetic_only": true
+      }
+    ],
+    "not_immediate_engineering": [
+      "Activating or modifying any real provider; real artifact deserialization; new /v1 endpoint or environment switch; removing MOCK_SYNTHETIC fail-closed paths.",
+      "Edits to frozen protocols, feature dictionary, R1 mapping, source .data files, authorization templates or .github/workflows/*.",
+      "Running/fitting anything on any real cohort; locked-set access; M3a re-activation; labs panel unblocking; Hungary evaluation.",
+      "Marking RH-04/RH-05/RH-06 ACCEPTED; revising the historical tracker; editing register statuses; claiming Windows acceptance."
+    ]
+  },
+  "canonical_question_statuses_unchanged": {
+    "Q-01": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+    "Q-02": "SOURCE_WORDING_RESOLVED_EQUIVALENCE_UNRESOLVED",
+    "Q-03": "RESOLVED_PRIMARY_METADATA_ONLY",
+    "Q-04": "UNRESOLVED_SCIENTIFIC_HOLD",
+    "Q-05": "UNRESOLVED_SCIENTIFIC_HOLD",
+    "Q-06": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+    "Q-07": "UNRESOLVED_SCIENTIFIC_HOLD",
+    "Q-08": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+    "Q-09": "UNSUITABLE_FOR_THIS_EXTERNAL_CLAIM",
+    "Q-10": "UNRESOLVED_SCIENTIFIC_HOLD",
+    "Q-11": "UNRESOLVED_SCIENTIFIC_HOLD",
+    "Q-12": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+    "Q-13": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+    "Q-14": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+    "Q-15": "UNRESOLVED_SCIENTIFIC_HOLD",
+    "Q-16": "RESOLVED_PRIMARY_METADATA_ONLY"
+  },
+  "conditional_study_register_entries_unchanged": {
+    "AI-9.2": {
+      "status": "HOLD_NOT_EXECUTED",
+      "real_data_authorized": false,
+      "real_experiment_completed": false
+    },
+    "AI-10.2": {
+      "status": "HOLD_NOT_EXECUTED",
+      "real_data_authorized": false,
+      "real_experiment_completed": false
+    }
+  },
+  "governance_gates_unchanged": {
+    "P-1": "PENDING",
+    "P-2": "APPROVED FOR D-046 LOCAL READ-ONLY AUDIT SCOPE ONLY",
+    "P-3": "PENDING (DECISIONS.md register) / treated as CLOSED-not-granted throughout the research corpus",
+    "P-4": "PENDING",
+    "P-5": "NOT MADE - prohibited",
+    "P-6": "PENDING",
+    "D-046": "Read-only audit scope only; not training permission",
+    "D-047": "Cleveland-only internal exploratory (activated; INTERNAL_EXPLORATORY_NOT_SUPERVISOR_APPROVED); not extended by this document",
+    "D-048": "PROPOSED_NOT_AUTHORIZED",
+    "DA-A1": "Audit-only; no fitting",
+    "DA-A2": "Audit-only; no fitting",
+    "DA-B1": "Audit-only; never an independent cohort",
+    "DA-B2": "Audit-only; never an independent cohort",
+    "P25": "REJECTED_RED and SCIENTIFIC_HOLD_NOT_ADMITTED"
+  },
+  "prohibited_claims": {
+    "external_validation_achieved": false,
+    "clinical_validation_or_readiness": false,
+    "real_labs_incremental_benefit": false,
+    "performance_or_accuracy_claim_new": false,
+    "source_admission": false,
+    "p25_recoloured": false,
+    "angiocad_admitted": false,
+    "statlog_independent_validation": false,
+    "uci411_independence": false,
+    "hungary_one_shot_executed": false,
+    "cleveland_artifact_frozen_or_approved": false,
+    "p1_or_p3_or_p5_changed": false,
+    "gate_pt_p3_reopened": false,
+    "supervisor_or_ethics_approval_claimed": false,
+    "patient_data_accessed": false,
+    "models_trained": false,
+    "author_outreach_sent": false,
+    "backend_real_inference_enabled": false,
+    "research_prototype_handoff_accepted": false
+  },
+  "validation": {
+    "command": "python scripts/validate_issue110_decision_review.py",
+    "expected_status": "PASS",
+    "read_only": true,
+    "network_access": false,
+    "dataset_access": false,
+    "failing_means": "The report or companion drifted; review rather than 'fix' by weakening checks."
+  },
+  "next_actions": [
+    {
+      "id": "N-1",
+      "action": "Maintainer review of this PR; request changes or approve-for-merge.",
+      "owner": "Maintainer"
+    },
+    {
+      "id": "N-2",
+      "action": "Named scientific reviewer records dispositions for S-01..S-10 (any).",
+      "owner": "Named reviewer"
+    },
+    {
+      "id": "N-3",
+      "action": "Optionally finalize/send Issue #102 owner letters (UCI-412 CRF/codebook; AngioCAD curator).",
+      "owner": "Maintainer"
+    },
+    {
+      "id": "N-4",
+      "action": "Optionally grant written audit-only authorizations (Q-07/Q-08/Q-09/Q-12, Route L).",
+      "owner": "Maintainer + auditor"
+    },
+    {
+      "id": "N-5",
+      "action": "Rework the R-M2F conditional protocol per reviewer findings, or record DEFER / NO_GO_DOCUMENTED for AI-10.2.",
+      "owner": "Maintainer + named reviewer"
+    },
+    {
+      "id": "N-6",
+      "action": "Rework or explicitly park AI-9.2 with a named disposition.",
+      "owner": "Maintainer + named reviewer"
+    },
+    {
+      "id": "N-7",
+      "action": "Open RH-04 synthetic work packages (report section 10.1), one bounded PR each.",
+      "owner": "Arena/maintainer"
+    },
+    {
+      "id": "N-8",
+      "action": "Open RH-05 reproducibility matrix + rejected-path tests PR.",
+      "owner": "Arena/maintainer"
+    },
+    {
+      "id": "N-9",
+      "action": "RH-03 manuscript refresh to carry AI-9.2/AI-10.2 NOT_PERFORMED language verbatim (docs-only).",
+      "owner": "Arena (docs-only)"
+    },
+    {
+      "id": "N-10",
+      "action": "Tracker reconciliation (RH states) only via a separate reviewed PR; never folded into this PR.",
+      "owner": "Maintainer"
+    },
+    {
+      "id": "N-11",
+      "action": "If any blocker closes: new evidence PR citing it; this document then requires a reviewed revision (hash regeneration).",
+      "owner": "Maintainer + reviewer"
+    },
+    {
+      "id": "N-12",
+      "action": "If a real external/labs study is mandatory for submission, escalate explicitly to the supervisor that current evidence = NOT_PERFORMED.",
+      "owner": "Maintainer + supervisor"
+    }
+  ],
+  "disclaimer": "Decision-review, not a decision. Recommendations only; named humans decide. No dataset, model, protocol, gate, register status, backend capability or clinical status was changed or is implied to change by this companion.",
+  "deliverables": {
+    "markdown_report": "RH06_ISSUE110_CONSOLIDATED_DECISION_REVIEW_2026_11_19.md",
+    "report_sha256": "5b0c62060c0dd1d7b9e80b28f55194392f6666511022235b238edb3e9de5e96f",
+    "validator": "validate_issue110_decision_review.py",
+    "validator_sha256": "8befb327420e48959ea1d9d547063635eaad2b2229f331a0befba2b41930c8b9",
+    "canonical_register_sha256": "9e3f5f9895f894fb603f90435a69d7b174b24bff291254e208cd7c2201f612d4",
+    "canonical_register_path": "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json"
+  }
+}
