@@ -318,7 +318,7 @@
               },
               "outcome_statuses": {
                 "type": "array",
-                "minItems": 1,
+                "minItems": 0,
                 "items": {
                   "enum": [
                     "SYNTHETIC_RESULT",
