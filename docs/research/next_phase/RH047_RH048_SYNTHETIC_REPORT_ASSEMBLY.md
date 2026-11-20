@@ -43,6 +43,23 @@ python scripts/verify_sources.py
 git diff --check
 ```
 
+**Windows checkout integrity:** the approved RH-04 JSON, YAML, and report
+schema source files have explicit `text eol=lf` rules in `.gitattributes`.
+The new test `test_native_checkout_preserves_reviewed_source_bytes`
+compares each local checked-out file with its exact `HEAD:<path>` Git blob
+and rejects checkout-only CRLF conversion. If a Windows run reports stale
+source digests after a branch update, create a **fresh** worktree from the
+latest reviewed SHA: an existing worktree may retain old line endings even
+after the attributes change. Never replace the checked-in SHA-256 values,
+normalize input bytes inside the evidence validator, or disable this check
+to make Windows pass.
+
+When running commands interactively in PowerShell, individual `throw`
+statements do not prevent a user from submitting subsequent commands;
+a later printed `PASS` label is **not** proof of acceptance. Stop at the
+first nonzero exit code and regard acceptance as failed until tests,
+report generation, and report validation all succeed.
+
 The filenames ending `-new.json` are **examples**: if those files already
 exist, pick different new filenames. Both generated files remain local,
 outside Git; do not upload the ledger, protected artifacts, experiment inputs
