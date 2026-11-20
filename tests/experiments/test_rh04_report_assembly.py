@@ -14,6 +14,41 @@ from ai.research_facade import canonical_response_digest
 from research import report_assembly as rh
 
 
+
+# These sources carry deliberately raw-byte SHA-256 bindings. On Windows,
+# core.autocrlf may otherwise rewrite LF to CRLF in a new checkout even while
+# GitHub/Linux CI stays green. Match the committed bytes, not parsed JSON/YAML.
+BYTE_BOUND_SOURCES = (
+    "research/intake/fixtures/offline_io.v1.json",
+    "research/intake/fixtures/offline_demo_cards.v1.json",
+    "shared/contracts/openapi.yaml",
+    "shared/contracts/fixtures/index.json",
+    "shared/contracts/registry/mock_model_registry.v1.json",
+    "shared/contracts/fixtures/F-01-cad-tabular-valid-mock-clinical-v1.json",
+    "research/schemas/rh04_synthetic_report.v1.schema.json",
+)
+
+
+@pytest.mark.parametrize("relative_path", BYTE_BOUND_SOURCES)
+def test_native_checkout_preserves_reviewed_source_bytes(relative_path: str):
+    attr = subprocess.run(
+        ["git", "check-attr", "eol", "--", relative_path],
+        cwd=rh.ROOT, capture_output=True, text=True, check=True,
+    )
+    assert attr.stdout.strip().endswith(": eol: lf"), (
+        f"Missing LF checkout policy for {relative_path}: {attr.stdout!r}"
+    )
+    expected = subprocess.run(
+        ["git", "show", f"HEAD:{relative_path}"],
+        cwd=rh.ROOT, capture_output=True, check=True,
+    ).stdout
+    actual = (rh.ROOT / relative_path).read_bytes()
+    assert actual == expected, (
+        f"Checkout bytes differ from reviewed Git blob for {relative_path}; "
+        "recreate a fresh worktree with the current .gitattributes."
+    )
+
+
 @pytest.fixture(scope="module")
 def produced(tmp_path_factory: pytest.TempPathFactory) -> tuple[dict, Path]:
     # One genuine 29-case replay, AI-12.1 demo and AI-10.1 evaluation.
