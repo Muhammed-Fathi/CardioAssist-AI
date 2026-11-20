@@ -46,6 +46,20 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
 BLOCKED = tuple(sorted(set(fixtures.inputs()) - fixtures.ACTIVE))
 NO_GO = "NOT_PERFORMED_NOT_ELIGIBLE_IN_CURRENT_RESEARCH_SCOPE"
+LIMITATIONS = (
+    "All output is fabricated and offline; no patient or Hungary record was read.",
+    "Ledger refusal is software evidence, not independent-person/site validation.",
+    "Checksums provide integrity comparison, not signatures or medical approval.",
+    "Numeric ML outputs may vary across OS; structural/security/status rules are exact.",
+    "No clinical probability, external AUROC, medical advice or serving provider.",
+)
+DEPENDENCY_NAMES = frozenset({
+    "numpy", "scipy", "scikit-learn", "joblib", "threadpoolctl",
+    "openpyxl", "et-xmlfile",
+})
+ENVIRONMENT_FIELDS = frozenset({
+    "os", "architecture", "python", "implementation", "numeric_libraries",
+})
 
 
 def _sha_file(path: Path) -> str:
@@ -255,13 +269,7 @@ def assemble(*, ledger_path: Path, with_lime: bool = False) -> dict[str, Any]:
         "ai10_ledger": ledger,
         "mock_backend": "MOCK_SYNTHETIC_SEPARATE_STATIC_CONTRACT_ONLY",
         "real_studies": {"AI-9.2": NO_GO, "AI-10.2": NO_GO},
-        "limitations": [
-            "All output is fabricated and offline; no patient or Hungary record was read.",
-            "Ledger refusal is software evidence, not independent-person/site validation.",
-            "Checksums provide integrity comparison, not signatures or medical approval.",
-            "Numeric ML outputs may vary across OS; structural/security/status rules are exact.",
-            "No clinical probability, external AUROC, medical advice or serving provider.",
-        ],
+        "limitations": list(LIMITATIONS),
     }
     doc["report_sha256"] = canonical_response_digest(doc)
     validate(doc)
@@ -342,6 +350,8 @@ def validate(doc: Mapping[str, Any]) -> None:
         or locked["evidence_class"] != LOCKED_EVIDENCE
         or locked["status"] != "SYNTHETIC_LOCKED_SITE_EXERCISE_COMPLETE"
         or locked["plan_sha256"] != SyntheticLockedSitePlan().sha256
+        or locked["target_id"] != SyntheticLockedSitePlan().target_id
+        or locked["panel_sha256"] != SyntheticLockedSitePlan().panel_sha256
         or locked["protected_ledger_status"] != "COMPLETED"
         or locked["ledger_entries"] != 1
         or locked["replay_refusal"] != "one_shot_external_evaluation_already_consumed"
@@ -359,10 +369,37 @@ def validate(doc: Mapping[str, Any]) -> None:
     if (
         doc["mock_backend"] != "MOCK_SYNTHETIC_SEPARATE_STATIC_CONTRACT_ONLY"
         or doc["real_studies"] != {"AI-9.2": NO_GO, "AI-10.2": NO_GO}
-        or type(doc["limitations"]) is not list
-        or len(doc["limitations"]) != 5
+        or doc["limitations"] != list(LIMITATIONS)
+        or type(doc["environment"]) is not dict
+        or set(doc["environment"]) != ENVIRONMENT_FIELDS
         or doc["environment"].get("os") not in ("Linux", "Windows", "Darwin")
-        or not isinstance(doc["dependencies"], dict)
+        or not all(
+            isinstance(doc["environment"].get(k), str)
+            and re.fullmatch(r"[a-zA-Z0-9_. +()-]{1,80}", doc["environment"][k])
+            for k in ("os", "python", "architecture", "implementation")
+        )
+        or type(doc["environment"].get("numeric_libraries")) is not list
+        or len(doc["environment"]["numeric_libraries"]) > 32
+        or any(
+            type(lib) is not dict
+            or set(lib) != {"internal_api", "version", "architecture", "num_threads"}
+            or type(lib["num_threads"]) is not int
+            or lib["num_threads"] < 1
+            or not isinstance(lib["internal_api"], str)
+            or not all(
+                lib[k] is None or (
+                    isinstance(lib[k], str)
+                    and re.fullmatch(r"[a-zA-Z0-9_. +()-]{1,80}", lib[k])
+                ) for k in ("architecture", "version")
+            )
+            for lib in doc["environment"]["numeric_libraries"]
+        )
+        or type(doc["dependencies"]) is not dict
+        or set(doc["dependencies"]) != DEPENDENCY_NAMES
+        or not all(
+            isinstance(v, str) and re.fullmatch(r"[a-zA-Z0-9_.+!-]{1,80}", v)
+            for v in doc["dependencies"].values()
+        )
     ):
         raise ValueError("Unsafe or incomplete report semantics.")
     wire = report_bytes(dict(doc)).decode("ascii")
