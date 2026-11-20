@@ -196,6 +196,23 @@ def example(request, source):
     return out
 
 
+def _strict_equal(reference, observed):
+    """Exact keys, values, and types (Python bool == 1 is not enough)."""
+    if type(reference) is not type(observed):
+        return False
+    if isinstance(reference, dict):
+        return (
+            reference.keys() == observed.keys()
+            and all(_strict_equal(reference[k], observed[k]) for k in reference)
+        )
+    if isinstance(reference, list):
+        return (
+            len(reference) == len(observed)
+            and all(_strict_equal(a, b) for a, b in zip(reference, observed))
+        )
+    return reference == observed
+
+
 # One documented platform-sensitive, continuous *research* measurement.
 # All other frozen fixture values (including statuses, abstentions, threshold
 # flags, scores, provenance, shapes and error codes) remain EXACT.
@@ -212,7 +229,7 @@ def _approved_replay_equal(case, actual):
     cross-OS log-odds score; this does not certify model equivalence.
     """
     expected = case["expected"]
-    if actual == expected:
+    if _strict_equal(expected, actual):
         return True
     if (
         case.get("id") != _WINDOWS_FLOAT_CASE_ID
@@ -240,7 +257,7 @@ def _approved_replay_equal(case, actual):
     # even in a second score, a Boolean or an extra field, fails closed.
     normalized = deepcopy(actual)
     normalized["outcomes"][0]["score"][_WINDOWS_FLOAT_FIELD] = reference
-    return normalized == expected
+    return _strict_equal(expected, normalized)
 
 
 def validate(pack):
