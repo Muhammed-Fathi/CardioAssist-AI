@@ -41,6 +41,7 @@ from research.intake import offline_fixture_pack as fixtures
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "cardioassist.rh04.synthetic_research_report/v1"
+SCHEMA_PATH = Path(__file__).resolve().parent / "schemas" / "rh04_synthetic_report.v1.schema.json"
 STATUS_ORDER = ("SYNTHETIC_RESULT", "ABSTAIN", "UNAVAILABLE", "ERROR")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 SHA1 = re.compile(r"^[0-9a-f]{40}$")
@@ -133,6 +134,8 @@ def _case_manifest() -> tuple[list[dict[str, Any]], dict[str, str]]:
         "registry_sha256": data["bindings"]["registry_sha256"],
         "response_schema": data["bindings"]["response_schema"],
         "demo_card_schema": cards.SCHEMA_VERSION,
+        "report_schema_id": SCHEMA,
+        "report_schema_sha256": _sha_file(SCHEMA_PATH),
     }
 
 
@@ -307,6 +310,9 @@ def validate(doc: Mapping[str, Any]) -> None:
     }):
         raise ValueError("Report integrity mismatch.")
     cases, bindings = _case_manifest()
+    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    if schema.get("$id") != SCHEMA or set(schema.get("required", ())) != set(doc):
+        raise ValueError("Report schema is missing or stale.")
     facade = doc["facade"]
     if (
         type(facade) is not dict
