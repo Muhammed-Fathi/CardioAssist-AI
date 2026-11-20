@@ -50,6 +50,15 @@ jobs:
         run: |
           python -m pytest tests/experiments tests/audit -q -W error
 
+      # Only after a failing synthetic suite: report safe field names, mismatch
+      # categories and numeric deltas, never synthetic scores, keys, or paths.
+      # The original failing pytest step remains a hard CI failure. Do not
+      # relax the golden fixture, its hash, or any numeric acceptance tolerance.
+      - name: Diagnose RH-04 fixture drift on Python 3.12 (read-only, redacted)
+        if: ${{ failure() && matrix.python-version == '3.12' }}
+        run: |
+          python -m research.intake.diagnose_fixture_replay
+
       - name: Run synthetic UCI-412 benchmark tests
         run: |
           python -m pytest tests/uci412 -q -W error
