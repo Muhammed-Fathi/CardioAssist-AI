@@ -27,6 +27,35 @@ comparisons; no byte-equivalence claim is made across different OS/library
 builds. The manifest's deterministic same-environment digest is a checksum,
 **not a signature or independent authentication of a historical run**.
 
+### Read-only native numerical-versus-semantic drift diagnosis
+
+If a Windows run has `response mismatch: da_a2_resting_v1` after all
+checked-in byte/source-integrity tests pass, do **not** edit frozen fixture
+responses or widen the acceptance comparator. On a fresh checkout of this
+PR's latest reviewed head, run:
+
+```powershell
+python -m research.intake.diagnose_fixture_replay
+```
+
+The module verifies the exact checked-in sources and performs the genuine
+29-case synthetic replay. Output is restricted to approved fixture case IDs,
+mismatch *field names/categories*, and numerical **deltas**, never input values,
+predictions, keys, local paths, or model artifacts. It indicates whether
+continuous score drift is inside the *existing AI-12.1 report comparator*
+tolerance; that tolerance is **observation only**, and the frozen RH-04 fixture
+golden replay still requires exact equality. It intentionally returns exit
+code 1 when mismatches are diagnosed and 2 if diagnostics cannot be completed;
+neither represents acceptance. Require a scoped, evidence-supported solution
+only after reviewing the recorded mismatch categories. No clinical outcome
+equivalence or external validation follows from this diagnostic.
+
+GitHub Actions can independently refuse to *start* jobs due to repository
+owner billing or budget restrictions. A pre-start billing refusal is not a
+code-test failure and cannot count as a successful CI run. Re-enable GitHub
+Actions in repository-owner billing settings and obtain green checks at the
+exact final head before merge.
+
 ### Native run: Bash / PowerShell
 
 Use Python 3.12 with the existing repo's pinned research requirements, in a
