@@ -1,0 +1,117 @@
+{
+  "schema_version": "cardioassist.rh05.synthetic_acceptance_manifest/v1",
+  "review_status": "ENGINEERING_EVIDENCE_COLLECTED_MAINTAINER_REVIEW_PENDING",
+  "recorded_on": "2026-11-20",
+  "evidence_class": "SYNTHETIC_RESEARCH_ONLY_NOT_CLINICAL",
+  "final_windows_source": {
+    "git_commit": "64f34e4cb8580ced461237ffa46ba0a91e8fc1c5",
+    "ai_tree": "59b5a3b8a36dbee5f49564d0c3d6c7f9f377d30f",
+    "research_tree": "b5dedcfc6c4048c650cd8949da273f1c1d3ac597",
+    "tests_tree": "b229cb84e0e2011459f6a3edbf0f4e23d50750be",
+    "os": "Windows",
+    "python": "3.12.9",
+    "filesystem": "NTFS",
+    "evidence_origin": "maintainer-reported terminal summary; private log retained outside source repository"
+  },
+  "native_windows_compat": {
+    "script": "scripts/validate_ai_windows_compat.py",
+    "result": "PASSED",
+    "stages_passed": 8,
+    "access_control_mechanism": "windows_ntfs_win32_security_descriptor_dacl"
+  },
+  "focused_suite": {
+    "passed": 220,
+    "skipped": 2,
+    "failed": 0,
+    "seconds": 100.41,
+    "exit_code": 0
+  },
+  "full_suite": {
+    "command": "python -m pytest -W error -q -ra --tb=short",
+    "passed": 2909,
+    "skipped": 3,
+    "failed": 0,
+    "seconds": 4541.09,
+    "exit_code": 0,
+    "skips": [
+      {
+        "file": "tests/experiments/test_private_directory_creation_regression.py",
+        "line": 30,
+        "reason": "POSIX ACL case, native Windows NTFS controls separately exercised"
+      },
+      {
+        "file": "tests/experiments/test_private_directory_creation_regression.py",
+        "line": 47,
+        "reason": "POSIX inherited ACL case, native Windows NTFS controls separately exercised"
+      },
+      {
+        "file": "tests/experiments/test_research_routes.py",
+        "line": 556,
+        "reason": "POSIX insecure ACL case, native Windows ACL controls separately exercised"
+      }
+    ]
+  },
+  "source_checks": {
+    "pip_check": "PASS",
+    "verify_sources": "PASS",
+    "git_diff_check": "PASS",
+    "worktree_clean": true
+  },
+  "fixture_replay": {
+    "cases": 29,
+    "routes": 5,
+    "status_kinds": [
+      "ABSTAIN",
+      "ERROR",
+      "SYNTHETIC_RESULT",
+      "UNAVAILABLE"
+    ],
+    "one_shot_ledger": "TESTED_IN_ISOLATED_SYNTHETIC_RUN",
+    "provenance": "tests/experiments/test_rh04_report_assembly.py and focused suites; no real external cohort"
+  },
+  "cross_os": {
+    "exact_shared_pack_source_commit": "09b895423171eff7569fc49dd8ceac7dfb0d43c6",
+    "final_sha_only_adds_workflow": true,
+    "ai_tree": "59b5a3b8a36dbee5f49564d0c3d6c7f9f377d30f",
+    "research_tree": "b5dedcfc6c4048c650cd8949da273f1c1d3ac597",
+    "linux_run_id": 44745390366,
+    "linux_run_url": "https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44745390366",
+    "linux_artifact_id": 14632901370,
+    "linux_artifact_expires_at": "2026-12-04T13:34:07Z",
+    "linux_pack_sha256": "c5adcc71f2c88e190d9a0852b601d24f050e56e0f9b5098f0387cab1c871292c",
+    "windows_pack_sha256": "47107096edd943982642a1a21137319029132cce1f05164c739aaf09c88e432e",
+    "comparator": "cardioassist.ai.fixture_comparison/v1",
+    "fixture_behavior": "MATCH",
+    "thresholds": {
+      "absolute_tolerance": 1e-12,
+      "relative_tolerance": 1e-9
+    },
+    "classification": {
+      "within_tolerance": 53,
+      "environment": 8,
+      "artifact_bytes": 4,
+      "derived_digest": 3,
+      "invariant_mismatch": 0,
+      "outside_tolerance": 0
+    },
+    "artifacts_byte_equal": false,
+    "scope": "synthetic fixture semantic replay only, not model binary identity, not clinical validation"
+  },
+  "ci": {
+    "head_commit": "0d179b6373e60d9217b94f28ff38b92a4641185f",
+    "pr_number": 123,
+    "checks_success": 8,
+    "checks_total": 8,
+    "scope": "PR head, not merged-main SHA"
+  },
+  "review": {
+    "issue_number": 121,
+    "maintainer_decision": "PENDING",
+    "remaining_separate_gates": [
+      "RH-03 scientific claim and academic review",
+      "RH-06 real AI-9.2/10.2 NO-GO",
+      "RH-07 final report",
+      "RH-08 freeze"
+    ]
+  }
+}
