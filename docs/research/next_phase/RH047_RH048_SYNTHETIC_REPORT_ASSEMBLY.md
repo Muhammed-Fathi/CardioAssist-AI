@@ -20,7 +20,7 @@ weights, dataset, new JSON input panel, score threshold or user-facing service.
 
 The assembled report is JSON schema ID
 `cardioassist.rh04.synthetic_research_report/v1`.
-It has `report_sha256` calculated over all other canonical fields using the
+The full closed consumer schema is `research/schemas/rh04_synthetic_report.v1.schema.json`; its exact byte SHA-256 and ID are included in `source_bindings`. The Python validator additionally checks live reviewed fixture/card sources and source HEAD. It has `report_sha256` calculated over all other canonical fields using the
 existing research-facade canonical digest. There are **no timestamps or random
 ledger reservation IDs in the report**. All source hashes remain exact SHA
 comparisons; no byte-equivalence claim is made across different OS/library
@@ -62,7 +62,7 @@ machine and retain the external protected ledger for local audit.
 Report top-level fields:
 
 - `schema_version`, `status`, `evidence_grade`, `report_sha256`;
-- `source_commit`, `environment`, `dependencies`, `source_bindings`;
+- `source_commit`, `environment`, `dependencies`, `source_bindings` (including the exact report schema ID/hash);
 - `ai12_evidence`: existing pack SHA and 8-stage demo digest, no input/output scores;
 - `facade`: five registered routes, three unavailable ones, 29 fixture IDs
   with exact expected projection and structural digests, four facade statuses;
