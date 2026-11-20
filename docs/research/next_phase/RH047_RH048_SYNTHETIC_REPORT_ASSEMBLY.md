@@ -43,12 +43,25 @@ The module verifies the exact checked-in sources and performs the genuine
 mismatch *field names/categories*, and numerical **deltas**, never input values,
 predictions, keys, local paths, or model artifacts. It indicates whether
 continuous score drift is inside the *existing AI-12.1 report comparator*
-tolerance; that tolerance is **observation only**, and the frozen RH-04 fixture
-golden replay still requires exact equality. It intentionally returns exit
-code 1 when mismatches are diagnosed and 2 if diagnostics cannot be completed;
-neither represents acceptance. Require a scoped, evidence-supported solution
-only after reviewing the recorded mismatch categories. No clinical outcome
-equivalence or external validation follows from this diagnostic.
+tolerance. On 2026-11-20, Windows diagnosed **one difference in all 29 cases**:
+`da_a2_resting_v1`, field
+`response.outcomes[0].score.calibrated_log_odds`, absolute delta
+`4.441e-16`, no other value, status, structural or refusal difference.
+
+The scoped replay contract now permits only this exact case/field to differ
+by `math.isclose(rel_tol=1e-9, abs_tol=1e-12)`, matching the existing AI-12.1
+numeric observation tolerance. Both numbers must be finite binary64 floats.
+After substituting just that value **for in-memory equality testing only**,
+every other field **and type** must match exactly, including score fields,
+boolean governance/threshold flags, route/status, error/refusal states and
+nested structure. No other route/case/field is eligible. The original
+29-case fixture bytes, canonical hash, approved projections and source
+bindings remain unchanged; the diagnostic still reports raw numeric drift
+with exit code 1 rather than masking it.
+
+This is an explicitly scoped, tested cross-OS engineering allowance,
+**not** a general golden-fixture rewrite or a clinical/model-equivalence
+claim. Any new mismatch remains fail-closed and must be diagnosed separately.
 
 GitHub Actions can independently refuse to *start* jobs due to repository
 owner billing or budget restrictions. A pre-start billing refusal is not a
@@ -66,7 +79,7 @@ normal checkout at the commit under review. Create a NEW output location
 # Execute from the CardioAssist-AI repository root, in its configured venv.
 python -W error -m research.report_assembly --ledger "$env:TEMP\cai-rh04-ledger-new.json" --output "$env:TEMP\cai-rh04-report-new.json"
 python -W error -m research.report_assembly --validate "$env:TEMP\cai-rh04-report-new.json"
-python -m pytest -q -W error tests/experiments/test_rh04_report_assembly.py
+python -m pytest -q -W error tests/experiments/test_rh04_replay_tolerance.py tests/experiments/test_diagnose_fixture_replay.py tests/experiments/test_rh04_report_assembly.py
 python -m pytest -q -W error tests/experiments/test_research_evidence.py tests/experiments/test_ai10_synthetic_transport.py tests/experiments/test_offline_fixture_pack.py tests/experiments/test_offline_demo_card_mapping.py
 python scripts/verify_sources.py
 git diff --check
@@ -122,10 +135,11 @@ Report top-level fields:
 
 **Known scientific/operational limits:** numeric synthetic ML values can vary
 slightly across OS/BLAS environments (the existing AI-12.1 comparator controls
-that separately). The existing 29-case offline replay remains an exact expected
-projection check, so any platform-dependent failure must be diagnosed against
-the frozen fixture and its security/semantic invariants — never papered over by
-rewriting golden values. Neither a fabricated "site shift" nor a ledger entry
+that separately). The 29-case replay enforces exact expected semantic and structural
+projections, with only the one documented `da_a2_resting_v1` continuous log-odds
+binary64 tolerance. Any other platform-dependent mismatch must be diagnosed
+against frozen source/fixture integrity and security invariants — never papered
+over by rewriting golden values. Neither a fabricated "site shift" nor a ledger entry
 proves actual participant independence, transportability or external AUROC.
 
 The report does **not** perform or authorize AI-9.2, AI-10.2, D-048, a real
