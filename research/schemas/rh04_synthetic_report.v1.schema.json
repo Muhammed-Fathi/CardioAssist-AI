@@ -1,0 +1,457 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cardioassist.rh04.synthetic_research_report/v1",
+  "title": "RH-04.7/.8 synthetic-only generated research evidence manifest",
+  "description": "Aggregate offline evidence only. Checksums are not signatures or clinical evidence; the Python validator enforces stricter exact source bindings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "evidence_grade",
+    "source_commit",
+    "environment",
+    "dependencies",
+    "source_bindings",
+    "ai12_evidence",
+    "facade",
+    "ai10_ledger",
+    "mock_backend",
+    "real_studies",
+    "limitations",
+    "report_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "cardioassist.rh04.synthetic_research_report/v1"
+    },
+    "status": {
+      "const": "SYNTHETIC_REPORT_ASSEMBLY_COMPLETE"
+    },
+    "evidence_grade": {
+      "const": "SYNTHETIC_ENGINEERING_ONLY_NOT_CLINICAL"
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "python",
+        "architecture",
+        "implementation",
+        "numeric_libraries"
+      ],
+      "properties": {
+        "os": {
+          "enum": [
+            "Linux",
+            "Windows",
+            "Darwin"
+          ]
+        },
+        "python": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "architecture": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "implementation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "numeric_libraries": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "internal_api",
+              "version",
+              "architecture",
+              "num_threads"
+            ],
+            "properties": {
+              "internal_api": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "architecture": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "num_threads": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "numpy",
+        "scipy",
+        "scikit-learn",
+        "joblib",
+        "threadpoolctl",
+        "openpyxl",
+        "et-xmlfile"
+      ],
+      "properties": {
+        "numpy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "scipy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "scikit-learn": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "joblib": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "threadpoolctl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "openpyxl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "et-xmlfile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      }
+    },
+    "source_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_canonical_sha256",
+        "fixture_bytes_sha256",
+        "demo_card_bytes_sha256",
+        "crosswalk_sha256",
+        "registry_sha256",
+        "response_schema",
+        "demo_card_schema",
+        "report_schema_id",
+        "report_schema_sha256"
+      ],
+      "properties": {
+        "fixture_canonical_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "fixture_bytes_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "demo_card_bytes_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "crosswalk_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "registry_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "response_schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "demo_card_schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "report_schema_id": {
+          "const": "cardioassist.rh04.synthetic_research_report/v1"
+        },
+        "report_schema_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "ai12_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "pack_sha256",
+        "demo_deterministic_sha256",
+        "stages_passed"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cardioassist.ai.synthetic_evidence_pack/v1"
+        },
+        "pack_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "demo_deterministic_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "stages_passed": {
+          "const": 8
+        }
+      }
+    },
+    "facade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cases_validated_by_actual_replay",
+        "statuses",
+        "routes",
+        "blocked_routes",
+        "cases"
+      ],
+      "properties": {
+        "cases_validated_by_actual_replay": {
+          "const": 29
+        },
+        "statuses": {
+          "const": [
+            "SYNTHETIC_RESULT",
+            "ABSTAIN",
+            "UNAVAILABLE",
+            "ERROR"
+          ]
+        },
+        "routes": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "blocked_routes": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "cases": {
+          "type": "array",
+          "minItems": 29,
+          "maxItems": 29,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "case_id",
+              "route_id",
+              "status",
+              "outcome_statuses",
+              "expected_projection_sha256",
+              "structural_sha256",
+              "score_allowed"
+            ],
+            "properties": {
+              "case_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "route_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "status": {
+                "enum": [
+                  "SYNTHETIC_RESULT",
+                  "ABSTAIN",
+                  "UNAVAILABLE",
+                  "ERROR"
+                ]
+              },
+              "outcome_statuses": {
+                "type": "array",
+                "minItems": 0,
+                "items": {
+                  "enum": [
+                    "SYNTHETIC_RESULT",
+                    "ABSTAIN",
+                    "UNAVAILABLE",
+                    "ERROR"
+                  ]
+                }
+              },
+              "expected_projection_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "structural_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "score_allowed": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ai10_ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "evidence_class",
+        "status",
+        "run_report_sha256",
+        "plan_sha256",
+        "panel_sha256",
+        "target_id",
+        "protected_ledger_status",
+        "protected_ledger_result_summary_sha256",
+        "ledger_entries",
+        "replay_refusal",
+        "plan_refusal",
+        "overlap_refusal",
+        "insufficient_status",
+        "insufficient_ledger_slot_consumed",
+        "real_external_validation_performed"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "cardioassist.ai.synthetic_locked_site/v1"
+        },
+        "evidence_class": {
+          "const": "SYNTHETIC_TRANSPORT_TEST_NOT_EXTERNAL_VALIDATION"
+        },
+        "status": {
+          "const": "SYNTHETIC_LOCKED_SITE_EXERCISE_COMPLETE"
+        },
+        "run_report_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "plan_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "panel_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "protected_ledger_status": {
+          "const": "COMPLETED"
+        },
+        "protected_ledger_result_summary_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ledger_entries": {
+          "const": 1
+        },
+        "replay_refusal": {
+          "const": "one_shot_external_evaluation_already_consumed"
+        },
+        "plan_refusal": {
+          "const": "ai10_plan_digest_mismatch"
+        },
+        "overlap_refusal": {
+          "const": "ai10_overlapping_fixture_id"
+        },
+        "insufficient_status": {
+          "const": "INSUFFICIENT_EVIDENCE"
+        },
+        "insufficient_ledger_slot_consumed": {
+          "const": false
+        },
+        "real_external_validation_performed": {
+          "const": false
+        }
+      }
+    },
+    "mock_backend": {
+      "const": "MOCK_SYNTHETIC_SEPARATE_STATIC_CONTRACT_ONLY"
+    },
+    "real_studies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "AI-9.2",
+        "AI-10.2"
+      ],
+      "properties": {
+        "AI-9.2": {
+          "const": "NOT_PERFORMED_NOT_ELIGIBLE_IN_CURRENT_RESEARCH_SCOPE"
+        },
+        "AI-10.2": {
+          "const": "NOT_PERFORMED_NOT_ELIGIBLE_IN_CURRENT_RESEARCH_SCOPE"
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "string"
+      }
+    },
+    "report_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

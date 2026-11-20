@@ -7,3 +7,13 @@
 
 # Preserve the published evidence-file bytes even on autocrlf checkouts.
 docs/research/ai12_1/*.json text eol=lf
+
+# RH-04 reviewed byte-level source bindings must be identical on Windows/Linux.
+# Do not relax the digest validator: keep these tracked source files LF on disk.
+research/intake/fixtures/offline_io.v1.json text eol=lf
+research/intake/fixtures/offline_demo_cards.v1.json text eol=lf
+shared/contracts/openapi.yaml text eol=lf
+shared/contracts/fixtures/index.json text eol=lf
+shared/contracts/registry/mock_model_registry.v1.json text eol=lf
+shared/contracts/fixtures/F-01-cad-tabular-valid-mock-clinical-v1.json text eol=lf
+research/schemas/rh04_synthetic_report.v1.schema.json text eol=lf

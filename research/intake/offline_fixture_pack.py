@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import math
 from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from ai.filesystem_security import ensure_private_directory
+from ai.report_comparison import ABS_TOL, REL_TOL
 from ai.packaging import get_or_create_local_signing_key
 from ai.panels import REGISTERED_PANELS
 from ai.research_demo import (
@@ -194,6 +196,70 @@ def example(request, source):
     return out
 
 
+def _strict_equal(reference, observed):
+    """Exact keys, values, and types (Python bool == 1 is not enough)."""
+    if type(reference) is not type(observed):
+        return False
+    if isinstance(reference, dict):
+        return (
+            reference.keys() == observed.keys()
+            and all(_strict_equal(reference[k], observed[k]) for k in reference)
+        )
+    if isinstance(reference, list):
+        return (
+            len(reference) == len(observed)
+            and all(_strict_equal(a, b) for a, b in zip(reference, observed))
+        )
+    return reference == observed
+
+
+# One documented platform-sensitive, continuous *research* measurement.
+# All other frozen fixture values (including statuses, abstentions, threshold
+# flags, scores, provenance, shapes and error codes) remain EXACT.
+_WINDOWS_FLOAT_CASE_ID = "da_a2_resting_v1"
+_WINDOWS_FLOAT_FIELD = "calibrated_log_odds"
+
+
+def _approved_replay_equal(case, actual):
+    """Exact frozen replay, except one bounded binary64 difference.
+
+    The approved fixture pack and its canonical digest remain immutable.
+    Do not reuse this exception for a new case or a new field. Existing
+    AI-12.1 measurement tolerances are applied solely to the one known
+    cross-OS log-odds score; this does not certify model equivalence.
+    """
+    expected = case["expected"]
+    if _strict_equal(expected, actual):
+        return True
+    if (
+        case.get("id") != _WINDOWS_FLOAT_CASE_ID
+        or expected.get("status") != "SYNTHETIC_RESULT"
+        or not isinstance(actual, dict)
+        or actual.get("status") != "SYNTHETIC_RESULT"
+    ):
+        return False
+    try:
+        reference = expected["outcomes"][0]["score"][_WINDOWS_FLOAT_FIELD]
+        observed = actual["outcomes"][0]["score"][_WINDOWS_FLOAT_FIELD]
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return False
+    if (
+        type(reference) is not float
+        or type(observed) is not float
+        or not math.isfinite(reference)
+        or not math.isfinite(observed)
+        or not math.isclose(
+            reference, observed, rel_tol=REL_TOL, abs_tol=ABS_TOL
+        )
+    ):
+        return False
+    # Reconstruct an in-memory copy solely for comparison. Any other change,
+    # even in a second score, a Boolean or an extra field, fails closed.
+    normalized = deepcopy(actual)
+    normalized["outcomes"][0]["score"][_WINDOWS_FLOAT_FIELD] = reference
+    return _strict_equal(expected, normalized)
+
+
 def validate(pack):
     if pack["bindings"] != bindings() or pack["requests"] != inputs():
         raise ValueError("stale binding or non-fixture request")
@@ -206,7 +272,7 @@ def validate(pack):
             route = case["route"]
             request = materialize(pack["requests"][route], case["edits"])
             actual = example(request, local.get(route, local["blocked"]))
-            if actual != case["expected"]:
+            if not _approved_replay_equal(case, actual):
                 raise ValueError("response mismatch: " + case["id"])
     return len(pack["cases"])
 
