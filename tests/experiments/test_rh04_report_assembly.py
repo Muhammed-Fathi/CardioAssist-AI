@@ -99,7 +99,7 @@ def test_private_key_path_echo_or_false_real_study_fails(produced):
     doc = copy.deepcopy(produced[0])
     doc["limitations"][0] = "private_key=C:/private/secret"
     _reseal(doc)
-    with pytest.raises(ValueError, match="Disallowed"):
+    with pytest.raises(ValueError, match="Unsafe|Disallowed"):
         rh.validate(doc)
     doc = copy.deepcopy(produced[0])
     doc["real_studies"]["AI-10.2"] = "COMPLETED"
