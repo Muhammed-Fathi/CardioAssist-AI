@@ -1,0 +1,109 @@
+name: rh05-linux-same-source-evidence
+
+# Synthetic-only research evidence; no patient datasets, protected bundles or real fitting.
+# PR runs verify this workflow. Manual runs may select an exact merged main SHA.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/rh05-linux-evidence.yml'
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: 'Full 40-character merged main SHA used by the native Windows run'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rh05-linux-evidence-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate-linux-evidence:
+    name: RH-05 Linux AI-12.1 evidence (Python 3.12)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ inputs.source_commit || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact SHA and manual-run main ancestry
+        shell: bash
+        env:
+          REQUESTED_SHA: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [[ "${GITHUB_EVENT_NAME}" == 'workflow_dispatch' ]]; then
+            [[ "${REQUESTED_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid full commit SHA'; exit 1; }
+            [[ "${actual}" == "${REQUESTED_SHA}" ]] || { echo 'Checked-out SHA mismatch'; exit 1; }
+            git fetch --no-tags origin main
+            git merge-base --is-ancestor "${REQUESTED_SHA}" origin/main || { echo 'Requested SHA not on main history'; exit 1; }
+          else
+            [[ "${actual}" == "${GITHUB_SHA}" ]] || { echo 'PR checkout SHA mismatch'; exit 1; }
+          fi
+          test -z "$(git status --porcelain --untracked-files=all)"
+          echo "RH05 source: ${actual}"
+          echo "ai tree: $(git rev-parse HEAD:ai)"
+          echo "research tree: $(git rev-parse HEAD:research)"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+
+      - name: Install pinned synthetic research dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -r research/uci412/requirements.txt
+          python -m pip check
+
+      - name: Generate and validate one Linux synthetic evidence pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/rh05-linux"
+          python -W error -m ai.research_evidence --output "${RUNNER_TEMP}/rh05-linux/linux-evidence.v1.json"
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          from ai.report_comparison import compare_report
+          p = Path(os.environ['RUNNER_TEMP']) / 'rh05-linux' / 'linux-evidence.v1.json'
+          data = p.read_bytes()
+          d = json.loads(data)
+          src = d['reproducibility']['source']
+          assert d['evidence_status'] == 'SYNTHETIC_E2E_COMPLETE'
+          assert d['report']['summary']['stages_succeeded'] == 8
+          assert set(d['report']['summary']['statuses_exercised']) == {'ABSTAIN', 'ERROR', 'SYNTHETIC_RESULT', 'UNAVAILABLE'}
+          assert src['git_commit'] == subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert src['ai_tree'] == subprocess.check_output(['git', 'rev-parse', 'HEAD:ai'], text=True).strip()
+          assert src['research_tree'] == subprocess.check_output(['git', 'rev-parse', 'HEAD:research'], text=True).strip()
+          assert src['source_trees_clean'] is True
+          check = compare_report(data, data)
+          assert check['fixture_behavior'] == 'MATCH'
+          assert check['exact_file_bytes_equal'] is True
+          print('RH05 LINUX PACK: VALID SYNTHETIC EVIDENCE')
+          print('Source:', src['git_commit'])
+          print('AI tree:', src['ai_tree'])
+          print('Research tree:', src['research_tree'])
+          print('Pack SHA256:', d['pack_sha256'])
+          PY
+          python scripts/verify_sources.py
+          test -z "$(git status --porcelain --untracked-files=all)"
+
+      - name: Upload synthetic Linux reference pack
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rh05-linux-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/rh05-linux/linux-evidence.v1.json
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 6
