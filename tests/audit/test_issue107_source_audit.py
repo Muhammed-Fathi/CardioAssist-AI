@@ -53,6 +53,30 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+
+def test_native_checkout_preserves_canonical_register_raw_bytes() -> None:
+    """RH-02/06 pinned SHA must survive Windows autocrlf checkouts unchanged."""
+    relative = REGISTER.relative_to(ROOT).as_posix()
+    attr = subprocess.run(
+        ["git", "check-attr", "eol", "--", relative],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    )
+    assert attr.stdout.strip().endswith(": eol: lf"), (
+        f"Missing LF checkout policy for {relative}: {attr.stdout!r}"
+    )
+    committed = subprocess.run(
+        ["git", "show", f"HEAD:{relative}"],
+        cwd=ROOT, capture_output=True, check=True,
+    ).stdout
+    assert hashlib.sha256(committed).hexdigest() == (
+        "9e3f5f9895f894fb603f90435a69d7b174b24bff291254e208cd7c2201f612d4"
+    ), "Unexpected change to the canonical RH-02 source register"
+    assert REGISTER.read_bytes() == committed, (
+        "Canonical register checkout bytes differ from the reviewed Git blob; "
+        "recreate a clean worktree with the pinned .gitattributes"
+    )
+
+
 def test_bundled_issue107_deliverables_pass() -> None:
     completed = run_validator()
     assert completed.returncode == 0, completed.stdout + completed.stderr
