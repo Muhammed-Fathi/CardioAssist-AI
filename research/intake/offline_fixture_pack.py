@@ -273,7 +273,19 @@ def validate(pack):
             request = materialize(pack["requests"][route], case["edits"])
             actual = example(request, local.get(route, local["blocked"]))
             if not _approved_replay_equal(case, actual):
-                raise ValueError("response mismatch: " + case["id"])
+                # Report the mismatch that actually failed in THIS pytest process.
+                # A second isolated replay can be green and lose the evidence.
+                # The existing diagnostic reports only preapproved field paths,
+                # mismatch types and numeric *deltas*, never observed scores,
+                # records, signing keys or unexpected returned field names.
+                # Import locally to avoid changing normal fixture execution.
+                from research.intake.diagnose_fixture_replay import _describe
+                safe_fields = _describe(case["expected"], actual)
+                raise ValueError(
+                    "response mismatch: " + case["id"]
+                    + "; redacted_field_diff="
+                    + json.dumps(safe_fields, sort_keys=True, allow_nan=False)
+                )
     return len(pack["cases"])
 
 
