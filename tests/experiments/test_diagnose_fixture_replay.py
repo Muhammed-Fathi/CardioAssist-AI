@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
+
+import pytest
 
 from research.intake import diagnose_fixture_replay as diagnostic
 
@@ -63,3 +66,31 @@ def test_array_length_and_type_drift_do_not_expose_contents():
         "array_length_mismatch", "type_mismatch"
     }
     assert "do not print" not in json.dumps(got)
+
+
+def test_in_process_golden_replay_failure_reports_only_safe_field_metadata(monkeypatch):
+    """Never lose the mismatching response or echo unexpected values to CI."""
+    from research.intake import offline_fixture_pack as fixtures
+
+    pack = json.loads(fixtures.PACK.read_text(encoding="utf-8"))
+    first = pack["cases"][0]
+    observed = deepcopy(first["expected"])
+    private_canary = "untrusted-private-value-should-never-print"
+    observed["status"] = private_canary
+    observed[private_canary] = {"private_key": private_canary}
+
+    # Keep the reviewed fixture bindings/digest real, but avoid model builds:
+    # only the returned (fictional) response is replaced for this negative test.
+    monkeypatch.setattr(fixtures, "sources", lambda root: {"blocked": None})
+    monkeypatch.setattr(fixtures, "example", lambda request, source: observed)
+
+    with pytest.raises(ValueError, match="response mismatch:") as caught:
+        fixtures.validate(pack)
+
+    message = str(caught.value)
+    assert first["id"] in message
+    assert "redacted_field_diff=" in message
+    assert "field_set_mismatch" in message
+    assert "response.status" in message
+    assert private_canary not in message
+    assert "private_key" not in message
