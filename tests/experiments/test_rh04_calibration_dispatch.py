@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 
 import pytest
 
@@ -160,29 +161,34 @@ def test_golden_case_shap_alignment_contract_holds(_bundle):
 
 
 def test_workflow_pins_openblas_core_type_and_threads():
-    """The workflow must keep the RH-04 pinning fix in place.
+    """Fail closed if either CI job loses its pinned, hardware-gated BLAS kernel.
 
-    This is a regression guard on the CI fix itself: the full-suite job must
-    pin ``OPENBLAS_CORETYPE=SkylakeX`` (golden-generation dispatch) and the
-    single-thread pools; dropping any of it silently reintroduces the drift.
-
-    The workflow change is intentionally NOT committed in this PR because the
-    agent's GitHub token lacks ``workflows`` permission (see PR body).  This
-    test is SKIPPED until the workflow patch is applied and re-validated; the
-    Draft PR is marked BLOCKED until then.  Once ``OPENBLAS_CORETYPE: 'SkylakeX'``
-    is present in the workflow, this test runs as a real regression guard.
+    This test must NOT skip when the workflow is missing or incomplete.  The
+    job-level settings matter: a stray string elsewhere in a YAML file is not
+    sufficient proof of a reproducibility contract.
     """
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
-    if "OPENBLAS_CORETYPE" not in text:
-        pytest.skip(
-            "BLOCKED: workflow patch pending (agent token lacks workflows "
-            "permission). Apply the workflow patch documented in this PR, then "
-            "this guard runs."
+    for job in ("synthetic-runner-tests", "rh04-fixture-diagnostic"):
+        match = re.search(
+            rf"(?ms)^  {re.escape(job)}:\\n(.*?)(?=^  [a-zA-Z][a-zA-Z0-9_-]*:\\n|\\Z)",
+            text,
         )
-    assert "OPENBLAS_CORETYPE: 'SkylakeX'" in text
-    assert "OPENBLAS_NUM_THREADS: '1'" in text
-    assert "OMP_NUM_THREADS: '1'" in text
-    assert "BLIS_NUM_THREADS: '1'" in text
+        assert match is not None, f"Missing RH-04 CI job: {job}"
+        section = match.group(1)
+        env = re.search(r"(?ms)^    env:\\n((?:^      [A-Z0-9_]+:.*\\n)+)", section)
+        assert env is not None, f"Missing job-level numeric environment: {job}"
+        values = dict(
+            re.findall(r"(?m)^      ([A-Z0-9_]+): '([^']+)'$", env.group(1))
+        )
+        assert values.get("OPENBLAS_CORETYPE") == "SkylakeX", job
+        for var in (
+            "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
+            "BLIS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS",
+        ):
+            assert values.get(var) == "1", f"{job}: {var}"
+        assert "Verify hardware supports pinned SkylakeX dispatch" in section
+        assert "avx512f avx512dq avx512bw avx512vl" in section
+        assert "OpenBLAS kernel is not the pinned SkylakeX architecture" in section
 
 
 def test_frozen_pack_digest_and_case_count_unchanged():
