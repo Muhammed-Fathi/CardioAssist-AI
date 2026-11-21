@@ -2,7 +2,11 @@
 
 **Document version:** `rh04.issue132.acceptance-decision/v1`
 **Status:** `PROPOSED — NOT RATIFIED`. Decision record only. **No production behaviour, fixture, digest, comparator, tolerance or workflow file is changed by this branch.**
-**CI status of this branch (deliberate, not a defect in this PR):** the `synthetic-experiment-runner-validation` job is **RED** at head `d271dee`, with the exact Issue #132 signature on a docs-only diff. This is *predicted* by §1.3 and is the strongest evidence in this record. It is **not** re-run to green: Issue #132 forbids rerun-until-green, and a green rerun would erase the observation. Read §1.3 and matrix §9 before treating the red check as a blocker.
+**CI status — two distinct facts, do not conflate them:**
+* *Historical:* head `d271dee` had a **failing** `synthetic-experiment-runner-validation` run ([44919728501](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44919728501)) carrying the exact Issue #132 signature on a docs-only diff. That run was **not** re-run to green, because Issue #132 forbids rerun-until-green.
+* *Current:* the final head of this PR has **all workflows passing** (see the PR's own checks and the final report comment). A later commit — differing only in documentation — was green on a different VM set.
+
+Neither fact is an acceptance claim, and neither is a "controlled experiment". See §1.3 for what the red/green pair does and does not establish.
 **Scope:** research-only, synthetic-only engineering reproducibility. Not a scientific, clinical, model-performance, RH-07 or RH-08 acceptance.
 **Supersedes:** nothing. It *reads* `docs/rh04-portable-deterministic-calibration.md` (merged via PR #135) and adds the acceptance decision that document explicitly declined to make.
 **Base commit:** `10bee67474b0eb9858f4ca6f298037c2f32459cc` (`main`, verified `git rev-parse origin/main` on 2026-11-21).
@@ -24,7 +28,7 @@
 
 The single sentence that should appear in RH-07/RH-08 risk registers until this is resolved:
 
-> The frozen RH-04 29-case Golden Replay is **exactly reproducible only on the OpenBLAS dynamic-architecture dispatch class that generated it** (observed: `SkylakeX`/`Cooperlake`). On other dispatch classes the derived field `response.outcomes[0].score.calibrated_log_odds` differs by 1 ULP. This is an arithmetic-order artifact of the two-parameter SciPy L-BFGS-B calibration fit, not a model, data or semantic difference.
+> On the **one platform tested** (Linux x86-64, glibc 2.36, Python 3.11.2, NumPy 1.26.4 / SciPy 1.15.3, OpenBLAS 0.3.23.dev), the frozen RH-04 29-case Golden Replay is reproduced **exactly** under forced dispatches `SkylakeX` and `Cooperlake` **only**. Under `Sandybridge` and `Nehalem` it drifts in **two** fields on `da_a2_resting_v1` (`calibrated_log_odds` and `calibrated_research_score`); under `Haswell` (and `Zen`, which resolves to the Haswell kernel on this wheel) it drifts in `calibrated_log_odds` on both score cases. The observed deviations are 1-ULP-scale and are consistent with an arithmetic-order effect of the two-parameter SciPy L-BFGS-B calibration fit, not with a model, data or semantic difference. **Coefficient equality, response-field equality and canonical acceptance are three different predicates** (§1.4). No claim is made for wheels, hosts or kernel classes not tested here.
 
 ---
 
@@ -46,40 +50,127 @@ Both jobs are `ubuntu-24.04` GitHub-hosted runners (`runner_name` `GitHub Action
 
 Reproduced on the exact base commit, Linux x86-64, Python 3.11.2, glibc 2.36, `numpy 1.26.4` / `scipy 1.15.3` / `scikit-learn 1.6.1`, `OPENBLAS_NUM_THREADS=1`:
 
-| Forced `OPENBLAS_CORETYPE` | NumPy OpenBLAS core | SciPy OpenBLAS core | `python -m research.intake.diagnose_fixture_replay` | Differing fields |
-|---|---|---|---|---|
-| *(unset — host)* | SkylakeX | SkylakeX | `EXACT_REPLAY`, 0/29 | — |
-| `Haswell` | Haswell | Haswell | `MISMATCH_FOUND`, 2/29 | `da_a2_resting_v1` 2.220e-16; `da_a1_basic_clinical_v1` **4.441e-16** |
-| `SkylakeX` | SkylakeX | SkylakeX | `EXACT_REPLAY`, 0/29 | — |
-| `Sandybridge` | Sandybridge | Sandybridge | `EXACT_REPLAY`, 0/29 | — |
-| `Nehalem` | Nehalem | Nehalem | `EXACT_REPLAY`, 0/29 | — |
-| `Zen` | Haswell¹ | Haswell¹ | `MISMATCH_FOUND` | same as `Haswell` |
+| Forced `OPENBLAS_CORETYPE` | NumPy core | SciPy core | `diagnose_fixture_replay` | Cases differing | Canonical validator |
+|---|---|---|---|---|---|
+| *(unset — host)* | SkylakeX | SkylakeX | `EXACT_REPLAY`, 0/29 | — | accepts |
+| `SkylakeX` | SkylakeX | SkylakeX | `EXACT_REPLAY`, 0/29 | — | accepts |
+| `Cooperlake` | Cooperlake | Cooperlake | `EXACT_REPLAY`, 0/29 | — | accepts |
+| `Sandybridge` | Sandybridge | Sandybridge | `MISMATCH_FOUND` | **1** (`da_a2_resting_v1`, **2 fields**) | **rejects** |
+| `Nehalem` | Nehalem | Nehalem | `MISMATCH_FOUND` | **1** (`da_a2_resting_v1`, **2 fields**) | **rejects** |
+| `Haswell` | Haswell | Haswell | `MISMATCH_FOUND` | **2** | **rejects** |
+| `Zen` | Haswell¹ | Haswell¹ | `MISMATCH_FOUND` | 2 (as `Haswell`) | **rejects** |
 
-¹ This OpenBLAS build has no `Zen` kernel; it falls back to `Haswell`. Recorded here because it is itself evidence that a *name* is not a *kernel* (§7.3, evidence gap `E-07`).
+¹ This OpenBLAS build has no `Zen` kernel; it falls back to `Haswell`. Recorded here because it is itself evidence that a *name* is not a *kernel*. Per-field detail is in §1.4.
 
-**Conclusion:** the two deltas in Issue #132 are reproduced exactly, byte-for-byte, and are a **pure function of the OpenBLAS dynamic-architecture dispatch class**. They are not reproduced by "Python 3.11 vs 3.12", not by thread count, and not by runner-image drift.
+> **Correction notice.** The first revision of this table reported
+> `Sandybridge` and `Nehalem` as `EXACT_REPLAY, 0/29`. That was measured with a
+> narrower probe that only examined the calibration fit and the *log-odds*
+> field, not the full 29-case replay. Re-running the full diagnostic shows a
+> **second** differing field (`calibrated_research_score`, 1.110e-16) on
+> `da_a2_resting_v1`, so the canonical validator rejects those dispatches. See
+> §1.4. The frozen comparator was not involved and did not change.
 
-### 1.3 Independently confirmed by this branch's own CI failure (prospective evidence)
+**Conclusion (bounded to what was measured):** the two deltas in Issue #132 are reproduced exactly, byte-for-byte, by forcing `OPENBLAS_CORETYPE=Haswell` on this one platform, and are **consistent with** a dependence on the OpenBLAS dynamic-architecture kernel selection. Within the tested matrix they were *not* reproduced by changing the interpreter version, the thread count, or `OPENBLAS_NUM_THREADS`. That is an observation about four controlled variables on one platform — **not** a proof that the dispatch class is the sole cause on every host, and not a claim about kernels or library builds not tested here.
 
-The first CI run of this very branch — a docs/test-only change with **no**
-production-code diff — failed with the identical signature:
+### 1.3 Consistent with host heterogeneity — CI evidence, and what it does *not* prove
 
-| Job | VM | Python | Verdict |
-|---|---|---|---|
-| `synthetic-runner-tests` | `1000003130` | 3.11 | **drift** (`da_a1_basic_clinical_v1`, 4.441e-16) |
-| `synthetic-runner-tests` | `1000003133` | 3.12 | **drift** (same field), then diagnostic red |
-| `rh04-fixture-diagnostic` | `1000003131` | 3.12 | **`EXACT_REPLAY` ×2** |
+The first CI run of this branch (`d271dee`) failed with the identical signature,
+and a later head differing only in documentation passed. The honest reading:
 
-Run [44919728501](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44919728501). Three jobs, one commit, three VMs, **two different arithmetic outcomes** — the same phenomenon as `E-11`, now reproduced prospectively rather than historically. Two consequences:
+| Observation | Established? |
+|---|---|
+| Run `44919728501` at `d271dee`: three jobs, three VMs, two different outcomes; the Python 3.11 and 3.12 synthetic jobs drifted while the separate 3.12 diagnostic reported `EXACT_REPLAY` twice | **Yes** — that is what the run records |
+| The failing jobs ran on VMs `1000003130` / `1000003133`; the passing one on `1000003131` | **Yes** |
+| *Which OpenBLAS kernel* any of those jobs used | **NOT captured.** The workflows did not log it |
+| That hardware was the *only* changed variable between the red and green runs | **No — this is false as an experimental claim.** The runs differ in commit (two `.md` files), wall-clock time, and unobserved runtime characteristics, and the kernel identities are unknown |
+| That the two outcomes are *consistent with* the host/dispatch heterogeneity measured separately under forced dispatch (§1.2) | **Yes** — that is the supported inference |
 
-1. The drift is **not** Linux-vs-Windows and **not** 3.11-vs-3.12: it fires on Linux, on both interpreter versions, and the 3.12 diagnostic passed on a different VM.
-2. Before this branch, **none** of those three jobs recorded which kernel it used. That is the blind spot `G-01`/`G-03` names, and the direct justification for §6 Step 2.
+So: the red/green pair is **consistent with** host or dispatch heterogeneity and
+is *not* explained by the diff, but it is **not** a controlled experiment and it
+establishes **no** kernel assignment for those jobs. Direct CI attribution
+requires instrumented logs, which is exactly what the follow-up diagnostic step
+(§6 Step 2) would provide — and which is **not** applied by this PR.
 
-The failure is left **visible and un-retried** on the PR. See the evidence matrix §9 for the full record and for the local reproduction (`1 failed, 1676 passed, 2 skipped, 10 errors` under a forced `Haswell` dispatch — the same shape as Issue #132 attempt 1).
+Two narrower points do follow:
+
+1. The drift is **not** specific to native Windows (it fires on Linux), and it is
+   **not** specific to one interpreter version (both 3.11 and 3.12 jobs drifted
+   in the same run, while a different 3.12 job passed).
+2. Before this branch, **none** of those jobs recorded which kernel it used.
+   That is the blind spot `G-01`/`G-03` names.
+
+The failure was left **visible and un-retried**; it was not rerun until green.
+Local reproduction under a forced `Haswell` dispatch gives
+`1 failed, 1676 passed, 2 skipped, 10 errors` — the same shape as Issue #132
+attempt 1. See evidence matrix §9.
 
 `tests/experiments/test_offline_fixture_pack.py::test_golden_replay` fails under `OPENBLAS_CORETYPE=Haswell` with exactly the Issue #132 message (`1 failed, 49 passed`), and `test_rh04_replay_tolerance.py` correctly refuses to extend the pre-existing Cleveland exception to the UCI-412 case. **The comparator's narrowness is working as designed.**
 
 ---
+
+### 1.4 Coefficient equality is not response equality — corrected measurements
+
+The reviewer identified a contradiction in the first revision: §3 reported that
+`Sandybridge` and `Nehalem` fit **different calibrator parameters** from the
+golden fit, while — in the earlier text — they were described as 29/29 exact.
+Re-measuring the full 29-case pack per dispatch (rather than only the calibration
+fit) found the earlier description was **wrong in a second, independent way**:
+those dispatches are **not** 29/29 exact. They drift in **two** fields on the
+Cleveland case, so the canonical validator **rejects** them. Corrected table
+(`test_rh04_replay_tolerance` and `_approved_replay_equal` are unchanged; this is
+a documentation correction only):
+
+| Dispatch | `da_a2_resting_v1` (Cleveland) | `da_a1_basic_clinical_v1` (UCI-412) | Canonical 29-case validator |
+|---|---|---|---|
+| `SkylakeX` | exact | exact | **accepts** (0 differing) |
+| `Cooperlake` | exact | exact | **accepts** (0 differing) |
+| `Sandybridge` | 2 fields: `calibrated_log_odds` 6.661e-16, `calibrated_research_score` 1.110e-16 | exact | **rejects** |
+| `Nehalem` | 2 fields: `calibrated_log_odds` 4.441e-16, `calibrated_research_score` 1.110e-16 | exact | **rejects** |
+| `Haswell` | 1 field: `calibrated_log_odds` 2.220e-16 (**pre-approved exception**) | 1 field: `calibrated_log_odds` 4.441e-16 | **rejects** (UCI-412 not excepted) |
+| `Zen` → `Haswell` | as `Haswell` | as `Haswell` | **rejects** |
+
+What this establishes, precisely:
+
+* **The measured exactness set is `{SkylakeX, Cooperlake}` only**, on this
+  platform and wheel set. The earlier "only SkylakeX/Cooperlake" phrasing was
+  therefore accidentally right about *acceptance* but wrong for the stated
+  reason; the earlier "Sandybridge/Nehalem are 29/29 exact" claim is **retracted**.
+* **A second, previously unrecorded drift mode exists**: `calibrated_research_score`
+  can differ by 1 ULP on Cleveland for `Sandybridge`/`Nehalem`. It happens to be
+  absorbed by `expit` on the `Haswell` path (where the log-odds ULP is smaller),
+  which is why it was not seen earlier. This is why the classifier treats a
+  two-field entry as `UNEXPECTED_DRIFT` rather than as permitted drift.
+* **Coefficient equality ≠ response equality ≠ canonical acceptance.** Three
+  distinct predicates, and the frozen contract constrains only the last. A test
+  that compared fitted coefficients would be stricter than the contract and
+  would fail on `Sandybridge`/`Nehalem` even though those are already rejected
+  on the response field anyway.
+* No guarantee is made for kernels, wheel builds or hosts outside this table.
+
+### 1.5 How the BLAS kernel is identified (and why the first method was wrong)
+
+The reviewer asked whether the diagnostic inspects the BLAS that NumPy/SciPy
+actually use, rather than an additional copy. The first revision did **not**:
+
+| Step | First revision (`RTLD_GLOBAL`) | Revised (`RTLD_NOLOAD` only) |
+|---|---|---|
+| After `import numpy` | OpenBLAS already mapped; reported correctly | same |
+| After `import scipy`, before a BLAS/LAPACK call | SciPy's OpenBLAS **not** mapped; `CDLL(..., RTLD_GLOBAL)` **loaded a private copy** (measured: 6 new mapped segments) and reported a kernel from it | `RTLD_NOLOAD` raises `OSError` without mapping anything; reported as `unverified` |
+| After a real decomposition | copy already loaded by SciPy; reported correctly | resolved from the resident object |
+
+Consequences now enforced in code and tests:
+
+* no `RTLD_GLOBAL` appears in executable code (AST-asserted, not prose-asserted);
+* every kernel value carries `kernel_identification_method`;
+* an `unverified` method forces `UNVERIFIED_ENVIRONMENT` and **exit code 2**,
+  even when the replay itself was exact;
+* `test_rtld_noload_does_not_map_an_absent_library` proves `NOLOAD` cannot
+  manufacture a resident library.
+
+**What this does *not* prove:** that the resident kernel is the one every later
+computation will use. Dynamic dispatch may still resolve differently at call
+time on some builds, and the reported name is scoped to the object that was
+resident when the probe ran. See `G-08`.
 
 ## 2. Root cause, established at stage granularity
 
@@ -111,7 +202,7 @@ Directly measured on this host — number of distinct bit-patterns across `Skyla
 | `np.sum(a*b)` | 1 | 1 | 1 | 1 | 1 | 1 |
 | `np.einsum("i,i->")` | 1 | 1 | 1 | 1 | 1 | 1 |
 
-`np.dot` splits into at least two *equivalence classes*: `{SkylakeX, Cooperlake}` (the golden class) and `{Sandybridge, Nehalem, Haswell, Zen}`, with `Nehalem` diverging a third time at n=64/128. This is exactly the FMA/SIMD-reduction-order difference between kernels, and it is the only stage in the whole pipeline that depends on it.
+`np.dot` splits into at least two *equivalence classes* for the bit patterns it produces: `{SkylakeX, Cooperlake}` and `{Sandybridge, Nehalem, Haswell, Zen}`, with `Nehalem` diverging a third time at n=64/128. This is consistent with an FMA/SIMD-reduction-order difference between kernels. It is the only *stage* in the tested pipeline whose inputs were shown to be dispatch-dependent; it is **not** a claim that every kernel in a class produces identical bits, nor that this is the sole mechanism on untested hosts.
 
 ### 2.3 The frozen value is a *stopping* artifact, not the mathematical optimum
 
@@ -132,7 +223,7 @@ Two consequences:
 1. **Tightening L-BFGS-B convergence does not cure the drift, and it destroys the frozen reference.** `gtol=1e-10` happens to make all four dispatches agree on `calibrated_log_odds`, but at a value ≈4.3×10⁸ ULP away from the frozen constant. A `gtol` change is therefore *not* a portable fix; it is a silent re-certification of every golden value.
 2. **The frozen reference is a floating-point *stop*, not an argmin.** Any solver that converges *better* necessarily disagrees with it. The opt-in `deterministic_portable_newton` solver — bit-identical across all five dispatches (§5.2) — lands ≈4.2×10⁸ ULP (≈1.87e-7 in log-odds, ≈1.1e-8 in probability) from the frozen constant, because it actually reaches the KKT point. **This is convergence, not error.**
 
-Therefore "make the default solver portable so the frozen fixture passes everywhere" is **not a sound engineering objective**. It is mathematically unavailable without emulating one specific SIMD reduction order, which would be non-portable hardware specificity wearing a portable costume (`docs/rh04-portable-deterministic-calibration.md` §3, still correct).
+Therefore "make the default solver portable so the frozen fixture passes everywhere" is **not attainable within the solver options tested here**: every tested configuration either stays dispatch-dependent or lands far from the frozen value. A bit-exact portable algorithm is *not* proven impossible — a software emulation of the specific SIMD reduction order and L-BFGS-B stopping path could in principle reproduce it, but it would be hardware-specific arithmetic in a portable costume (`docs/rh04-portable-deterministic-calibration.md` §3). This is a **bounded statement about five tested solver configurations on one platform and cohort**, not a theorem.
 
 ### 2.4 The drift also leaks into signed artifact bytes
 
@@ -160,13 +251,13 @@ Decomposition: with the *embedded calibrator parameters removed from the compari
 
 | ID | Claim | Evidence |
 |---|---|---|
-| `E-01` | The drift is **deterministic per dispatch class**, not run-to-run. 4 repeated isolated subprocesses on the same core produce **1** distinct outcome. | §1.2, §3.2 |
+| `E-01` | On the tested platform, repeated isolated subprocesses on the **same** forced dispatch produced **1** distinct outcome in 4 runs. This shows the observed difference is not run-to-run random *there*; it does **not** establish global determinism, and it does not exclude unobserved runtime variation on other hosts. | §1.2, §3.2 |
 | `E-02` | The exact two Issue #132 deltas (2.220e-16, 4.441e-16) are reproduced from a forced `Haswell` dispatch. | §1.2 |
-| `E-03` | Exactly **one** semantic field differs in the whole 29-case pack, and only in the two `SYNTHETIC_RESULT` score cases. | §1.2 |
+| `E-03` | Across all tested dispatches, only **two** semantic fields ever differed — `calibrated_log_odds` and `calibrated_research_score` — and only inside the two `SYNTHETIC_RESULT` score cases. `Sandybridge`/`Nehalem` exhibit the second field on Cleveland; `Haswell`/`Zen` exhibit only the first. No status, refusal, structure, threshold flag, provenance or digest field ever differed. | §1.2, §1.4 |
 | `E-04` | The divergence first appears **inside** the SciPy L-BFGS-B fit; every input to it and every other pipeline stage is bit-identical across dispatches. | §2.1 |
 | `E-05` | `np.dot` at L-BFGS-B's internal sizes has ≥2 dispatch equivalence classes; `math.fsum`, sequential scalar accumulation, `np.sum(a*b)` and `np.einsum` do not. | §2.2 |
 | `E-06` | Tightening L-BFGS-B convergence **moves away** from the frozen value by ≈4×10⁸ ULP and does not remove dispatch dependence of the parameters. | §2.3 |
-| `E-07` | The opt-in `deterministic_portable_newton` solver is **bit-identical** across 5 dispatch classes on the **real** golden cohort, and lands ≈1.87e-7 in log-odds from the frozen value. | §5.2 |
+| `E-07` | The opt-in `deterministic_portable_newton` solver produced **bit-identical** parameters across the 5 forced dispatch classes tested on the real golden cohort, and lands ≈1.87e-7 in log-odds from the frozen value. Scoped to this platform, wheel set and dispatch set only; not a general portability claim. | §5.2 |
 | `E-08` | Thread count does **not** matter here (`OPENBLAS_NUM_THREADS` 1/2/4 identical). | §3.2 |
 | `E-09` | Every differing bundle byte is attributable to the calibration fit; estimator and preprocessing bytes are stable. | §2.4 |
 | `E-10` | `OPENBLAS_CORETYPE=Zen` on this wheel silently falls back to `Haswell` — env-var *names* do not identify *kernels*. This is the same class of error that broke PR #134's `SkylakeX` pin (#134 was right to reject it). | §1.2 |
@@ -177,7 +268,7 @@ Decomposition: with the *embedded calibrator parameters removed from the compari
 |---|---|---|
 | `E-11` | Same SHA, same workflow, same runner-image tag, same `OPENBLAS_NUM_THREADS=1` produced FAIL then PASS. | Issue #132 jobs `136806043483` / `136809065781` |
 | `E-12` | Pinning `OPENBLAS_CORETYPE=HASWELL` + `NPY_DISABLE_CPU_FEATURES=AVX2,FMA3,AVX512F` did **not** cure the drift. | Issue #132 comment 2026-11-21T11:01:23Z; run `44896568228` |
-| `E-13` | Pinning `OPENBLAS_CORETYPE=SkylakeX` is **impossible** on the hosted runners (no `avx512f`); it aborts before NumPy import. | run `44901748832`, jobs `136838961519` / `136838961533`; PR #134 |
+| `E-13` | A `OPENBLAS_CORETYPE=SkylakeX` pin **aborts before NumPy import** on the tested hosted runner (`CPU does not expose avx512f`), so that specific pin is unusable there. This is a property of the tested runner, not of all runners. | run `44901748832`, jobs `136838961519` / `136838961533`; PR #134 |
 | `E-14` | Native Windows produced the same single Cleveland field delta (4.441e-16) and nothing else. | `docs/research/next_phase/RH047_RH048_SYNTHETIC_REPORT_ASSEMBLY.md` |
 
 ### 3.3 CPU/OS/math-library dependence — honestly bounded
@@ -192,7 +283,7 @@ Decomposition: with the *embedded calibrator parameters removed from the compari
 
 ### 3.4 The one inference that *is* justified
 
-Because the two CI jobs at the same SHA in `E-11` differed with identical inputs, identical pinned thread counts, identical pinned wheels and identical runner-image tag, **dispatch class selection differs across GitHub-hosted VMs of the same runner label**. Combined with `E-01`, the intermittent symptom is fully explained by *host heterogeneity*, not by nondeterminism. This is a stronger and more useful statement than "flaky", and it is exactly what makes an environment-scoped V1 contract defensible (§6, P-4).
+The two CI jobs at the same SHA in `E-11` differed with identical inputs, pinned thread counts, pinned wheels and runner-image tag. Their actual kernels were **never logged**, so a specific attribution cannot be made from those runs alone. What *is* supported is a hypothesis: the outcomes are **consistent with** host/dispatch heterogeneity of the kind measured directly under forced dispatch (§1.2), and they are **not** explained by the source diff. Calling this "flaky" would be less informative than calling it "environment-dependent, mechanism measured separately" — but it remains an inference, not a logged fact, until the diagnostic step records kernels. Direct attribution is exactly what §6 Step 2 would provide.
 
 ---
 
@@ -204,11 +295,11 @@ Because the two CI jobs at the same SHA in `E-11` differed with identical inputs
 | Change `gtol`/`ftol`/`factr` | §2.3: re-certifies every golden value by ≈4×10⁸ ULP while appearing to be a "numerical tightening". The most dangerous option in the list because it *looks* principled. |
 | Make the deterministic solver the default | §2.3/`E-07`: portable and correct, but disagrees with the frozen reference by ≈1.9e-7. Doing this without re-freezing silently invalidates the V1 contract; doing it with re-freezing is P-2, which needs owner re-certification. |
 | Hardcode golden coefficients / a lookup table | Prohibited by Issue #132 and by `AGENTS.md` (never fabricate reference values). |
-| Add an AVX-512 pin, or disable AVX-512 | `E-13`: physically impossible on the hosted runners. `E-12`: empirically ineffective. |
+| Add an AVX-512 pin, or disable AVX-512 | `E-13`: the SkylakeX pin aborts on the tested hosted runner. `E-12`: disabling AVX-512/FMA3 was empirically ineffective. |
 | Add a `pytest.skip`/`xfail` conditional on dispatch | Turns a real, informative failure into a silent hole; the whole point is that the failure is *evidence*. |
 | Re-run until green | Issue #132 explicitly forbids it, and `E-01` shows it manufactures a false narrative of flakiness. |
 | Raise `ABS_TOL`/`REL_TOL` in `ai/report_comparison.py` | Those are the AI-12.1 *report* comparator, used by a different contract; widening them to rescue the pack conflates two independent guarantees. |
-| Blame Windows / Python 3.12 | §1.2/§3.3/`E-03` falsify this: the delta is dispatch-driven and appears on Linux too. |
+| Blame Windows / Python 3.12 | The delta is observed on **Linux** under forced non-golden dispatch (§1.2), and both 3.11 and 3.12 CI jobs drifted in one run (§1.3). So neither the OS nor the interpreter is a sufficient explanation on the tested evidence. |
 
 ---
 
@@ -218,7 +309,7 @@ All four are legitimate engineering positions. They are compared on what the rep
 
 ### P-1 — "Preserve legacy V1 exact replay on explicitly supported environments only"
 
-Keep the pack, digest, comparator, tolerances and workflow byte-identical. Declare the exact-replay contract **environment-qualified**: it holds on dispatch class `{SkylakeX, Cooperlake}` under the pinned wheel set; elsewhere the same check is expected to report the single documented field delta and is *not* an acceptance gate.
+Keep the pack, digest, comparator, tolerances and workflow byte-identical. Record the observed replay outcome **as supplemental evidence about the environment**, without changing what the canonical gate does: the strict pytest Golden Replay remains authoritative and remains **red** on any host where it does not reproduce exactly. No environment qualification is used to excuse a failure.
 
 - **Pros:** zero changes to frozen artifacts (strongest possible preservation proof); truthful; immediately actionable; keeps one golden and one comparator; no new fixture lifecycle.
 - **Cons:** the acceptance gate is untestable on the CI hardware that actually runs it (`E-13` shows the golden class is *not reachable by pinning* on GitHub-hosted runners), so the honest contract is "may pass or fail depending on which VM we got". Leaves CI non-hermetic indefinitely; leaves the artifact-byte portability limitation (`§2.4`) unaddressed; invites exactly the "rerun until green" habit Issue #132 forbids.
@@ -242,70 +333,124 @@ Extend `_approved_replay_equal` with a second, explicitly bounded, owner-approve
 
 ### P-4 — "Retain dual legacy/new contracts during migration" → **RECOMMENDED**
 
-Formally accept **P-1 + P-3 as one bounded, expiring migration contract**, with **P-2 as the declared destination and the only exit**:
+> **Revised after independent review (v2).** The first revision of this section
+> described P-4 as "P-1 + P-3", which contradicted its own promise of an
+> unchanged strict gate with no new comparator exception, and the original
+> §6 Step 2 turned a classified failure into a diagnostic-step success. Both
+> were inconsistent with the canonical contract. The policy below is the single
+> authoritative statement; it replaces every earlier description of P-4.
 
-1. **V1 is re-declared, not weakened.** The 29-case pack, canonical digest `0307b396…`, `_approved_replay_equal`, tolerances and workflow stay byte-identical. The *contract text* changes: V1 exact replay is **guaranteed** on the golden dispatch class and **expected to report exactly one documented deltas-only field** elsewhere. Nothing in V1 becomes approximate: the Cleveland precedent remains the only tolerance exception, and it is **not** extended.
-2. **A dispatch-diagnostic gate replaces the ambiguous gate.** CI gains one non-scoring step that records (a) actual OpenBLAS kernel names for NumPy *and* SciPy, (b) `numpy`/`scipy`/`sklearn`/`glibc` versions, (c) the exact-replay verdict. Expected outcomes are enumerated; anything else fails closed. This converts "intermittent" into "classified".
-3. **V2 is scheduled, not improvised.** P-2 has a written prerequisite list (§7) and a named owner decision that must precede any code change.
-4. **The exit is explicit.** The migration contract carries an expiry condition: when the V2 pack is re-certified and merged, the V1 environment-qualification and any comparator exception are **deleted**, not retained.
+**The immediate policy (binding, and the only policy this PR endorses):**
 
-Why P-4 wins:
+1. **The frozen V1 Golden Replay stays strict and unchanged.** The 29-case pack,
+   canonical digest `0307b396…`, `_approved_replay_equal`, `ABS_TOL`/`REL_TOL`,
+   the default SciPy L-BFGS-B solver and `.github/workflows/**` remain
+   byte-identical, and the pytest Golden Replay remains an **authoritative,
+   failing** gate.
+2. **Environment and numerical classification is supplemental diagnostic
+   evidence only.** It is recorded, versioned and reviewable; it edits no
+   decision.
+3. **A canonical Golden Replay failure is never converted into CI success.**
+   No step maps a classified mismatch to a passing job.
+4. **No new tolerance exceptions.** The pre-existing Cleveland exception is not
+   extended, and P-3 is not adopted.
+5. **No skip, xfail, suppression or automatic retry** of a failing test.
+6. **Issue #132 stays OPEN.**
+7. **V2 is implemented only in a separately reviewed, explicitly authorized
+   PR** (§7).
 
-- It is the **only** option that is both honest *now* and convergent. P-1 alone is honest but non-convergent (CI stays VM-lottery). P-3 alone converges on a non-goal (stops detecting). P-2 is convergent but cannot be executed safely from a decision PR and needs owner re-certification.
-- It preserves the **maximum** number of frozen artifacts while making the *actual* observed behaviour describable in one sentence.
-- It keeps the failure **visible** (`E-03`: exactly one field, two cases) instead of converting it to a skip or a tolerance.
-- It creates the evidence P-2 requires. `E-06`/`E-07` are only trustworthy *because* the current fixture is exact somewhere; a V2 re-certification without the V1 comparator intact would have no anchor. That is why dual contracts are needed during migration, not just desirable.
+**What P-4 therefore is, precisely:** P-1's *preservation* plus a *read-only*
+diagnostic layer, with P-2 as the only declared destination. It is **not** P-3.
+Under this policy a host that does not reproduce V1 exactly will see a **red**
+canonical gate — that is the correct, informative outcome, and it is precisely
+what the diagnostic then explains.
 
-**Explicitly rejected as a sole basis for approval:** "it makes CI green". Under P-4, a green run at the golden class and a *classified, expected* deltas-only result elsewhere are both acceptable outcomes — and an **unexpected** third outcome still fails. Greenness is a consequence, never the criterion.
+**Why this is the recommended path anyway:**
+
+- It is honest *now*: the strict gate keeps its meaning, and nothing is
+  redefined to make a machine's allocation look like a pass.
+- It adds the missing evidence cheaply: the historical CI runs did not record
+  which kernel they used, so "intermittent" could not be investigated. One
+  read-only step fixes that permanently.
+- It is convergent without pretending: V2 (`§7`) is the only exit, and until it
+  exists the project's honest state is "V1 exactness is a measured property of
+  specific environments; the strict gate stays strict".
+- It preserves the maximum frozen surface (`E-03`: exactly one field, two
+  cases) and keeps the failure **visible** rather than converting it into a
+  tolerance or a skip.
+
+**Explicitly rejected as a sole basis for approval:** "it makes CI green".
 
 ### 5.1 Comparison matrix
 
-| Criterion | P-1 environment-scoped V1 | P-2 V2 re-certification | P-3 comparator exception | **P-4 dual contract (recommended)** |
+| Criterion | P-1 env-scoped V1 | P-2 V2 re-certification | P-3 comparator exception | **P-4 preserve + diagnose (recommended)** |
 |---|---|---|---|---|
-| Frozen V1 pack/digest/comparator untouched | ✅ | ❌ (new pack) | ⚠️ comparator edited | ✅ (text only) |
+| Frozen V1 pack/digest/comparator untouched | ✅ | ❌ (new pack) | ⚠️ comparator edited | ✅ |
 | Backward compatibility | ✅ | ⚠️ migration window | ✅ | ✅ |
 | Model-calibration semantics preserved | ✅ | ⚠️ parameters move ≈1e-7 | ✅ | ✅ |
-| Cross-platform reproducibility | ❌ undeclared | ✅ (bounded, `E-07`) | ❌ still host-dependent | ⚠️ V1 scoped, V2 planned |
+| Cross-platform reproducibility | ❌ undeclared | ✅ (bounded, `E-07`) | ❌ still host-dependent | ❌ until V2; now *measured*, not assumed |
 | Fixture provenance | ✅ unchanged | ⚠️ new provenance needed | ✅ | ✅ |
-| Security assertions preserved | ✅ | ✅ (must re-assert) | ⚠️ risk of scope creep in `_approved_replay_equal` | ✅ (no branch in the comparator) |
+| Security assertions preserved | ✅ | ✅ (must re-assert) | ⚠️ scope creep in `_approved_replay_equal` | ✅ (no comparator branch) |
 | Regression impact | none | medium-high | low | **low, additive** |
-| Honest CI signal | ⚠️ VM-dependent | ✅ | ⚠️ masks | ✅ classified |
+| Canonical gate stays meaningful | ✅ | ✅ | ❌ masked | ✅ |
 | Deliverable from a decision PR | ✅ | ❌ | ❌ (needs owner approval) | ✅ |
-| Convergence to a real fix | ❌ | ✅ | ❌ | ✅ (V2 is the exit) |
+| Convergence to a real fix | ❌ | ✅ | ❌ | ✅ (V2 is the only exit) |
 
 ---
 
-## 6. Recommended path — specification for the follow-up implementation PR
+## 6. Recommended follow-up work (specification, not applied here)
 
-> **This section is a specification, not an implementation.** No file outside `docs/` is modified by this branch.
+> **This section is a specification.** No workflow file is modified by this PR.
+> This PR *does* add non-documentation files:
+> `research/intake/rh04_environment_class.py` (read-only diagnostic), its test
+> module, and one `.gitignore` line. None changes production behaviour.
 
-**Step 1 (owner decision, no code):** ratify the acceptance vocabulary. The 29-case pack is `EXACT_ON_GOLDEN_DISPATCH` / `DELTAS_ONLY_ELSEWHERE`; the machine-readable expected-outcome set is the two-element set in Step 2. Nothing else changes.
+**Step 1 (owner decision, no code):** accept that V1 exactness is a *measured*
+property of environments, and that the strict gate stays strict while the
+diagnostic records which environment it observed. Nothing is relaxed.
 
-**Step 2 (CI, non-scoring):** add one step, *before* the scoring pytest step, to each of the three synthetic jobs and both Python versions. It must:
-- read the **actual** kernel names via `scipy.libs.libscipy_openblas*.so::scipy_openblas_get_corename` and `numpy.libs.libopenblas*.so::openblas_get_corename64_` (not the `OPENBLAS_CORETYPE` string — see `E-10`);
-- print `numpy`/`scipy`/`scikit-learn`/`glibc`/`platform` versions, Python version, and the two kernel names, with **no** paths, scores or keys;
-- run `python -m research.intake.diagnose_fixture_replay`, capture its JSON, and reduce it to a verdict: `EXACT_REPLAY` → pass; `MISMATCH_FOUND` with *exactly* the `{da_a2_resting_v1, da_a1_basic_clinical_v1} × calibrated_log_odds × within_existing_report_comparator_tolerance: true` field set and nothing else → pass with an annotation; anything else → **fail**;
-- never parse, rewrite or echo numeric values.
+**Step 2 (CI, strictly additive, must not alter any pass/fail outcome):** add
+one read-only step *before* the scoring pytest step in each synthetic job. It
+must:
 
-**Step 3 (tests, negative-first):** a new test module must fail if:
-- any mismatch appears that is not one of the two enumerated fields;
-- any enumerated field's `within_existing_report_comparator_tolerance` is `false`;
-- the delta grows beyond the AI-12.1 band (`rel_tol=1e-9`, `abs_tol=1e-12`);
-- `PACK_SHA256` changes;
-- `len(cases) != 29`;
-- `_approved_replay_equal` gains a second case/field branch.
+- report the kernel of the **already-resident** BLAS only, via
+  `ctypes.RTLD_NOLOAD` (or the process image), never `RTLD_GLOBAL` — the earlier
+  revision's `RTLD_GLOBAL` call loaded a private copy that NumPy/SciPy had not
+  used (§8 `G-08`);
+- print `numpy`/`scipy`/`scikit-learn`/`glibc`/platform/Python versions and the
+  two kernel names, with **no** paths, scores or keys;
+- reduce the diagnostic JSON to the closed verdict vocabulary with **exit 0 only
+  for a validated exact envelope with a verified environment**, exit 1 for
+  classified single-field deltas, exit 2 for everything else;
+- **`continue-on-error: false` is irrelevant to the gate**: the canonical pytest
+  step still runs and still determines the job's result. The diagnostic step's
+  exit code is recorded in the job log and step summary as evidence. If an owner
+  wants the job's colour to *include* the diagnostic, the step can simply be left
+  failing on exit 1; that is a policy choice, **not** a correctness one, and this
+  PR does not choose it.
 
-**Step 4 (documentation):** amend `docs/rh04-portable-deterministic-calibration.md` and the RH-07/RH-08 risk registers with the §0 sentence and the classification table.
+**Explicitly forbidden in that step:** mapping a classified mismatch to a
+passing job, skipping/xfailing/retrying, editing tolerances or the comparator,
+echoing numeric values.
 
-**Step 5 (V2, separate PR, owner re-certification required):** see §7 prerequisites.
+**Step 3 (tests, negative-first):** already implemented here — see
+`tests/experiments/test_rh04_issue132_environment_class.py` (101 tests, 14/14
+mutation-killed). The follow-up must keep them green.
 
-**Do not, in that PR:** change the default solver; change `ABS_TOL`/`REL_TOL`; touch `research/intake/fixtures/offline_io.v1.json`, `PACK_SHA256`, `_approved_replay_equal`'s Cleveland branch or `_WINDOWS_FLOAT_CASE_ID`/`_WINDOWS_FLOAT_FIELD`; add `pytest.skip`/`xfail`/`continue-on-error`; import PR #134's AVX-512 guards or workflow pins; activate any real-data path.
+**Step 4 (documentation):** amend `docs/rh04-portable-deterministic-calibration.md`
+and the RH-07/RH-08 risk registers with the §0 sentence.
+
+**Step 5 (V2, separate PR, owner re-certification required):** see §7.
+
+---
+
+**Do not, in any follow-up:** change the default solver; change `ABS_TOL`/`REL_TOL`; touch `research/intake/fixtures/offline_io.v1.json`, `PACK_SHA256`, `_approved_replay_equal`'s Cleveland branch or `_WINDOWS_FLOAT_CASE_ID`/`_WINDOWS_FLOAT_FIELD`; add `pytest.skip`/`xfail`/`continue-on-error`; import PR #134's AVX-512 guards or workflow pins; activate any real-data path; or convert a canonical failure into a passing job.
 
 ### 6.1 The `docs/rh04-portable-deterministic-calibration.md` §5 options, re-judged
 
 That document proposed "Option A — fixture re-certification" and "Option B — bounded tolerance exception". Measured evidence now ranks them:
 
-- **Option B is weaker than presented.** It was framed as an equivalent alternative to A. It is not: it is non-convergent (§5 P-3) and, on the measured evidence, the deltas can appear in *either* executable case (`da_a2_resting_v1` at 2.220e-16 and `da_a1_basic_clinical_v1` at 4.441e-16 in the same run), so a per-case exception is a per-case lottery, not a stable boundary. P-3 must be time-boxed and paired with the dispatch diagnostic, which is what P-4 does.
+- **Option B is weaker than presented.** It was framed as an equivalent alternative to A. It is not: it is non-convergent (§5 P-3) and, on the measured evidence, the deltas can appear in *either* executable case (`da_a2_resting_v1` at 2.220e-16 and `da_a1_basic_clinical_v1` at 4.441e-16 in the same run), so a per-case exception is a per-case lottery, not a stable boundary. P-3 is **not adopted** under the §5 policy; the diagnostic is added for evidence, not to license an exception.
 - **Option A is correct but under-specified.** It does not say what makes V2 trustworthy. `E-06` supplies the missing requirement: **V2 must declare its convergence criterion**, because any criterion that is not "reach the KKT point" is host-dependent by construction. A V2 pack generated by portable-*solver* but a host-dependent-*criterion* would reproduce the exact bug in a new costume.
 
 ---
@@ -336,6 +481,7 @@ That document proposed "Option A — fixture re-certification" and "Option B —
 | `G-05` | `math.exp`/`log1p` last-ULP host dependence means even the portable solver is *not* proven bit-portable across libc/OS. | V2's cross-platform claim must be scoped to tested hosts. | V2-04 + explicit scope wording. |
 | `G-06` | §2.4 artifact-byte non-portability is **not currently exercised by any test**. | Latent; would surface in any future cross-machine artifact comparison. | Record in the model-card / manifest limitation text during V2-06. |
 | `G-07` | Whether the *pinned wheel set itself* (`numpy 1.26.4` → OpenBLAS `0.3.23.dev`) is bitwise reproducible from PyPI on a rebuild. | Assumed, not checked. | Out of scope; note it, don't claim it. |
+| `G-08` | **BLAS identification method.** The first revision read the core name via `ctypes.CDLL(path, RTLD_GLOBAL)`, which **loads a private copy** when the library is not already resident. Measured: after `import scipy` but before any BLAS/LAPACK call, SciPy's OpenBLAS is not mapped; the old code then mapped 6 extra segments and reported a kernel from a library the numerical code had not used. **Fixed** by using `RTLD_NOLOAD` exclusively (which never maps an absent object) and recording the method per value (`rtld_noload` / `process_symbol` / `unverified`). A `unverified` kernel now forces `UNVERIFIED_ENVIRONMENT` and exit 2. **Residual limitation:** even a correctly-resolved *resident* kernel is not proof that a *later* call will use that library, and dynamic dispatch can still select a different kernel at runtime on some builds. The reported name is evidence about the resident object, not an authoritative statement about every future computation. | Reduced, not eliminated. | Prefer instrumented runs; never present the kernel name as authoritative without the method field. |
 
 **Residual risk after P-4:** CI can still fail on a genuinely new dispatch class — *by design*, and with a report naming the class. That is strictly better than the current state and is the correct failure mode for a reproducibility claim.
 
@@ -456,8 +602,8 @@ git diff --stat 10bee67474b0eb9858f4ca6f298037c2f32459cc -- \
 | # | Observation | Class | Environment | Established by |
 |---|---|---|---|---|
 | `M-01` | Host-class dispatch (`SkylakeX`) → `EXACT_REPLAY` 0/29 | **measured** | Linux x86-64, Py3.11, OpenBLAS 0.3.23.dev | this branch |
-| `M-02` | `Haswell` → 2 cases, 2.220e-16 + 4.441e-16, one field each | **measured** | same | this branch |
-| `M-03` | `Sandybridge`, `Nehalem`, `Cooperlake` → `EXACT_REPLAY` | **measured** | same | this branch |
+| `M-02` | `Haswell` → 2 cases differing, one field each (`calibrated_log_odds`): 2.220e-16 Cleveland (pre-approved exception, accepted) and **4.441e-16 UCI-412 (not excepted, rejected)** | **measured** | same | this branch |
+| `M-03` | `Cooperlake` → `EXACT_REPLAY` 0/29; `Sandybridge`/`Nehalem` → **2 differing fields on `da_a2_resting_v1`**, canonical validator **rejects** | **measured** | same | this branch, §1.4 |
 | `M-04` | `Zen` silently resolves to `Haswell` | **measured** | same | this branch |
 | `M-05` | 4 repeats, same dispatch → 1 distinct outcome | **measured** | same | this branch |
 | `M-06` | Threads 1/2/4 → identical | **measured** | same | this branch |
@@ -470,7 +616,7 @@ git diff --stat 10bee67474b0eb9858f4ca6f298037c2f32459cc -- \
 | `M-13` | Same SHA, same runner tag → FAIL then PASS | **historical** | GitHub-hosted `ubuntu-24.04` | `E-11` |
 | `M-13b` | **One commit, one run, three VMs → 2 drift + 1 exact.** Reproduced prospectively on a docs-only branch head. | **measured** | GitHub-hosted `ubuntu-24.04` | §1.3, matrix §9 |
 | `M-14` | `HASWELL` + `NPY_DISABLE_CPU_FEATURES` does not cure | **historical** | CI | `E-12` |
-| `M-15` | `SkylakeX` pin impossible on hosted runners | **historical** | CI | `E-13` |
+| `M-15` | `SkylakeX` pin aborts on the tested hosted runner | **historical** | CI | `E-13` |
 | `M-16` | Windows: one Cleveland field, 4.441e-16 | **historical** | native Windows | `E-14` |
 | `M-17` | Python 3.12 dispatch behaviour | **unproven here** | CI only | `G-01` |
 | `M-18` | NumPy≥2 / SciPy≥1.16 / ARM64 / macOS / non-glibc libm | **unproven** | — | `G-05` |
@@ -480,7 +626,7 @@ git diff --stat 10bee67474b0eb9858f4ca6f298037c2f32459cc -- \
 ## 11. Answers to the deliverable's explicit questions
 
 **Which aspects of reproducibility have been experimentally established?**
-Additive-in-ULP determinism per dispatch class (`E-01`); full stability of every pipeline stage except the two-parameter calibration fit (`E-04`, `M-08`, `M-09`); exactness of the frozen reference on the golden class (`M-01`); the *maximum* magnitude of the deviation on any tested class (`M-02`: 1 ULP, one field, two cases); and the existence of a portable fit (`M-11`).
+On the tested platform: repeated-run stability at fixed dispatch (`E-01`); full stability of every pipeline stage except the two-parameter calibration fit (`E-04`, `M-08`, `M-09`); exactness of the frozen reference under `SkylakeX`/`Cooperlake` (`M-01`); the observed per-dispatch deviation set, which includes a **second** field on `Sandybridge`/`Nehalem` (`M-02`, `M-03`, §1.4); and the existence of a numerically portable fit under the tested conditions (`M-11`).
 
 **Which depend on CPU/OS/math library?**
 Only the L-BFGS-B fit: BLAS kernel selection → reduction order → the two fitted parameters (`M-07`, `M-10`). Consequently `calibration.json`, `model.joblib`, `evaluation_summary.json` and `manifest.json` bytes (`M-12`). Everything else — cohort, panels, preprocessor, forest, SHAP/LIME, statuses, abstentions, thresholds, route binding, digests of immutable artifacts — is dispatch-stable on tested classes.

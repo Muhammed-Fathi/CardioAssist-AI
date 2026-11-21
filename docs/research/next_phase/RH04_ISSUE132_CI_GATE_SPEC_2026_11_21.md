@@ -11,8 +11,8 @@
 | Must | Must not |
 |---|---|
 | Record the **resolved** OpenBLAS kernel for NumPy *and* SciPy | Trust `OPENBLAS_CORETYPE` (observed to silently fall back: `Zen` → `Haswell`) |
-| Distinguish three outcomes: bit-exact, classified-expected, unexpected | Collapse them into "green" |
-| Fail closed on anything not enumerated | Skip, xfail, `continue-on-error`, or re-run |
+| Distinguish three outcomes: bit-exact, classified-expected, unexpected | Collapse them into "green" *or* let any of them change the canonical job result |
+| Fail closed on anything not enumerated | Use skip, xfail, `continue-on-error`, `|| true` or re-run **to keep the canonical Golden Replay step green** |
 | Stay non-scoring and read-only | Rewrite, regenerate or re-derive any expected value |
 | Emit only kernel names, versions, booleans, counts, delta magnitudes | Emit a score, coefficient, intercept, slope, feature value, record, key or path |
 | Leave the canonical pytest step's exit code authoritative | Replace, wrap or duplicate `test_golden_replay` |
@@ -30,8 +30,8 @@ Exit codes (deliberately distinct, so a shell step can branch without parsing JS
 | Exit | `status` | Meaning |
 |---|---|---|
 | `0` | `EXACT_REPLAY` | frozen pack reproduced bit-for-bit on this host |
-| `1` | `EXPECTED_SINGLE_FIELD_DELTAS` | exactly the two enumerated `(case, field)` pairs, each inside the AI-12.1 band |
-| `2` | `UNEXPECTED_DRIFT` or `DIAGNOSTIC_REFUSED` | anything else — **fail closed** |
+| `1` | `EXPECTED_SINGLE_FIELD_DELTAS` | a validated envelope with exactly the enumerated mismatch, each reported inside the AI-12.1 band — **supplemental evidence, never a pass** |
+| `2` | `UNEXPECTED_DRIFT`, `INVALID_DIAGNOSTIC`, `DIAGNOSTIC_REFUSED`, or `UNVERIFIED_ENVIRONMENT` | anything else — **fail closed** |
 
 Verified locally on this branch:
 
@@ -42,33 +42,62 @@ Verified locally on this branch:
 
 ## 3. Proposed workflow patch (for the follow-up PR — do not apply blindly)
 
-Add **after** `Verify pinned CPU numerical threadpools` and **before** `Run synthetic experiment-runner and dataset-audit tests`, in `synthetic-runner-tests`. Repeat verbatim in `rh04-fixture-diagnostic`.
+> **Revised after independent review.** The first revision mapped the
+> classifier's "classified deltas" exit code to `exit 0` for the diagnostic
+> step, which contradicted the promise that the canonical gate stays strict and
+> that no P-3 comparator policy is adopted. Under the §5 policy of the decision
+> document, **no step may convert a canonical Golden Replay failure into CI
+> success.** The diagnostic is strictly additive evidence.
+
+Add **after** `Verify pinned CPU numerical threadpools` and **before** `Run
+synthetic experiment-runner and dataset-audit tests`, in `synthetic-runner-tests`.
+Repeat verbatim in `rh04-fixture-diagnostic`.
 
 ```yaml
-      # RH-04 Issue #132: record the ACTUAL OpenBLAS kernels and classify the
-      # Golden Replay outcome. Read-only, non-scoring, synthetic-only.
-      # Exit 0 = bit-exact; exit 1 = exactly the two documented calibrated-log-odds
-      # deltas inside the pre-existing AI-12.1 band; exit 2 = fail closed.
-      # This step never changes, relaxes or replaces the scoring pytest step below.
-      - name: Classify RH-04 Golden Replay outcome for this host
+      # RH-04 Issue #132: record the ACTUAL resident OpenBLAS kernels and the
+      # classified replay outcome. Read-only, non-scoring, synthetic-only.
+      # Exit 0 = exact + verified env; 1 = classified single-field deltas
+      # (supplemental evidence, NOT a pass); 2 = fail closed.
+      # This step does NOT and MUST NOT decide the job's result: the canonical
+      # pytest Golden Replay step below remains authoritative and unchanged.
+      - name: Record RH-04 environment and replay classification
         run: |
           set +e
           python -m research.intake.rh04_environment_class
           code=$?
-          echo "RH04_CLASSIFICATION_EXIT=${code}"
+          echo "RH04_CLASSIFICATION_EXIT=${code}" >> "$GITHUB_STEP_SUMMARY"
           case "${code}" in
-            0) echo "RH04_CLASSIFICATION=EXACT_REPLAY" >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
-            1) echo "RH04_CLASSIFICATION=EXPECTED_SINGLE_FIELD_DELTAS" >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
-            *) echo "RH04_CLASSIFICATION=UNEXPECTED_OR_REFUSED" >> "$GITHUB_STEP_SUMMARY"; exit 1 ;;
+            0) verdict=EXACT_REPLAY ;;
+            1) verdict=EXPECTED_SINGLE_FIELD_DELTAS ;;
+            *) verdict=INVALID_OR_UNVERIFIED ;;
           esac
+          echo "RH04_CLASSIFICATION=${verdict}" >> "$GITHUB_STEP_SUMMARY"
+          echo "RH04_NOTE=supplemental evidence only; canonical gate unchanged" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
 ```
 
 Design notes for the reviewer:
 
-1. `set +e` exists **only** to capture the exit code of the classifier; the step's own success is then explicitly re-derived from that code. It does not weaken the scoring step.
-2. **`EXPECTED_SINGLE_FIELD_DELTAS` is mapped to exit `0` for this diagnostic step only.** The scoring `pytest` step is untouched and still fails on `da_a1_basic_clinical_v1` under a non-golden dispatch. That asymmetry is the *point*: the classification is recorded as evidence, and the contract is not silently relaxed. **Shipping a green CI therefore requires an owner-approved comparator or V2 decision (§6/§7 of the decision document) — not this step.**
-3. If the owner prefers CI to remain red until V2, **drop the `1)` branch**; the step then fails on any non-golden host while still recording the kernel names. Both variants are compatible with this specification; the choice is an acceptance decision, not an implementation detail.
-4. The step must be added **after** dependency installation, because the kernel names are read from the installed wheels.
+1. **The diagnostic step never votes.** Every classified outcome — including
+   exit 2 — is a *datum*, not a test result, so the step records it and then
+   exits 0. Deliberately, it uses **no** `continue-on-error` and **no**
+   `|| true`: those would suppress a *failure*, whereas this step has no
+   pass/fail semantics to suppress. The canonical
+   `pytest tests/experiments tests/audit` step remains the sole authority, and
+   it is byte-identical to `main`.
+2. **This is deliberately weaker than "fail the job if unexpected drift".** The
+   reason is that a workflow change of that kind would alter the pass/fail
+   semantics of a frozen-adjacent CI file, which this decision PR is explicitly
+   not authorized to do. An owner may later choose to promote the diagnostic to
+   a voting gate; that is a policy decision requiring its own review.
+3. `set +e` exists only to capture the exit code before the final `exit 0`; the
+   canonical step is unaffected.
+4. The step must run **after** dependency installation, because the kernel names
+   are read from the installed wheels, and **before** the scoring step, so the
+   evidence exists even when the scoring step fails.
+5. `RTLD_NOLOAD` only. The first revision used `RTLD_GLOBAL`, which loaded a
+   private BLAS copy that the numerical code had not used (decision document
+   `G-08`).
 
 ## 4. Negative-test requirements for the follow-up PR
 

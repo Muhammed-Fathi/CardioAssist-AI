@@ -42,14 +42,26 @@ Command: `OPENBLAS_CORETYPE=<class> OPENBLAS_NUM_THREADS=1 python -m research.in
 | *(unset)* | SkylakeX | SkylakeX | `EXACT_REPLAY` | 0 / 29 | — |
 | `SkylakeX` | SkylakeX | SkylakeX | `EXACT_REPLAY` | 0 / 29 | — |
 | `Cooperlake`¹ | Cooperlake | Cooperlake | `EXACT_REPLAY` | 0 / 29 | — |
-| `Sandybridge` | Sandybridge | Sandybridge | `EXACT_REPLAY` | 0 / 29 | — |
-| `Nehalem` | Nehalem | Nehalem | `EXACT_REPLAY` | 0 / 29 | — |
+| `Sandybridge` | Sandybridge | Sandybridge | `MISMATCH_FOUND` | **1 / 29** | `da_a2_resting_v1` · **two** fields: `calibrated_log_odds` 6.661e-16 **and** `calibrated_research_score` 1.110e-16. Canonical validator **rejects**. |
+| `Nehalem` | Nehalem | Nehalem | `MISMATCH_FOUND` | **1 / 29** | `da_a2_resting_v1` · **two** fields: `calibrated_log_odds` 4.441e-16 **and** `calibrated_research_score` 1.110e-16. Canonical validator **rejects**. |
 | `Haswell` | Haswell | Haswell | `MISMATCH_FOUND` | 2 / 29 | `da_a2_resting_v1` · `calibrated_log_odds` · 2.220e-16 (approved exception) <br> `da_a1_basic_clinical_v1` · `calibrated_log_odds` · **4.441e-16 (not excepted)** |
 | `Zen` | **Haswell** (silent fallback) | **Haswell** | `MISMATCH_FOUND` | 2 / 29 | identical to `Haswell` |
 
 ¹ `Cooperlake` was exercised through the calibration-fit probe (§3), not through the full 29-case diagnostic.
 
-**Reading:** the frozen pack is *exact* on the kernel family that generated it and drifts by exactly 1 ULP on one derived field elsewhere. No other field, status, structure or refusal changes anywhere.
+> **Correction notice (post-review).** The first revision reported `Sandybridge`
+> and `Nehalem` as `EXACT_REPLAY 0 / 29`. That was wrong: it was inferred from a
+> *narrower* probe that inspected only the calibration fit and the log-odds
+> field. Replaying the **full 29 cases** shows a second differing field,
+> `calibrated_research_score` (1.110e-16), on `da_a2_resting_v1`, so the
+> canonical validator rejects both dispatches. The frozen comparator, its
+> digest and all tolerances are untouched; only this evidence record was wrong
+> and is now corrected.
+
+**Reading:** the frozen pack is reproduced *exactly* only under `SkylakeX` and
+`Cooperlake` on this platform. Elsewhere it drifts by 1-ULP-scale amounts in one
+or two derived score fields. No status, refusal, structure, threshold flag,
+provenance or digest field changes anywhere.
 
 ---
 
@@ -69,7 +81,7 @@ Frozen golden cohort: 120 OOF observations, `clipped_logit_of_raw_probability`, 
 
 Two facts worth separating carefully:
 
-1. `Sandybridge`/`Nehalem` produce **different parameters** (class `C`) yet the **same** derived `calibrated_log_odds`. Parameter equality is therefore *not* a valid proxy for score equality; only the derived field matters.
+1. `Sandybridge`/`Nehalem` produce **different parameters** (class `C`). That table row measured only the `calibrated_log_odds` derivation; the **full** response replay additionally differs in `calibrated_research_score` (§2 correction notice), so these dispatches are **rejected** by the canonical validator. The enduring point: parameter equality is *not* a valid proxy for response equality, and a coefficient-comparison test would be neither necessary nor sufficient.
 2. The portable solver disagrees with the frozen value by ≈4.2×10⁸ ULP **on every dispatch, identically**. That is convergence to the KKT point, not drift (§2.3 of the decision document).
 
 ### 3.1 L-BFGS-B convergence-control sweep on the same cohort (`MEASURED_HERE`)
@@ -99,7 +111,7 @@ Two facts worth separating carefully:
 | Random-forest `feature_importances_`, `n_estimators`, class order | YES | identical |
 | **`scipy.optimize.minimize(method="L-BFGS-B")` 2-parameter fit** | **NO** | 3 parameter classes (§3) |
 | Affine map `intercept + slope · raw_log_odds` | deterministic | reproduces frozen exactly from golden class |
-| `expit(calibrated_log_odds)` → `calibrated_research_score` | YES | bit-identical under `Haswell` even though log-odds differed |
+| `expit(calibrated_log_odds)` → `calibrated_research_score` | **dispatch-dependent in one case** | bit-identical under `Haswell` even though log-odds differed, but on `Sandybridge`/`Nehalem` the Cleveland score differs by 1.110e-16 (§2 correction notice) |
 | Threshold flag, statuses, abstentions, provenance, SHAP/LIME, digests | YES | 29/29 identical |
 
 ### 4.1 BLAS reduction-order probe (`MEASURED_HERE`)
@@ -303,9 +315,17 @@ Head `15509e0` differs from the failing `d271dee` **only by documentation**
 | [44919728501](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44919728501) | `d271dee` | `1000003130` / `1000003133` / `1000003131` | **FAIL** (drift) |
 | [44921569583](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44921569583) | `15509e0` | `1000003140` / `1000003139` / `1000003143` | **PASS** (all three) |
 
-Same source, six different VMs, opposite outcomes, **zero code difference**.
-This is a controlled natural experiment: the only variable that changed is the
-allocated hardware. `synthetic-experiment-runner-validation` was green at
+Same source lineage, six different VMs, opposite outcomes, and **no
+non-documentation code difference**.
+
+**What this is and is not.** It is **not** a controlled experiment: the runs
+differ in commit (two `.md` files), wall-clock time, and unobserved runtime
+characteristics, and — critically — **neither run logged which OpenBLAS kernel
+it used**. The accurate statement is that the outcome pair is **consistent with
+host/dispatch heterogeneity** as measured separately under forced dispatch (§2),
+and is **not** explained by the source diff. Direct attribution to a specific
+kernel for those particular jobs remains unavailable until instrumented logging
+exists. `synthetic-experiment-runner-validation` was green at
 `15509e0` for `contract-validation`, `mock-backend-validation` **and**
 `synthetic-experiment-runner-validation`.
 
@@ -318,8 +338,9 @@ The honest reading is:
 
 - the *contract* is host-qualified (§6 P-4), so neither outcome alone certifies
   or falsifies it;
-- an `EXACT_REPLAY` run and a `EXPECTED_SINGLE_FIELD_DELTAS` run are **both**
-  compliant with P-4, provided the kernel names are recorded — which is exactly
-  what the proposed gate adds;
-- a green run must therefore **never** be cited as evidence that Issue #132 is
-  fixed. Section 9.5 point 4 applies unchanged.
+- the **canonical strict gate remains authoritative**: a red
+  `test_golden_replay` is a true negative on that host and is **not** converted
+  to success by any classification;
+- a green canonical run and a classified-deltas run carry *different* meanings,
+  and only the first is a pass; the second is supplemental evidence;
+- a green run must **never** be cited as evidence that Issue #132 is fixed. Section 9.5 point 4 applies unchanged.
