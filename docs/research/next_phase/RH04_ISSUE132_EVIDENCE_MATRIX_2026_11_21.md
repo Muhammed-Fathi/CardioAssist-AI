@@ -344,3 +344,39 @@ The honest reading is:
 - a green canonical run and a classified-deltas run carry *different* meanings,
   and only the first is a pass; the second is supplemental evidence;
 - a green run must **never** be cited as evidence that Issue #132 is fixed. Section 9.5 point 4 applies unchanged.
+
+
+## 10. Non-interference: can this branch cause the canonical failure?
+
+The canonical Golden Replay failure seen at `ef75be4` must be attributed
+precisely, because a regression introduced by this branch would be
+indistinguishable in CI from the pre-existing drift.
+
+**The failing test is `tests/experiments/test_offline_fixture_pack.py::test_golden_replay`.**
+That file is **byte-identical to base** `10bee67`, and it imports only
+`ai.research_demo`, `ai.research_facade`, `ai.filesystem_security` and
+`research.intake.offline_fixture_pack`. **None** of those modules is modified by
+this branch, and no module they import references
+`research/intake/rh04_environment_class.py`. This branch's entire non-documentation
+change is therefore **unreachable** from the failing code path.
+
+Counterfactual check, run directly rather than argued:
+
+| Commit | Dispatch | `test_golden_replay` |
+|---|---|---|
+| `10bee67` (base) | host `SkylakeX` | **pass** |
+| `10bee67` (base) | forced `Sandybridge` | **fail** — `6.661e-16` + `1.110e-16`, two fields |
+| `ef75be4` (this head) | host `SkylakeX` | **pass** |
+| `ef75be4` (this head) | forced `Sandybridge` | **fail** — identical message |
+
+The failure reproduces on the **unmodified base commit** under the same forced
+dispatch, with a character-identical redacted diff. It is therefore
+**pre-existing environment sensitivity, not a regression from this branch**.
+
+The ten `test_rh04_report_assembly.py` setup errors are downstream of the same
+cause: they reproduce identically at base and at head under forced
+`Sandybridge` (`8 passed, 10 errors` both times).
+
+Full failing selection at head under forced `Sandybridge`:
+`1 failed, 1749 passed, 2 skipped, 10 errors`. All 105 tests added by this branch
+pass under `SkylakeX`, `Haswell` and `Sandybridge` dispatches.

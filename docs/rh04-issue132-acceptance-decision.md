@@ -99,10 +99,46 @@ Two narrower points do follow:
 2. Before this branch, **none** of those jobs recorded which kernel it used.
    That is the blind spot `G-01`/`G-03` names.
 
+### 1.3.1 The review-revision run: the same drift, the opposite job
+
+Run `44927387647` at `ef75be4` (this review revision) reproduces the *inverse*
+pairing of the first run, which is worth recording because it is stronger
+evidence than the original pair and equally not a controlled experiment:
+
+| Run | `Python 3.11` synthetic job | `Python 3.12` synthetic job | 3.12 diagnostic job |
+|---|---|---|---|
+| `44919728501` @ `d271dee` | **failed** | **failed** | success |
+| `44921569583` @ `15509e0` | success | success | (not in run) |
+| `44922370597` @ `a4e2cf7` | success | success | success |
+| `44927387647` @ `ef75be4` | **failed** | success | success |
+
+What this adds, stated carefully:
+
+* The failure is **not a function of the source revision**. `15509e0` and
+  `a4e2cf7` are green; `d271dee` and `ef75be4` are red on 3.11. Every one of
+  those revisions has byte-identical `research/intake/`, `ai/` and workflow
+  content for the purposes of this test (only `.md` files and two new files
+  that the failing test does not import differ). The same commit can therefore
+  be red or green depending on the VM.
+* The one job that failed on 3.11 **passed on 3.12 in the same run**, on
+  separate VMs. That is a within-run counterexample to any single-variable
+  explanation.
+* **Newly recorded, and not previously known:** the failing job's diff is the
+  **two-field** signature (`6.661e-16` on `calibrated_log_odds`, `1.110e-16` on
+  `calibrated_research_score`), which §1.2/§1.4 show is the
+  `Sandybridge`/`Nehalem` dispatch class on this wheel — the first CI-side
+  observation consistent with a *specific* class rather than merely "not
+  `SkylakeX`". This remains an inference from local forcing, **not** a logged
+  kernel, because the job still records no kernel name.
+* **The canonical gate stayed red and was not retried into green.** No
+  re-run was performed to obtain a passing result.
+
 The failure was left **visible and un-retried**; it was not rerun until green.
-Local reproduction under a forced `Haswell` dispatch gives
-`1 failed, 1676 passed, 2 skipped, 10 errors` — the same shape as Issue #132
-attempt 1. See evidence matrix §9.
+Local reproduction of the *failing selection* `tests/experiments tests/audit`
+under a forced `Sandybridge` dispatch gives
+`1 failed, 1749 passed, 2 skipped, 10 errors`: exactly one canonical golden-replay
+failure plus ten downstream setup errors, with every test added by this branch
+passing. Verified identical at base commit `10bee67`. See evidence matrix §9.
 
 `tests/experiments/test_offline_fixture_pack.py::test_golden_replay` fails under `OPENBLAS_CORETYPE=Haswell` with exactly the Issue #132 message (`1 failed, 49 passed`), and `test_rh04_replay_tolerance.py` correctly refuses to extend the pre-existing Cleveland exception to the UCI-412 case. **The comparator's narrowness is working as designed.**
 
