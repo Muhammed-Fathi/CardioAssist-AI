@@ -23,6 +23,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
+    # RH-04 numerical reproducibility experiment: pin BLAS/OpenMP pools before
+    # Python/scikit-learn import in BOTH full suite and independent diagnosis.
+    # Source fixtures, expected binary64 values and strict replay stay frozen.
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
+
     strategy:
       fail-fast: false
       matrix:
@@ -45,6 +56,36 @@ jobs:
           python -m pip install -r research/audit/requirements.txt
           python -m pip install -r research/uci412/requirements.txt
           python -m pip check
+
+      # Confirm *actual* linked numerical libraries before every full replay.
+      # This check does not modify the model, fixtures, scoring or tolerances.
+      - name: Verify pinned CPU numerical threadpools
+        run: |
+          python - <<'PY'
+          import numpy  # noqa: F401 (load the OpenBLAS runtime)
+          from threadpoolctl import threadpool_info
+          info = threadpool_info()
+          if not info:
+              raise SystemExit("No numerical threadpools discovered")
+          print("Numerical threadpools:", [(x.get("internal_api"), x.get("num_threads")) for x in info])
+          if any(x.get("num_threads") != 1 for x in info):
+              raise SystemExit("Numerical thread count not pinned to one")
+          PY
+
+      # Confirm *actual* linked numerical libraries before every full replay.
+      # This check does not modify the model, fixtures, scoring or tolerances.
+      - name: Verify pinned CPU numerical threadpools
+        run: |
+          python - <<'PY'
+          import numpy  # noqa: F401 (load the OpenBLAS runtime)
+          from threadpoolctl import threadpool_info
+          info = threadpool_info()
+          if not info:
+              raise SystemExit("No numerical threadpools discovered")
+          print("Numerical threadpools:", [(x.get("internal_api"), x.get("num_threads")) for x in info])
+          if any(x.get("num_threads") != 1 for x in info):
+              raise SystemExit("Numerical thread count not pinned to one")
+          PY
 
       - name: Run synthetic experiment-runner and dataset-audit tests
         run: |
@@ -107,6 +148,17 @@ jobs:
     name: RH-04 fixture structural drift diagnostic (Python 3.12)
     runs-on: ubuntu-24.04
     timeout-minutes: 12
+
+    # RH-04 numerical reproducibility experiment: pin BLAS/OpenMP pools before
+    # Python/scikit-learn import in BOTH full suite and independent diagnosis.
+    # Source fixtures, expected binary64 values and strict replay stay frozen.
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
     steps:
       - name: Check out synthetic-only source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
