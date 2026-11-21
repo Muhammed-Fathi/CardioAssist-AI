@@ -291,3 +291,35 @@ the best evidence the investigation has produced.
 native Windows. The section-9 observation is why `V2-04` cannot be satisfied by
 a single green CI run, and why the dispatch class must be recorded *with* every
 verdict rather than inferred from the outcome.
+
+### 9.7 The clean control: the same commit lineage went green on a different VM set
+
+Head `15509e0` differs from the failing `d271dee` **only by documentation**
+(`git diff --name-only d271dee 15509e0 | grep -v '^docs/'` → empty; two files,
++128 lines, both `.md`).
+
+| Run | Head | VMs (Python-3.11 / 3.12 / diagnostic) | Verdict |
+|---|---|---|---|
+| [44919728501](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44919728501) | `d271dee` | `1000003130` / `1000003133` / `1000003131` | **FAIL** (drift) |
+| [44921569583](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44921569583) | `15509e0` | `1000003140` / `1000003139` / `1000003143` | **PASS** (all three) |
+
+Same source, six different VMs, opposite outcomes, **zero code difference**.
+This is a controlled natural experiment: the only variable that changed is the
+allocated hardware. `synthetic-experiment-runner-validation` was green at
+`15509e0` for `contract-validation`, `mock-backend-validation` **and**
+`synthetic-experiment-runner-validation`.
+
+Together §9.1 and §9.7 are the complete cycle that Issue #132 described as
+"intermittent": red, red, green — with the cause now named (dispatch class) and
+the mechanism measured (§2.2), rather than inferred from the colour.
+
+**Reviewer guidance.** Neither colour is a statement about this PR's content.
+The honest reading is:
+
+- the *contract* is host-qualified (§6 P-4), so neither outcome alone certifies
+  or falsifies it;
+- an `EXACT_REPLAY` run and a `EXPECTED_SINGLE_FIELD_DELTAS` run are **both**
+  compliant with P-4, provided the kernel names are recorded — which is exactly
+  what the proposed gate adds;
+- a green run must therefore **never** be cited as evidence that Issue #132 is
+  fixed. Section 9.5 point 4 applies unchanged.
