@@ -1,85 +1,83 @@
-# RH-04 OpenBLAS dispatch pin — reviewer-applied experiment, not yet accepted
+# RH-04 numerical reproducibility: SkylakeX pin trial rejected on hosted CI
 
-**Status:** The initially uncommitted workflow patch was applied to the **draft
-PR #134 branch** by a separate GitHub-connected reviewer because Arena's token
-lacked the workflow-edit permission. This document records the original agent
-hypothesis and the safety additions. **Do not merge** until exact-head checks
-and owner review are complete. Issue #132 stays open until validated.
+**Status: BLOCKED. Do NOT merge draft PR #134.**
 
-## Empirical hypothesis (agent-reported, not a portability guarantee)
+This document supersedes Arena's initial proposal to pin the OpenBLAS
+`SkylakeX` dispatch in GitHub Actions. The original agent's GitHub token
+could not edit workflow files; a connected reviewer temporarily applied the
+pin **with a mandatory AVX-512 hardware safety check** to the PR #134 branch,
+observed an incompatible GitHub-hosted runner, and reverted the workflow file
+to match `main`. The rejected experiment's CI logs remain available.
 
-The frozen 29-case RH-04 synthetic fixture sometimes differs in
-`da_a1_basic_clinical_v1` at `calibrated_log_odds` by `4.441e-16`.
-The agent's Python 3.11 local reproduction attributed the difference to
-OpenBLAS kernel dispatch during SciPy L-BFGS-B calibration fitting, observing:
+## What was verified
 
-- Golden-compatible reference: `intercept=-0.8264874886346654`,
-  `slope=1.6547968324340276`, `calibrated_log_odds=2.6971396718292335`.
-- Forced Haswell: `intercept=-0.8264874886346656`,
-  `slope=1.6547968324340279`, `calibrated_log_odds=2.697139671829234`.
-- Raw model probability/log-odds and calibrated probability matched in the
-  source-isolation trace; the final log-odds did not.
-- Frozen fixture JSON, SHA-256 digest, canonical comparator and tolerances
-  must remain unchanged.
+- Original defect: the frozen 29-case RH-04 synthetic fixture can differ by
+  `4.441e-16` at `da_a1_basic_clinical_v1` /
+  `calibrated_log_odds`. `main` keeps the frozen fixture hash and exact
+  UCI-412 comparator unchanged. The source-specific synthetic runner can be
+  green on a retry with the same SHA even when an earlier execution was red.
+- Arena's locally reported Python 3.11 experiment suggests the difference
+  originates in SciPy L-BFGS-B calibration optimization and OpenBLAS kernel
+  dispatch. It reported the golden-compatible fit under `SkylakeX` and a
+  reproducible low-bit mismatch under forced `Haswell`. This is useful evidence
+  but does not itself demonstrate **portable** binary64 reproducibility.
+- Reviewer-applied experiment on PR #134:
+  - Job-level `OPENBLAS_CORETYPE: 'SkylakeX'` was tested together with
+    unchanged single-thread BLAS settings and a fail-closed hardware check.
+  - The real GitHub-hosted runner for [Python 3.12 synthetic runner
+    job](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44901748832/job/136838961519)
+    and [independent RH-04 diagnostic
+    job](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44901748832/job/136838961533)
+    did **not** expose `avx512f`. Both refused to start SkylakeX.
+  - The synthetic runner's subsequent missing-numpy message on that job is a
+    cascading effect of the refused preflight/install, **not** a new model bug.
+  - The risk is confirmed: force-pinning the required AVX-512 kernel is unsafe
+    or unavailable on a normal GitHub runner lacking those CPU instructions.
+    The temporary workflow pin was **reverted** on the draft branch; do not
+    reapply it blindly.
 
-These findings are narrower than proof of bit-exact reproducibility across
-all processors or operating systems. A green CI run alone does not establish
-long-term stability; native Windows remains out of scope for this CI trial.
+## Consequences
 
-## Applied CI settings and guards
+A hardware-specific `SkylakeX` pin cannot be the sole fix for the existing
+`ubuntu-24.04` shared-runner CI. GitHub-hosted virtual CPUs do not have a
+contract guaranteeing AVX-512. Pinning hardware-specific kernels must be
+guarded by hardware capability checks and requires a compatible runner.
 
-In `.github/workflows/experiment-runner-ci.yml`, **both**
-`synthetic-runner-tests` (Python 3.11/3.12) and
-`rh04-fixture-diagnostic` (Python 3.12) have job-level environment:
+The new test file `tests/experiments/test_rh04_calibration_dispatch.py`
+contains useful synthetic-only coefficient, response, SHAP and source-integrity
+checks. Its workflow-structure guard was strengthened to **fail closed**
+(no `pytest.skip`) if the required job-level pin is absent, so PR #134
+remains intentionally **BLOCKED/RED** rather than silently accepting an
+unimplemented remedy.
 
-```yaml
-OPENBLAS_NUM_THREADS: '1'
-OMP_NUM_THREADS: '1'
-MKL_NUM_THREADS: '1'
-BLIS_NUM_THREADS: '1'
-NUMEXPR_NUM_THREADS: '1'
-VECLIB_MAXIMUM_THREADS: '1'
-OPENBLAS_CORETYPE: 'SkylakeX'
-```
+## Portable fix investigation — next steps for Arena
 
-Before installing or importing numerical libraries, each job checks Linux CPU
-flags for `avx512f avx512dq avx512bw avx512vl`. **An incompatible runner
-fails closed with a clear error instead of attempting unsafe SkylakeX kernels
-or falling back silently.** After installation, the existing threadpool
-preflight additionally verifies that OpenBLAS actually reports architecture
-`SkylakeX`, not merely that an environment variable was set.
+1. Inspect `ai.calibration.OofLogisticCalibrator.fit_from_oof`, particularly
+   the SciPy L-BFGS-B gradient/objective and its 2-parameter fit. Establish
+   experimentally where bit-level drift enters **relative to a trusted
+   baseline**, without outputting numerical model parameters or scores to
+   public CI logs.
+2. Investigate portable deterministic operations for the calibration fit
+   across Python 3.11/3.12 and at least Haswell/SkylakeX-class CPUs.
+   A code-level remedy must preserve scientific calibration semantics,
+   SHAP alignment and consumer responses. Do not hardcode a golden
+   intercept/slope for known fixture cases.
+3. If exact matching of already-frozen numerical fixtures is mathematically
+   infeasible across arbitrary architectures, propose a **formal, explicit,
+   separately approved engineering policy**. Never silently regenerate
+   fixtures, weaken the golden comparator, hide an actual failure, or bypass CI.
+4. Put any validated change on a **new isolated Draft PR** with exact SHA,
+   positive and negative tests, CI logs and Windows-local testing instructions
+   when needed. Do not merge PR #133 (diagnostic experiment) or PR #134
+   (blocked hardware-specific proposal) as a remedy.
+5. Keep Issue #132 **OPEN** until independent source inspection,
+   reproducibility evidence and owner acceptance. No clinical inference,
+   real-patient data or real-study metrics are implicated by this CI trial.
 
-GitHub-hosted runners use virtual machines; the `ubuntu-24.04` job label
-**does not guarantee AVX-512 capabilities**. This restricted kernel pin is
-therefore **not a portable final fix**. If hardware is incompatible, leave the
-job red and investigate a processor-independent deterministic calibration
-strategy separately. Do not skip tests, regenerate historical golden fixtures,
-disable the source-integrity guard, or relax UCI-412 exact matching merely to
-obtain green checks.
-
-Primary upstream documentation:
+Upstream references:
 - https://www.openmathlib.org/OpenBLAS/docs/runtime_variables/
 - https://www.openmathlib.org/OpenBLAS/docs/faq/
 - https://docs.github.com/en/actions/reference/runners/github-hosted-runners
 
-## Acceptance checklist
-
-1. On the **same exact PR head**, the workflow hardware preflight proves the
-   required AVX-512 capabilities and the runtime reports `SkylakeX`.
-2. The workflow-structure guard
-   `test_workflow_pins_openblas_core_type_and_threads` is **not skipped**
-   and verifies **both job-level** pins and preflights.
-3. Python 3.11 and 3.12 complete the full synthetic experiment-runner tests,
-   including the 29-case strict Golden Replay, and Python 3.12's independent
-   RH-04 diagnostic completes both exact replays.
-4. Negative tests and blocked/nonclinical synthetic-only route restrictions
-   remain unchanged; no patient data enters CI.
-5. Review flaky-run history and assess whether repeated controlled runs or
-   independent Windows-local evidence are needed; do not claim a definitive
-   root-cause fix from one successful run.
-6. Owner and independent reviewer evaluate the results before changing PR
-   #134 out of Draft or resolving Issue #132. Do not merge PR #133's
-   deliberately mismatch-producing Haswell experiment as a remedy.
-
-**No frozen numerical score, fixture digest, comparator, model training logic,
-registry permission or scientific evidence claim is changed by this proposal.**
+**No frozen fixture, canonical source hash, output score, scoring code,
+tolerance, registry permission or synthetic-only boundary was changed.**
