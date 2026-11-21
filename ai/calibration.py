@@ -73,6 +73,10 @@ VALID_FIT_SCOPES: Final[frozenset[str]] = frozenset(
 # numerical-stability remedy, not a bit-exact reproduction of the frozen golden.
 DEFAULT_CALIBRATION_SOLVER: Final[str] = "scipy_lbfgsb"
 DETERMINISTIC_CALIBRATION_SOLVER: Final[str] = "deterministic_portable_newton"
+# Honest provenance for a calibrator whose fitted numerical method is not
+# known (e.g. a deserialized calibration.json, or direct construction).  Never
+# a valid solver parameter for fit_from_oof — it is only a provenance marker.
+UNKNOWN_CALIBRATION_SOLVER: Final[str] = "unknown"
 CALIBRATION_SOLVERS: Final[frozenset[str]] = frozenset(
     {DEFAULT_CALIBRATION_SOLVER, DETERMINISTIC_CALIBRATION_SOLVER}
 )
@@ -88,6 +92,11 @@ CALIBRATION_UPPER_BOUNDS: Final[tuple[float, float]] = (15.0, 15.0)
 _DETERMINISTIC_BACKTRACK_FACTOR: Final[float] = 0.5
 _DETERMINISTIC_BACKTRACK_MIN: Final[float] = 2.0 ** -40
 _DETERMINISTIC_BACKTRACK_C1: Final[float] = 1.0e-4
+
+# Local rounding-tolerance band recognising a box face.  Tiny relative to the
+# box scale; absorbs single-ULP leftovers from clamped-candidate evaluations
+# without misclassifying genuinely interior points.
+_FACE_EPS: Final[float] = 1.0e-14
 
 
 def stable_sigmoid(eta: float) -> float:
@@ -115,20 +124,43 @@ def deterministic_logistic_fit(
     upper: tuple[float, float] = CALIBRATION_UPPER_BOUNDS,
     max_iterations: int = 200,
     step_tolerance: float = 5e-16,
-    gradient_tolerance: float = 1e-12,
+    gradient_tolerance: float = 1e-10,
 ) -> tuple[float, float]:
     """Fully-portable, deterministic two-parameter L2-anchored logistic fit.
 
     Solves
     ``minimize_over_(a,b) mean(logaddexp(0, a + b*x) - y*(a + b*x))
      + 0.5*l2*(a^2 + (b - 1)^2)``
-    with a pure-Python float64 full-Newton step, deterministic Armijo
-    backtracking with box projection, and KKT residual convergence verification.
+    with a pure-Python float64 box-constrained Newton step, deterministic
+    Armijo backtracking and KKT-residual convergence verification.
 
     Determinism by construction: no BLAS/OpenBLAS/LAPACK calls, no numpy
     pairwise-summation reductions (scalar loops with a fixed evaluation order),
-    no random state.  Bit-reproducible across CPU architectures and OpenBLAS
-    dynamic-arch dispatches for the same (y, logits, l2_anchor, bounds, controls).
+    no random state.  The fit is bit-reproducible across OpenBLAS
+    dynamic-arch dispatches on the same platform (verified empirically for the
+    synthetic dataset across ``generic``/``Haswell``/``Sandybridge``; ``SkylakeX``
+    is available only on AVX-512 hosts).  Narrow to the empirically tested
+    CPU/OS/libm combinations: bit-portability across libc/OS builds is not
+    guaranteed (``math.exp``/``math.log1p`` are last-ULP host-dependent).
+
+    Convergence policy (fail-closed): the iteration budget is exhausted, the
+    KKT-residual test never passes, or no feasible decreasing step exists — in
+    any of those cases the solver raises
+    ``calibration_solver_did_not_converge`` and never silently returns
+    unconverged parameters.  Convergence is accepted ONLY when the projected
+    gradient residual (below) is below ``gradient_tolerance``; a small step
+    alone never certifies convergence.
+
+    The default tolerance (1e-10) is deliberately stricter than the scipy
+    L-BFGS-B path's default ``pgtol=1e-5`` while staying safely above the
+    float64 noise floor of the float64 gradient/objective evaluation at the
+    observed convergence scale of the problem (residuals of ~1e-12 observed at
+    the achievable minimum).  It is still strictly stronger than the empirical
+    residual (~7e-8) of the frozen golden fit.
+
+    ``step_tolerance`` is retained for API compatibility; it is not used to
+    accept convergence (the KKT-residual test is the sole convergence
+    criterion).
 
     Raises ``CalibrationIntegrityError`` with one of the codes below:
     * ``invalid_deterministic_fit_data`` — shape, length, NaN/Inf, or non-finite inputs.
@@ -139,8 +171,9 @@ def deterministic_logistic_fit(
     * ``calibration_solver_degenerate_hessian`` — analytic Hessian determinant
       is not finite or <= 0 (the step is not trustworthy).
     * ``calibration_solver_did_not_converge`` — the iteration budget was
-      exhausted before the KKT/step convergence test passed; the returned
-      parameters are never silently reported as converged.
+      exhausted or no feasible decreasing step exists before the KKT-residual
+      convergence test passed; the returned parameters are never silently
+      reported as converged.
 
     Note: this is a numerical-stability remedy, not a bit-exact reproduction of
     the frozen 29-case golden coefficients (which were produced by scipy
@@ -238,20 +271,55 @@ def deterministic_logistic_fit(
             s_diff_logits / n + l2_anchor * (b - 1.0),
         )
 
+    def face_status(x: float, lo: float, hi: float) -> str:
+        """Return the box-face classification used by both the active set and
+        the KKT residual: ``lower``, ``upper`` or ``interior``."""
+        if x <= lo + _FACE_EPS:
+            return "lower"
+        if x >= hi - _FACE_EPS:
+            return "upper"
+        return "interior"
+
+    def projected_gradient_residual(a: float, b: float, grad_a: float, grad_b: float) -> float:
+        """Box-constrained KKT residual, max of the per-component residuals.
+
+        Minimization with ``lower <= (a, b) <= upper``:
+        at the lower bound, feasible descent requires ``grad >= 0``;
+        at the upper bound, ``grad <= 0``; in the interior, equality.
+
+        The face classification is IDENTICAL to the active-set classification in
+        ``restricted_step``, so the convergence test always agrees with the
+        step computation.
+        """
+        status_a = face_status(a, lower_a, upper_a)
+        status_b = face_status(b, lower_b, upper_b)
+        if status_a == "lower":
+            resid_a = max(0.0, -grad_a)
+        elif status_a == "upper":
+            resid_a = max(0.0, grad_a)
+        else:
+            resid_a = abs(grad_a)
+        if status_b == "lower":
+            resid_b = max(0.0, -grad_b)
+        elif status_b == "upper":
+            resid_b = max(0.0, grad_b)
+        else:
+            resid_b = abs(grad_b)
+        return max(resid_a, resid_b)
+
     def restricted_step(a: float, b: float, grad_a: float, grad_b: float) -> tuple[float, float, float]:
         """Box-constrained Newton step and largest feasible t in (0, 1].
 
-        Components sitting exactly on a box face are held fixed (their step is
-        zeroed) and the remaining *interior* components take a Newton step
-        computed on the restricted sub-Hessian (a 1x1 or 2x2 unconstrained
-        quadratic model).  This makes the step a true descent direction on the
-        free coordinates even when a face is active, instead of projecting an
-        unconstrained step whose projected directional derivative can become
-        non-negative.
+        The active set is KKT-aware: a component sitting on a box face is
+        pinned ONLY when the gradient makes inward movement impossible or flat;
+        if the gradient points inward (an improving feasible direction), the
+        component is free and the Newton step proceeds.  Free components take
+        a Newton step either on the full 2x2 free block when both are free, or
+        on the 1x1 restricted sub-Hessian when only one is free.
 
         Returns ``(da, db, t_max)`` where ``t_max`` is capped so the capped
         candidate stays inside the box along the free directions; it is 0.0
-        only when no free component exists (both components pinned to faces).
+        only when no component is free (both pinned to faces).
         """
         s_q = 0.0
         s_q_logits = 0.0
@@ -267,12 +335,30 @@ def deterministic_logistic_fit(
         Hab = s_q_logits / n
         Hbb = s_q_logits2 / n + l2_anchor
 
-        # Components that sit on a box face (within a tiny rounding tolerance)
-        # are treated as pinned.  The tolerance keeps rounding leftovers from
-        # re-entering as "interior" with a near-zero box-capped step.
-        face_eps = 1.0e-14
-        a_free = not (a <= lower_a + face_eps or a >= upper_a - face_eps)
-        b_free = not (b <= lower_b + face_eps or b >= upper_b - face_eps)
+        status_a = face_status(a, lower_a, upper_a)
+        status_b = face_status(b, lower_b, upper_b)
+
+        # KKT-aware face pinning (the box-active-set).
+        # At the lower face, feasible descent is inward (da >= 0) and requires
+        # grad < 0; at the upper face, feasible descent is inward (da <= 0) and
+        # requires grad > 0.  Otherwise the inward direction is a descent
+        # direction and the component must move.
+        if status_a == "lower":
+            a_free = grad_a < 0.0
+        elif status_a == "upper":
+            a_free = grad_a > 0.0
+        else:
+            a_free = True
+        if status_b == "lower":
+            b_free = grad_b < 0.0
+        elif status_b == "upper":
+            b_free = grad_b > 0.0
+        else:
+            b_free = True
+
+        if not (a_free or b_free):
+            # Both components pinned: no free direction.
+            return 0.0, 0.0, 0.0
 
         da = 0.0
         db = 0.0
@@ -305,101 +391,90 @@ def deterministic_logistic_fit(
                 )
             db = -grad_b / Hbb
 
-        t_max = 1.0
-        if da > 0.0 and a + da > upper_a:
-            t_max = min(t_max, (upper_a - a) / da)
-        elif da < 0.0 and a + da < lower_a:
-            t_max = min(t_max, (lower_a - a) / da)
-        if db > 0.0 and b + db > upper_b:
-            t_max = min(t_max, (upper_b - b) / db)
-        elif db < 0.0 and b + db < lower_b:
-            t_max = min(t_max, (lower_b - b) / db)
-        if not math.isfinite(t_max) or t_max <= 0.0:
-            # No strictly feasible step along the free directions: both
-            # components are pinned.  Convergence is assessed by the caller.
-            return da, db, 0.0
+        def box_cap(delta_a: float, delta_b: float, step_a: float, step_b: float) -> float:
+            t_max = 1.0
+            if delta_a > 0.0:
+                t_max = min(t_max, (upper_a - a) / delta_a)
+            elif delta_a < 0.0:
+                t_max = min(t_max, (lower_a - a) / delta_a)
+            if delta_b > 0.0:
+                t_max = min(t_max, (upper_b - b) / delta_b)
+            elif delta_b < 0.0:
+                t_max = min(t_max, (lower_b - b) / delta_b)
+            return t_max
+
+        t_max = box_cap(da, db, a, b)
+        if not (math.isfinite(t_max) and t_max > 0.0):
+            # The full Newton direction pushes a free component outward of the
+            # box.  Fall back to per-component projected descent steps — always
+            # descent in the free coordinates — and re-cap.
+            da = (-grad_a / Haa) if a_free else 0.0
+            db = (-grad_b / Hbb) if b_free else 0.0
+            t_max = box_cap(da, db, a, b)
+            if not (math.isfinite(t_max) and t_max > 0.0):
+                # Both projected descent steps push outward: this free component
+                # is pinned at its box face AND its gradient points outward
+                # (no feasible descent in that component).  Return a zero step.
+                return 0.0, 0.0, 0.0
         return da, db, t_max
 
-    def projected_gradient_residual(a: float, b: float, grad_a: float, grad_b: float) -> float:
-        """Box-constrained KKT residual, max of the per-component residuals.
-
-        Minimization with ``lower <= (a, b) <= upper``:
-        at the lower bound, feasible descent requires ``grad >= 0``;
-        at the upper bound, ``grad <= 0``; in the interior, equality.
-        """
-        if a <= lower_a:
-            resid_a = max(0.0, -grad_a)
-        elif a >= upper_a:
-            resid_a = max(0.0, grad_a)
-        else:
-            resid_a = abs(grad_a)
-        if b <= lower_b:
-            resid_b = max(0.0, -grad_b)
-        elif b >= upper_b:
-            resid_b = max(0.0, grad_b)
-        else:
-            resid_b = abs(grad_b)
-        return max(resid_a, resid_b)
-
     a, b = 0.0, 1.0
-    if not (lower_a <= a <= upper_a):
-        a = min(upper_a, max(lower_a, a))
-    if not (lower_b <= b <= upper_b):
-        b = min(upper_b, max(lower_b, b))
+    a = min(upper_a, max(lower_a, a))
+    b = min(upper_b, max(lower_b, b))
 
-    for iteration in range(max_iterations):
+    for _iteration in range(max_iterations):
         f_current, grad_a, grad_b = objective_and_gradient(a, b)
-        da, db, t = restricted_step(a, b, grad_a, grad_b)
-        candidate = (a, b)
-        best_objective = f_current
-        best = (a, b)
-        while True:
-            if t > 0.0:
-                a_candidate = a + t * da
-                b_candidate = b + t * db
-                # Keep the candidate strictly inside the box even in the
-                # presence of rounding leftovers from the box-capped step.
-                a_candidate = min(max(a_candidate, lower_a), upper_a)
-                b_candidate = min(max(b_candidate, lower_b), upper_b)
-                objective = objective_and_gradient(a_candidate, b_candidate)[0]
-                directional = grad_a * da + grad_b * db
-                if (
-                    math.isfinite(objective)
-                    and objective <= f_current - _DETERMINISTIC_BACKTRACK_C1 * t * directional
-                ):
-                    candidate = (a_candidate, b_candidate)
-                    if objective < best_objective:
-                        best_objective = objective
-                        best = candidate
-                    break
-                if t > _DETERMINISTIC_BACKTRACK_MIN:
-                    t *= _DETERMINISTIC_BACKTRACK_FACTOR
-                    continue
+        residual = projected_gradient_residual(a, b, grad_a, grad_b)
+        if residual <= gradient_tolerance:
+            # KKT-converged at this point: return it.  A step-size test never
+            # substitutes for the KKT residual.
+            return a, b
+
+        da, db, t_max = restricted_step(a, b, grad_a, grad_b)
+        if not (t_max > 0.0) or (da == 0.0 and db == 0.0):
+            # No free direction exists and the point is not KKT-converged:
+            # both components are pinned (or the box-capped step vanishes).
+            raise CalibrationIntegrityError(
+                "calibration_solver_did_not_converge",
+                f"Deterministic logistic fit did not converge within {max_iterations} iterations "
+                f"(no feasible step; KKT residual {residual:.3e} exceeds gradient tolerance {gradient_tolerance:.3e}).",
+            )
+
+        # Deterministic Armijo backtracking along the Newton direction within
+        # the box.  For the descent direction (directional < 0) the correct
+        # condition is objective <= f_current + c1 * t * directional — the
+        # standard sufficient-decrease test.  The candidate is clamped into the
+        # box before evaluation so the line search always evaluates feasible
+        # points.
+        directional = grad_a * da + grad_b * db
+        t = t_max
+        accepted = None
+        while t > _DETERMINISTIC_BACKTRACK_MIN:
+            a_candidate = min(max(a + t * da, lower_a), upper_a)
+            b_candidate = min(max(b + t * db, lower_b), upper_b)
+            objective = objective_and_gradient(a_candidate, b_candidate)[0]
+            if (
+                math.isfinite(objective)
+                and objective <= f_current + _DETERMINISTIC_BACKTRACK_C1 * t * directional
+            ):
+                accepted = (a_candidate, b_candidate)
+                break
+            t *= _DETERMINISTIC_BACKTRACK_FACTOR
+
+        if accepted is None:
             # No feasible decreasing step within the box: the current point is
-            # the constrained local optimum (or the step vanishes).
-            candidate = (a, b)
-            break
+            # the constrained local optimum (or the step vanishes), but the KKT
+            # residual above shows it is not converged — fail closed.
+            raise CalibrationIntegrityError(
+                "calibration_solver_did_not_converge",
+                f"Deterministic logistic fit did not converge within {max_iterations} iterations "
+                f"(no feasible decreasing step; KKT residual {residual:.3e} exceeds gradient tolerance {gradient_tolerance:.3e}).",
+            )
 
-        a_next, b_next = best
-        max_step = max(abs(a_next - a), abs(b_next - b))
+        a, b = accepted
 
-        f_next, grad_a_next, grad_b_next = objective_and_gradient(a_next, b_next)
-        residual = projected_gradient_residual(a_next, b_next, grad_a_next, grad_b_next)
-
-        # Converged when the KKT residual (max of the per-component constrained
-        # stationarity tests for interior and face-pinned components) is below
-        # the gradient tolerance, or when a strictly feasible step was taken
-        # but was below the step tolerance.  The step-only path requires a
-        # strictly positive step: a zero step with a non-negligible KKT
-        # residual means both components are pinned and the fit is NOT
-        # converged (the corner is not a KKT point), so it must raise.
-        if residual <= gradient_tolerance or (t > 0.0 and max_step <= step_tolerance):
-            return a_next, b_next
-
-        a, b = a_next, b_next
-
-    # Iteration budget exhausted before convergence: never return unconverged
-    # parameters as if they were converged.
+    # Iteration budget exhausted before the KKT test passed: never return
+    # unconverged parameters as if they were converged.
     raise CalibrationIntegrityError(
         "calibration_solver_did_not_converge",
         f"Deterministic logistic fit did not converge within {max_iterations} iterations.",
@@ -573,11 +648,12 @@ class OofLogisticCalibrator:
     input_link: str = "clipped_logit_of_raw_probability"
     fit_scope: str = "FULL_DEVELOPMENT_OOF_FINAL"
     # In-memory provenance only: which solver produced these parameters
-    # ("scipy_lbfgsb" default, "deterministic_portable_newton" opt-in, or "none"
-    # for the IDENTITY_CONSTANT_FALLBACK path).  Excluded from the canonical
-    # serialized calibration.json on purpose so the frozen contract (state_sha256,
-    # fixture digests) is unchanged.
-    solver: str = DEFAULT_CALIBRATION_SOLVER
+    # ("scipy_lbfgsb" default, "deterministic_portable_newton" opt-in, "none" for
+    # the IDENTITY_CONSTANT_FALLBACK path, or "unknown" when the method is not
+    # known — e.g. after a JSON round-trip or direct construction).  Excluded
+    # from the canonical serialized calibration.json on purpose so the frozen
+    # contract (state_sha256, fixture digests) is unchanged.
+    solver: str = UNKNOWN_CALIBRATION_SOLVER
 
     @classmethod
     def fit_from_oof(
@@ -850,6 +926,10 @@ class OofLogisticCalibrator:
             status=str(payload["status"]),
             input_link=input_link,
             fit_scope=fit_scope,
+            # Provenance is not recorded in the canonical serialized contract
+            # (the frozen schema deliberately omits it), so a deserialized
+            # calibrator must not claim a specific numerical method.
+            solver=UNKNOWN_CALIBRATION_SOLVER,
         )
 
 

@@ -101,6 +101,8 @@ def _golden_request(pack: dict):
 def test_calibration_fit_reproduces_frozen_golden_coefficients(_bundle):
     """The production calibration fit preserves the frozen golden intercept/slope."""
     cal = _read_calibration(_bundle)
+    # Deserialized calibrators do not claim in-memory solver provenance.
+    assert cal.solver == "unknown"
     assert cal.intercept == FROZEN_CALIBRATION_INTERCEPT
     assert cal.slope == FROZEN_CALIBRATION_SLOPE
     assert cal.input_link == "clipped_logit_of_raw_probability"

@@ -230,6 +230,23 @@ def test_solver_contract_constants_are_consistent():
     assert DEFAULT_CALIBRATION_SOLVER in CALIBRATION_SOLVERS
     assert len(CALIBRATION_SOLVERS) == 2
 
+
+def test_unknown_provenance_marker_is_not_a_valid_fit_solver():
+    """Negative: the honest "unknown" provenance marker must NOT be accepted as
+    a fit_from_oof solver — only the two numerical solvers are valid."""
+    from ai.calibration import UNKNOWN_CALIBRATION_SOLVER
+
+    assert UNKNOWN_CALIBRATION_SOLVER not in CALIBRATION_SOLVERS
+    assert UNKNOWN_CALIBRATION_SOLVER == "unknown"
+
+    y = np.ones(20, dtype=np.float64)
+    logits = np.ones(20, dtype=np.float64)
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        OofLogisticCalibrator.fit_from_oof(
+            y, logits, model_family="bad_solver", solver="unknown",
+        )
+    assert excinfo.value.code == "invalid_calibration_solver"
+
 # --------------------------------------------------------------------------
 # Hardening guards (reviewer items 1-3 and reviewer items 4-7).
 # --------------------------------------------------------------------------
@@ -272,10 +289,11 @@ def test_deterministic_fit_handles_extreme_positive_and_negative_logits():
         assert math.isfinite(a) and math.isfinite(b)
         assert -15.0 <= a <= 15.0
         assert 0.01 <= b <= 15.0
-        # The fitted sigmoid curve stays in (0, 1) for every observed logit.
+        # The fitted sigmoid curve stays finite and in [0, 1] for every
+        # observed logit; saturated extremes are allowed at the limit.
         for i in range(logits.size):
             p = stable_sigmoid(a + b * logits[i])
-            assert 0.0 < p < 1.0 or True  # saturated extreme logits are allowed at the limit
+            assert math.isfinite(p)
             assert 0.0 <= p <= 1.0
 
 
@@ -448,10 +466,12 @@ def test_solver_provenance_is_in_memory_only():
     )
     assert det_cal.solver == DETERMINISTIC_CALIBRATION_SOLVER
     assert "solver" not in det_cal.to_json_dict()
-    # JSON round-trip restores the default (in-memory) provenance, never the
-    # serialized one — provenance is deliberately not part of the frozen contract.
+    # JSON round-trip: the serialized contract deliberately omits the solver,
+    # so a deserialized calibrator must report honest "unknown" provenance —
+    # never a false claim that the SciPy solver produced (or consumed) these
+    # parameters.
     restored = OofLogisticCalibrator.from_json_dict(det_cal.to_json_dict())
-    assert restored.solver == DEFAULT_CALIBRATION_SOLVER
+    assert restored.solver == "unknown"
     assert restored.intercept == det_cal.intercept
     assert restored.slope == det_cal.slope
 
@@ -465,3 +485,117 @@ def test_solver_provenance_is_in_memory_only():
     )
     assert flat_cal.status == "IDENTITY_CONSTANT_FALLBACK"
     assert flat_cal.solver == "none"
+
+
+# --------------------------------------------------------------------------
+# Reviewer-required regression tests (isolated PR #135 hardening pass).
+# --------------------------------------------------------------------------
+
+def test_nonstationary_initial_corner_must_not_report_convergence():
+    """P0 adversarial case: a boxed starting corner with an inward descent
+    gradient is NOT a KKT point.
+
+    At (a,b)=(0,1), each gradient is strictly negative for 20 positive labels
+    and logits=1.  Both variables must be allowed to move inward off the lower
+    faces; a solver that pins every face-touching coordinate is catastrophically
+    wrong and is caught here.
+    """
+    y = np.ones(20, dtype=np.float64)
+    logits = np.ones(20, dtype=np.float64)
+    a, b = deterministic_logistic_fit(
+        y, logits, lower=(0.0, 1.0), upper=(2.0, 2.0),
+        max_iterations=80,
+    )
+    assert a > 0.0 and b > 1.0, (
+        "Solver incorrectly accepted the nonstationary lower corner as converged"
+    )
+
+
+def test_boundary_coordinate_moves_inward_when_gradient_points_inward():
+    """Positive: a component pinned at a lower box face must move inward when
+    the gradient points inward (improving feasible direction).  The objective
+    must improve strictly from the initial point."""
+    y = np.ones(20, dtype=np.float64)
+    logits = np.ones(20, dtype=np.float64)
+    a, b = deterministic_logistic_fit(
+        y, logits, lower=(0.0, 1.0), upper=(2.0, 2.0),
+        max_iterations=80,
+    )
+    assert a > 0.0  # moved inward off the lower face
+    assert b > 1.0  # moved inward off the lower face
+    f_start = _objective(y, logits, 0.0, 1.0)
+    f_end = _objective(y, logits, a, b)
+    assert f_end < f_start
+
+
+def test_line_search_accepts_only_sufficient_decrease():
+    """Line-search descent: the final objective is strictly lower than the
+    initial objective, and the solver never returns a point whose objective is
+    worse than the starting point."""
+    logits = np.asarray(SYNTHETIC_LOGITS, dtype=np.float64)
+    y = np.asarray(SYNTHETIC_Y, dtype=np.float64)
+    a, b = deterministic_logistic_fit(y, logits)
+    f_start = _objective(y, logits, 0.0, 1.0)
+    f_end = _objective(y, logits, a, b)
+    assert f_end < f_start
+
+
+def test_stalled_corner_returns_only_when_kkt_satisfied():
+    """A both-pinned corner whose KKT residual is already zero must be accepted
+    as converged (not raised as unconverged).  y=0 with x>0 makes both
+    gradients positive at the lower faces, so no feasible descent direction
+    exists and the corner IS a local optimum."""
+    y = np.zeros(20, dtype=np.float64)
+    logits = np.full(20, 0.5, dtype=np.float64)
+    a, b = deterministic_logistic_fit(
+        y, logits, lower=(0.0, 1.0), upper=(2.0, 2.0),
+    )
+    # Both components remain pinned; the fit is accepted (KKT satisfied).
+    assert a == 0.0
+    assert b == 1.0
+    f_current = _objective(y, logits, a, b)
+    assert math.isfinite(f_current)
+
+
+def test_initial_already_kkt_converged_returns_without_stepping():
+    """A point already KKT-converged at iteration 0 must be returned as-is
+    (not iterated into noise).  Both gradients zero within tolerance."""
+    # logits extremely saturated, y=1: the objective is flat at (0, 1) and the
+    # gradients are exactly zero (sigmoid saturates to 1.0).
+    y = np.ones(20, dtype=np.float64)
+    logits = np.full(20, 1e6, dtype=np.float64)
+    a, b = deterministic_logistic_fit(y, logits)
+    assert a == 0.0
+    assert b == 1.0
+
+
+def test_stalled_no_progress_fails_closed_with_did_not_converge():
+    """P0: a nonstationary point with no feasible improving step must NEVER be
+    returned as converged.  A one-iteration budget cannot converge and must
+    raise ``calibration_solver_did_not_converge`` instead of returning the
+    start point."""
+    logits = np.linspace(-2.0, 1.0, 100, dtype=np.float64)
+    y = (logits > -0.5).astype(np.float64)
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(
+            y, logits, max_iterations=1,
+        )
+    assert excinfo.value.code == "calibration_solver_did_not_converge"
+
+
+def test_converged_point_is_verified_by_kkt_not_by_step():
+    """The reported parameters are always KKT-verified: the residual at the
+    returned point must be below the implemented gradient tolerance."""
+    logits = np.asarray(SYNTHETIC_LOGITS, dtype=np.float64)
+    y = np.asarray(SYNTHETIC_Y, dtype=np.float64)
+    a, b = deterministic_logistic_fit(y, logits)
+    # Recompute the gradients at the returned point and check the KKT residual.
+    from ai.calibration import stable_sigmoid
+    diff = np.array([stable_sigmoid(a + b * float(lg)) for lg in logits]) - y
+    sd = np.sum(diff)
+    sd_x = np.sum(diff * logits)
+    grad_a = sd / len(y) + 1e-3 * a
+    grad_b = sd_x / len(y) + 1e-3 * (b - 1.0)
+    resid_a = abs(grad_a) if -15.0 < a < 15.0 else max(0.0, abs(grad_a))
+    resid_b = abs(grad_b) if 0.01 < b < 15.0 else max(0.0, abs(grad_b))
+    assert max(resid_a, resid_b) <= 1e-10
