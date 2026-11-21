@@ -56,6 +56,113 @@ VALID_FIT_SCOPES: Final[frozenset[str]] = frozenset(
 )
 
 
+# CPU-portable deterministic calibration solver (pure-Python scalar arithmetic).
+# The default fit path keeps using scipy L-BFGS-B so the frozen 29-case synthetic
+# fixture contract is unchanged.  The deterministic path is CPU-portable: it makes
+# NO BLAS/OpenBLAS/SIMD reductions, so the fit is bit-reproducible across
+# OpenBLAS dynamic-arch dispatches (SkylakeX/Haswell/AVX2/AVX512).  It is used for
+# portability-oriented environments and for fixture re-certification work, and is
+# explicitly NOT a bit-exact reproduction of the frozen golden coefficients.
+DEFAULT_CALIBRATION_SOLVER: Final[str] = "scipy_lbfgsb"
+DETERMINISTIC_CALIBRATION_SOLVER: Final[str] = "deterministic_portable_newton"
+CALIBRATION_SOLVERS: Final[frozenset[str]] = frozenset(
+    {DEFAULT_CALIBRATION_SOLVER, DETERMINISTIC_CALIBRATION_SOLVER}
+)
+
+# Exact bounds for the two-parameter calibration fit. Kept identical between the
+# L-BFGS-B and the deterministic solver so calibration semantics never drift.
+CALIBRATION_LOWER_BOUNDS: Final[tuple[float, float]] = (-15.0, 0.01)
+CALIBRATION_UPPER_BOUNDS: Final[tuple[float, float]] = (15.0, 15.0)
+
+
+def deterministic_logistic_fit(
+    y: np.ndarray,
+    logits: np.ndarray,
+    *,
+    l2_anchor: float = 1e-3,
+    lower: tuple[float, float] = CALIBRATION_LOWER_BOUNDS,
+    upper: tuple[float, float] = CALIBRATION_UPPER_BOUNDS,
+    max_iterations: int = 200,
+    step_tolerance: float = 5e-16,
+) -> tuple[float, float]:
+    """Fully-portable, deterministic two-parameter L2-anchored logistic fit.
+
+    Solves ``minimize_over_(a,b) mean(logaddexp(0, a + b*x) - y*(a + b*x)) +
+    0.5*l2*(a^2 + (b - 1)^2)`` with a pure-Python float64 full-Newton step using
+    the analytic Hessian and box projection.
+
+    Determinism by construction: no BLAS/OpenBLAS/LAPACK calls, no numpy
+    pairwise-summation reductions (scalar loops with a fixed evaluation order),
+    no hidden state.  Bit-reproducible across CPU architectures and OpenBLAS
+    dynamic-arch dispatches for the same (y, logits, l2_anchor) inputs.
+
+    Note: this is a numerical-stability remedy, not a bit-exact reproduction of
+    the frozen 29-case golden coefficients (which were produced by scipy
+    L-BFGS-B under SkylakeX dispatch).  See
+    docs/rh04-portable-deterministic-calibration.md.
+    """
+    y_list = [float(v) for v in np.asarray(y, dtype=np.float64)]
+    logits_list = [float(v) for v in np.asarray(logits, dtype=np.float64)]
+    n = len(y_list)
+    if n != len(logits_list) or n == 0:
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_inputs",
+            "Deterministic logistic fit requires aligned non-empty 1-D arrays.",
+        )
+    lower_a, lower_b = lower
+    upper_a, upper_b = upper
+    if not (lower_a < upper_a and lower_b < upper_b):
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_bounds",
+            "Lower bounds must be strictly below upper bounds.",
+        )
+
+    def objective_and_gradient(a: float, b: float) -> tuple[float, float, float]:
+        s_nll = 0.0
+        s_diff = 0.0
+        s_diff_logits = 0.0
+        for i in range(n):
+            eta = a + b * logits_list[i]
+            s_nll += max(eta, 0.0) + math.log1p(math.exp(-abs(eta))) - y_list[i] * eta
+            p_i = 1.0 / (1.0 + math.exp(-eta))
+            s_diff += p_i - y_list[i]
+            s_diff_logits += (p_i - y_list[i]) * logits_list[i]
+        reg = 0.5 * l2_anchor * (a * a + (b - 1.0) ** 2)
+        grad_a = s_diff / n + l2_anchor * a
+        grad_b = s_diff_logits / n + l2_anchor * (b - 1.0)
+        return s_nll / n + reg, grad_a, grad_b
+
+    def negative_hessian_times_gradient_step(a: float, b: float, grad_a: float, grad_b: float):
+        s_q = 0.0
+        s_q_logits = 0.0
+        s_q_logits2 = 0.0
+        for i in range(n):
+            eta = a + b * logits_list[i]
+            p_i = 1.0 / (1.0 + math.exp(-eta))
+            q = p_i * (1.0 - p_i)
+            s_q += q
+            s_q_logits += q * logits_list[i]
+            s_q_logits2 += q * logits_list[i] * logits_list[i]
+        Haa = s_q / n + l2_anchor
+        Hab = s_q_logits / n
+        Hbb = s_q_logits2 / n + l2_anchor
+        det = Haa * Hbb - Hab * Hab
+        da = (-grad_a * Hbb + grad_b * Hab) / det
+        db = (-grad_b * Haa + grad_a * Hab) / det
+        return da, db
+
+    a, b = 0.0, 1.0
+    for _ in range(max_iterations):
+        _, grad_a, grad_b = objective_and_gradient(a, b)
+        da, db = negative_hessian_times_gradient_step(a, b, grad_a, grad_b)
+        a_next = min(upper_a, max(lower_a, a + da))
+        b_next = min(upper_b, max(lower_b, b + db))
+        if abs(a_next - a) <= step_tolerance and abs(b_next - b) <= step_tolerance:
+            return a_next, b_next
+        a, b = a_next, b_next
+    return a, b
+
+
 def safe_clipped_logit(probabilities: np.ndarray | float) -> np.ndarray:
     """Compute logit after clamping bounded [0, 1] probabilities away from {0, 1}."""
     clipped = np.clip(
@@ -233,11 +340,17 @@ class OofLogisticCalibrator:
         raw_logits: np.ndarray | None = None,
         fit_scope: str = "FULL_DEVELOPMENT_OOF_FINAL",
         l2_anchor: float = 1e-3,
+        solver: str = DEFAULT_CALIBRATION_SOLVER,
     ) -> "OofLogisticCalibrator":
         if fit_scope not in VALID_FIT_SCOPES:
             raise CalibrationIntegrityError(
                 "invalid_calibration_fit_scope",
                 f"Unsupported calibration fit_scope '{fit_scope}'.",
+            )
+        if solver not in CALIBRATION_SOLVERS:
+            raise CalibrationIntegrityError(
+                "invalid_calibration_solver",
+                f"Unsupported calibration solver '{solver}'.",
             )
         y = np.asarray(y_oof, dtype=np.float64)
         p = np.asarray(p_oof_raw, dtype=np.float64)
@@ -303,15 +416,26 @@ class OofLogisticCalibrator:
             grad_b = float(np.mean(diff * logits)) + l2_anchor * (b - 1.0)
             return nll + reg, np.array([grad_a, grad_b], dtype=np.float64)
 
-        opt = minimize(
-            lambda theta: objective(theta)[0],
-            x0=np.array([0.0, 1.0], dtype=np.float64),
-            jac=lambda theta: objective(theta)[1],
-            method="L-BFGS-B",
-            bounds=[(-15.0, 15.0), (0.01, 15.0)],
-        )
-        intercept = float(opt.x[0]) if np.isfinite(opt.x[0]) else 0.0
-        slope = float(opt.x[1]) if (np.isfinite(opt.x[1]) and opt.x[1] >= 0.0) else 1.0
+        if solver == DETERMINISTIC_CALIBRATION_SOLVER:
+            a_fit, b_fit = deterministic_logistic_fit(
+                y,
+                logits,
+                l2_anchor=l2_anchor,
+                lower=CALIBRATION_LOWER_BOUNDS,
+                upper=CALIBRATION_UPPER_BOUNDS,
+            )
+            intercept = float(a_fit) if np.isfinite(a_fit) else 0.0
+            slope = float(b_fit) if (np.isfinite(b_fit) and b_fit >= 0.0) else 1.0
+        else:
+            opt = minimize(
+                lambda theta: objective(theta)[0],
+                x0=np.array([0.0, 1.0], dtype=np.float64),
+                jac=lambda theta: objective(theta)[1],
+                method="L-BFGS-B",
+                bounds=[(-15.0, 15.0), (0.01, 15.0)],
+            )
+            intercept = float(opt.x[0]) if np.isfinite(opt.x[0]) else 0.0
+            slope = float(opt.x[1]) if (np.isfinite(opt.x[1]) and opt.x[1] >= 0.0) else 1.0
         calibrated = expit(intercept + slope * logits)
         brier_after = float(brier_score_loss(y.astype(np.int64), calibrated))
 
