@@ -129,6 +129,117 @@ jobs:
 
           echo "PASS: No real datasets or generated patient-level artifacts were present."
 
+  rh04-uci412-stage-probe:
+    name: RH-04 UCI-412 stage drift probe (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    # Exact frozen synthetic fixture / 2 independently fitted builds, no real data.
+    # A numeric difference is a RED diagnostic, not a relaxed fixture acceptance.
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install pinned synthetic research dependencies
+        run: |
+          python -m pip install -r research/experiments/requirements.txt
+          python -m pip install -r research/audit/requirements.txt
+          python -m pip install -r research/uci412/requirements.txt
+          python -m pip check
+      - name: Inspect actual numerical runtime
+        run: |
+          python - <<'PY'
+          import numpy
+          from threadpoolctl import threadpool_info
+          info = threadpool_info()
+          if not info or any(x.get("num_threads") != 1 for x in info):
+              raise SystemExit("Numerical threading preflight failed")
+          print("PASS numerical runtime has exactly one thread per pool")
+          PY
+      - name: Unit-check redacted diagnostic formatting
+        run: |
+          python -m pytest -q -W error tests/experiments/test_trace_uci412_drift.py
+      - name: Compare independent UCI-412 model stages against frozen fixture
+        run: |
+          python -m research.intake.trace_uci412_drift
+
+  rh04-cpu-kernel-control:
+    name: RH-04 controlled CPU kernel experiment (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    # EXPERIMENT ONLY. Test NumPy dispatch + fixed OpenBLAS core selection
+    # independently of previous single-thread-only results. No fixture/model edits.
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
+      OPENBLAS_CORETYPE: 'HASWELL'
+      NPY_DISABLE_CPU_FEATURES: 'AVX2,FMA3,AVX512F'
+    steps:
+      - name: Check out frozen sources
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install exact pinned synthetic test dependencies
+        run: |
+          python -m pip install -r research/experiments/requirements.txt
+          python -m pip install -r research/audit/requirements.txt
+          python -m pip install -r research/uci412/requirements.txt
+          python -m pip check
+      - name: Check NumPy dispatch and OpenBLAS kernel settings
+        run: |
+          python - <<'PY'
+          import os
+          import numpy as np
+          from threadpoolctl import threadpool_info
+          from numpy.core._multiarray_umath import __cpu_features__
+          pools = threadpool_info()
+          flags = ("AVX2", "FMA3", "AVX512F")
+          disabled = {x: not bool(__cpu_features__.get(x, False)) for x in flags}
+          print("CPU dispatch features disabled:", disabled)
+          print("OpenBLAS pools:", [(x.get("internal_api"), x.get("num_threads"), x.get("architecture")) for x in pools])
+          if os.environ["OPENBLAS_CORETYPE"].upper() != "HASWELL":
+              raise SystemExit("CPU contract missing kernel override")
+          if not pools or any(x.get("num_threads") != 1 for x in pools):
+              raise SystemExit("CPU contract runtime threading mismatch")
+          if not all(disabled.values()):
+              raise SystemExit("Expected disabled NumPy dispatch features still present")
+          PY
+      - name: Run two exact frozen 29-case replays under controlled CPU dispatch
+        run: |
+          python -m research.intake.diagnose_fixture_replay
+          python -m research.intake.diagnose_fixture_replay
+      - name: Stage-locate UCI-412 drift in same controlled CPU environment
+        if: ${{ success() || failure() }}
+        run: |
+          python -m research.intake.trace_uci412_drift
+
   rh04-fixture-diagnostic:
     name: RH-04 fixture structural drift diagnostic (Python 3.12)
     runs-on: ubuntu-24.04
