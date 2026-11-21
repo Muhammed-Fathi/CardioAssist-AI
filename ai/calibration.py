@@ -61,8 +61,16 @@ VALID_FIT_SCOPES: Final[frozenset[str]] = frozenset(
 # fixture contract is unchanged.  The deterministic path is CPU-portable: it makes
 # NO BLAS/OpenBLAS/SIMD reductions, so the fit is bit-reproducible across
 # OpenBLAS dynamic-arch dispatches (SkylakeX/Haswell/AVX2/AVX512).  It is used for
-# portability-oriented environments and for fixture re-certification work, and is
-# explicitly NOT a bit-exact reproduction of the frozen golden coefficients.
+# portability-oriented environments and for fixture re-certification work.
+#
+# Scientific/technical caveat (see docs/rh04-portable-deterministic-calibration.md):
+# the frozen 29-case golden values were produced by scipy L-BFGS-B under the
+# golden-generation host's OpenBLAS dispatch.  The experiments in this repository
+# show that NEITHER the vanilla L-BFGS-B path NOR this deterministic solver
+# reproduces the frozen reference bit-for-bit on all tested dispatches; software
+# emulation of one particular kernel arithmetic order is conceptually possible
+# (though unproven and likely impractical).  This solver is therefore a
+# numerical-stability remedy, not a bit-exact reproduction of the frozen golden.
 DEFAULT_CALIBRATION_SOLVER: Final[str] = "scipy_lbfgsb"
 DETERMINISTIC_CALIBRATION_SOLVER: Final[str] = "deterministic_portable_newton"
 CALIBRATION_SOLVERS: Final[frozenset[str]] = frozenset(
@@ -74,6 +82,29 @@ CALIBRATION_SOLVERS: Final[frozenset[str]] = frozenset(
 CALIBRATION_LOWER_BOUNDS: Final[tuple[float, float]] = (-15.0, 0.01)
 CALIBRATION_UPPER_BOUNDS: Final[tuple[float, float]] = (15.0, 15.0)
 
+# Armijo backtracking controls for the deterministic solver. Kept as named
+# module constants so convergence behaviour is deterministic and auditable;
+# they are NOT user-tunable tolerances.
+_DETERMINISTIC_BACKTRACK_FACTOR: Final[float] = 0.5
+_DETERMINISTIC_BACKTRACK_MIN: Final[float] = 2.0 ** -40
+_DETERMINISTIC_BACKTRACK_C1: Final[float] = 1.0e-4
+
+
+def stable_sigmoid(eta: float) -> float:
+    """Overflow-safe logistic sigmoid for arbitrary float64 logits.
+
+    ``1.0 / (1.0 + math.exp(-eta))`` overflows for sufficiently negative ``eta``
+    (``math.exp`` raises ``OverflowError``).  The two-branch form below never
+    exponentiates a positive argument:
+
+    * ``eta >= 0``: ``1.0 / (1.0 + math.exp(-eta))`` — ``exp(-eta) in (0, 1]``.
+    * ``eta < 0``:  ``e / (1.0 + e)`` with ``e = math.exp(eta)`` — ``e in (0, 1)``.
+    """
+    if eta >= 0.0:
+        return 1.0 / (1.0 + math.exp(-eta))
+    e = math.exp(eta)
+    return e / (1.0 + e)
+
 
 def deterministic_logistic_fit(
     y: np.ndarray,
@@ -84,39 +115,112 @@ def deterministic_logistic_fit(
     upper: tuple[float, float] = CALIBRATION_UPPER_BOUNDS,
     max_iterations: int = 200,
     step_tolerance: float = 5e-16,
+    gradient_tolerance: float = 1e-12,
 ) -> tuple[float, float]:
     """Fully-portable, deterministic two-parameter L2-anchored logistic fit.
 
-    Solves ``minimize_over_(a,b) mean(logaddexp(0, a + b*x) - y*(a + b*x)) +
-    0.5*l2*(a^2 + (b - 1)^2)`` with a pure-Python float64 full-Newton step using
-    the analytic Hessian and box projection.
+    Solves
+    ``minimize_over_(a,b) mean(logaddexp(0, a + b*x) - y*(a + b*x))
+     + 0.5*l2*(a^2 + (b - 1)^2)``
+    with a pure-Python float64 full-Newton step, deterministic Armijo
+    backtracking with box projection, and KKT residual convergence verification.
 
     Determinism by construction: no BLAS/OpenBLAS/LAPACK calls, no numpy
     pairwise-summation reductions (scalar loops with a fixed evaluation order),
-    no hidden state.  Bit-reproducible across CPU architectures and OpenBLAS
-    dynamic-arch dispatches for the same (y, logits, l2_anchor) inputs.
+    no random state.  Bit-reproducible across CPU architectures and OpenBLAS
+    dynamic-arch dispatches for the same (y, logits, l2_anchor, bounds, controls).
+
+    Raises ``CalibrationIntegrityError`` with one of the codes below:
+    * ``invalid_deterministic_fit_data`` — shape, length, NaN/Inf, or non-finite inputs.
+    * ``invalid_deterministic_fit_l2_anchor`` — anchor must be finite and > 0.
+    * ``invalid_deterministic_fit_bounds`` — lower < upper, all bounds finite.
+    * ``invalid_deterministic_fit_controls`` — max_iterations >= 1 (int, finite),
+      tolerances finite and > 0.
+    * ``calibration_solver_degenerate_hessian`` — analytic Hessian determinant
+      is not finite or <= 0 (the step is not trustworthy).
+    * ``calibration_solver_did_not_converge`` — the iteration budget was
+      exhausted before the KKT/step convergence test passed; the returned
+      parameters are never silently reported as converged.
 
     Note: this is a numerical-stability remedy, not a bit-exact reproduction of
     the frozen 29-case golden coefficients (which were produced by scipy
     L-BFGS-B under SkylakeX dispatch).  See
     docs/rh04-portable-deterministic-calibration.md.
     """
-    y_list = [float(v) for v in np.asarray(y, dtype=np.float64)]
-    logits_list = [float(v) for v in np.asarray(logits, dtype=np.float64)]
-    n = len(y_list)
-    if n != len(logits_list) or n == 0:
+    y_array = np.asarray(y, dtype=np.float64)
+    logits_array = np.asarray(logits, dtype=np.float64)
+
+    # --- Input validation: dimensions, shape, finiteness --------------------
+    if y_array.ndim != 1 or logits_array.ndim != 1:
         raise CalibrationIntegrityError(
-            "invalid_deterministic_fit_inputs",
-            "Deterministic logistic fit requires aligned non-empty 1-D arrays.",
+            "invalid_deterministic_fit_data",
+            "y and logits must be 1-D arrays.",
         )
-    lower_a, lower_b = lower
-    upper_a, upper_b = upper
+    if y_array.size != logits_array.size:
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_data",
+            "y and logits must have the same length.",
+        )
+    n = int(y_array.size)
+    if n < 2:
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_data",
+            "Deterministic logistic fit requires at least 2 observations.",
+        )
+    if not (np.all(np.isfinite(y_array)) and np.all(np.isfinite(logits_array))):
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_data",
+            "y and logits must be finite.",
+        )
+    y_list = [float(v) for v in y_array]
+    logits_list = [float(v) for v in logits_array]
+
+    # --- Scalar controls validation -----------------------------------------
+    if not isinstance(max_iterations, int) or isinstance(max_iterations, bool) or not np.isfinite(max_iterations):
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_controls",
+            "max_iterations must be a finite positive integer.",
+        )
+    if max_iterations < 1:
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_controls",
+            "max_iterations must be at least 1.",
+        )
+    if not math.isfinite(l2_anchor) or l2_anchor <= 0.0:
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_l2_anchor",
+            "l2_anchor must be finite and strictly positive.",
+        )
+    if not (math.isfinite(step_tolerance) and step_tolerance > 0.0):
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_controls",
+            "step_tolerance must be finite and strictly positive.",
+        )
+    if not (math.isfinite(gradient_tolerance) and gradient_tolerance > 0.0):
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_controls",
+            "gradient_tolerance must be finite and strictly positive.",
+        )
+    try:
+        lower_a, lower_b = lower
+        upper_a, upper_b = upper
+    except (TypeError, ValueError) as exc:
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_bounds",
+            "lower and upper must be (intercept, slope) tuples.",
+        ) from exc
+    if not all(math.isfinite(v) for v in (lower_a, lower_b, upper_a, upper_b)):
+        raise CalibrationIntegrityError(
+            "invalid_deterministic_fit_bounds",
+            "Bounds must be finite.",
+        )
     if not (lower_a < upper_a and lower_b < upper_b):
         raise CalibrationIntegrityError(
             "invalid_deterministic_fit_bounds",
             "Lower bounds must be strictly below upper bounds.",
         )
 
+    # --- Objective, gradient, Hessian (overflow-safe) ------------------------
     def objective_and_gradient(a: float, b: float) -> tuple[float, float, float]:
         s_nll = 0.0
         s_diff = 0.0
@@ -124,21 +228,37 @@ def deterministic_logistic_fit(
         for i in range(n):
             eta = a + b * logits_list[i]
             s_nll += max(eta, 0.0) + math.log1p(math.exp(-abs(eta))) - y_list[i] * eta
-            p_i = 1.0 / (1.0 + math.exp(-eta))
+            p_i = stable_sigmoid(eta)
             s_diff += p_i - y_list[i]
             s_diff_logits += (p_i - y_list[i]) * logits_list[i]
         reg = 0.5 * l2_anchor * (a * a + (b - 1.0) ** 2)
-        grad_a = s_diff / n + l2_anchor * a
-        grad_b = s_diff_logits / n + l2_anchor * (b - 1.0)
-        return s_nll / n + reg, grad_a, grad_b
+        return (
+            s_nll / n + reg,
+            s_diff / n + l2_anchor * a,
+            s_diff_logits / n + l2_anchor * (b - 1.0),
+        )
 
-    def negative_hessian_times_gradient_step(a: float, b: float, grad_a: float, grad_b: float):
+    def restricted_step(a: float, b: float, grad_a: float, grad_b: float) -> tuple[float, float, float]:
+        """Box-constrained Newton step and largest feasible t in (0, 1].
+
+        Components sitting exactly on a box face are held fixed (their step is
+        zeroed) and the remaining *interior* components take a Newton step
+        computed on the restricted sub-Hessian (a 1x1 or 2x2 unconstrained
+        quadratic model).  This makes the step a true descent direction on the
+        free coordinates even when a face is active, instead of projecting an
+        unconstrained step whose projected directional derivative can become
+        non-negative.
+
+        Returns ``(da, db, t_max)`` where ``t_max`` is capped so the capped
+        candidate stays inside the box along the free directions; it is 0.0
+        only when no free component exists (both components pinned to faces).
+        """
         s_q = 0.0
         s_q_logits = 0.0
         s_q_logits2 = 0.0
         for i in range(n):
             eta = a + b * logits_list[i]
-            p_i = 1.0 / (1.0 + math.exp(-eta))
+            p_i = stable_sigmoid(eta)
             q = p_i * (1.0 - p_i)
             s_q += q
             s_q_logits += q * logits_list[i]
@@ -146,21 +266,144 @@ def deterministic_logistic_fit(
         Haa = s_q / n + l2_anchor
         Hab = s_q_logits / n
         Hbb = s_q_logits2 / n + l2_anchor
-        det = Haa * Hbb - Hab * Hab
-        da = (-grad_a * Hbb + grad_b * Hab) / det
-        db = (-grad_b * Haa + grad_a * Hab) / det
-        return da, db
+
+        # Components that sit on a box face (within a tiny rounding tolerance)
+        # are treated as pinned.  The tolerance keeps rounding leftovers from
+        # re-entering as "interior" with a near-zero box-capped step.
+        face_eps = 1.0e-14
+        a_free = not (a <= lower_a + face_eps or a >= upper_a - face_eps)
+        b_free = not (b <= lower_b + face_eps or b >= upper_b - face_eps)
+
+        da = 0.0
+        db = 0.0
+        if a_free and b_free:
+            det = Haa * Hbb - Hab * Hab
+            if not (math.isfinite(det) and det > 0.0):
+                raise CalibrationIntegrityError(
+                    "calibration_solver_degenerate_hessian",
+                    "Analytic Hessian is degenerate or not finite; refusing to step.",
+                )
+            da = (-grad_a * Hbb + grad_b * Hab) / det
+            db = (-grad_b * Haa + grad_a * Hab) / det
+            if not (math.isfinite(da) and math.isfinite(db)):
+                raise CalibrationIntegrityError(
+                    "calibration_solver_degenerate_hessian",
+                    "Analytic Hessian produced a non-finite step; refusing to step.",
+                )
+        elif a_free:
+            if not (math.isfinite(Haa) and Haa > 0.0):
+                raise CalibrationIntegrityError(
+                    "calibration_solver_degenerate_hessian",
+                    "Analytic Hessian is degenerate or not finite; refusing to step.",
+                )
+            da = -grad_a / Haa
+        elif b_free:
+            if not (math.isfinite(Hbb) and Hbb > 0.0):
+                raise CalibrationIntegrityError(
+                    "calibration_solver_degenerate_hessian",
+                    "Analytic Hessian is degenerate or not finite; refusing to step.",
+                )
+            db = -grad_b / Hbb
+
+        t_max = 1.0
+        if da > 0.0 and a + da > upper_a:
+            t_max = min(t_max, (upper_a - a) / da)
+        elif da < 0.0 and a + da < lower_a:
+            t_max = min(t_max, (lower_a - a) / da)
+        if db > 0.0 and b + db > upper_b:
+            t_max = min(t_max, (upper_b - b) / db)
+        elif db < 0.0 and b + db < lower_b:
+            t_max = min(t_max, (lower_b - b) / db)
+        if not math.isfinite(t_max) or t_max <= 0.0:
+            # No strictly feasible step along the free directions: both
+            # components are pinned.  Convergence is assessed by the caller.
+            return da, db, 0.0
+        return da, db, t_max
+
+    def projected_gradient_residual(a: float, b: float, grad_a: float, grad_b: float) -> float:
+        """Box-constrained KKT residual, max of the per-component residuals.
+
+        Minimization with ``lower <= (a, b) <= upper``:
+        at the lower bound, feasible descent requires ``grad >= 0``;
+        at the upper bound, ``grad <= 0``; in the interior, equality.
+        """
+        if a <= lower_a:
+            resid_a = max(0.0, -grad_a)
+        elif a >= upper_a:
+            resid_a = max(0.0, grad_a)
+        else:
+            resid_a = abs(grad_a)
+        if b <= lower_b:
+            resid_b = max(0.0, -grad_b)
+        elif b >= upper_b:
+            resid_b = max(0.0, grad_b)
+        else:
+            resid_b = abs(grad_b)
+        return max(resid_a, resid_b)
 
     a, b = 0.0, 1.0
-    for _ in range(max_iterations):
-        _, grad_a, grad_b = objective_and_gradient(a, b)
-        da, db = negative_hessian_times_gradient_step(a, b, grad_a, grad_b)
-        a_next = min(upper_a, max(lower_a, a + da))
-        b_next = min(upper_b, max(lower_b, b + db))
-        if abs(a_next - a) <= step_tolerance and abs(b_next - b) <= step_tolerance:
+    if not (lower_a <= a <= upper_a):
+        a = min(upper_a, max(lower_a, a))
+    if not (lower_b <= b <= upper_b):
+        b = min(upper_b, max(lower_b, b))
+
+    for iteration in range(max_iterations):
+        f_current, grad_a, grad_b = objective_and_gradient(a, b)
+        da, db, t = restricted_step(a, b, grad_a, grad_b)
+        candidate = (a, b)
+        best_objective = f_current
+        best = (a, b)
+        while True:
+            if t > 0.0:
+                a_candidate = a + t * da
+                b_candidate = b + t * db
+                # Keep the candidate strictly inside the box even in the
+                # presence of rounding leftovers from the box-capped step.
+                a_candidate = min(max(a_candidate, lower_a), upper_a)
+                b_candidate = min(max(b_candidate, lower_b), upper_b)
+                objective = objective_and_gradient(a_candidate, b_candidate)[0]
+                directional = grad_a * da + grad_b * db
+                if (
+                    math.isfinite(objective)
+                    and objective <= f_current - _DETERMINISTIC_BACKTRACK_C1 * t * directional
+                ):
+                    candidate = (a_candidate, b_candidate)
+                    if objective < best_objective:
+                        best_objective = objective
+                        best = candidate
+                    break
+                if t > _DETERMINISTIC_BACKTRACK_MIN:
+                    t *= _DETERMINISTIC_BACKTRACK_FACTOR
+                    continue
+            # No feasible decreasing step within the box: the current point is
+            # the constrained local optimum (or the step vanishes).
+            candidate = (a, b)
+            break
+
+        a_next, b_next = best
+        max_step = max(abs(a_next - a), abs(b_next - b))
+
+        f_next, grad_a_next, grad_b_next = objective_and_gradient(a_next, b_next)
+        residual = projected_gradient_residual(a_next, b_next, grad_a_next, grad_b_next)
+
+        # Converged when the KKT residual (max of the per-component constrained
+        # stationarity tests for interior and face-pinned components) is below
+        # the gradient tolerance, or when a strictly feasible step was taken
+        # but was below the step tolerance.  The step-only path requires a
+        # strictly positive step: a zero step with a non-negligible KKT
+        # residual means both components are pinned and the fit is NOT
+        # converged (the corner is not a KKT point), so it must raise.
+        if residual <= gradient_tolerance or (t > 0.0 and max_step <= step_tolerance):
             return a_next, b_next
+
         a, b = a_next, b_next
-    return a, b
+
+    # Iteration budget exhausted before convergence: never return unconverged
+    # parameters as if they were converged.
+    raise CalibrationIntegrityError(
+        "calibration_solver_did_not_converge",
+        f"Deterministic logistic fit did not converge within {max_iterations} iterations.",
+    )
 
 
 def safe_clipped_logit(probabilities: np.ndarray | float) -> np.ndarray:
@@ -329,6 +572,12 @@ class OofLogisticCalibrator:
     status: str  # "FITTED_OOF_MONOTONE_LOGISTIC" | "IDENTITY_CONSTANT_FALLBACK"
     input_link: str = "clipped_logit_of_raw_probability"
     fit_scope: str = "FULL_DEVELOPMENT_OOF_FINAL"
+    # In-memory provenance only: which solver produced these parameters
+    # ("scipy_lbfgsb" default, "deterministic_portable_newton" opt-in, or "none"
+    # for the IDENTITY_CONSTANT_FALLBACK path).  Excluded from the canonical
+    # serialized calibration.json on purpose so the frozen contract (state_sha256,
+    # fixture digests) is unchanged.
+    solver: str = DEFAULT_CALIBRATION_SOLVER
 
     @classmethod
     def fit_from_oof(
@@ -404,6 +653,7 @@ class OofLogisticCalibrator:
                 status="IDENTITY_CONSTANT_FALLBACK",
                 input_link=input_link,
                 fit_scope=fit_scope,
+                solver="none",
             )
 
         def objective(params: np.ndarray) -> tuple[float, np.ndarray]:
@@ -450,6 +700,7 @@ class OofLogisticCalibrator:
             status="FITTED_OOF_MONOTONE_LOGISTIC",
             input_link=input_link,
             fit_scope=fit_scope,
+            solver=solver,
         )
 
     def transform_log_odds(self, raw_logits: np.ndarray | float) -> np.ndarray:

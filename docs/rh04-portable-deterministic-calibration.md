@@ -65,30 +65,41 @@ Everything else in the pipeline — cohort selection, OOF probabilities
 (`safe_clipped_logit`), model family, bootstrap, SHAP, the facade response and
 digest — is bit-identical across dispatches (verified).
 
-## 3. Why a bit-exact portable reproduction is not achievable
+## 3. What the investigation does and does not establish
 
-A CPU-portable fix would have to reproduce the frozen golden bit-for-bit on every
-supported CPU. That is impossible for a code-only change, because the frozen
-fixture embeds a result of a CPU-dispatched SIMD arithmetic. Specifically:
+The investigation does **not** establish that all portable, bit-exact
+reproduction of the frozen golden result is mathematically impossible.
+Specifically, the observations are narrower than an impossibility claim:
 
 - If the fit keeps scipy L-BFGS-B, the result depends on the host's dispatch —
-  exactly the current failure.
-- If the fit is replaced by a deterministic CPU-portable algorithm (the
-  remedy in this document), it is bit-identical across CPUs, but it converges to
-  the mathematical argmin of the same objective — which differs from the
-  frozen golden, which is a stopping criterion artifact of L-BFGS-B (it stops at
-  a projected-gradient ceiling, not at machine precision).  Measured on the
-  golden cohort: intercept delta ≈ 1.08e-6, slope delta ≈ 5.9e-7,
-  calibrated_log_odds delta ≈ 1.9e-7 (relative delta ≈ 7e-8). This is **not** a
-  bit-exact match and cannot be made one without either (a) hiding the
-  hardware-specific arithmetic in the portable code path (i.e. re-implementing
-  SkylakeX's SIMD reductions by hand — the same hardware specificity in a
-  portable costume), or (b) freezing new constants that happen to equal the
-  golden (forbidden).
+  exactly the current failure (observed: 1 ULP drift in
+  `calibrated_log_odds` under Haswell-class dispatch).
+- The deterministic CPU-portable solver (the remedy in this document) is
+  bit-identical across dispatches, but it converges to the mathematical argmin
+  of the same objective — which differs from the frozen golden, which is a
+  stopping-criterion artifact of L-BFGS-B (it stops at a projected-gradient
+  ceiling, not at machine precision).  Measured on the golden cohort: intercept
+  delta ≈ 1.08e-6, slope delta ≈ 5.9e-7, calibrated_log_odds delta ≈ 1.9e-7
+  (relative delta ≈ 7e-8). This is **not** a bit-exact match.
+- A software emulation of the exact golden-generation arithmetic (bit-for-bit
+  replication of the SkylakeX SIMD reductions and the L-BFGS-B stopping
+  criterion) is *conceptually* possible — the fixture is a deterministic
+  function of its input — but it would be a large, hardware-specific,
+  non-portable code path (re-implementing SkylakeX's SIMD reduction kernels by
+  hand, the same hardware specificity in a portable costume), and it is
+  not supported by this work.
+- Among portable algorithms tested (vanilla L-BFGS-B, the deterministic Newton
+  solver), none reproduces the frozen reference bit-for-bit on all tested
+  dispatches.  At the implementation level, `math.exp` and `math.log1p` are
+  not guaranteed to be bit-portable across different libc/OS builds — the
+  deterministic solver uses both — so last-ULP differences across platforms
+  cannot be ruled out on arbitrary systems, even though the solver is
+  bit-identical across OpenBLAS dispatches on the same platform.
 
-Therefore the exact Golden Replay cannot pass on an arbitrary CPU while the
-fixture, its hash, tolerances and the frozen comparator remain unchanged. This
-is the fundamental, honest boundary of a portable code-level fix.
+Therefore the exact Golden Replay cannot be claimed to pass on an arbitrary CPU
+while the fixture, its hash, tolerances and the frozen comparator remain
+unchanged.  This is the honest boundary of what the investigation establishes,
+and it is narrower than any unsupported claim of mathematical impossibility.
 
 ## 4. The CPU-portable deterministic remedy (provided, not wired-in)
 
@@ -98,13 +109,46 @@ fully-portable, deterministic two-parameter L2-anchored logistic fit:
 - pure-Python float64 scalar arithmetic (no BLAS/OpenBLAS/LAPACK calls, no
   numpy pairwise-summation reductions, fixed evaluation order, no hidden
   state),
-- full-Newton step with the analytic Hessian and box projection (same bounds
-  and same objective as the L-BFGS-B path),
+- overflow-safe scalar sigmoid (`1/(1+exp(-eta))` for `eta >= 0`, the two-branch
+  form for `eta < 0`) and an overflow-safe objective/gradient/Hessian
+  (`max(eta, 0) + log1p(exp(-|eta|))`, never a bare `log1p(exp(-eta))`), so
+  extreme positive/negative logits cannot raise `OverflowError`,
+- box-constrained Newton step with an analytic Hessian and a proper
+  restricted-step active set: a component sitting on a box face is pinned and
+  the remaining free components take a Newton step on the restricted sub-Hessian
+  (1x1 or 2x2), with deterministic Armijo backtracking (factor 0.5, lower bound
+  2^-40, c1=1e-4) capped by the box,
+- explicit convergence verification: the projected-gradient KKT residual (max
+  of the per-component constrained stationarity tests — interior: |grad|, lower
+  face: max(0, -grad), upper face: max(0, grad)) must be <= gradient_tolerance
+  (default 1e-12); the last step also must be <= step_tolerance (default 5e-16)
+  as a secondary check; on the iteration-budget exhaustion the solver raises
+  `calibration_solver_did_not_converge` instead of silently returning
+  unconverged parameters;
+- full input validation at the API boundary (1-D finite equal-length arrays
+  with n >= 2, finite positive l2_anchor, finite lower < upper bounds, finite
+  integer max_iterations >= 1, finite positive tolerances) with the codes
+  `invalid_deterministic_fit_data`, `invalid_deterministic_fit_l2_anchor`,
+  `invalid_deterministic_fit_bounds` and `invalid_deterministic_fit_controls`,
+  `calibration_solver_degenerate_hessian` and
+  `calibration_solver_did_not_converge`,
+- an in-memory `solver` provenance field on the calibrator (`"scipy_lbfgsb"`
+  default, `"deterministic_portable_newton"` opt-in, `"none"` for the
+  IDENTITY_CONSTANT_FALLBACK path), deliberately excluded from the canonical
+  serialized calibration.json so the frozen contract is unchanged,
 - bit-identical across `OPENBLAS_CORETYPE` dispatches (verified empirically for
   the synthetic dataset across `generic`/`Haswell`/`Sandybridge`/`SkylakeX`,
   and on the golden cohort data across SkylakeX/Haswell),
 - validates the same inputs, and `fit_from_oof` dispatches to it behind
   `solver="deterministic_portable_newton"`.
+
+Post-hardening evidence on the golden cohort (`da_a1_basic_clinical_v1`, 120
+OOF observations, `clipped_logit_of_raw_probability` link, `l2_anchor=1e-3`,
+bounds `((-15, 0.01), (15, 15))`): intercept -0.8264885654831883, slope
+1.6547974261129714 — vs frozen intercept -0.8264874886346654 / slope
+1.6547968324340276; calibrated_log_odds 2.6971398591257767 vs frozen
+2.6971396718292335 (delta +1.87e-7); calibrated_score 0.9368576624681214 vs
+0.9368576513885218 (delta +1.11e-8).  Still not a bit-exact reproduction.
 
 **Deliberately not the default.** The default `fit_from_oof` path keeps the
 scipy L-BFGS-B call so that the frozen contract and the existing exact Golden
@@ -169,7 +213,14 @@ remain unmerged and Issue #132 must remain open.
   (subprocess-verified), bit-reproducibility across repeated calls, bounded and
   finite parameters, input/bounds validation, contract preservation via
   `fit_from_oof(solver="deterministic_portable_newton")`, JSON round-trip,
-  unknown-solver rejection, default-path contract (scipy L-BFGS-B stays default).
+  unknown-solver rejection, default-path contract (scipy L-BFGS-B stays default),
+  plus the hardening guards: overflow-safe sigmoid/objective at extreme
+  positive/negative logits, boundary-optima convergence (slope/intercept pinned
+  to the box faces, including corner points), degenerate co-linear logits,
+  budget-exhausted `did_not_converge`, objective-quality improvement over the
+  (0, 1) start, API-boundary validation codes, affine/monotone exact-link
+  contract preservation, and in-memory solver provenance (excluded from the
+  serialized calibration contract).
 - `tests/experiments/test_rh04_calibration_dispatch.py` — unchanged: the
   frozen-value, frozen-response, SHAP-contract, workflow-guard and digest
   assertions remain exactly as they were on the frozen path.

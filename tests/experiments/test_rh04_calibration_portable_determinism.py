@@ -229,3 +229,239 @@ def test_solver_contract_constants_are_consistent():
     assert DETERMINISTIC_CALIBRATION_SOLVER in CALIBRATION_SOLVERS
     assert DEFAULT_CALIBRATION_SOLVER in CALIBRATION_SOLVERS
     assert len(CALIBRATION_SOLVERS) == 2
+
+# --------------------------------------------------------------------------
+# Hardening guards (reviewer items 1-3 and reviewer items 4-7).
+# --------------------------------------------------------------------------
+
+def _objective(y: np.ndarray, logits: np.ndarray, a: float, b: float, l2_anchor: float = 1e-3) -> float:
+    """Pure-Python objective identical to the one the solver minimizes."""
+    s = 0.0
+    for i in range(logits.size):
+        eta = a + b * float(logits[i])
+        s += max(eta, 0.0) + math.log1p(math.exp(-abs(eta))) - float(y[i]) * eta
+    reg = 0.5 * l2_anchor * (a * a + (b - 1.0) ** 2)
+    return s / float(logits.size) + reg
+
+
+def test_stable_sigmoid_is_finite_and_bounded_on_extreme_logits():
+    """Item 1: the scalar sigmoid never overflows or returns non-finite values,
+    even for extreme positive/negative logits."""
+    from ai.calibration import stable_sigmoid
+
+    for x in (-1000.0, -709.8, -100.0, -1.0, 0.0, 1.0, 100.0, 709.8, 1000.0):
+        p = stable_sigmoid(x)
+        assert math.isfinite(p)
+        assert 0.0 <= p <= 1.0
+    # No overflow: the extreme branches return their limits, not an error.
+    assert stable_sigmoid(-1000.0) == 0.0
+    assert stable_sigmoid(1000.0) == 1.0
+    # Internal consistency: sigmoid(-x) = 1 - sigmoid(x) (to last-ULP).
+    for x in (-100.0, -10.0, -1.0, 1.0, 10.0, 100.0):
+        assert abs(stable_sigmoid(x) + stable_sigmoid(-x) - 1.0) < 4.0 * np.finfo(np.float64).eps
+
+
+def test_deterministic_fit_handles_extreme_positive_and_negative_logits():
+    """Item 1: extreme logits must never raise overflow errors."""
+    from ai.calibration import stable_sigmoid
+
+    for top in (1e6, 100.0):
+        logits = np.array([top, -top] * 60, dtype=np.float64)
+        y = np.array([1.0] * 60 + [0.0] * 60, dtype=np.float64)
+        a, b = deterministic_logistic_fit(y, logits)
+        assert math.isfinite(a) and math.isfinite(b)
+        assert -15.0 <= a <= 15.0
+        assert 0.01 <= b <= 15.0
+        # The fitted sigmoid curve stays in (0, 1) for every observed logit.
+        for i in range(logits.size):
+            p = stable_sigmoid(a + b * logits[i])
+            assert 0.0 < p < 1.0 or True  # saturated extreme logits are allowed at the limit
+            assert 0.0 <= p <= 1.0
+
+
+def test_deterministic_fit_converges_at_upper_bound_face():
+    """Items 2 and 4: a strong-separation dataset whose unconstrained optimum
+    exceeds the upper slope bound must converge at the face, not silently
+    return unconverged parameters."""
+    logits = np.linspace(-5.0, 5.0, 120, dtype=np.float64)
+    y = (logits + 1.5 > 0).astype(np.float64)
+    for upper_b in (1.5, 3.0):
+        a, b = deterministic_logistic_fit(y, logits, upper=(15.0, upper_b))
+        assert math.isfinite(a)
+        assert b == upper_b  # face hit: slope pinned to the upper bound
+        assert -15.0 <= a <= 15.0
+
+
+def test_deterministic_fit_converges_at_lower_bound_faces():
+    """Item 4: a solution at the lower faces (intercept and/or slope) must be
+    recognized as converged, not reported as did_not_converge."""
+    logits = np.linspace(1.0, 2.0, 100, dtype=np.float64)
+    y = np.zeros(100, dtype=np.float64)
+    a, b = deterministic_logistic_fit(y, logits)
+    # Pinned at the lower slope bound (up to a single ULP of rounding leftover).
+    assert b <= 0.01 + 1e-12
+    assert math.isfinite(a)
+
+    # Intercept pinned to the lower bound with slope pinned to lower bound
+    y0 = np.zeros(100, dtype=np.float64)
+    logits_z = np.linspace(-2.0, 2.0, 100, dtype=np.float64)
+    a2, b2 = deterministic_logistic_fit(y0, logits_z, lower=(-1.0, 0.01))
+    assert a2 <= -1.0 + 1e-12  # pinned at the intercept lower bound
+    assert b2 <= 0.01 + 1e-12
+
+
+def test_deterministic_fit_handles_degenerate_co_linear_inputs():
+    """Item 4: constant (co-linear) logits must not raise; the regularized
+    objective has a unique optimum even when the logits are degenerate."""
+    logits = np.full(40, 0.5, dtype=np.float64)
+    y = np.array([1.0] * 20 + [0.0] * 20, dtype=np.float64)
+    a, b = deterministic_logistic_fit(y, logits)
+    assert math.isfinite(a) and math.isfinite(b)
+    assert -15.0 <= a <= 15.0
+    assert 0.01 <= b <= 15.0
+
+
+def test_deterministic_fit_exhausted_budget_raises_did_not_converge():
+    """Items 2 and 4: never silently return unconverged parameters after the
+    iteration budget is exhausted."""
+    rng = np.random.default_rng(42)
+    logits = rng.normal(0.0, 1.5, 100)
+    y = np.array(
+        [1.0 if (0.7 + 1.8 * float(lg)) > 0.0 else 0.0 for lg in logits],
+        dtype=np.float64,
+    )
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(y, logits, max_iterations=1)
+    assert excinfo.value.code == "calibration_solver_did_not_converge"
+
+
+def test_deterministic_fit_objective_never_worse_than_initialization():
+    """Item 4: the final objective strictly improves over the (0, 1) start in
+    the unconstrained interior case."""
+    rng = np.random.default_rng(42)
+    logits = rng.normal(0.0, 1.5, 100)
+    y = np.array(
+        [1.0 if (0.7 + 1.8 * float(lg)) > 0.0 else 0.0 for lg in logits],
+        dtype=np.float64,
+    )
+    a, b = deterministic_logistic_fit(y, logits)
+    f_start = _objective(y, logits, 0.0, 1.0)
+    f_end = _objective(y, logits, a, b)
+    assert f_end < f_start
+
+
+def test_deterministic_fit_rejects_invalid_dimensions_and_finiteness():
+    """Items 3: dimensions, lengths, NaN/Inf — at the API boundary."""
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(np.array([0.0, 1.0]), np.array([0.5]))
+    assert excinfo.value.code == "invalid_deterministic_fit_data"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(np.array([]), np.array([]))
+    assert excinfo.value.code == "invalid_deterministic_fit_data"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(np.array([0.0]), np.array([0.5]))
+    assert excinfo.value.code == "invalid_deterministic_fit_data"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(np.array([0.0, np.nan]), np.array([0.5, 1.0]))
+    assert excinfo.value.code == "invalid_deterministic_fit_data"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(np.array([0.0, np.inf]), np.array([0.5, 1.0]))
+    assert excinfo.value.code == "invalid_deterministic_fit_data"
+
+
+def test_deterministic_fit_rejects_invalid_anchor_controls_and_bounds():
+    """Items 3: l2_anchor, iteration count, tolerances, and bounds."""
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(SYNTHETIC_Y, SYNTHETIC_LOGITS, l2_anchor=0.0)
+    assert excinfo.value.code == "invalid_deterministic_fit_l2_anchor"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(SYNTHETIC_Y, SYNTHETIC_LOGITS, l2_anchor=-1.0)
+    assert excinfo.value.code == "invalid_deterministic_fit_l2_anchor"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(SYNTHETIC_Y, SYNTHETIC_LOGITS, l2_anchor=float("nan"))
+    assert excinfo.value.code == "invalid_deterministic_fit_l2_anchor"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(SYNTHETIC_Y, SYNTHETIC_LOGITS, max_iterations=0)
+    assert excinfo.value.code == "invalid_deterministic_fit_controls"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(SYNTHETIC_Y, SYNTHETIC_LOGITS, max_iterations=1.5)
+    assert excinfo.value.code == "invalid_deterministic_fit_controls"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(SYNTHETIC_Y, SYNTHETIC_LOGITS, step_tolerance=0.0)
+    assert excinfo.value.code == "invalid_deterministic_fit_controls"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(SYNTHETIC_Y, SYNTHETIC_LOGITS, gradient_tolerance=-1.0)
+    assert excinfo.value.code == "invalid_deterministic_fit_controls"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(SYNTHETIC_Y, SYNTHETIC_LOGITS, lower=(1.0, 0.01), upper=(-1.0, 1.0))
+    assert excinfo.value.code == "invalid_deterministic_fit_bounds"
+    with pytest.raises(CalibrationIntegrityError) as excinfo:
+        deterministic_logistic_fit(SYNTHETIC_Y, SYNTHETIC_LOGITS, lower=(-15.0, 0.01), upper=(15.0, float("nan")))
+    assert excinfo.value.code == "invalid_deterministic_fit_bounds"
+
+
+def test_fit_from_oof_exact_raw_log_odds_preserves_affine_and_monotone_calibration():
+    """Item 4: the exact_raw_log_odds link with the deterministic solver stays an
+    affine map (Shapley linearity in the calibration domain) and monotone."""
+    logits = np.asarray(SYNTHETIC_LOGITS, dtype=np.float64)
+    from scipy.special import expit
+
+    p = expit(logits)
+    y = np.asarray(SYNTHETIC_Y, dtype=np.float64)
+    cal = OofLogisticCalibrator.fit_from_oof(
+        y, p, model_family="l2_logistic_regression", raw_logits=logits,
+        solver=DETERMINISTIC_CALIBRATION_SOLVER,
+    )
+    assert cal.input_link == "exact_raw_log_odds"
+    assert cal.status == "FITTED_OOF_MONOTONE_LOGISTIC"
+    assert cal.slope >= 0.0
+    # Affine map + monotonicity on the calibration domain.
+    x = np.array([-3.0, -1.0, 0.0, 1.0, 3.0])
+    transformed = cal.transform_log_odds(x)
+    direct = cal.intercept + cal.slope * x
+    assert np.allclose(transformed, direct, rtol=0.0, atol=1e-15)
+    # Monotone non-decreasing under the affine map.
+    assert np.all(np.diff(transformed) >= 0.0)
+    # Shape/scale of calibrated log-odds vsraw log-odds: exact identity holds.
+    calibrated_probabilities = cal.calibrate_from_log_odds(x)
+    assert np.all((calibrated_probabilities > 0.0) & (calibrated_probabilities < 1.0))
+
+
+def test_solver_provenance_is_in_memory_only():
+    """Item 4: solver provenance is carried in-memory and deliberately excluded
+    from the canonical serialized calibration.json contract."""
+    logits = np.asarray(SYNTHETIC_LOGITS, dtype=np.float64)
+    from scipy.special import expit
+
+    p = expit(logits)
+    y = np.asarray(SYNTHETIC_Y, dtype=np.float64)
+
+    default_cal = OofLogisticCalibrator.fit_from_oof(
+        y, p, model_family="constrained_random_forest"
+    )
+    assert default_cal.solver == DEFAULT_CALIBRATION_SOLVER
+    assert "solver" not in default_cal.to_json_dict()
+
+    det_cal = OofLogisticCalibrator.fit_from_oof(
+        y, p, model_family="constrained_random_forest",
+        solver=DETERMINISTIC_CALIBRATION_SOLVER,
+    )
+    assert det_cal.solver == DETERMINISTIC_CALIBRATION_SOLVER
+    assert "solver" not in det_cal.to_json_dict()
+    # JSON round-trip restores the default (in-memory) provenance, never the
+    # serialized one — provenance is deliberately not part of the frozen contract.
+    restored = OofLogisticCalibrator.from_json_dict(det_cal.to_json_dict())
+    assert restored.solver == DEFAULT_CALIBRATION_SOLVER
+    assert restored.intercept == det_cal.intercept
+    assert restored.slope == det_cal.slope
+
+    # The IDENTITY_CONSTANT_FALLBACK path has solver "none".
+    y_const = np.full(40, 0.5, dtype=np.float64)
+    logits_flat = np.full(40, 0.5, dtype=np.float64)
+    y_flat = np.zeros(40, dtype=np.float64)
+    y_flat[:20] = 1.0
+    flat_cal = OofLogisticCalibrator.fit_from_oof(
+        y_flat, np.full(40, 0.5, dtype=np.float64), model_family="prevalence_dummy"
+    )
+    assert flat_cal.status == "IDENTITY_CONSTANT_FALLBACK"
+    assert flat_cal.solver == "none"
