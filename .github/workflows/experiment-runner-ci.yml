@@ -33,6 +33,8 @@ jobs:
       BLIS_NUM_THREADS: '1'
       NUMEXPR_NUM_THREADS: '1'
       VECLIB_MAXIMUM_THREADS: '1'
+      # RH-04 pinned binary64 baseline; requires AVX-512 Skylake-X CPU support.
+      OPENBLAS_CORETYPE: 'SkylakeX'
 
     strategy:
       fail-fast: false
@@ -49,6 +51,25 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ matrix.python-version }}
+
+      # Fail closed BEFORE importing NumPy/OpenBLAS when the hosted CPU is
+      # incompatible. OpenBLAS SkylakeX kernels must not run on non-AVX512 CPUs.
+      - name: Verify hardware supports pinned SkylakeX dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags="$(grep -m 1 '^flags[[:space:]]*:' /proc/cpuinfo || true)"
+          if [ -z "$flags" ]; then
+            echo "::error::Unable to inspect CPU features for pinned SkylakeX." >&2
+            exit 1
+          fi
+          for feature in avx512f avx512dq avx512bw avx512vl; do
+            if ! grep -qw "$feature" <<< "$flags"; then
+              echo "::error::CPU does not expose $feature. Refuse SkylakeX execution; investigate portable deterministic calibration." >&2
+              exit 1
+            fi
+          done
+          echo "PASS: CPU exposes SkylakeX-required AVX-512 capabilities."
 
       - name: Install pinned local-runner dependencies
         run: |
@@ -70,6 +91,11 @@ jobs:
           print("Numerical threadpools:", [(x.get("internal_api"), x.get("num_threads")) for x in info])
           if any(x.get("num_threads") != 1 for x in info):
               raise SystemExit("Numerical thread count not pinned to one")
+          if any(x.get("internal_api") == "openblas" and
+                 str(x.get("architecture", "")).lower() != "skylakex" for x in info):
+              raise SystemExit("OpenBLAS kernel is not the pinned SkylakeX architecture")
+          if not any(x.get("internal_api") == "openblas" for x in info):
+              raise SystemExit("OpenBLAS library was not discovered")
           PY
 
       - name: Run synthetic experiment-runner and dataset-audit tests
@@ -144,6 +170,8 @@ jobs:
       BLIS_NUM_THREADS: '1'
       NUMEXPR_NUM_THREADS: '1'
       VECLIB_MAXIMUM_THREADS: '1'
+      # RH-04 pinned binary64 baseline; requires AVX-512 Skylake-X CPU support.
+      OPENBLAS_CORETYPE: 'SkylakeX'
     steps:
       - name: Check out synthetic-only source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -154,6 +182,25 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12'
+
+      # Fail closed BEFORE importing NumPy/OpenBLAS when the hosted CPU is
+      # incompatible. OpenBLAS SkylakeX kernels must not run on non-AVX512 CPUs.
+      - name: Verify hardware supports pinned SkylakeX dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags="$(grep -m 1 '^flags[[:space:]]*:' /proc/cpuinfo || true)"
+          if [ -z "$flags" ]; then
+            echo "::error::Unable to inspect CPU features for pinned SkylakeX." >&2
+            exit 1
+          fi
+          for feature in avx512f avx512dq avx512bw avx512vl; do
+            if ! grep -qw "$feature" <<< "$flags"; then
+              echo "::error::CPU does not expose $feature. Refuse SkylakeX execution; investigate portable deterministic calibration." >&2
+              exit 1
+            fi
+          done
+          echo "PASS: CPU exposes SkylakeX-required AVX-512 capabilities."
 
       - name: Install exactly the same pinned synthetic-runner dependencies
         run: |
@@ -175,6 +222,11 @@ jobs:
           print("Numerical threadpools:", [(x.get("internal_api"), x.get("num_threads")) for x in info])
           if any(x.get("num_threads") != 1 for x in info):
               raise SystemExit("Numerical thread count not pinned to one")
+          if any(x.get("internal_api") == "openblas" and
+                 str(x.get("architecture", "")).lower() != "skylakex" for x in info):
+              raise SystemExit("OpenBLAS kernel is not the pinned SkylakeX architecture")
+          if not any(x.get("internal_api") == "openblas" for x in info):
+              raise SystemExit("OpenBLAS library was not discovered")
           PY
 
       # Two separate Python/model-build processes: pinning must hold across replays.
