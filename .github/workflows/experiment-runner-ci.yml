@@ -129,6 +129,55 @@ jobs:
 
           echo "PASS: No real datasets or generated patient-level artifacts were present."
 
+  rh04-uci412-stage-probe:
+    name: RH-04 UCI-412 stage drift probe (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    # Exact frozen synthetic fixture / 2 independently fitted builds, no real data.
+    # A numeric difference is a RED diagnostic, not a relaxed fixture acceptance.
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install pinned synthetic research dependencies
+        run: |
+          python -m pip install -r research/experiments/requirements.txt
+          python -m pip install -r research/audit/requirements.txt
+          python -m pip install -r research/uci412/requirements.txt
+          python -m pip check
+      - name: Inspect actual numerical runtime
+        run: |
+          python - <<'PY'
+          import numpy
+          from threadpoolctl import threadpool_info
+          info = threadpool_info()
+          if not info or any(x.get("num_threads") != 1 for x in info):
+              raise SystemExit("Numerical threading preflight failed")
+          print("PASS numerical runtime has exactly one thread per pool")
+          PY
+      - name: Unit-check redacted diagnostic formatting
+        run: |
+          python -m pytest -q -W error tests/experiments/test_trace_uci412_drift.py
+      - name: Compare independent UCI-412 model stages against frozen fixture
+        run: |
+          python -m research.intake.trace_uci412_drift
+
   rh04-fixture-diagnostic:
     name: RH-04 fixture structural drift diagnostic (Python 3.12)
     runs-on: ubuntu-24.04
