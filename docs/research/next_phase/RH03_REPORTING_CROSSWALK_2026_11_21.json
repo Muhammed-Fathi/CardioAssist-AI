@@ -1,0 +1,356 @@
+{
+  "schema_id": "cardioassist.rh03_reporting_crosswalk/v1",
+  "prepared_on": "2026-11-21",
+  "research_grade": "DRAFT_ITEM_MAPPING_NOT_TRIPOD_COMPLIANT_NOT_PROBAST_RISK_CERTIFIED",
+  "manuscript_path": "docs/research/next_phase/AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md",
+  "source_benchmark_sha": "9403849ec03d5b6ce6069965df29da1121938353",
+  "original_reporting_sources": {
+    "tripod_ai": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11019967/",
+    "probast_ai": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11931409/"
+  },
+  "tripod_ai": {
+    "main_item_count": 27,
+    "subitems_original_checklist_count": 52,
+    "main_items": [
+      {
+        "item_id": "1",
+        "topic": "Title and research scope",
+        "manuscript_sections": [
+          "FR-01"
+        ],
+        "status": "DRAFT_MAPPED",
+        "open_gap": "Title identifies retrospective angiography-referenced CAD; final institution/title approval pending."
+      },
+      {
+        "item_id": "2",
+        "topic": "Structured abstract",
+        "manuscript_sections": [
+          "FR-01"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Narrative abstract present; final TRIPOD+AI for Abstracts 13-point separate checklist not signed off."
+      },
+      {
+        "item_id": "3",
+        "topic": "Background, intended users, inequity",
+        "manuscript_sections": [
+          "FR-02",
+          "FR-03",
+          "FR-15"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Background and target cohort described; demographic inequities and care pathway impact remain unassessed (especially subitem 3c)."
+      },
+      {
+        "item_id": "4",
+        "topic": "Study objectives",
+        "manuscript_sections": [
+          "FR-01",
+          "FR-02"
+        ],
+        "status": "DRAFT_MAPPED",
+        "open_gap": "Cross-sectional exploratory objectives stated; final academic review pending."
+      },
+      {
+        "item_id": "5",
+        "topic": "Data source, sampling dates",
+        "manuscript_sections": [
+          "FR-04"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Sources and roles mapped; original recruitment dates, representativeness and chronology incomplete (5b)."
+      },
+      {
+        "item_id": "6",
+        "topic": "Participants and setting",
+        "manuscript_sections": [
+          "FR-04"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Referred cohorts described; full eligibility/treatment details and site-specific sampling provenance unavailable."
+      },
+      {
+        "item_id": "7",
+        "topic": "Data preparation and QC",
+        "manuscript_sections": [
+          "FR-06"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Fold-contained preprocessing described; demographic-group QC and protected-run recheck not independently demonstrated."
+      },
+      {
+        "item_id": "8",
+        "topic": "Outcome definition and assessment",
+        "manuscript_sections": [
+          "FR-02",
+          "FR-04"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Cleveland >50% and UCI-412 ≥50% retained; exact 50% boundary and blinding/assessor metadata unresolved."
+      },
+      {
+        "item_id": "9",
+        "topic": "Predictor choice and measurement",
+        "manuscript_sections": [
+          "FR-05"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Five-field and sixteen-field contracts mapped; 0/16 UCI-412 pre-angiography owner-verified timing, subjective assessor metadata unavailable."
+      },
+      {
+        "item_id": "10",
+        "topic": "Sample size justification",
+        "manuscript_sections": [
+          "FR-10"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "303 cases per cohort, historical adequacy calculations cited; selected precision criteria not met and R²-dependent items not assessed."
+      },
+      {
+        "item_id": "11",
+        "topic": "Missing-data handling",
+        "manuscript_sections": [
+          "FR-06"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Research preprocessing policy described; original protected-data missingness decisions require source/run attestation."
+      },
+      {
+        "item_id": "12",
+        "topic": "Analytical methods and validation",
+        "manuscript_sections": [
+          "FR-06",
+          "FR-07",
+          "FR-10"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Historical nested CV/preprocessing and estimands described; protected run outputs and cluster heterogeneity not newly verified, no external evaluation."
+      },
+      {
+        "item_id": "13",
+        "topic": "Class imbalance approach",
+        "manuscript_sections": [
+          "FR-06",
+          "FR-07"
+        ],
+        "status": "INFORMATION_GAP",
+        "open_gap": "Class fractions reported; complete original handling/recalibration approach not independently checked."
+      },
+      {
+        "item_id": "14",
+        "topic": "Fairness methods",
+        "manuscript_sections": [
+          "FR-15"
+        ],
+        "status": "NOT_PERFORMED",
+        "open_gap": "No source-supported subgroup fairness experiment; no fairness claim."
+      },
+      {
+        "item_id": "15",
+        "topic": "Model outputs and thresholds",
+        "manuscript_sections": [
+          "FR-06",
+          "FR-08"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Exploratory threshold and synthetic score separation documented; no clinically validated individual decision threshold."
+      },
+      {
+        "item_id": "16",
+        "topic": "Development/evaluation data differences",
+        "manuscript_sections": [
+          "FR-04",
+          "FR-07"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Source-specific cohorts and no-pooling guarded; real independent external evaluation NOT_PERFORMED."
+      },
+      {
+        "item_id": "17",
+        "topic": "Ethical review and consent",
+        "manuscript_sections": [
+          "FR-15"
+        ],
+        "status": "INFORMATION_GAP",
+        "open_gap": "No invented institution, IRB approval, consent or waiver; historical source rights and any required approvals must be documented by authorized humans."
+      },
+      {
+        "item_id": "18",
+        "topic": "Funding, COI, protocol, registration, sharing",
+        "manuscript_sections": [
+          "FR-17"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Repository provenance is given, but author declarations, financing, conflicts, registration and protected-data access terms remain to be supplied."
+      },
+      {
+        "item_id": "19",
+        "topic": "Patient and public involvement",
+        "manuscript_sections": [
+          "FR-15"
+        ],
+        "status": "INFORMATION_GAP",
+        "open_gap": "PPI involvement or explicit none declaration requires author confirmation; not invented."
+      },
+      {
+        "item_id": "20",
+        "topic": "Participant flow and baseline characteristics",
+        "manuscript_sections": [
+          "FR-04",
+          "FR-07"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "303 and historical class counts per source recorded; complete flow, missingness by characteristic and subgroup distribution not available."
+      },
+      {
+        "item_id": "21",
+        "topic": "Sample size per analytic stage",
+        "manuscript_sections": [
+          "FR-06",
+          "FR-07"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Nested folds/repeats described; complete original fold-level participant and event counts need archived provenance."
+      },
+      {
+        "item_id": "22",
+        "topic": "Full prediction-model specification",
+        "manuscript_sections": [
+          "FR-06",
+          "FR-13"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Algorithms and safe software contracts present; protected fitted artifact not public/servable; no export of patient-derived parameters."
+      },
+      {
+        "item_id": "23",
+        "topic": "Performance with uncertainty/subgroups",
+        "manuscript_sections": [
+          "FR-07",
+          "FR-10"
+        ],
+        "status": "INFORMATION_GAP",
+        "open_gap": "Historical dependent-repeat SD is not CI; no independent interval, subgroup performance or real external validation."
+      },
+      {
+        "item_id": "24",
+        "topic": "Model updating results",
+        "manuscript_sections": [
+          "FR-10",
+          "FR-12"
+        ],
+        "status": "NOT_PERFORMED",
+        "open_gap": "No real external model updating or recalibration study performed; synthetic rehearsal must not be relabeled."
+      },
+      {
+        "item_id": "25",
+        "topic": "Overall interpretation including fairness",
+        "manuscript_sections": [
+          "FR-15",
+          "FR-16"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Within-source results and limits interpreted; fairness remains unassessed and final scientific reviewer pending."
+      },
+      {
+        "item_id": "26",
+        "topic": "Limitations and transportability",
+        "manuscript_sections": [
+          "FR-10",
+          "FR-15",
+          "FR-16"
+        ],
+        "status": "DRAFT_MAPPED",
+        "open_gap": "Sources, target differences, 303-person sample, chronology, no external validity and calibration constraints explicitly discussed."
+      },
+      {
+        "item_id": "27",
+        "topic": "Input usability and next research steps",
+        "manuscript_sections": [
+          "FR-13",
+          "FR-16",
+          "FR-17"
+        ],
+        "status": "PARTIAL",
+        "open_gap": "Fail-closed synthetic handling described; no clinical workflow or real-patient user expertise validation."
+      }
+    ]
+  },
+  "probast_ai": {
+    "framework": "Development QUALITY versus Evaluation RISK_OF_BIAS + applicability; no assessment certified",
+    "domains": [
+      {
+        "domain": "participants_and_data_sources",
+        "development_quality": "NOT_ASSESSED",
+        "evaluation_risk_of_bias": "NOT_ASSESSED",
+        "applicability": "NOT_ASSESSED",
+        "manuscript_sections": [
+          "FR-02",
+          "FR-04",
+          "FR-15"
+        ],
+        "open_finding": "Historical referred 303-person source cohorts lack fully verified recruitment/selection and representative use-population context."
+      },
+      {
+        "domain": "predictors",
+        "development_quality": "NOT_ASSESSED",
+        "evaluation_risk_of_bias": "NOT_ASSESSED",
+        "applicability": "NOT_ASSESSED",
+        "manuscript_sections": [
+          "FR-05",
+          "FR-15"
+        ],
+        "open_finding": "16/16 UCI-412 original-field pre-reference timing unverified; avoid using angiography-derived features as predictors."
+      },
+      {
+        "domain": "outcome",
+        "development_quality": "NOT_ASSESSED",
+        "evaluation_risk_of_bias": "NOT_ASSESSED",
+        "applicability": "NOT_ASSESSED",
+        "manuscript_sections": [
+          "FR-02",
+          "FR-04"
+        ],
+        "open_finding": "Original source target boundaries differ (>50% versus ≥50%); adjudication and exact boundary need source-specific review."
+      },
+      {
+        "domain": "analysis",
+        "development_quality": "NOT_ASSESSED",
+        "evaluation_risk_of_bias": "NOT_ASSESSED",
+        "applicability": "NOT_APPLICABLE_TO_ANALYSIS_DOMAIN",
+        "manuscript_sections": [
+          "FR-06",
+          "FR-07",
+          "FR-10",
+          "FR-15"
+        ],
+        "open_finding": "Repeat-CV descriptive SDs not confidence intervals; complete original-run audit, precision, sample size and generalization remain unverified."
+      }
+    ]
+  },
+  "canonical_audit_preservation": {
+    "claim_ids": 28,
+    "claim_status_counts": {
+      "PASS_SOURCE_MATCH": 9,
+      "NOT_VERIFIABLE": 19,
+      "MISMATCH": 0
+    },
+    "research_questions": 16,
+    "review_actions_pending": 10
+  },
+  "rh05_test_provenance": {
+    "source_sha": "64f34e4cb8580ced461237ffa46ba0a91e8fc1c5",
+    "windows_maintainer_reported": "2909 passed, 3 skipped; NTFS 8/8",
+    "cross_os_exact_comparison_sha": "09b895423171eff7569fc49dd8ceac7dfb0d43c6",
+    "cross_os_status": "SYNTHETIC_BEHAVIOR_MATCH_NOT_BYTE_IDENTICAL",
+    "clinical_validation": false
+  },
+  "not_in_scope": [
+    "real patient inference",
+    "new training",
+    "clinical model deployment",
+    "actual external validation",
+    "clinical calibration certification",
+    "automatic academic acceptance"
+  ]
+}
