@@ -599,3 +599,22 @@ def test_converged_point_is_verified_by_kkt_not_by_step():
     resid_a = abs(grad_a) if -15.0 < a < 15.0 else max(0.0, abs(grad_a))
     resid_b = abs(grad_b) if 0.01 < b < 15.0 else max(0.0, abs(grad_b))
     assert max(resid_a, resid_b) <= 1e-10
+
+
+def test_upper_corner_inward_descent_is_not_falsely_pinned():
+    """Reviewer negative regression: upper-bound gradients can point inward.
+
+    Both a and b start exactly at their upper bounds. All-zero targets and
+    strictly positive unit logits make both gradient components positive at
+    the start, so feasible descent must move them below their upper bounds.
+    A face-locking active set or false KKT acceptance would fail this test.
+    """
+    y = np.zeros(20, dtype=np.float64)
+    logits = np.ones(20, dtype=np.float64)
+    a, b = deterministic_logistic_fit(
+        y, logits, lower=(-2.0, 0.01), upper=(0.0, 1.0),
+        max_iterations=100,
+    )
+    assert -2.0 <= a < 0.0
+    assert 0.01 <= b < 1.0
+    assert _objective(y, logits, a, b) < _objective(y, logits, 0.0, 1.0)
