@@ -72,21 +72,6 @@ jobs:
               raise SystemExit("Numerical thread count not pinned to one")
           PY
 
-      # Confirm *actual* linked numerical libraries before every full replay.
-      # This check does not modify the model, fixtures, scoring or tolerances.
-      - name: Verify pinned CPU numerical threadpools
-        run: |
-          python - <<'PY'
-          import numpy  # noqa: F401 (load the OpenBLAS runtime)
-          from threadpoolctl import threadpool_info
-          info = threadpool_info()
-          if not info:
-              raise SystemExit("No numerical threadpools discovered")
-          print("Numerical threadpools:", [(x.get("internal_api"), x.get("num_threads")) for x in info])
-          if any(x.get("num_threads") != 1 for x in info):
-              raise SystemExit("Numerical thread count not pinned to one")
-          PY
-
       - name: Run synthetic experiment-runner and dataset-audit tests
         run: |
           python -m pytest tests/experiments tests/audit -q -W error
@@ -176,6 +161,21 @@ jobs:
           python -m pip install -r research/audit/requirements.txt
           python -m pip install -r research/uci412/requirements.txt
           python -m pip check
+
+      # Confirm *actual* linked numerical libraries before every full replay.
+      # This check does not modify the model, fixtures, scoring or tolerances.
+      - name: Verify pinned CPU numerical threadpools
+        run: |
+          python - <<'PY'
+          import numpy  # noqa: F401 (load the OpenBLAS runtime)
+          from threadpoolctl import threadpool_info
+          info = threadpool_info()
+          if not info:
+              raise SystemExit("No numerical threadpools discovered")
+          print("Numerical threadpools:", [(x.get("internal_api"), x.get("num_threads")) for x in info])
+          if any(x.get("num_threads") != 1 for x in info):
+              raise SystemExit("Numerical thread count not pinned to one")
+          PY
 
       - name: Inspect canonical 29-case synthetic replay (metadata only)
         run: |
