@@ -4,8 +4,8 @@
 **Research classification:** retrospective, source-specific internal exploratory benchmarks + independently tested **synthetic software prototype**.  
 **Prepared:** 19 November 2026; **source snapshot** `897eaf61030636edae8dd5ac2ecc7dacf2870f02` (after PR #95).  
 **Authors, university identifiers and formally approved supervisor:** must be supplied and approved by the actual contributors/institution; not invented in this draft.  
-**Status:** `WORKING_MANUSCRIPT_NOT_ACCEPTED_FOR_FINAL_SUBMISSION`. All chapters contain substantive content, but independent scientific review, report layout, original protected-report checking where permitted, and final source-SHA Windows acceptance remain outstanding.  
-**Navigation:** [28-claim source index](RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json) · [RH-01 source/gap review](RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md) · [AI-12.2 acceptance blueprint](AI12_2_FINAL_REPORT_BLUEPRINT_2026_11_19.md).  
+**Status:** `WORKING_MANUSCRIPT_NOT_ACCEPTED_FOR_FINAL_SUBMISSION`. Scientific interpretation, independent academic review, authorship and RH-07/RH-08 final release acceptance remain pending. RH-05 synthetic-only reproducibility/security acceptance has since been recorded and Issue #121 closed; that engineering closure is NOT clinical validation or final thesis acceptance.
+**Navigation:** [28-claim source index](RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json) · [RH-01 source/gap review](RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md) · [AI-12.2 acceptance blueprint](AI12_2_FINAL_REPORT_BLUEPRINT_2026_11_19.md) · [RH-05 evidence](RH05_INDEPENDENT_ACCEPTANCE_REVIEW_2026_11_20.md) · [RH-03 original-source triangulation](RH03_EXTERNAL_SOURCE_TRIANGULATION_2026_11_21.md) · [27-item TRIPOD+AI / PROBAST+AI reporting gap crosswalk](RH03_REPORTING_CROSSWALK_2026_11_21.md).
 **Ethical/use boundary:** no new data access, patient-level prediction, training, protected report export, or model serving was performed in the preparation of this manuscript. Historical aggregate metrics are quoted from archived research reviews as **maintainer-reported**, not newly reproduced.
 
 ---
@@ -40,7 +40,7 @@ Historic tabular CAD datasets are widely used because they are accessible, relat
 
 The project retained a curated original literature classification and reviewed methods reports under `docs/research/gate-da` and `docs/research/gate-pt`, with source-quality and verification classes. **A reported result from an existing local authorized run is labelled maintainer-reported (MR); code inspection establishes implementation (AR), not an independent rerun; an original dataset owner page establishes only the propositions it explicitly documents; a synthetic test is software evidence only.** Secondary papers do not cure an absent original field-acquisition codebook.
 
-The research reporting is informed by **TRIPOD+AI** (Collins and colleagues, *BMJ* 2024;385:e078378, DOI 10.1136/bmj-2023-078378) and the subsequent **PROBAST+AI** quality/risk-of-bias and applicability framework (*BMJ* 2025;388:e082505, DOI 10.1136/bmj-2024-082505). These frameworks provide reporting/appraisal questions, **not an ethics approval or certification**. Their application is described transparently in FR-15, with missing evidence labelled unassessable rather than converted to a false low-risk judgment. Methodological sample-size evidence and its conditional assumptions come from [Gate PT M2e.1](../gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md).
+The research reporting is informed by **TRIPOD+AI** (Collins and colleagues, *BMJ* 2024;385:e078378, DOI 10.1136/bmj-2023-078378) and the subsequent **PROBAST+AI** quality/risk-of-bias and applicability framework (*BMJ* 2025;388:e082505, DOI 10.1136/bmj-2024-082505). These frameworks provide reporting/appraisal questions, **not an ethics approval or certification**. Their application is described transparently in FR-15 and the [item-level reporting gap crosswalk](RH03_REPORTING_CROSSWALK_2026_11_21.md); missing evidence remains unresolved, not converted to a false low-risk judgment or a claim of checklist compliance. Methodological sample-size evidence and its conditional assumptions come from [Gate PT M2e.1](../gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md).
 
 **External primary references:** [UCI-45](https://archive.ics.uci.edu/dataset/45/heart+disease), [UCI-412](https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani), [UCI-411](https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset), [TRIPOD+AI](https://doi.org/10.1136/bmj-2023-078378), [PROBAST+AI](https://doi.org/10.1136/bmj-2024-082505).
 
@@ -132,7 +132,7 @@ The above results are **two distinct single-source internal feasibility summarie
 
 ## FR-08. Implemented synthetic engineering and reproducibility results
 
-The system's software contributions were developed and tested **independently of any new patient training**. GitHub and maintainer-provided Windows acceptance records document these previously completed synthetic-only work slices:
+The system's software contributions were developed and tested **independently of any new patient training**. GitHub and maintainer-provided Windows acceptance records document these synthetic-only work slices, now supplemented by [RH-05 closed engineering evidence](RH05_INDEPENDENT_ACCEPTANCE_REVIEW_2026_11_20.md) (tested source `64f34e4cb8580ced461237ffa46ba0a91e8fc1c5`, not the later documentation merge SHA):
 
 | Software slice | Demonstrated and bounded behavior | Historical evidence |
 |---|---|---|
@@ -144,7 +144,7 @@ The system's software contributions were developed and tested **independently of
 | AI-11.2 | Read-only five-slot source-derived research catalog, integrity-checked serialized metadata and blocked/locked route status | [AI-11.2 closeout](AI11_2_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md) |
 | AI-12.1 | Deterministic eight-stage offline synthetic demonstration and canonical JSON evidence pack with privacy-safe refusals and cross-platform comparisons | [AI-12.1 runbook](../ai12_1/README.md), [merged evidence closeout](AI11_1_AI12_1_CLOSEOUT_2026_11_18.md) |
 
-**No synthetic AUROC, Brier or paired-laboratory delta is a medical model result.** Fabricated shifted-site subjects, synthetic prediction scores and SHAP/LIME values test the *software* and the requested mathematical contracts; they do not establish predictive performance in genuine Cleveland, Hungary or UCI-412 patients.
+**No synthetic AUROC, Brier or paired-laboratory delta is a medical model result.** Fabricated shifted-site subjects, synthetic prediction scores and SHAP/LIME values test the *software* and mathematical contracts. RH-05 documents maintainer-reported final-source native Windows **8/8** security checks, focused **220 passed / 2 skipped**, full **2909 passed / 3 skipped**, and source-precise cross-OS synthetic comparison at `09b895423171eff7569fc49dd8ceac7dfb0d43c6` with **0 invariant/outside-tolerance differences** and **53 within tolerance, 8 environment, 4 artifact-byte, 3 derived-digest differences**. The cross-OS packs are NOT byte-identical and were NOT generated at the full Windows test SHA; the private Windows transcript was not independently ingested by this manuscript update. None of this establishes clinical validity, real CAD patient performance or real Hungary external evaluation.
 
 **Architecture (research-only, conceptual wiring of existing modules):**
 
@@ -236,7 +236,7 @@ The registered research model stack is versioned and source-specific: `ai/panels
 
 ## FR-14. Engineering tests, source integrity, reproducibility and privacy
 
-Previously accepted exact-head/merge evidence from the project records illustrates rigorous engineering discipline. Counts below refer to **different historical source SHAs** and must not be summed into a single independently rerun suite:
+Previously accepted exact-head/merge evidence illustrates engineering discipline. The earlier table refers to **different historical source SHAs** and must not be summed. RH-05 separately supplies final-source synthetic acceptance evidence below, with each run attributed to its actual source commit:
 
 | Historical synthetic software slice | Maintainer-recorded native Windows premerge full pytest | Additional evidence | Scope warning |
 |---|---|---|---|
@@ -245,7 +245,7 @@ Previously accepted exact-head/merge evidence from the project records illustrat
 | AI-9.1 | **2,597 passed, 3 skipped, 0 failed** | Hosted CI 7/7 jobs, native security **8/8**, synthetic paired report | No real clinical/labs increment |
 | AI-10.1 | **2,615 passed, 3 skipped, 0 failed** | Hosted CI 7/7 jobs; native security **8/8**; **18 focused postmerge** pass and schema/digest/one-shot report | **Full 2,615-test suite not rerun after merge**; no real external validation |
 
-All full-suite counts are **maintainer-supplied native Windows evidence**, traced to original accepted closeout documents; not tests run during writing of this manuscript. The three platform-dependent skip records are reported as skips rather than converted to successes. Hosted GitHub workflow green does not replace native NTFS access-control checks where the specific gate demands them.
+All earlier full-suite counts are **maintainer-supplied native Windows evidence**, not tests run while preparing this manuscript. RH-05's independent engineering review records native Windows 3.12.9/NTFS security **8/8 PASS**, focused **220 passed / 2 skipped** and final `64f34e4cb8580ced461237ffa46ba0a91e8fc1c5` full-suite **2909 passed / 3 skipped / 0 failed** (maintainer-reported, private original transcript not authenticated here). GitHub Actions independently provides Linux source-precise replay at `09b895423171eff7569fc49dd8ceac7dfb0d43c6`, not the full Windows SHA; the reviewed implementation trees were unchanged between the two source revisions. GitHub Issue [#121](https://github.com/Muhammed-Fathi/CardioAssist-AI/issues/121) is closed as RH-05 engineering complete; this does not close RH-03 or assert source/clinical acceptance. Three platform-dependent skips remain explicit, and hosted CI does not replace native NTFS checks.
 
 A typical permitted *synthetic-only* clean-environment demonstration described by the repository is:
 
@@ -257,7 +257,7 @@ python -W error -m ai.research_evidence --compare <existing-approved-synthetic-p
 
 Run commands **only in a reviewed permitted environment** according to the source runbook, using newly created external private paths rather than inside the repository, and do not copy/paste shell placeholders as real filenames. Cross-platform numerical library differences may change some report bytes; verify the supported same-environment canonical contracts and record differences rather than falsely claiming byte-identical SHA for different BLAS environments.
 
-Safety restrictions: no protected dataset rows, patient-level predicted values, actual original `report.json`/`predictions.csv`, private SHAP backgrounds, authorization manifests, credentials, signing keys or secret-bearing file paths can be committed to GitHub. Release requirements later include a fresh exact-SHA run, pip/dependency check, source-integrity hash check, exact-head CI, Windows 8/8 ACL tests, specified negative cases, sanitized report digests, reviewer evidence, and justified skips. These are **pending RH-05/RH-07**, not assumed passed merely because this manuscript exists.
+Safety restrictions: no protected dataset rows, patient-level predicted values, actual original `report.json`/`predictions.csv`, private SHAP backgrounds, authorization manifests, credentials, signing keys or secret-bearing file paths may enter GitHub. RH-05's tested-source synthetic acceptance is already recorded and Issue #121 closed, with its own limited provenance; final RH-07/RH-08 release acceptance still requires an exact final release SHA, appropriate fresh CI/native Windows evidence where source changes warrant it, verified research claims, sanitized report digests, reviewer evidence and justified skips. Do not re-label RH-05's historical tested SHA as the later manuscript/merge SHA.
 
 ## FR-15. Bias, ethics, scientific validity and applicability appraisal
 
@@ -294,7 +294,7 @@ The principal scientific limitations are substantive rather than cosmetic: datas
 | T-04 calibration | [D-047 `5](../gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md), [M3a `4.6](../gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md) | CL-009, CL-014 | Descriptive, not clinical probability validity |
 | T-05 source hold and UCI-411 | [AI-8R source register](../ai8r/SOURCE_ADMISSIBILITY.md) | CL-016, CL-017 | Documentation and scientific restrictions |
 | T-06 conditional studies | [M2f Hungary](../gate-pt/07_m2f_hungary_scientific_decision_and_conditional_protocol.md), [AI-9/10 closeouts](AI9_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md) | CL-018…CL-020 | Unperformed real study, synthetic engineering only |
-| T-07 software/test table | [AI-11/12](AI11_1_AI12_1_CLOSEOUT_2026_11_18.md), [AI-11.2](AI11_2_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md), [AI-9.1](AI9_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md), [AI-10.1](AI10_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md) | CL-019…CL-026 | Historical software/maintainer validation |
+| T-07 software/test table | [AI-11/12](AI11_1_AI12_1_CLOSEOUT_2026_11_18.md), [AI-11.2](AI11_2_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md), [AI-9.1](AI9_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md), [AI-10.1](AI10_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md), [RH-05 exact-source acceptance](RH05_INDEPENDENT_ACCEPTANCE_REVIEW_2026_11_20.md) | CL-019…CL-026 | Historical software/maintainer acceptance at distinct SHAs; synthetic-only, never clinical validation |
 
 **No real ROC/reliability curve figure is supplied here.** Curves cannot be reconstructed from rounded AUROCs/aggregate calibration slopes, and no protected per-person outputs were accessed. Any later permitted figure must have a complete versioned aggregate provenance record and be reviewed before inclusion. The Mermaid architecture is a code-level explanatory schematic, **not a model-performance plot**.
 
@@ -306,7 +306,7 @@ The principal scientific limitations are substantive rather than cosmetic: datas
 - Explainability: `ai/explainability.py`, `ai/lime_explainability.py`, `ai/lime_quality.py`.
 - Tests: `tests/experiments`, `tests/contracts`, `tests/audit`, `tests/backend`; native source/security utility `scripts/validate_ai_windows_compat.py`.
 - Application mock-only inference boundary: `backend/app/inference/registry.py` and `real_model.py`.
-- Scientific claims: [machine-readable original source/blob index](RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json), [RH-01 gap matrix](RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md), current [RH completion tracker](AI_RESEARCH_COMPLETION_TRACKER_2026_11_19.json), [AI-12.2 blueprint](AI12_2_FINAL_REPORT_BLUEPRINT_2026_11_19.md).
+- Scientific claims: [machine-readable original source/blob index](RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json), [RH-01 gap matrix](RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md), [RH-03 28-claim independent matrix](RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json), [original-source triangulation](RH03_EXTERNAL_SOURCE_TRIANGULATION_2026_11_21.md), [TRIPOD+AI / PROBAST+AI item-level gaps](RH03_REPORTING_CROSSWALK_2026_11_21.md), [RH-05 engineering acceptance](RH05_INDEPENDENT_ACCEPTANCE_REVIEW_2026_11_20.md), [RH tracker](AI_RESEARCH_COMPLETION_TRACKER_2026_11_19.json), [AI-12.2 blueprint](AI12_2_FINAL_REPORT_BLUEPRINT_2026_11_19.md).
 
 ### Appendix C. References and source-level attribution
 
@@ -326,9 +326,9 @@ The principal scientific limitations are substantive rather than cosmetic: datas
 | Medical model validity | Only historical internal real exploratory summaries; no external validation | Explicit limited claims, and conditional AI-9.2/10.2 GO or reviewed NO-GO recorded |
 | Model performance uncertainty | No inferential CI for dependent-repeat headlines; small-source calibration limitations | Reviewer confirms all caveats and no fabricated statistical precision |
 | Protected source provenance | Archived sanitized local aggregates; no source rows inspected while drafting | Permitted independent attestation (if requested) without exposing protected data |
-| Software acceptance | Historic exact-SHA CI/Windows runs recorded | New final release-SHA E2E, CI and Windows/NTFS record with actual results |
+| Software acceptance | RH-05 closed per Issue #121: source-bound full Windows 2909 passed / 3 skipped and 8/8 NTFS; synthetic cross-OS comparison at a different, documented exact SHA | RH-07/RH-08 final research-only release-SHA evidence and thesis handoff acceptance remain pending; do not rerun historical full Windows suite without a material change |
 | Document/editorial quality | Substantive FR-01…FR-17 manuscript exists as v0.1 | Scientific review, layout/citations, figure/table provenance, required university format |
 | Authorship/supervision | Not supplied in this manuscript | Real contributors and any official approvals entered by authorized humans |
 | Final manuscript SHA/release | Not yet assigned | Accepted PR/merge SHA + report digest and research-only release label |
 
-**Claim guardrail:** `FINAL_RESEARCH_PROTOTYPE_HANDOFF_ACCEPTED` is **not** granted by this manuscript PR. Reviewers must adjudicate scientific source facts, complete the remaining RH-02/RH-05/RH-06/RH-07 gates as applicable, and approve this text before it is used as final academic submission.
+**Claim guardrail:** `FINAL_RESEARCH_PROTOTYPE_HANDOFF_ACCEPTED` is **not** granted by this manuscript PR. RH-05 engineering acceptance has been closed at its evidenced source SHA, while RH-03 independent scientific review and RH-07/RH-08 final handoff remain pending. AI-9.2 real paired and AI-10.2 real external studies are recorded NO-GO/NOT_PERFORMED for this prototype per merged RD-06/RD-07; no real study, reviewer signature or clinical use is implied.
