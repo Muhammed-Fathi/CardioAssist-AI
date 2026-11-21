@@ -1,0 +1,1492 @@
+{
+  "schema_id": "cardioassist.rh07.probast_ai_review_workbook/v1",
+  "prepared_on": "2026-11-21",
+  "source_main_sha": "c3d044beb15cbbcd4e565644a76f26a7cae44ad7",
+  "status": "PREASSESSMENT_WORKBOOK_NOT_FORMAL_APPRAISAL",
+  "standard": {
+    "name": "PROBAST+AI",
+    "primary_url": "https://www.bmj.com/content/388/bmj-2024-082505",
+    "journal": "BMJ 2025;388:e082505",
+    "phase_counts": {
+      "development": 16,
+      "evaluation": 18,
+      "applicability_per_study": 6
+    },
+    "note": "Question text paraphrased from published Table 2; final independent assessor should use the official full guidance and individually assess each archived study."
+  },
+  "study_type_scope": "Separate internal model-development and internal-validation reporting; no genuine external validation",
+  "studies": [
+    {
+      "study_id": "D-047_CLEVELAND_HISTORICAL",
+      "study_name": "Cleveland D-047",
+      "dataset_id": "DA-A2",
+      "archived_source_path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "source_description": "Five-field historical UCI-45 referred cohort; >50% source-endpoint wording, no externally tested patient-level model",
+      "questions": [
+        {
+          "question_key": "DEV-1.1",
+          "phase": "DEVELOPMENT",
+          "domain": "participants_and_sources",
+          "item_id": "1.1",
+          "topic_paraphrase": "Appropriateness of source cohort and sampling for intended research use",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland D-047 report gives n=303, positive=139, negative=164, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-1.2",
+          "phase": "DEVELOPMENT",
+          "domain": "participants_and_sources",
+          "item_id": "1.2",
+          "topic_paraphrase": "Whether the original study design supports the reported scope",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland D-047 report gives n=303, positive=139, negative=164, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-1.3",
+          "phase": "DEVELOPMENT",
+          "domain": "participants_and_sources",
+          "item_id": "1.3",
+          "topic_paraphrase": "Selection/exclusion and representativeness of included people",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland D-047 report gives n=303, positive=139, negative=164, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-2.1",
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "item_id": "2.1",
+          "topic_paraphrase": "Consistent predictor definitions and measurement across people",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The Cleveland resting 5-field panel, encoded LR design and fold-contained handling are documented in the archived protocol.",
+          "unresolved_check": "Historical stage wording is documented; actual individual collection timing, consistent measurement and blinded ascertainment not independently confirmed.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-2.2",
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "item_id": "2.2",
+          "topic_paraphrase": "Consistent predictor preprocessing across source records",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The Cleveland resting 5-field panel, encoded LR design and fold-contained handling are documented in the archived protocol.",
+          "unresolved_check": "Historical stage wording is documented; actual individual collection timing, consistent measurement and blinded ascertainment not independently confirmed.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-2.3",
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "item_id": "2.3",
+          "topic_paraphrase": "Predictor measurement independence from outcome knowledge",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The Cleveland resting 5-field panel, encoded LR design and fold-contained handling are documented in the archived protocol.",
+          "unresolved_check": "Historical stage wording is documented; actual individual collection timing, consistent measurement and blinded ascertainment not independently confirmed.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-2.4",
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "item_id": "2.4",
+          "topic_paraphrase": "Availability of all predictors at the intended prediction moment",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The Cleveland resting 5-field panel, encoded LR design and fold-contained handling are documented in the archived protocol.",
+          "unresolved_check": "Pre-reference timing not verified per original record; do not equate a prospective synthetic intake form with real source chronology.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-3.1",
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "item_id": "3.1",
+          "topic_paraphrase": "Appropriateness of angiography-referenced outcome definition",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland reference uses num=0 versus 1..4 and >50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-3.2",
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "item_id": "3.2",
+          "topic_paraphrase": "Consistency of outcome ascertainment among subjects",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland reference uses num=0 versus 1..4 and >50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-3.3",
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "item_id": "3.3",
+          "topic_paraphrase": "Outcome determination independence from predictor knowledge",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland reference uses num=0 versus 1..4 and >50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-3.4",
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "item_id": "3.4",
+          "topic_paraphrase": "Suitability of elapsed time between predictors and outcome",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland reference uses num=0 versus 1..4 and >50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.1",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.1",
+          "topic_paraphrase": "Sample size/usable events and adequacy of model development",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Archived Riley-style adequacy review flags unmet or unassessed criteria at n=303; formal assessor to determine specific methodological concern.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.2",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.2",
+          "topic_paraphrase": "Handling of continuous and categorical predictors",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Verify original encoded/pipeline version and any hidden transformations against source-local run evidence; documentation alone is not confirmation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.3",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.3",
+          "topic_paraphrase": "Treatment of missing or censored records",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Independently inspect permitted original missingness summaries and imputation practices; do not request patient-level rows in public CI.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.4",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.4",
+          "topic_paraphrase": "Class-imbalance remedy and resulting recalibration, if any",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Class-imbalance adjustment/recalibration evidence requires source-specific audit; cannot infer a correction from observed prevalence.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.5",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.5",
+          "topic_paraphrase": "Controls against model overfitting during training",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Original protected fold/run outputs not independently inspected; small-sample precision and real subgroup calibration/utility are not evidenced.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-1.1",
+          "phase": "EVALUATION",
+          "domain": "participants_and_sources",
+          "item_id": "1.1",
+          "topic_paraphrase": "Appropriateness of source cohort and sampling for intended research use",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland D-047 report gives n=303, positive=139, negative=164, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-1.2",
+          "phase": "EVALUATION",
+          "domain": "participants_and_sources",
+          "item_id": "1.2",
+          "topic_paraphrase": "Whether the original study design supports the reported scope",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland D-047 report gives n=303, positive=139, negative=164, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-1.3",
+          "phase": "EVALUATION",
+          "domain": "participants_and_sources",
+          "item_id": "1.3",
+          "topic_paraphrase": "Selection/exclusion and representativeness of included people",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland D-047 report gives n=303, positive=139, negative=164, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-2.1",
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "item_id": "2.1",
+          "topic_paraphrase": "Consistent predictor definitions and measurement across people",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The Cleveland resting 5-field panel, encoded LR design and fold-contained handling are documented in the archived protocol.",
+          "unresolved_check": "Historical stage wording is documented; actual individual collection timing, consistent measurement and blinded ascertainment not independently confirmed.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-2.2",
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "item_id": "2.2",
+          "topic_paraphrase": "Consistent predictor preprocessing across source records",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The Cleveland resting 5-field panel, encoded LR design and fold-contained handling are documented in the archived protocol.",
+          "unresolved_check": "Historical stage wording is documented; actual individual collection timing, consistent measurement and blinded ascertainment not independently confirmed.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-2.3",
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "item_id": "2.3",
+          "topic_paraphrase": "Predictor measurement independence from outcome knowledge",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The Cleveland resting 5-field panel, encoded LR design and fold-contained handling are documented in the archived protocol.",
+          "unresolved_check": "Historical stage wording is documented; actual individual collection timing, consistent measurement and blinded ascertainment not independently confirmed.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-2.4",
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "item_id": "2.4",
+          "topic_paraphrase": "Availability of all predictors at the intended prediction moment",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The Cleveland resting 5-field panel, encoded LR design and fold-contained handling are documented in the archived protocol.",
+          "unresolved_check": "Pre-reference timing not verified per original record; do not equate a prospective synthetic intake form with real source chronology.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-3.1",
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "item_id": "3.1",
+          "topic_paraphrase": "Appropriateness of angiography-referenced outcome definition",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland reference uses num=0 versus 1..4 and >50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-3.2",
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "item_id": "3.2",
+          "topic_paraphrase": "Consistency of outcome ascertainment among subjects",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland reference uses num=0 versus 1..4 and >50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-3.3",
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "item_id": "3.3",
+          "topic_paraphrase": "Outcome determination independence from predictor knowledge",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland reference uses num=0 versus 1..4 and >50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-3.4",
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "item_id": "3.4",
+          "topic_paraphrase": "Suitability of elapsed time between predictors and outcome",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived Cleveland reference uses num=0 versus 1..4 and >50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.1",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.1",
+          "topic_paraphrase": "Distinction of internal validation from apparent training-set performance",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Original protected fold/run outputs not independently inspected; small-sample precision and real subgroup calibration/utility are not evidenced.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.2",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.2",
+          "topic_paraphrase": "Sample size and precision of performance evaluation",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Verify original encoded/pipeline version and any hidden transformations against source-local run evidence; documentation alone is not confirmation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.3",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.3",
+          "topic_paraphrase": "Missing/censored data handling at evaluation",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Independently inspect permitted original missingness summaries and imputation practices; do not request patient-level rows in public CI.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.4",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.4",
+          "topic_paraphrase": "Whether evaluation kept original prevalence rather than artificially balancing it",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Original evaluation prevalence and any balancing/filtering at evaluation require protected-run evidence; no forced assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.5",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.5",
+          "topic_paraphrase": "Prevention of data leakage across held-out folds",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Documented nested CV is not independent proof that protected outer-fold predictions were leak-free; check authorized run summary.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.6",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.6",
+          "topic_paraphrase": "Replication of all preprocessing and model selection within resampling",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Fold-pipeline design is inspectable, but original execution/selection logs cannot be independently verified from public aggregates.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.7",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.7",
+          "topic_paraphrase": "Appropriate discrimination, calibration, utility and uncertainty metrics",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "ROC/AUPRC/Brier reported, but four-repeat SD is not a CI; clinical calibration precision, fairness and clinical net benefit not shown.",
+          "evidence_paths": [
+            "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+            "research/experiments/cleveland_d047_exploratory_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        }
+      ],
+      "applicability": [
+        {
+          "phase": "DEVELOPMENT",
+          "domain": "participants_and_sources",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "reviewer": null
+        },
+        {
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Historical stage wording is documented; actual individual collection timing, consistent measurement and blinded ascertainment not independently confirmed.",
+          "reviewer": null
+        },
+        {
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "reviewer": null
+        },
+        {
+          "phase": "EVALUATION",
+          "domain": "participants_and_sources",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "reviewer": null
+        },
+        {
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Historical stage wording is documented; actual individual collection timing, consistent measurement and blinded ascertainment not independently confirmed.",
+          "reviewer": null
+        },
+        {
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "study_id": "M3A_UCI412_HISTORICAL",
+      "study_name": "UCI-412 M3a",
+      "dataset_id": "DA-A1",
+      "archived_source_path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+      "source_description": "Sixteen-field historical UCI-412 referred cohort; >=50% source-endpoint wording, 0/16 owner-verified predictor acquisition timing",
+      "questions": [
+        {
+          "question_key": "DEV-1.1",
+          "phase": "DEVELOPMENT",
+          "domain": "participants_and_sources",
+          "item_id": "1.1",
+          "topic_paraphrase": "Appropriateness of source cohort and sampling for intended research use",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 M3a report gives n=303, positive=216, negative=87, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-1.2",
+          "phase": "DEVELOPMENT",
+          "domain": "participants_and_sources",
+          "item_id": "1.2",
+          "topic_paraphrase": "Whether the original study design supports the reported scope",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 M3a report gives n=303, positive=216, negative=87, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-1.3",
+          "phase": "DEVELOPMENT",
+          "domain": "participants_and_sources",
+          "item_id": "1.3",
+          "topic_paraphrase": "Selection/exclusion and representativeness of included people",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 M3a report gives n=303, positive=216, negative=87, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-2.1",
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "item_id": "2.1",
+          "topic_paraphrase": "Consistent predictor definitions and measurement across people",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The 16-field UCI-412 panel is documented in source-specific contracts; 0/16 collection times are owner-verified.",
+          "unresolved_check": "Pre-reference timing, BP/PR units, chest-pain definitions and original source encoding require qualified primary-source validation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-2.2",
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "item_id": "2.2",
+          "topic_paraphrase": "Consistent predictor preprocessing across source records",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The 16-field UCI-412 panel is documented in source-specific contracts; 0/16 collection times are owner-verified.",
+          "unresolved_check": "Pre-reference timing, BP/PR units, chest-pain definitions and original source encoding require qualified primary-source validation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-2.3",
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "item_id": "2.3",
+          "topic_paraphrase": "Predictor measurement independence from outcome knowledge",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The 16-field UCI-412 panel is documented in source-specific contracts; 0/16 collection times are owner-verified.",
+          "unresolved_check": "Pre-reference timing, BP/PR units, chest-pain definitions and original source encoding require qualified primary-source validation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-2.4",
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "item_id": "2.4",
+          "topic_paraphrase": "Availability of all predictors at the intended prediction moment",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The 16-field UCI-412 panel is documented in source-specific contracts; 0/16 collection times are owner-verified.",
+          "unresolved_check": "Zero of 16 original predictor acquisition times independently owner-certified; use synthetic-only route, not real clinical suitability.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-3.1",
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "item_id": "3.1",
+          "topic_paraphrase": "Appropriateness of angiography-referenced outcome definition",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 reference uses Cath Cad/Normal and >=50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-3.2",
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "item_id": "3.2",
+          "topic_paraphrase": "Consistency of outcome ascertainment among subjects",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 reference uses Cath Cad/Normal and >=50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-3.3",
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "item_id": "3.3",
+          "topic_paraphrase": "Outcome determination independence from predictor knowledge",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 reference uses Cath Cad/Normal and >=50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-3.4",
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "item_id": "3.4",
+          "topic_paraphrase": "Suitability of elapsed time between predictors and outcome",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 reference uses Cath Cad/Normal and >=50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.1",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.1",
+          "topic_paraphrase": "Sample size/usable events and adequacy of model development",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Archived Riley-style adequacy review flags unmet or unassessed criteria at n=303; formal assessor to determine specific methodological concern.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.2",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.2",
+          "topic_paraphrase": "Handling of continuous and categorical predictors",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Verify original encoded/pipeline version and any hidden transformations against source-local run evidence; documentation alone is not confirmation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.3",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.3",
+          "topic_paraphrase": "Treatment of missing or censored records",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Independently inspect permitted original missingness summaries and imputation practices; do not request patient-level rows in public CI.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.4",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.4",
+          "topic_paraphrase": "Class-imbalance remedy and resulting recalibration, if any",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Class-imbalance adjustment/recalibration evidence requires source-specific audit; cannot infer a correction from observed prevalence.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "DEV-4.5",
+          "phase": "DEVELOPMENT",
+          "domain": "analysis",
+          "item_id": "4.5",
+          "topic_paraphrase": "Controls against model overfitting during training",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Original protected fold/run outputs not independently inspected; small-sample precision and real subgroup calibration/utility are not evidenced.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-1.1",
+          "phase": "EVALUATION",
+          "domain": "participants_and_sources",
+          "item_id": "1.1",
+          "topic_paraphrase": "Appropriateness of source cohort and sampling for intended research use",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 M3a report gives n=303, positive=216, negative=87, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-1.2",
+          "phase": "EVALUATION",
+          "domain": "participants_and_sources",
+          "item_id": "1.2",
+          "topic_paraphrase": "Whether the original study design supports the reported scope",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 M3a report gives n=303, positive=216, negative=87, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-1.3",
+          "phase": "EVALUATION",
+          "domain": "participants_and_sources",
+          "item_id": "1.3",
+          "topic_paraphrase": "Selection/exclusion and representativeness of included people",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 M3a report gives n=303, positive=216, negative=87, and a historical referral cohort.",
+          "unresolved_check": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-2.1",
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "item_id": "2.1",
+          "topic_paraphrase": "Consistent predictor definitions and measurement across people",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The 16-field UCI-412 panel is documented in source-specific contracts; 0/16 collection times are owner-verified.",
+          "unresolved_check": "Pre-reference timing, BP/PR units, chest-pain definitions and original source encoding require qualified primary-source validation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-2.2",
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "item_id": "2.2",
+          "topic_paraphrase": "Consistent predictor preprocessing across source records",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The 16-field UCI-412 panel is documented in source-specific contracts; 0/16 collection times are owner-verified.",
+          "unresolved_check": "Pre-reference timing, BP/PR units, chest-pain definitions and original source encoding require qualified primary-source validation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-2.3",
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "item_id": "2.3",
+          "topic_paraphrase": "Predictor measurement independence from outcome knowledge",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The 16-field UCI-412 panel is documented in source-specific contracts; 0/16 collection times are owner-verified.",
+          "unresolved_check": "Pre-reference timing, BP/PR units, chest-pain definitions and original source encoding require qualified primary-source validation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-2.4",
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "item_id": "2.4",
+          "topic_paraphrase": "Availability of all predictors at the intended prediction moment",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "The 16-field UCI-412 panel is documented in source-specific contracts; 0/16 collection times are owner-verified.",
+          "unresolved_check": "Zero of 16 original predictor acquisition times independently owner-certified; use synthetic-only route, not real clinical suitability.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-3.1",
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "item_id": "3.1",
+          "topic_paraphrase": "Appropriateness of angiography-referenced outcome definition",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 reference uses Cath Cad/Normal and >=50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-3.2",
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "item_id": "3.2",
+          "topic_paraphrase": "Consistency of outcome ascertainment among subjects",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 reference uses Cath Cad/Normal and >=50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-3.3",
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "item_id": "3.3",
+          "topic_paraphrase": "Outcome determination independence from predictor knowledge",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 reference uses Cath Cad/Normal and >=50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-3.4",
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "item_id": "3.4",
+          "topic_paraphrase": "Suitability of elapsed time between predictors and outcome",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived UCI-412 reference uses Cath Cad/Normal and >=50% source wording.",
+          "unresolved_check": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.1",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.1",
+          "topic_paraphrase": "Distinction of internal validation from apparent training-set performance",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Original protected fold/run outputs not independently inspected; small-sample precision and real subgroup calibration/utility are not evidenced.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.2",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.2",
+          "topic_paraphrase": "Sample size and precision of performance evaluation",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Verify original encoded/pipeline version and any hidden transformations against source-local run evidence; documentation alone is not confirmation.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.3",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.3",
+          "topic_paraphrase": "Missing/censored data handling at evaluation",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Independently inspect permitted original missingness summaries and imputation practices; do not request patient-level rows in public CI.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.4",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.4",
+          "topic_paraphrase": "Whether evaluation kept original prevalence rather than artificially balancing it",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Original evaluation prevalence and any balancing/filtering at evaluation require protected-run evidence; no forced assessment.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.5",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.5",
+          "topic_paraphrase": "Prevention of data leakage across held-out folds",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Documented nested CV is not independent proof that protected outer-fold predictions were leak-free; check authorized run summary.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.6",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.6",
+          "topic_paraphrase": "Replication of all preprocessing and model selection within resampling",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "Fold-pipeline design is inspectable, but original execution/selection logs cannot be independently verified from public aggregates.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        },
+        {
+          "question_key": "EVAL-4.7",
+          "phase": "EVALUATION",
+          "domain": "analysis",
+          "item_id": "4.7",
+          "topic_paraphrase": "Appropriate discrimination, calibration, utility and uncertainty metrics",
+          "formal_answer": "NOT_ASSESSED",
+          "domain_rating": "NOT_ASSESSED",
+          "public_evidence_observation": "Archived report specifies nested stratified CV with fold-contained preprocessing and a 0.01 LR simplicity rule; metrics are descriptive repeat summaries.",
+          "unresolved_check": "ROC/AUPRC/Brier reported, but four-repeat SD is not a CI; clinical calibration precision, fairness and clinical net benefit not shown.",
+          "evidence_paths": [
+            "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+            "research/uci412/uci412_cad_research_plan.v0.1.json",
+            "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json",
+            "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+            "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+          ],
+          "reviewer": null,
+          "reviewed_on": null
+        }
+      ],
+      "applicability": [
+        {
+          "phase": "DEVELOPMENT",
+          "domain": "participants_and_sources",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "reviewer": null
+        },
+        {
+          "phase": "DEVELOPMENT",
+          "domain": "predictors",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Pre-reference timing, BP/PR units, chest-pain definitions and original source encoding require qualified primary-source validation.",
+          "reviewer": null
+        },
+        {
+          "phase": "DEVELOPMENT",
+          "domain": "outcome",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "reviewer": null
+        },
+        {
+          "phase": "EVALUATION",
+          "domain": "participants_and_sources",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Original enrolment sequence, selection/exclusion, dates, representativeness and external intended-population match not independently attested.",
+          "reviewer": null
+        },
+        {
+          "phase": "EVALUATION",
+          "domain": "predictors",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Pre-reference timing, BP/PR units, chest-pain definitions and original source encoding require qualified primary-source validation.",
+          "reviewer": null
+        },
+        {
+          "phase": "EVALUATION",
+          "domain": "outcome",
+          "scope": "INTENDED_RESEARCH_TASK_ONLY",
+          "formal_concern": "NOT_ASSESSED",
+          "gap": "Exact 50% boundary, inter-assessor reference procedures, timing and blinded ascertainment unavailable for independent assessment.",
+          "reviewer": null
+        }
+      ]
+    }
+  ],
+  "original_reporting_standards": {
+    "tripod_main_items": 27,
+    "tripod_original_subitems": 52,
+    "tripod_subitem_assessment": "NOT_PERFORMED_IN_THIS_PR",
+    "probast_overall_quality": "NOT_ASSESSED",
+    "probast_overall_evaluation_risk_of_bias": "NOT_ASSESSED"
+  },
+  "scientific_snapshot": {
+    "original_claims": 28,
+    "limited_transcription_matches": 9,
+    "not_independently_verifiable": 19,
+    "pending_human_reviewer_actions": 10
+  },
+  "constraints": [
+    "No new real-data access, patient-level review or real model retraining",
+    "Historical Cleveland and UCI-412 result benchmarks must not be pooled or compared to name a best source",
+    "Cleveland >50% versus UCI-412 >=50% labels not harmonized",
+    "UCI-412 0/16 owner-verified pre-reference feature collection times",
+    "AI-9.2 real labs and AI-10.2 real Hungary evaluation NOT_PERFORMED",
+    "Engineering synthetic tests do not validate clinical performance",
+    "No human PROBAST+AI scoring, investigator declaration, ethics approval or RH-07 acceptance invented"
+  ]
+}
