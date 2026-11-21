@@ -170,12 +170,12 @@ def test_workflow_pins_openblas_core_type_and_threads():
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
     for job in ("synthetic-runner-tests", "rh04-fixture-diagnostic"):
         match = re.search(
-            rf"(?ms)^  {re.escape(job)}:\\n(.*?)(?=^  [a-zA-Z][a-zA-Z0-9_-]*:\\n|\\Z)",
+            rf"(?ms)^  {re.escape(job)}:\n(.*?)(?=^  [a-zA-Z][a-zA-Z0-9_-]*:\n|\Z)",
             text,
         )
         assert match is not None, f"Missing RH-04 CI job: {job}"
         section = match.group(1)
-        env = re.search(r"(?ms)^    env:\\n((?:^      [A-Z0-9_]+:.*\\n)+)", section)
+        env = re.search(r"(?ms)^    env:\n((?:^      [A-Z0-9_]+:.*\n)+)", section)
         assert env is not None, f"Missing job-level numeric environment: {job}"
         values = dict(
             re.findall(r"(?m)^      ([A-Z0-9_]+): '([^']+)'$", env.group(1))
