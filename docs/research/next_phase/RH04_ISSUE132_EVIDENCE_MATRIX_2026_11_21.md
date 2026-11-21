@@ -183,3 +183,111 @@ git diff --stat 10bee67474b0eb9858f4ca6f298037c2f32459cc -- \
 - No claim about clinical validity, model equivalence, RH-07 science or RH-08 release.
 - No claim that Python 3.12, NumPy ≥ 2, ARM64, macOS or non-glibc `libm` behave identically.
 - No claim that the portable solver is bit-portable across OS/libc — only across the dispatch classes tested on this one platform.
+
+---
+
+## 9. Addendum — the PR #136 CI failure is itself the decisive evidence
+
+This branch's own first CI run **failed**, and it is the single strongest piece
+of evidence in this document. It is recorded here rather than hidden because it
+is exactly what a *reproducibility* investigation should be able to show.
+
+### 9.1 Observation
+
+| Field | Value |
+|---|---|
+| Run | `synthetic-experiment-runner-validation`, [44919728501](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44919728501) |
+| Head | `d271deee2cd9dc4e8a14ccd670422aa108da7566` (this branch) |
+| Python 3.11 job | **FAILED** at `Run synthetic experiment-runner and dataset-audit tests` |
+| Python 3.12 job | **FAILED** at the same step, and again at `Diagnose RH-04 fixture drift` |
+| RH-04 structural diagnostic job (3.12) | **PASSED** |
+| Other three workflows | **PASSED** (`contract-validation`, `mock-backend-validation`, `audit-toolchain-validation`) |
+
+The exact failure payload, from the same 3.12 diagnostic step that is redacted by
+design:
+
+```
+response mismatch: da_a1_basic_clinical_v1; redacted_field_diff=[
+  {"absolute_delta": "4.441e-16",
+   "field": "response.outcomes[0].score.calibrated_log_odds",
+   "kind": "score_numeric",
+   "within_existing_report_comparator_tolerance": true}]
+```
+
+This is **character-for-character the Issue #132 failure**. The Python 3.11 job's
+full test count was likewise `1 failed, 2 skipped, 10 errors` — the same shape as
+Issue #132 attempt 1 (`1 failed, 1615 passed, 2 skipped, 10 downstream fixture-setup
+errors`; the passed count is higher only because this branch adds 32 tests).
+
+### 9.2 Falsification of "Linux CI does not reproduce this"
+
+Crucially, the **independent** `RH-04 fixture structural drift diagnostic (Python 3.12)`
+job — a different VM (`GitHub Actions 1000003131`) in the same run — reported
+`EXACT_REPLAY` twice. So within **one workflow run at one commit**:
+
+| VM | Job | Verdict |
+|---|---|---|
+| `1000003130` | synthetic 3.11 | drift |
+| `1000003133` | synthetic 3.12 | drift |
+| `1000003131` | structural diagnostic 3.12 | exact |
+
+Three jobs, one commit, three VMs, **two different arithmetic outcomes**. This
+reproduces §3.2/`E-11` *prospectively* on a brand-new commit that touches no
+production code, and it independently confirms the mechanism has nothing to do
+with this PR's diff.
+
+### 9.3 Falsification of "it is Linux-only" and "it is Python-version-specific"
+
+The two failing jobs are Python **3.11 and 3.12 on the same Linux runner label**.
+The drift therefore:
+
+- is **not** Linux-vs-Windows (it fires on Linux),
+- is **not** 3.11-vs-3.12 (it fires on both, and the 3.12 diagnostic passed),
+- **is** dispatch-class dependent, exactly as §1.2 predicts.
+
+### 9.4 Reproduction under the same conditions
+
+Reconstructed locally by forcing the failing dispatch class:
+
+```bash
+OPENBLAS_CORETYPE=Haswell OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+  BLIS_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
+  python -m pytest tests/experiments tests/audit -q -W error
+# -> 1 failed, 1676 passed, 2 skipped, 10 errors
+#    identical signature to the CI job and to Issue #132 attempt 1
+```
+
+And the classifier correctly names it:
+
+```bash
+OPENBLAS_CORETYPE=Haswell OPENBLAS_NUM_THREADS=1 python -m research.intake.rh04_environment_class
+# status = EXPECTED_SINGLE_FIELD_DELTAS, exit 1
+# numpy_openblas_kernel = Haswell, scipy_openblas_kernel = Haswell
+# differing_case_ids = [da_a1_basic_clinical_v1, da_a2_resting_v1]
+```
+
+### 9.5 Why this strengthens — rather than weakens — the recommendation
+
+1. It is **direct evidence for P-4**: the defect is real, host-dependent, and
+   reproducible at will on the very CI infrastructure the project uses. Pinning,
+   tighter tolerances and reruns cannot fix a property of the allocated VM.
+2. It is **direct evidence that the comparator is not broken**: nothing in this
+   branch's diff caused it (the same signature appears at `main`'s own history),
+   and the 10 downstream errors are the same fixture-setup cascade Issue #132
+   already recorded.
+3. It is **direct evidence that the classification gate is needed now**: three
+   jobs in one run disagreed, and before this branch **none of them recorded
+   which kernel it used**. That is the exact blind spot `G-01`/`G-03` names.
+4. It shows the gate's exit-code-1 branch is correctly calibrated: this run is a
+   *classified, expected* outcome — not a new defect and not a pass.
+
+**This failure is left visible and un-retried on the PR.** Re-running until green
+is precisely the behaviour Issue #132 forbids, and a green rerun would destroy
+the best evidence the investigation has produced.
+
+### 9.6 Bearing on the V2 prerequisites
+
+`V2-04` requires `EXACT_REPLAY` on ≥3 dispatch classes × {3.11, 3.12} **plus**
+native Windows. The section-9 observation is why `V2-04` cannot be satisfied by
+a single green CI run, and why the dispatch class must be recorded *with* every
+verdict rather than inferred from the outcome.

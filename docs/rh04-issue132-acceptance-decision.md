@@ -2,6 +2,7 @@
 
 **Document version:** `rh04.issue132.acceptance-decision/v1`
 **Status:** `PROPOSED — NOT RATIFIED`. Decision record only. **No production behaviour, fixture, digest, comparator, tolerance or workflow file is changed by this branch.**
+**CI status of this branch (deliberate, not a defect in this PR):** the `synthetic-experiment-runner-validation` job is **RED** at head `d271dee`, with the exact Issue #132 signature on a docs-only diff. This is *predicted* by §1.3 and is the strongest evidence in this record. It is **not** re-run to green: Issue #132 forbids rerun-until-green, and a green rerun would erase the observation. Read §1.3 and matrix §9 before treating the red check as a blocker.
 **Scope:** research-only, synthetic-only engineering reproducibility. Not a scientific, clinical, model-performance, RH-07 or RH-08 acceptance.
 **Supersedes:** nothing. It *reads* `docs/rh04-portable-deterministic-calibration.md` (merged via PR #135) and adds the acceptance decision that document explicitly declined to make.
 **Base commit:** `10bee67474b0eb9858f4ca6f298037c2f32459cc` (`main`, verified `git rev-parse origin/main` on 2026-11-21).
@@ -57,6 +58,24 @@ Reproduced on the exact base commit, Linux x86-64, Python 3.11.2, glibc 2.36, `n
 ¹ This OpenBLAS build has no `Zen` kernel; it falls back to `Haswell`. Recorded here because it is itself evidence that a *name* is not a *kernel* (§7.3, evidence gap `E-07`).
 
 **Conclusion:** the two deltas in Issue #132 are reproduced exactly, byte-for-byte, and are a **pure function of the OpenBLAS dynamic-architecture dispatch class**. They are not reproduced by "Python 3.11 vs 3.12", not by thread count, and not by runner-image drift.
+
+### 1.3 Independently confirmed by this branch's own CI failure (prospective evidence)
+
+The first CI run of this very branch — a docs/test-only change with **no**
+production-code diff — failed with the identical signature:
+
+| Job | VM | Python | Verdict |
+|---|---|---|---|
+| `synthetic-runner-tests` | `1000003130` | 3.11 | **drift** (`da_a1_basic_clinical_v1`, 4.441e-16) |
+| `synthetic-runner-tests` | `1000003133` | 3.12 | **drift** (same field), then diagnostic red |
+| `rh04-fixture-diagnostic` | `1000003131` | 3.12 | **`EXACT_REPLAY` ×2** |
+
+Run [44919728501](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/44919728501). Three jobs, one commit, three VMs, **two different arithmetic outcomes** — the same phenomenon as `E-11`, now reproduced prospectively rather than historically. Two consequences:
+
+1. The drift is **not** Linux-vs-Windows and **not** 3.11-vs-3.12: it fires on Linux, on both interpreter versions, and the 3.12 diagnostic passed on a different VM.
+2. Before this branch, **none** of those three jobs recorded which kernel it used. That is the blind spot `G-01`/`G-03` names, and the direct justification for §6 Step 2.
+
+The failure is left **visible and un-retried** on the PR. See the evidence matrix §9 for the full record and for the local reproduction (`1 failed, 1676 passed, 2 skipped, 10 errors` under a forced `Haswell` dispatch — the same shape as Issue #132 attempt 1).
 
 `tests/experiments/test_offline_fixture_pack.py::test_golden_replay` fails under `OPENBLAS_CORETYPE=Haswell` with exactly the Issue #132 message (`1 failed, 49 passed`), and `test_rh04_replay_tolerance.py` correctly refuses to extend the pre-existing Cleveland exception to the UCI-412 case. **The comparator's narrowness is working as designed.**
 
@@ -449,6 +468,7 @@ git diff --stat 10bee67474b0eb9858f4ca6f298037c2f32459cc -- \
 | `M-11` | Portable solver bit-identical across 5 dispatches; ≈1.87e-7 log-odds from frozen | **measured** | same | this branch |
 | `M-12` | All bundle-byte differences localize to calibrator parameters | **measured** | same | this branch |
 | `M-13` | Same SHA, same runner tag → FAIL then PASS | **historical** | GitHub-hosted `ubuntu-24.04` | `E-11` |
+| `M-13b` | **One commit, one run, three VMs → 2 drift + 1 exact.** Reproduced prospectively on a docs-only branch head. | **measured** | GitHub-hosted `ubuntu-24.04` | §1.3, matrix §9 |
 | `M-14` | `HASWELL` + `NPY_DISABLE_CPU_FEATURES` does not cure | **historical** | CI | `E-12` |
 | `M-15` | `SkylakeX` pin impossible on hosted runners | **historical** | CI | `E-13` |
 | `M-16` | Windows: one Cleveland field, 4.441e-16 | **historical** | native Windows | `E-14` |
