@@ -1,0 +1,255 @@
+{
+  "schema_id": "cardioassist.rh07.independent_acceptance_intake/v1",
+  "baseline_main_sha": "8d471b4b135f7c5488210e18157aab1fcc5d6495",
+  "recorded_on": "2026-11-21",
+  "status": "INDEPENDENT_REVIEW_INTAKE_NOT_ACCEPTED",
+  "evidence_scope": "PUBLIC_REPO_SOURCE_AND_HISTORICAL_REVIEW_RECORDS_ONLY",
+  "final_prototype_accepted": false,
+  "patient_inference_or_clinical_validation_authorized": false,
+  "source_prs": [
+    118,
+    124,
+    125,
+    127
+  ],
+  "older_snapshot_warning": "AI_RESEARCH_COMPLETION_TRACKER_2026_11_19.json remains historically dated and includes stale milestone states; do not treat its old statuses as verified current outcomes.",
+  "rh05_evidence_note": "Native Windows acceptance is maintainer-reported at 64f34e4cb8580ced461237ffa46ba0a91e8fc1c5; cross-OS separate source SHA 09b895423171eff7569fc49dd8ceac7dfb0d43c6; both are synthetic software evidence only.",
+  "original_claim_audit": {
+    "claims_total": 28,
+    "limited_source_matches": 9,
+    "not_verifiable": 19,
+    "human_review_actions_pending": 10
+  },
+  "checklist": [
+    {
+      "id": "AC-01",
+      "criterion": "Research target, population, prediction moment, non-use claims",
+      "evidence_paths": [
+        "docs/research/next_phase/AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md",
+        "docs/research/next_phase/RH06_EVIDENCE_BOUNDED_RESEARCH_PROTOTYPE_DESIGN_DECISIONS_2026_11_19.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "Intended pre-reference moment and patient-level clinical utility are not independently established; reviewer must verify final scientific wording.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-02",
+      "criterion": "Dataset rights, provenance, overlap and admissibility",
+      "evidence_paths": [
+        "docs/research/next_phase/RH02_RH03_CONSOLIDATED_RESEARCH_HANDOFF_2026_11_19.json",
+        "docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "Source/rights/timing questions remain open; do not promote UCI-412, Hungary, UCI-411 or AngioCAD.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-03",
+      "criterion": "Historical D-047 and M3a numeric result provenance",
+      "evidence_paths": [
+        "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+        "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+        "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "Source-to-manuscript table values are transcribed but protected original runs were not independently rerun/attested.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-04",
+      "criterion": "Fold-safe preprocessing, training and leakage review",
+      "evidence_paths": [
+        "ai/research_registry.py",
+        "docs/research/next_phase/RH03_AI12_2_INDEPENDENT_AUDIT_2026_11_19.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "No fresh audit of protected patient-level fold assignments; code and historic protocol inspection are separate evidence.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-05",
+      "criterion": "Discrimination, calibration and uncertainty limitations",
+      "evidence_paths": [
+        "docs/research/next_phase/AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md",
+        "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "Dependent-repeat SD is not a CI; clinical calibration, precision, subgroup evaluation and external performance not established.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-06",
+      "criterion": "SHAP/LIME fidelity, background and non-causal interpretation",
+      "evidence_paths": [
+        "ai/explainability.py",
+        "ai/lime_explainability.py",
+        "ai/lime_quality.py"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "Offline synthetic explanation maths has software tests; no clinical causal/individual-patient explanation validated.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-07",
+      "criterion": "Source-specific field units, acquisition, refusal rules",
+      "evidence_paths": [
+        "docs/research/next_phase/RH04_1_2_FEATURE_ACQUISITION_EVIDENCE_CROSSWALK_2026_11_19.md",
+        "docs/research/next_phase/RH04_OFFLINE_FIXTURE_HANDOFF.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "UCI-412 original 16/16 acquisition times still not owner-verified; synthetic input is not prospective admissibility.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-08",
+      "criterion": "AI-9.2 labs and AI-10.2 external study dispositions",
+      "evidence_paths": [
+        "docs/research/next_phase/RH06_EVIDENCE_BOUNDED_RESEARCH_PROTOTYPE_DESIGN_DECISIONS_2026_11_19.md",
+        "docs/research/next_phase/RH02_RH03_CONSOLIDATED_RESEARCH_HANDOFF_2026_11_19.json"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "Real paired labs and Hungary external experiments are NO-GO/NOT_PERFORMED in current scope; no results may be inferred.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-09",
+      "criterion": "Model inventory, cards and synthetic worked I/O",
+      "evidence_paths": [
+        "ai/research_catalog.py",
+        "docs/research/ai12_1/linux-uci45-envelope.v1.json",
+        "docs/research/next_phase/RH04_OFFLINE_FIXTURE_HANDOFF.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "One published synthetic Cleveland card exists inside an envelope; UCI-412 synthetic and historic research models lack equivalent finalized standalone reviewed cards.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-10",
+      "criterion": "Signing, integrity, privacy, Track A/B, mock-only serving",
+      "evidence_paths": [
+        "backend/app/inference/registry.py",
+        "docs/research/next_phase/RH05_INDEPENDENT_ACCEPTANCE_REVIEW_2026_11_20.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "Existing synthetic/security evidence is source-bound; it does not authorize medical serving or rule out all deployment risks.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-11",
+      "criterion": "Exact-source CI, native Windows and reproducible demo",
+      "evidence_paths": [
+        "docs/research/next_phase/RH05_ACCEPTANCE_MANIFEST_2026_11_20.json",
+        "docs/research/next_phase/RH05_INDEPENDENT_ACCEPTANCE_REVIEW_2026_11_20.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "RH-05 accepted engineering evidence uses its own precise tested SHAs; 2909/3 Windows outcome is maintainer reported, and no final release SHA run is claimed.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-12",
+      "criterion": "17-chapter manuscript, reporting frameworks and figures",
+      "evidence_paths": [
+        "docs/research/next_phase/AI12_2_GRADUATION_RESEARCH_MANUSCRIPT_DRAFT_2026_11_19.md",
+        "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.json"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "27 TRIPOD+AI main items are drafted, 52 subitems not finalized, PROBAST+AI not assessed, no protected ROC curves reconstructed.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-13",
+      "criterion": "Independent scientific and engineering review",
+      "evidence_paths": [
+        "docs/research/next_phase/RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json",
+        "docs/research/next_phase/RH03_AI12_2_INDEPENDENT_AUDIT_2026_11_19.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "9 source-text limited matches and 19 NOT_VERIFIABLE are not complete scientific verification; all 10 reviewer actions remain pending.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-14",
+      "criterion": "Release README, handoff and frozen source SHA",
+      "evidence_paths": [
+        "docs/research/next_phase/AI_RESEARCH_PROTOTYPE_COMPLETION_CHARTER_2026_11_19.md",
+        "docs/research/next_phase/AI12_2_FINAL_REPORT_BLUEPRINT_2026_11_19.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "RH-08 final release bundle, complete reviewed handoff and exact accepted release SHA have not been prepared/accepted.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    },
+    {
+      "id": "AC-15",
+      "criterion": "Owned, explicit in-scope gaps and claim boundaries",
+      "evidence_paths": [
+        "docs/research/next_phase/AI_RESEARCH_COMPLETION_TRACKER_2026_11_19.json",
+        "docs/research/next_phase/RH03_REPORTING_CROSSWALK_2026_11_21.md"
+      ],
+      "evidence_status": "EVIDENCE_LOCATED_REVIEW_REQUIRED",
+      "gap": "Tracker is a stale 2026-11-19 snapshot and cannot automatically mark milestones closed; gaps need owner/reviewer assignment and evidence decisions.",
+      "independent_review": "PENDING",
+      "reviewer": null,
+      "accepted_at": null
+    }
+  ],
+  "pending_decisions": [
+    {
+      "id": "D-RH07-01",
+      "topic": "Original output attribution for historical D-047 and M3a tables",
+      "status": "PENDING_OWNER_IF_AVAILABLE",
+      "truth_boundary": "Historic committed aggregates only; 48/48 transcription does not prove rerun."
+    },
+    {
+      "id": "D-RH07-02",
+      "topic": "TRIPOD+AI 52 subitems and PROBAST+AI formal appraisal",
+      "status": "PENDING_REVIEW",
+      "truth_boundary": "Crosswalk is a gap inventory, not compliance/risk certificate."
+    },
+    {
+      "id": "D-RH07-03",
+      "topic": "Model-card coverage",
+      "status": "INCOMPLETE",
+      "truth_boundary": "Synthetic Cleveland card embedded in AI-12.1; other reviewed cards not verified."
+    },
+    {
+      "id": "D-RH07-04",
+      "topic": "CI intermittent Python 3.12 golden replay",
+      "status": "UNRESOLVED_ROOT_CAUSE",
+      "truth_boundary": "PR #126 diagnostic 8/8 success; no proven cause or new model change."
+    },
+    {
+      "id": "D-RH07-05",
+      "topic": "RH-08 final handoff acceptance",
+      "status": "NOT_PERFORMED",
+      "truth_boundary": "No final release freeze, signoff or patient serving."
+    }
+  ]
+}
