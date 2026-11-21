@@ -23,7 +23,7 @@ def validate(root:Path)->dict[str,int]:
  total=apps=0
  for s in d["studies"]:
   if not (root/s["archived_source_path"]).is_file():raise ValueError("missing source report")
-  wanted={(phase[:4] if phase=="DEVELOPMENT" else "EVAL")+"-"+id for phase in ("DEVELOPMENT","EVALUATION") for domain in EXPECTED for id in EXPECTED[domain]}
+  wanted={("DEV" if phase=="DEVELOPMENT" else "EVAL")+"-"+id for phase in ("DEVELOPMENT","EVALUATION") for domain in EXPECTED for id in EXPECTED[domain]}
   wanted|={"DEV-"+i for i in DEV_ANALYSIS}
   wanted|={"EVAL-"+i for i in EVAL_ANALYSIS}
   got=[q["question_key"] for q in s["questions"]]
