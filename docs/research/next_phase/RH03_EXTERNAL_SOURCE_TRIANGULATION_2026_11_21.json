@@ -1,0 +1,781 @@
+{
+  "schema_id": "cardioassist.rh03_external_evidence_triage/v1",
+  "created_on": "2026-11-21",
+  "baseline_commit": "4aeb4f33ee95d6f09311c10dc1b7829da1bb5c2f",
+  "review_stage": "TRIANGULATION_ONLY_NOT_SCIENTIFIC_ACCEPTANCE",
+  "access_scope": "public original source HTML and indexed publisher/society educational content; no data download, protected data or video-content attestation",
+  "source_authority_policy": "original dataset donor/owner or primary research > methodological guidelines > society educational/medical websites > videos/tutorials. Only original subject-level provenance, permitted aggregates or qualified human review can settle individual data chronology or original experiment claims.",
+  "historical_audit_counts": {
+    "NOT_VERIFIABLE": 19,
+    "PASS_SOURCE_MATCH": 9
+  },
+  "source_catalog": [
+    {
+      "id": "EXT-UCI45",
+      "tier": "PRIMARY_DATASET_OWNER",
+      "url": "https://archive.ics.uci.edu/dataset/45/heart",
+      "finding": "Official UCI describes 4 source sites, Cleveland n=303, num=0 vs 1..4; expanded attribute description gives 0 as <50% and 1 as >50%; exact 50% boundary remains unspecified.",
+      "does_not_establish": "No case-by-case measurement chronology, local project 139/164 counted labels, or reproducibility of D-047 numerical results.",
+      "claim_ids": [
+        "CL-001",
+        "CL-002",
+        "CL-003",
+        "CL-027"
+      ],
+      "questions": [
+        "Q-01",
+        "Q-02"
+      ]
+    },
+    {
+      "id": "EXT-UCI412",
+      "tier": "PRIMARY_DATASET_OWNER",
+      "url": "https://archive.ics.uci.edu/dataset/412/z+alizadeh+sani",
+      "finding": "Original UCI metadata states 303 records, nominal 54 features in four groups, and CAD defined by diameter narrowing >=50%.",
+      "does_not_establish": "No owner-certified per-field acquisition timestamps, original 16-feature eligibility, BP/PR precise semantics or archived project's Cad/Normal totals.",
+      "claim_ids": [
+        "CL-011",
+        "CL-016",
+        "CL-027"
+      ],
+      "questions": [
+        "Q-03",
+        "Q-04",
+        "Q-05",
+        "Q-06",
+        "Q-08"
+      ]
+    },
+    {
+      "id": "EXT-UCI411",
+      "tier": "PRIMARY_DATASET_OWNER",
+      "url": "https://archive.ics.uci.edu/dataset/411/extention+of+z+alizadeh+sani+dataset",
+      "finding": "UCI labels it an extension of the same 303 patient records, adds angiography result features LAD/LCX/RCA/Cath and warns of selecting among them for other target tasks.",
+      "does_not_establish": "Not independent cohort, cannot show permitted pre-cath availability of post-reference angiography results; no new external validation.",
+      "claim_ids": [
+        "CL-017",
+        "CL-027"
+      ],
+      "questions": [
+        "Q-09"
+      ]
+    },
+    {
+      "id": "EXT-ALIZ2013",
+      "tier": "PRIMARY_ORIGINAL_AUTHOR_PAPER",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4253773/",
+      "finding": "Original author's 2013 paper describes 303 Rajaie referrals and laboratory/echocardiography inputs to predict artery stenosis, with artery-specific endpoints and procedures.",
+      "does_not_establish": "Does not contain subject-level time stamps or certify current delivered workbook field meanings, 16/16 pre-angiography timing or project's new model performance.",
+      "claim_ids": [
+        "CL-011",
+        "CL-016"
+      ],
+      "questions": [
+        "Q-04",
+        "Q-05",
+        "Q-07",
+        "Q-08"
+      ]
+    },
+    {
+      "id": "EXT-RILEY24",
+      "tier": "PRIMARY_METHODS_PAPER",
+      "url": "https://www.bmj.com/content/384/bmj-2023-074821",
+      "finding": "External validation sample size calculations should depend on anticipated event fraction, discrimination and calibration precision rather than a blanket sample-count rule.",
+      "does_not_establish": "Does not validate project-specific 382/459/315 calculations or constitute a completed real external validation.",
+      "claim_ids": [
+        "CL-010",
+        "CL-015",
+        "CL-018"
+      ],
+      "questions": [
+        "Q-10",
+        "Q-11"
+      ]
+    },
+    {
+      "id": "EXT-RILEY24B",
+      "tier": "PRIMARY_METHODS_PAPER",
+      "url": "https://www.bmj.com/content/384/bmj-2023-074820",
+      "finding": "External evaluation requires independent evaluation data and assessments of calibration, discrimination and fit; an internal repeated CV is not a distinct external cohort.",
+      "does_not_establish": "Does not establish independence or validity of Hungary test cohort.",
+      "claim_ids": [
+        "CL-012",
+        "CL-018",
+        "CL-027"
+      ],
+      "questions": [
+        "Q-10",
+        "Q-11"
+      ]
+    },
+    {
+      "id": "EXT-TRIPOD",
+      "tier": "ORIGINAL_REPORTING_GUIDELINE",
+      "url": "https://www.tripod-statement.org/content_resources_tx/downloads/",
+      "finding": "TRIPOD+AI comprises 27 main reporting items for regression and machine-learning diagnostic/prognostic prediction studies.",
+      "does_not_establish": "Reporting checklist completeness is not proof of model validity or clinical approval; TRIPOD-LLM is not the suitable substitute for this tabular classifier.",
+      "claim_ids": [
+        "CL-001",
+        "CL-028"
+      ],
+      "questions": [
+        "Q-16"
+      ]
+    },
+    {
+      "id": "EXT-PROBAST",
+      "tier": "ORIGINAL_METHODOLOGY_GUIDELINE",
+      "url": "https://www.bmj.com/content/388/bmj-2024-082505",
+      "finding": "PROBAST+AI distinguishes appraisal of model development quality from evaluation risk of bias/applicability, across participants, predictors, outcome and analysis.",
+      "does_not_establish": "A full item-by-item study-specific PROBAST+AI appraisal has not been performed here; no risk-of-bias certification.",
+      "claim_ids": [
+        "CL-016",
+        "CL-027",
+        "CL-028"
+      ],
+      "questions": [
+        "Q-16"
+      ]
+    },
+    {
+      "id": "EXT-ESC2024",
+      "tier": "PROFESSIONAL_SOCIETY_GUIDELINE_CONTEXT",
+      "url": "https://www.escardio.org/guidelines/clinical-practice-guidelines/all-esc-practice-guidelines/chronic-coronary-syndromes",
+      "finding": "2024 ESC clinical likelihood and diagnostic pathway provide clinical context, a distinct question from CardioAssist's historical source-specific research task.",
+      "does_not_establish": "Does not establish original UCI-412 recording time nor license copying/translating ESC clinical score into software. ESC page states software/algorithm use of guideline content requires formal license.",
+      "claim_ids": [
+        "CL-001",
+        "CL-016",
+        "CL-027"
+      ],
+      "questions": [
+        "Q-01",
+        "Q-16"
+      ]
+    },
+    {
+      "id": "EXT-ESCVIDEO",
+      "tier": "PROFESSIONAL_SOCIETY_VIDEO_METADATA_ONLY",
+      "url": "https://esc365.escardio.org/presentation/279880",
+      "finding": "ESC Congress 2024 physician session metadata: Dr Francisco Javier Rossello, 'Stepwise approach to the management of patients with suspected chronic coronary syndromes'. Video/slides link requires sign-in; its contents were NOT watched/verified.",
+      "does_not_establish": "No dataset-specific feature chronology, CAD label definition, UCI codebook or approval can be inferred from video title.",
+      "claim_ids": [
+        "CL-001",
+        "CL-016"
+      ],
+      "questions": [
+        "Q-01",
+        "Q-04"
+      ]
+    },
+    {
+      "id": "EXT-ACCWEBINAR",
+      "tier": "PROFESSIONAL_SOCIETY_WEBINAR_METADATA_ONLY",
+      "url": "https://www.acc.org/Education-and-Meetings/Meetings/Meeting-Items/2025/07/01/Webinar-AI-in-Clinical-Practice",
+      "finding": "ACC 2025 TRIPOD+AI reporting webinar description explicitly lists reporting use cases and expert presenter Gary J. Collins; ACC embeds a YouTube recording. Webinar video not watched or transcribed by this audit.",
+      "does_not_establish": "Does not authenticate project clinical measurements, historical experiments or source-specific clinical results.",
+      "claim_ids": [
+        "CL-028"
+      ],
+      "questions": [
+        "Q-16"
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "CL-001",
+      "indexed_claim": "Cross-sectional source-defined angiography-referenced CAD presence only; never future event/30-day risk",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-UCI45",
+        "EXT-TRIPOD",
+        "EXT-ESC2024",
+        "EXT-ESCVIDEO"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Compare source-defined cross-sectional CAD wording against UCI-45 and UCI-412 separately; reviewer to adjudicate clinical wording; no future-event claim.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-002",
+      "indexed_claim": "D-047 Cleveland 303 records, 139 positive and 164 negative",
+      "original_audit_status": "PASS_SOURCE_MATCH",
+      "source_path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-UCI45"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "UCI verifies Cleveland cohort n=303 and label grammar only; compare 139/164 class counts to independently permitted original protected aggregate, not public webpage.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-003",
+      "indexed_claim": "D-047 five source fields correspond to eight reference-coded logistic slope coefficients",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-UCI45"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Inspect five source feature definitions and archived transformation/categorical map; eight reference-coded coefficients need permitted original pipeline provenance.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-004",
+      "indexed_claim": "D-047 outer five stratified folds × four dependent repeats and inner five folds, fold-local preprocessing and predeclared LR simplicity rule",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Inspect archived predeclared protocol, fold-local transforms and permitted split manifests; public methods papers cannot verify this historical execution.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-005",
+      "indexed_claim": "D-047 selected-procedure nested OOF AUROC mean 0.8271 ± population SD 0.0097 over four dependent CV repeats",
+      "original_audit_status": "PASS_SOURCE_MATCH",
+      "source_path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check the original D-047 result ledger/aggregate for AUROC 0.8271 ± 0.0097; label ± as SD of 4 dependent repeats, not CI.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-006",
+      "indexed_claim": "D-047 selected-procedure average precision 0.7712 ± 0.0193 and Brier score 0.1671 ± 0.0049",
+      "original_audit_status": "PASS_SOURCE_MATCH",
+      "source_path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check original D-047 AP/Brier aggregate and method-specific original table; no online article can certify project run values.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-007",
+      "indexed_claim": "D-047 fixed 0.5 threshold and LR selected in 19/20 outer folds",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check original D-047 threshold policy and LR selection 19/20 against protected run aggregate/source documents.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-008",
+      "indexed_claim": "D-047 label-shuffle mean AUROC 0.4882 over three shuffles",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check original D-047 shuffling experiment receipt and 0.4882 report; do not infer rerun.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-009",
+      "indexed_claim": "D-047 descriptive OOF calibration inner-selected slope 0.8980 (4/4 estimable), CITL −0.0212; LR and RF slopes 3/4 estimable",
+      "original_audit_status": "PASS_SOURCE_MATCH",
+      "source_path": "docs/research/gate-pt/04_d047_first_internal_results_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check original D-047 calibration-fit estimability and scale with protected aggregate; do not claim reliable patient probabilities.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-010",
+      "indexed_claim": "Cleveland Riley outcome-proportion criterion at fixed half-width 0.05 requires 382, not met by n=303; additional MAPE criterion (p=8) requires 459; exploratory adequacy human NOT ASSESSED",
+      "original_audit_status": "PASS_SOURCE_MATCH",
+      "source_path": "docs/research/gate-pt/05_m2e1_sample_size_research_ADEQUACY_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-RILEY24"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Compare original Riley assumptions/half-width, outcome proportion and MAPE to archived worksheet; literature establishes method but not project's computed n=382/459.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-011",
+      "indexed_claim": "UCI-412 M3a cohort 303, Cad 216 and Normal 87; source-defined ≥50% narrowing and 16-feature panel",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-UCI412",
+        "EXT-ALIZ2013"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Original UCI-412 confirms 303 and ≥50% CAD label, not the archived 216/87 count or verified acquisition timing; keep source distinction.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-012",
+      "indexed_claim": "M3a repeated nested CV inner-selected LR AUROC 0.9107 ± 0.0071; same 303 repeated people and logistic chosen in 20/20 outer folds",
+      "original_audit_status": "PASS_SOURCE_MATCH",
+      "source_path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-RILEY24B"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check original M3a run evidence for repeated nested CV, 0.9107 ±0.0071 and LR 20/20; no cross-source rank.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-013",
+      "indexed_claim": "M3a LR AUPRC 0.9504 ± 0.0077 and Brier 0.0995 ± 0.0043",
+      "original_audit_status": "PASS_SOURCE_MATCH",
+      "source_path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check original M3a LR AP/Brier aggregate and relevant table/preprocessing provenance.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-014",
+      "indexed_claim": "M3a logistic OOF calibration slope 1.0891 (4/4 estimable) and CITL 0.0206; RF calibration slope 3/4; no reported joint free-intercepts or reliability bins",
+      "original_audit_status": "PASS_SOURCE_MATCH",
+      "source_path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check M3a calibration 1.0891/CITL 0.0206 and limitations from original aggregate; do not claim reliability bins.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-015",
+      "indexed_claim": "UCI-412 outcome-proportion sample-size criterion at stated half-width unmet (needs 315 vs 303); R²-dependent criteria not assessed",
+      "original_audit_status": "PASS_SOURCE_MATCH",
+      "source_path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-RILEY24"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Compare UCI-412 Riley formula/assumptions to original adequacy worksheet for n=315; 303-only metadata cannot verify calculation.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-016",
+      "indexed_claim": "None of the sixteen UCI-412 fields has owner-verified pre-angiography acquisition timing; BP/PR/chest pain and binary direction questions unresolved",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/ai8r/SOURCE_ADMISSIBILITY.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-UCI412",
+        "EXT-ALIZ2013",
+        "EXT-PROBAST",
+        "EXT-ESC2024",
+        "EXT-ESCVIDEO"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Original author paper states 303 referrals and use of labs/echo for stenosis; it does NOT prove timestamps, BP/PR unit semantics or 16-field preangiography eligibility. Keep HOLD.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-017",
+      "indexed_claim": "UCI-411 is the same 303 participants as UCI-412 and cannot be used as independent validation",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/ai8r/SOURCE_ADMISSIBILITY.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-UCI411"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "UCI-411 original metadata describes extension of the 303-case source with LAD/LCX/RCA and Cath; reject independent validation or angiography leakage.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-018",
+      "indexed_claim": "Hungary 294 processed records is only conditional locked-site candidate, no real assessment authorized or executed",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/gate-pt/07_m2f_hungary_scientific_decision_and_conditional_protocol.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-RILEY24",
+        "EXT-RILEY24B"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Verify Hungary site, identity independence, source rights and frozen full-cohort model; literature/educational video cannot authorize an external evaluation.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-019",
+      "indexed_claim": "AI-9.1 paired clinical+labs study ran on fabricated same-source participants only; no clinical incremental laboratory evidence",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/next_phase/AI9_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Compare AI-9.1 synthetic report and source/CI evidence; no clinical labs incremental value claim.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-020",
+      "indexed_claim": "AI-10.1 locked-site rehearsal used fictional cohorts; premerge Windows 2615 passed, 3 skipped, native security 8/8, postmerge 18 focused tests, but no real Hungary test",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/next_phase/AI10_1_MERGE_AND_WINDOWS_ACCEPTANCE_2026_11_18.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Reconcile historical AI-10.1 specific tests separately from newer RH-05 full suite; maintain no real Hungary execution.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-021",
+      "indexed_claim": "AI-11.1 facade returns precisely SYNTHETIC_RESULT, ABSTAIN, UNAVAILABLE and ERROR for eligible local synthetic research requests",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "ai/research_facade.py",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Confirm four typed facade statuses via source-level schema and current synthetic regression tests; this is code evidence, not an external medical claim.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-022",
+      "indexed_claim": "AI-11.2 five-entry catalog is descriptive metadata and never authenticates/loads real bundles",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "ai/research_catalog.py",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Verify the read-only five-entry catalog and blocked route refusal from current source/tests; no model artifact loading inferred.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-023",
+      "indexed_claim": "Genuine offline grouped SHAP has explicit explained scale and is not necessarily additive on calibrated probability",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "ai/explainability.py",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check SHAP explained scale, additivity and synthetic background directly against code and actual tests, not tutorial alone.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-024",
+      "indexed_claim": "Offline tabular LIME uses seeded perturbations and reports local fidelity/quality by source-specific model",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "ai/lime_explainability.py",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Check seeded LIME perturbation and fidelity counters from code/tests; explain local approximation limits.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-025",
+      "indexed_claim": "Backend active registry constructs only MOCK_SYNTHETIC provider; real provider is intentionally fail-closed",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "backend/app/inference/registry.py",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Verify backend current MOCK_SYNTHETIC provider only; no real serving path, no patient diagnosis.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-026",
+      "indexed_claim": "AI-12.1 provides an existing eight-stage synthetic offline demo and evidence pack",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/next_phase/AI11_1_AI12_1_CLOSEOUT_2026_11_18.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Reconcile AI-12.1 archived evidence with RH-05 8/8 Win32 + exact-commit Linux comparator; distinguish source SHAs.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-027",
+      "indexed_claim": "Cleveland and UCI-412 are not comparable on AUROC since cohorts, outcomes, panels and class fractions differ",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/gate-pt/11_two_dataset_scientific_evidence_synthesis_REVIEW_DRAFT.md",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-UCI45",
+        "EXT-UCI412",
+        "EXT-UCI411",
+        "EXT-RILEY24B",
+        "EXT-PROBAST",
+        "EXT-ESC2024"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Use original UCI cohort/endpoint differences and model-evaluation methods to forbid pooling or cross-source AUROC rank.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    },
+    {
+      "id": "CL-028",
+      "indexed_claim": "Final AI-12.2 full manuscript, reviewer signoff and final-SHA Windows acceptance are not yet established",
+      "original_audit_status": "NOT_VERIFIABLE",
+      "source_path": "docs/research/ai_master_progress.json",
+      "direct_source_verified_in_previous_audit": true,
+      "external_source_ids": [
+        "EXT-TRIPOD",
+        "EXT-PROBAST",
+        "EXT-ACCWEBINAR"
+      ],
+      "evidence_impact": "CORROBORATES_CONTEXT_OR_ORIGINAL_DATASET_METADATA_ONLY_NO_STATUS_PROMOTION",
+      "next_action": "Update manuscript FR-08/FR-14/FR-17 via a separate matrix-aware edit to cite RH-05; final signoff and release freeze remain pending.",
+      "reviewer_status": "PENDING_HUMAN_SCIENTIFIC_REVIEW"
+    }
+  ],
+  "original_source_questions_unchanged": [
+    {
+      "id": "Q-01",
+      "question": "Cleveland five-field meaning and pretest timeline",
+      "original_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-UCI45",
+        "EXT-ESC2024",
+        "EXT-ESCVIDEO"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-02",
+      "question": "UCI-45 label boundary",
+      "original_status": "SOURCE_WORDING_RESOLVED_EQUIVALENCE_UNRESOLVED",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-UCI45"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-03",
+      "question": "UCI-412 >=50 threshold",
+      "original_status": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-UCI412"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-04",
+      "question": "UCI-412 preangiography timing all 16 predictors",
+      "original_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-UCI412",
+        "EXT-ALIZ2013",
+        "EXT-ESCVIDEO"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-05",
+      "question": "UCI-412 BP and PR semantics",
+      "original_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-UCI412",
+        "EXT-ALIZ2013"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-06",
+      "question": "UCI-412 numeric binary direction",
+      "original_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-UCI412"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-07",
+      "question": "UCI-412 chest-pain relationships",
+      "original_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-ALIZ2013"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-08",
+      "question": "UCI-412 54 versus 55 source feature count",
+      "original_status": "DOCUMENTED_REPOSITORY_AGGREGATE_ONLY",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-UCI412",
+        "EXT-ALIZ2013"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-09",
+      "question": "UCI-411 independence",
+      "original_status": "UNSUITABLE_FOR_THIS_EXTERNAL_CLAIM",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-UCI411"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-10",
+      "question": "Hungary eligible independent cohort",
+      "original_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-RILEY24",
+        "EXT-RILEY24B"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-11",
+      "question": "Hungary real one-shot model/source freeze",
+      "original_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-RILEY24",
+        "EXT-RILEY24B"
+      ],
+      "changed": false
+    },
+    {
+      "id": "Q-12",
+      "question": "Statlog overlap",
+      "original_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [],
+      "changed": false
+    },
+    {
+      "id": "Q-13",
+      "question": "VA and Switzerland source suitability",
+      "original_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [],
+      "changed": false
+    },
+    {
+      "id": "Q-14",
+      "question": "AngioCAD pretest tabular source",
+      "original_status": "CONDITIONAL_SOURCE_REVIEW_REQUIRED",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [],
+      "changed": false
+    },
+    {
+      "id": "Q-15",
+      "question": "AI-9.2 real clinical plus labs paired comparison",
+      "original_status": "UNRESOLVED_SCIENTIFIC_HOLD",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [],
+      "changed": false
+    },
+    {
+      "id": "Q-16",
+      "question": "TRIPOD+AI/PROBAST+AI framework scope",
+      "original_status": "RESOLVED_PRIMARY_METADATA_ONLY",
+      "original_human_disposition": "PENDING",
+      "external_source_ids": [
+        "EXT-TRIPOD",
+        "EXT-PROBAST",
+        "EXT-ESC2024",
+        "EXT-ACCWEBINAR"
+      ],
+      "changed": false
+    }
+  ],
+  "reviewer_actions_unchanged": [
+    {
+      "id": "REVIEW-01",
+      "task": "Clinical source/feature chronology and target interpretation",
+      "status": "PENDING",
+      "reviewer": null
+    },
+    {
+      "id": "REVIEW-02",
+      "task": "Historical local protected aggregate provenance attestation where permitted",
+      "status": "PENDING",
+      "reviewer": null
+    },
+    {
+      "id": "REVIEW-03",
+      "task": "Report numeric values and table links vs original review documents",
+      "status": "PENDING",
+      "reviewer": null
+    },
+    {
+      "id": "REVIEW-04",
+      "task": "Scientific statistics: repeat SD not CI; no real external or labs claims",
+      "status": "PENDING",
+      "reviewer": null
+    },
+    {
+      "id": "REVIEW-05",
+      "task": "Calibration and sample-size limitations and exact Riley assumptions",
+      "status": "PENDING",
+      "reviewer": null
+    },
+    {
+      "id": "REVIEW-06",
+      "task": "Explainability fidelity scale and synthetic background privacy",
+      "status": "PENDING",
+      "reviewer": null
+    },
+    {
+      "id": "REVIEW-07",
+      "task": "Dataset/protocol acceptance and original research gate statuses",
+      "status": "PENDING",
+      "reviewer": null
+    },
+    {
+      "id": "REVIEW-08",
+      "task": "University report authorship, citations, declared contributions and formatting",
+      "status": "PENDING",
+      "reviewer": null
+    },
+    {
+      "id": "REVIEW-09",
+      "task": "Original code/test release SHA with native Windows 8/8 and synthetic E2E revalidation",
+      "status": "PENDING",
+      "reviewer": null
+    },
+    {
+      "id": "REVIEW-10",
+      "task": "Named independent reviewer decisions and formal acceptance",
+      "status": "PENDING",
+      "reviewer": null
+    }
+  ],
+  "rh05": {
+    "issue_number": 121,
+    "state": "CLOSED_COMPLETED",
+    "acceptance_report": "docs/research/next_phase/RH05_INDEPENDENT_ACCEPTANCE_REVIEW_2026_11_20.md",
+    "merged_docs_sha": "4aeb4f33ee95d6f09311c10dc1b7829da1bb5c2f",
+    "windows_tested_code_sha": "64f34e4cb8580ced461237ffa46ba0a91e8fc1c5",
+    "cross_os_exact_shared_sha": "09b895423171eff7569fc49dd8ceac7dfb0d43c6",
+    "evidence_status": "ENGINEERING_ONLY_SUCCESS_NO_MEDICAL_APPROVAL"
+  },
+  "change_policy": "Do not mutate canonical audit, claims or question statuses from this source-discovery exercise. No automatic reviewer PENDING -> PASS. Make exact manuscript corrections only with original committed source and concurrently recompute line-anchor audit, in a separate follow-on PR.",
+  "constraints": {
+    "clinical_validation_performed": false,
+    "real_ai92_ai102_performed": false,
+    "owner_outreach_sent": false,
+    "videos_watched": false,
+    "proprietary_guideline_code_reused": false,
+    "patient_dataset_downloaded": false
+  }
+}
