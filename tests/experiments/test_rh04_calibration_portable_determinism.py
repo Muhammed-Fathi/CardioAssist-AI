@@ -465,3 +465,22 @@ def test_solver_provenance_is_in_memory_only():
     )
     assert flat_cal.status == "IDENTITY_CONSTANT_FALLBACK"
     assert flat_cal.solver == "none"
+
+
+def test_nonstationary_initial_corner_must_not_report_convergence():
+    """A boxed starting corner with an inward descent gradient is NOT a KKT point.
+
+    At (a,b)=(0,1), each gradient is strictly negative for 20 positive
+    labels and logits=1. Both variables should be allowed to move inward.
+    This catches a bug where all face variables are pinned, a zero Newton
+    step is accepted, and the step-only convergence test returns the start.
+    """
+    y = np.ones(20, dtype=np.float64)
+    logits = np.ones(20, dtype=np.float64)
+    a, b = deterministic_logistic_fit(
+        y, logits, lower=(0.0, 1.0), upper=(2.0, 2.0),
+        max_iterations=80,
+    )
+    assert a > 0.0 and b > 1.0, (
+        "Solver incorrectly accepted the nonstationary lower corner as converged"
+    )
