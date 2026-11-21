@@ -41,13 +41,20 @@ Command: `OPENBLAS_CORETYPE=<class> OPENBLAS_NUM_THREADS=1 python -m research.in
 |---|---|---|---|---|---|
 | *(unset)* | SkylakeX | SkylakeX | `EXACT_REPLAY` | 0 / 29 | — |
 | `SkylakeX` | SkylakeX | SkylakeX | `EXACT_REPLAY` | 0 / 29 | — |
-| `Cooperlake`¹ | Cooperlake | Cooperlake | `EXACT_REPLAY` | 0 / 29 | — |
+| `Cooperlake`¹ | Cooperlake | **SkylakeX** | `EXACT_REPLAY` | 0 / 29 | — |
 | `Sandybridge` | Sandybridge | Sandybridge | `MISMATCH_FOUND` | **1 / 29** | `da_a2_resting_v1` · **two** fields: `calibrated_log_odds` 6.661e-16 **and** `calibrated_research_score` 1.110e-16. Canonical validator **rejects**. |
 | `Nehalem` | Nehalem | Nehalem | `MISMATCH_FOUND` | **1 / 29** | `da_a2_resting_v1` · **two** fields: `calibrated_log_odds` 4.441e-16 **and** `calibrated_research_score` 1.110e-16. Canonical validator **rejects**. |
 | `Haswell` | Haswell | Haswell | `MISMATCH_FOUND` | 2 / 29 | `da_a2_resting_v1` · `calibrated_log_odds` · 2.220e-16 (approved exception) <br> `da_a1_basic_clinical_v1` · `calibrated_log_odds` · **4.441e-16 (not excepted)** |
 | `Zen` | **Haswell** (silent fallback) | **Haswell** | `MISMATCH_FOUND` | 2 / 29 | identical to `Haswell` |
 
-¹ `Cooperlake` was exercised through the calibration-fit probe (§3), not through the full 29-case diagnostic.
+¹ **Corrected after independent review.** The first revision recorded
+`Cooperlake` as a *calibration-fit probe only* and then, inconsistently, listed it
+as full-pack exact. It has now been executed on the **full 29-case replay** in a
+fresh process (`OPENBLAS_CORETYPE=Cooperlake python -m
+research.intake.rh04_environment_class`): `EXACT_REPLAY`, 0 differing, exit 0.
+The reason is recorded in the same measurement: SciPy's packaged OpenBLAS has no
+Cooperlake kernel and resolves to **SkylakeX**, so the exactness is attributable
+to the SciPy kernel, not to the requested name (§2.1).
 
 > **Correction notice (post-review).** The first revision reported `Sandybridge`
 > and `Nehalem` as `EXACT_REPLAY 0 / 29`. That was wrong: it was inferred from a
@@ -64,6 +71,38 @@ or two derived score fields. No status, refusal, structure, threshold flag,
 provenance or digest field changes anywhere.
 
 ---
+
+### 2.1 The outcome tracks the SciPy kernel, not the requested value
+
+Nine requested dispatches, **full 29-case replay each**, fresh process. Grouped
+by the resolved SciPy kernel the replay outcome is perfectly consistent; grouped
+by the NumPy kernel it is not.
+
+| Requested `OPENBLAS_CORETYPE` | NumPy kernel | SciPy kernel | Verdict | Differing |
+|---|---|---|---|---|
+| *(unset)* | SkylakeX | SkylakeX | `EXACT_REPLAY` | 0 |
+| `SkylakeX` | SkylakeX | SkylakeX | `EXACT_REPLAY` | 0 |
+| `Cooperlake` | Cooperlake | **SkylakeX** | `EXACT_REPLAY` | 0 |
+| `Sandybridge` | Sandybridge | Sandybridge | `MISMATCH_FOUND` | 1 (2 fields) |
+| `Nehalem` | Nehalem | Nehalem | `MISMATCH_FOUND` | 1 (2 fields) |
+| `Atom` | **Nehalem** | Nehalem | `MISMATCH_FOUND` | 1 (2 fields) |
+| `Haswell` | Haswell | Haswell | `MISMATCH_FOUND` | 2 |
+| `Zen` | Zen | **Haswell** | `MISMATCH_FOUND` | 2 |
+| `Prescott` | Prescott | Katmai | `MISMATCH_FOUND` | 2 |
+
+| SciPy kernel | Requests mapping to it | Outcomes |
+|---|---|---|
+| `SkylakeX` | host, `SkylakeX`, `Cooperlake` | exact, exact, exact |
+| `Sandybridge` | `Sandybridge` | 1 case, 2 fields |
+| `Nehalem` | `Nehalem`, `Atom` | 1 case, 2 fields (both) |
+| `Haswell` | `Haswell`, `Zen` | 2 cases (both) |
+| `Katmai` | `Prescott` | 2 cases |
+
+**Reading:** no SciPy-kernel group mixes exact and non-exact outcomes. Two
+requested names (`Cooperlake`, `Atom`, `Zen`) demonstrate silent fallback, so the
+requested variable is never the resolved identity. This is a nine-point,
+one-platform observation and does not establish that the kernel is the only
+mechanism on other builds.
 
 ## 3. Calibration-fit outputs by dispatch class (`MEASURED_HERE`)
 
@@ -102,7 +141,7 @@ Two facts worth separating carefully:
 
 | Stage | Dispatch-stable | Measurement |
 |---|---|---|
-| Synthetic cohort + panel binding | YES | all 29 cases agree on every non-`calibrated_log_odds` field |
+| Synthetic cohort + panel binding | YES | all 29 cases agree on every field **outside the two score fields**; `calibrated_research_score` also drifts on `Sandybridge`/`Nehalem`/`Atom` (§2), so the earlier wording "every non-`calibrated_log_odds` field" was wrong |
 | OOF label vector `y` (n=120) | YES | single SHA-256 across 5 dispatches |
 | OOF probabilities `p` | YES | single SHA-256 across 5 dispatches |
 | OOF logits `safe_clipped_logit(p)` | YES | single SHA-256 across 5 dispatches |

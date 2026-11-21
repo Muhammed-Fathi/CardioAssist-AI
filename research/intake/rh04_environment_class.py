@@ -113,7 +113,13 @@ VERIFIED_ENVIRONMENT: str = "VERIFIED_ENVIRONMENT"
 UNVERIFIED_ENVIRONMENT: str = "UNVERIFIED_ENVIRONMENT"
 
 FIELD_VERDICTS: frozenset[str] = frozenset(
-    {EXACT_REPLAY, EXPECTED_SINGLE_FIELD_DELTAS, UNEXPECTED_DRIFT, INVALID_DIAGNOSTIC}
+    {
+        EXACT_REPLAY,
+        EXPECTED_SINGLE_FIELD_DELTAS,
+        UNEXPECTED_DRIFT,
+        INVALID_DIAGNOSTIC,
+        DIAGNOSTIC_REFUSED,
+    }
 )
 ACCEPTABLE_FIELD_VERDICTS: frozenset[str] = frozenset(
     {EXACT_REPLAY, EXPECTED_SINGLE_FIELD_DELTAS}
@@ -149,6 +155,194 @@ _REQUIRED_ENVIRONMENT_KEYS: tuple[str, ...] = (
 )
 
 _RTLD_NOLOAD = getattr(os, "RTLD_NOLOAD", 0)
+
+#: A frozen case id is a short lowercase token. Anything else is not echoed.
+_CASE_ID_PATTERN = re.compile(r"^[a-z0-9_]{1,64}$")
+
+#: A release version such as ``1.26.4``. Rejects ``None``, ``""``, ``"lol"``.
+_VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+([A-Za-z0-9.+!-]*)$")
+
+#: ``OPENBLAS_NUM_THREADS`` must be a small non-negative integer, never free text.
+_THREADS_PATTERN = re.compile(r"^[0-9]{1,4}$")
+
+#: A reason token is ``case_id:reason`` / ``envelope:key:reason`` / ``plain``.
+#: Deliberately excludes ``/``, spaces, quotes and newlines so no path, command
+#: line or credential fragment can survive into the printed payload.
+_SAFE_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_.:\[\]]{1,120}$")
+
+#: Emitted in place of any value that does not match its allowlisted shape.
+REDACTED = "redacted_unexpected_format"
+
+#: Versions this tool's claims are scoped to (mirrors the pinned requirement
+#: files). A different numeric stack is reported, never silently accepted.
+PINNED_VERSIONS: Mapping[str, str] = {
+    "numpy_version": "1.26.4",
+    "scipy_version": "1.15.3",
+    "sklearn_version": "1.6.1",
+}
+
+
+# --------------------------------------------------------------------------- #
+# Sanitisation: nothing untrusted is ever printed verbatim                   #
+# --------------------------------------------------------------------------- #
+
+#: The complete set of keys the printed payload may contain. A closed
+#: vocabulary means a poisoned envelope can never introduce a new field.
+_ALLOWED_PAYLOAD_KEYS: frozenset[str] = frozenset(
+    {
+        "field_verdict",
+        "environment_verdict",
+        "field_reasons",
+        "environment_reasons",
+        "replay_verdict",
+        "cases_checked",
+        "cases_differing",
+        "differing_case_ids",
+        "environment",
+        "kernel_snapshot",
+        "version_drift",
+        "comparison_policy",
+        "acceptance_authority",
+        "note",
+        "issue",
+        "exception_type",
+    }
+)
+
+#: The complete set of keys the environment record may contain.
+_ALLOWED_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
+    {
+        "python",
+        "implementation",
+        "architecture",
+        "platform",
+        "glibc",
+        "numpy_openblas_kernel",
+        "scipy_openblas_kernel",
+        "kernel_identification_method",
+        "openblas_coretype_requested",
+        "openblas_num_threads",
+        "rtld_noload_available",
+        "numpy_version",
+        "scipy_version",
+        "sklearn_version",
+    }
+)
+
+
+def _safe_token(value: Any) -> str | None:
+    """Return ``value`` only if it is a short allowlisted token, else ``None``.
+
+    Reason strings are derived from *our own* validation, but they embed the
+    ``case_id`` that came from the untrusted envelope, so they are sanitised
+    too rather than assumed safe.
+    """
+    if not isinstance(value, str):
+        return None
+    return value if _SAFE_TOKEN_PATTERN.fullmatch(value) else None
+
+
+def _safe_reasons(reasons: Sequence[str]) -> list[str]:
+    """Sanitised, sorted, de-duplicated reason tokens.
+
+    A token that fails the allowlist is replaced by :data:`REDACTED` — the
+    count of findings is preserved without ever echoing the offending text.
+    """
+    cleaned = {_safe_token(reason) or REDACTED for reason in reasons}
+    return sorted(cleaned)
+
+
+def _safe_count(value: Any) -> int | None:
+    """Emit an integer count only; a string/float/bool becomes ``None``.
+
+    This is the P0 fix: a poisoned ``cases_checked="/secret"`` must not appear
+    in the report even though the envelope was rejected *because* of it.
+    """
+    return value if _is_int(value) else None
+
+
+def _safe_status(value: Any) -> str | None:
+    """Emit only a token from the closed diagnostic vocabulary."""
+    return value if isinstance(value, str) and value in DIAGNOSTIC_STATUSES else None
+
+
+def _safe_case_ids(mismatches: Any) -> list[str]:
+    """Echo only frozen-looking case ids, and only short ones."""
+    if not isinstance(mismatches, list):
+        return []
+    found: set[str] = set()
+    for entry in mismatches:
+        if isinstance(entry, Mapping):
+            case_id = entry.get("case_id")
+            if isinstance(case_id, str) and _CASE_ID_PATTERN.fullmatch(case_id):
+                found.add(case_id)
+    return sorted(found)
+
+
+def _sanitize_environment(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    """Project an environment record onto the closed, type-checked vocabulary.
+
+    Version strings, kernel names and platform tokens are allowlisted; anything
+    that does not match — including a path or credential smuggled into
+    ``OPENBLAS_CORETYPE`` — becomes ``None`` or :data:`REDACTED`. Unknown keys
+    are dropped entirely, so the printed record cannot grow.
+    """
+    safe: dict[str, Any] = {}
+    if not isinstance(metadata, Mapping):
+        return safe
+
+    for key in ("python", "architecture", "platform", "glibc"):
+        value = metadata.get(key)
+        safe[key] = value if isinstance(value, str) and _VERSION_PATTERN.fullmatch(
+            value
+        ) or (isinstance(value, str) and _SAFE_TOKEN_PATTERN.fullmatch(value)) else None
+
+    value = metadata.get("implementation")
+    safe["implementation"] = value if value in {"CPython", "PyPy"} else None
+
+    for key in ("numpy_openblas_kernel", "scipy_openblas_kernel"):
+        value = metadata.get(key)
+        safe[key] = (
+            value
+            if isinstance(value, str) and _KERNEL_PATTERN.fullmatch(value)
+            else None
+        )
+
+    methods = metadata.get("kernel_identification_method")
+    safe_methods: dict[str, str | None] = {}
+    for key in ("numpy_openblas_kernel", "scipy_openblas_kernel"):
+        method = methods.get(key) if isinstance(methods, Mapping) else None
+        safe_methods[key] = (
+            method if method in {"rtld_noload", "process_symbol", "unverified"} else None
+        )
+    safe["kernel_identification_method"] = safe_methods
+
+    for key in ("numpy_version", "scipy_version", "sklearn_version"):
+        value = metadata.get(key)
+        safe[key] = (
+            value
+            if isinstance(value, str) and _VERSION_PATTERN.fullmatch(value)
+            else None
+        )
+
+    # Free-text environment values are NEVER echoed. They are reduced to a
+    # closed token describing only whether they looked well-formed.
+    coretype = metadata.get("openblas_coretype_requested")
+    safe["openblas_coretype_requested"] = (
+        "set_and_wellformed"
+        if isinstance(coretype, str) and _KERNEL_PATTERN.fullmatch(coretype)
+        else ("set_malformed" if coretype is not None else None)
+    )
+    threads = metadata.get("openblas_num_threads")
+    safe["openblas_num_threads"] = (
+        "set_and_wellformed"
+        if isinstance(threads, str) and _THREADS_PATTERN.fullmatch(threads)
+        else ("set_malformed" if threads is not None else None)
+    )
+
+    rtld = metadata.get("rtld_noload_available")
+    safe["rtld_noload_available"] = rtld if isinstance(rtld, bool) else None
+    return safe
 
 
 # --------------------------------------------------------------------------- #
@@ -230,22 +424,20 @@ def _init_numerical_libraries() -> None:
             pass
 
 
-def environment_metadata() -> dict[str, Any]:
-    """Pinned, non-identifying environment record. No paths, no hostnames."""
+def environment_metadata(probe: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Pinned, non-identifying environment record. No paths, no hostnames.
+
+    ``probe`` lets the caller supply an already-taken kernel snapshot so the
+    record reflects a **defined moment** rather than whatever happens to be
+    resident when this function is called. When omitted, a fresh probe is taken
+    here; that is convenient for tests but callers with a timing requirement
+    should pass one explicitly.
+    """
     _init_numerical_libraries()
-    kernel_methods: dict[str, str] = {}
-
-    numpy_kernel, numpy_method = _resident_openblas_kernel(
-        "numpy",
-        "libopenblas*.so",
-        ("openblas_get_corename64_", "openblas_get_corename"),
-    )
-    kernel_methods["numpy_openblas_kernel"] = numpy_method
-
-    scipy_kernel, scipy_method = _resident_openblas_kernel(
-        "scipy", "libscipy_openblas*.so", ("scipy_openblas_get_corename",)
-    )
-    kernel_methods["scipy_openblas_kernel"] = scipy_method
+    snapshot = dict(probe) if isinstance(probe, Mapping) else _kernel_probe()
+    methods = snapshot.get("kernel_identification_method")
+    if not isinstance(methods, Mapping):
+        methods = {}
 
     metadata: dict[str, Any] = {
         "python": platform.python_version(),
@@ -253,11 +445,16 @@ def environment_metadata() -> dict[str, Any]:
         "architecture": platform.machine(),
         "platform": platform.system(),
         "glibc": ".".join(str(part) for part in platform.libc_ver()[1:]) or None,
-        "numpy_openblas_kernel": numpy_kernel,
-        "scipy_openblas_kernel": scipy_kernel,
-        "kernel_identification_method": kernel_methods,
-        # Recorded for completeness ONLY. A requested core type may be silently
-        # ignored or fall back; it is never treated as the resolved identity.
+        "numpy_openblas_kernel": snapshot.get("numpy_openblas_kernel"),
+        "scipy_openblas_kernel": snapshot.get("scipy_openblas_kernel"),
+        "kernel_identification_method": {
+            "numpy_openblas_kernel": methods.get("numpy_openblas_kernel"),
+            "scipy_openblas_kernel": methods.get("scipy_openblas_kernel"),
+        },
+        # Recorded for completeness ONLY, and never printed verbatim: the
+        # printed form is reduced to set_and_wellformed / set_malformed / null.
+        # A requested core type may be silently ignored or fall back; it is
+        # never treated as, or reported as, the resolved identity.
         "openblas_coretype_requested": os.environ.get("OPENBLAS_CORETYPE"),
         "openblas_num_threads": os.environ.get("OPENBLAS_NUM_THREADS"),
         "rtld_noload_available": bool(_RTLD_NOLOAD),
@@ -275,7 +472,13 @@ def environment_problems(metadata: Mapping[str, Any]) -> list[str]:
 
     Empty list means the record is usable for a *supplemental* statement about
     which resident kernels produced this run. It does not certify anything
-    about the machine beyond those kernels.
+    about the machine beyond those kernels, and it does not validate that the
+    numerical stack is the pinned one — a differing stack is reported
+    separately as ``*_version:not_pinned`` and is not by itself a failure.
+
+    The pre-review revision only checked that version keys *existed*, so
+    ``numpy_version=None`` still produced ``VERIFIED_ENVIRONMENT``. Values are
+    now type- and format-checked.
     """
     problems: list[str] = []
     if not isinstance(metadata, Mapping):
@@ -283,10 +486,12 @@ def environment_problems(metadata: Mapping[str, Any]) -> list[str]:
     for key in _REQUIRED_ENVIRONMENT_KEYS:
         if key not in metadata:
             problems.append(f"{key}:missing")
+
     for key in ("numpy_openblas_kernel", "scipy_openblas_kernel"):
         value = metadata.get(key)
         if not isinstance(value, str) or not _KERNEL_PATTERN.fullmatch(value):
             problems.append(f"{key}:unresolved")
+
     methods = metadata.get("kernel_identification_method")
     if not isinstance(methods, Mapping):
         problems.append("kernel_identification_method:missing")
@@ -295,7 +500,34 @@ def environment_problems(metadata: Mapping[str, Any]) -> list[str]:
             method = methods.get(key)
             if method not in {"rtld_noload", "process_symbol"}:
                 problems.append(f"{key}:unverified_method")
+
+    # Versions must be usable version strings, not merely present keys.
+    for key in ("numpy_version", "scipy_version"):
+        value = metadata.get(key)
+        if not isinstance(value, str) or not _VERSION_PATTERN.fullmatch(value):
+            problems.append(f"{key}:not_a_version")
+
+    for key in ("python", "architecture", "platform"):
+        value = metadata.get(key)
+        if not isinstance(value, str) or not value.strip():
+            problems.append(f"{key}:blank_or_not_a_string")
+
     return sorted(set(problems))
+
+
+def pinned_version_drift(metadata: Mapping[str, Any]) -> list[str]:
+    """Report a numerical stack that differs from the pinned requirements.
+
+    Recorded as evidence, **not** as a failure: a V1 replay on a different
+    NumPy/SciPy build is precisely the situation the tool exists to describe,
+    so refusing to classify it would defeat the purpose.
+    """
+    drift: list[str] = []
+    for key, expected in PINNED_VERSIONS.items():
+        observed = metadata.get(key)
+        if isinstance(observed, str) and observed != expected:
+            drift.append(f"{key}:not_pinned")
+    return sorted(drift)
 
 
 # --------------------------------------------------------------------------- #
@@ -505,30 +737,43 @@ def _payload(
     environment_reasons: Sequence[str],
     metadata: Mapping[str, Any],
     result: Mapping[str, Any] | None,
+    kernel_snapshot: Mapping[str, Any] | None = None,
+    version_drift: Sequence[str] | None = None,
     exception_type: str | None = None,
 ) -> dict[str, Any]:
-    differing_case_ids: list[str] = []
-    if isinstance(result, Mapping):
-        mismatches = result.get("mismatches")
-        if isinstance(mismatches, list):
-            ids = {
-                entry.get("case_id")
-                for entry in mismatches
-                if isinstance(entry, Mapping) and isinstance(entry.get("case_id"), str)
-            }
-            differing_case_ids = sorted(ids)
+    """Build the printed payload. Every value is sanitised, never echoed.
+
+    The pre-review revision copied ``result["status"]``, ``cases_checked`` and
+    ``cases_differing`` straight through, so an envelope rejected *for* being
+    malformed could still print the malformed value (e.g. a filesystem path
+    placed in ``cases_checked``). Nothing from ``result`` reaches the output
+    now except values that independently satisfy a strict allowlist.
+    """
+    result_mapping = result if isinstance(result, Mapping) else None
     payload: dict[str, Any] = {
-        "field_verdict": field_verdict,
-        "environment_verdict": environment_verdict,
-        "field_reasons": sorted(set(field_reasons)),
-        "environment_reasons": sorted(set(environment_reasons)),
-        "replay_verdict": result.get("status") if isinstance(result, Mapping) else None,
-        "cases_checked": result.get("cases_checked") if isinstance(result, Mapping) else None,
-        "cases_differing": (
-            result.get("cases_differing") if isinstance(result, Mapping) else None
+        "field_verdict": field_verdict if field_verdict in FIELD_VERDICTS else INVALID_DIAGNOSTIC,
+        "environment_verdict": (
+            environment_verdict
+            if environment_verdict in {VERIFIED_ENVIRONMENT, UNVERIFIED_ENVIRONMENT}
+            else UNVERIFIED_ENVIRONMENT
         ),
-        "differing_case_ids": differing_case_ids,
-        "environment": dict(metadata),
+        "field_reasons": _safe_reasons(field_reasons),
+        "environment_reasons": _safe_reasons(environment_reasons),
+        "replay_verdict": (
+            _safe_status(result_mapping.get("status")) if result_mapping else None
+        ),
+        "cases_checked": (
+            _safe_count(result_mapping.get("cases_checked")) if result_mapping else None
+        ),
+        "cases_differing": (
+            _safe_count(result_mapping.get("cases_differing")) if result_mapping else None
+        ),
+        "differing_case_ids": (
+            _safe_case_ids(result_mapping.get("mismatches")) if result_mapping else []
+        ),
+        "environment": _sanitize_environment(metadata),
+        "kernel_snapshot": dict(kernel_snapshot) if isinstance(kernel_snapshot, Mapping) else {},
+        "version_drift": _safe_reasons(version_drift or []),
         "comparison_policy": "DIAGNOSTIC_ONLY_DOES_NOT_CHANGE_GOLDEN_ACCEPTANCE",
         "acceptance_authority": "canonical_29_case_comparator_unchanged",
         "note": (
@@ -541,33 +786,95 @@ def _payload(
         "issue": 132,
     }
     if exception_type is not None:
-        payload["exception_type"] = exception_type
+        # Only the exception *class name* is recorded, and only if it is a name.
+        safe_exc = exception_type if (
+            isinstance(exception_type, str) and _KERNEL_PATTERN.fullmatch(exception_type)
+        ) else REDACTED
+        payload["exception_type"] = safe_exc
+    assert set(payload) <= _ALLOWED_PAYLOAD_KEYS, "payload grew beyond its vocabulary"
     return payload
+
+
+def _kernel_probe() -> dict[str, Any]:
+    """Read the *currently resident* kernels without loading anything."""
+    numpy_kernel, numpy_method = _resident_openblas_kernel(
+        "numpy",
+        "libopenblas*.so",
+        ("openblas_get_corename64_", "openblas_get_corename"),
+    )
+    scipy_kernel, scipy_method = _resident_openblas_kernel(
+        "scipy", "libscipy_openblas*.so", ("scipy_openblas_get_corename",)
+    )
+    return {
+        "numpy_openblas_kernel": numpy_kernel,
+        "scipy_openblas_kernel": scipy_kernel,
+        "kernel_identification_method": {
+            "numpy_openblas_kernel": numpy_method,
+            "scipy_openblas_kernel": scipy_method,
+        },
+    }
 
 
 def classify() -> dict[str, Any]:
     """Run the reviewed read-only replay and classify it, fail-closed.
 
-    Never raises for an expected condition; a refusal is reported as a verdict.
+    Snapshot timing (revised after independent review)
+    -------------------------------------------------
+    The pre-review revision probed the kernels *before* calling ``diagnose()``.
+    That is the wrong moment for SciPy: SciPy's OpenBLAS is mapped lazily by the
+    first BLAS/LAPACK call, so a probe taken before the replay reports
+    ``unverified`` — and the previous version then appeared to succeed only
+    because importing ``ai.research_facade`` happened to pull in
+    ``scipy.linalg`` as a transitive side effect.
+
+    Two snapshots are now taken and labelled separately:
+
+    ``pre_replay``  — what is resident before any replay work at all;
+    ``post_replay`` — what is resident after the replay has actually used BLAS.
+
+    ``post_replay`` is the snapshot that can support a statement about *which
+    kernels produced this run*, and it is still taken with ``RTLD_NOLOAD`` /
+    ``CDLL(None)``, so it never loads a copy and never weakens the replay.
+    Neither snapshot is proof that the kernel named is the one every subsequent
+    computation will use (see ``G-08``); both are scoped to this process.
     """
+    # Snapshot 1 MUST be taken before the diagnostic module is imported at all:
+    # importing ``research.intake.diagnose_fixture_replay`` pulls in
+    # ``ai.research_facade``, which transitively imports ``scipy.linalg`` and
+    # therefore maps SciPy's OpenBLAS. Probing after that import would report a
+    # kernel that no replay work had used yet.
+    pre_snapshot = _kernel_probe()
+
     from research.intake import diagnose_fixture_replay
 
-    metadata = environment_metadata()
+    metadata = environment_metadata(probe=pre_snapshot)
     env_reasons = environment_problems(metadata)
     env_verdict = UNVERIFIED_ENVIRONMENT if env_reasons else VERIFIED_ENVIRONMENT
 
     try:
         result = diagnose_fixture_replay.diagnose()
     except Exception as exc:  # noqa: BLE001 - never render the message
+        post_snapshot = _kernel_probe()
         return _payload(
             field_verdict=DIAGNOSTIC_REFUSED,
             environment_verdict=env_verdict,
             field_reasons=["diagnostic_raised"],
             environment_reasons=env_reasons,
-            metadata=metadata,
+            metadata=_merge_post_snapshot(metadata, post_snapshot),
             result=None,
+            kernel_snapshot=_labelled_snapshots(pre_snapshot, post_snapshot),
+            version_drift=pinned_version_drift(metadata),
             exception_type=type(exc).__name__,
         )
+
+    # Snapshot 2: after the replay has exercised SciPy's BLAS for real.
+    post_snapshot = _kernel_probe()
+    # The *authoritative* environment record is the post-replay one: only it can
+    # see a lazily loaded BLAS. ``metadata`` supplies everything except kernel
+    # identity, which is adopted from ``post_snapshot``.
+    merged = _merge_post_snapshot(metadata, post_snapshot)
+    post_reasons = environment_problems(merged)
+    env_verdict = UNVERIFIED_ENVIRONMENT if post_reasons else VERIFIED_ENVIRONMENT
 
     problems = _validate_envelope(result)
     if problems:
@@ -575,9 +882,11 @@ def classify() -> dict[str, Any]:
             field_verdict=INVALID_DIAGNOSTIC,
             environment_verdict=env_verdict,
             field_reasons=problems,
-            environment_reasons=env_reasons,
-            metadata=metadata,
+            environment_reasons=post_reasons,
+            metadata=merged,
             result=result if isinstance(result, Mapping) else None,
+            kernel_snapshot=_labelled_snapshots(pre_snapshot, post_snapshot),
+            version_drift=pinned_version_drift(merged),
         )
 
     verdict, reasons = classify_mismatches(result["mismatches"])
@@ -585,10 +894,72 @@ def classify() -> dict[str, Any]:
         field_verdict=verdict,
         environment_verdict=env_verdict,
         field_reasons=reasons,
-        environment_reasons=env_reasons,
-        metadata=metadata,
+        environment_reasons=post_reasons,
+        metadata=merged,
         result=result,
+        kernel_snapshot=_labelled_snapshots(pre_snapshot, post_snapshot),
+        version_drift=pinned_version_drift(merged),
     )
+
+
+def _merge_post_snapshot(
+    metadata: Mapping[str, Any], post_snapshot: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Environment record with kernel identity taken from the post-replay probe.
+
+    Versions and platform tokens are unchanged; only the kernel fields are
+    replaced, because only the post-replay probe can see a lazily loaded BLAS.
+    """
+    merged = dict(metadata)
+    methods = post_snapshot.get("kernel_identification_method")
+    safe_methods = dict(methods) if isinstance(methods, Mapping) else {}
+    declared = metadata.get("kernel_identification_method")
+    # Distinguish "absent" from "present but empty": an absent map must stay
+    # absent so ``environment_problems`` can still report it as missing.
+    if isinstance(declared, Mapping):
+        declared_methods: dict[str, Any] = dict(declared)
+    else:
+        declared_methods = {}
+
+    for key in ("numpy_openblas_kernel", "scipy_openblas_kernel"):
+        resolved = post_snapshot.get(key)
+        if isinstance(resolved, str) and _KERNEL_PATTERN.fullmatch(resolved):
+            # A real post-replay observation always wins.
+            merged[key] = resolved
+            merged_methods_value = safe_methods.get(key)
+            if merged_methods_value in {"rtld_noload", "process_symbol"}:
+                declared_methods[key] = merged_methods_value
+        else:
+            # Nothing observed after the replay: keep whatever the caller
+            # supplied rather than destroying a usable record.
+            merged[key] = metadata.get(key)
+    if isinstance(declared, Mapping) or declared_methods:
+        merged["kernel_identification_method"] = declared_methods
+    else:
+        merged.pop("kernel_identification_method", None)
+    return merged
+
+
+def _labelled_snapshots(
+    pre_snapshot: Mapping[str, Any], post_snapshot: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Both probes, each explicitly labelled so neither can be misread."""
+    def project(snapshot: Mapping[str, Any]) -> dict[str, Any]:
+        safe = _sanitize_environment(snapshot)
+        return {
+            "numpy_openblas_kernel": safe.get("numpy_openblas_kernel"),
+            "scipy_openblas_kernel": safe.get("scipy_openblas_kernel"),
+            "kernel_identification_method": safe.get("kernel_identification_method", {}),
+        }
+
+    return {
+        "pre_replay": project(pre_snapshot),
+        "post_replay": project(post_snapshot),
+        "scope": (
+            "resident objects in THIS process only; not proof of the kernel used "
+            "by every later call, and not an authoritative host identity"
+        ),
+    }
 
 
 def exit_code(payload: Mapping[str, Any]) -> int:

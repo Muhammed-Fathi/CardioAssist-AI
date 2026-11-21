@@ -39,6 +39,10 @@ import inspect
 import io
 import json
 import math
+import os
+import subprocess
+import sys
+from unittest import mock
 
 import pytest
 
@@ -102,15 +106,30 @@ def _exact_envelope() -> dict:
 def _run_main(monkeypatch, envelope, metadata=None) -> tuple[int, dict]:
     monkeypatch.setattr(diagnose_fixture_replay, "diagnose", lambda: envelope)
     if metadata is not None:
-        monkeypatch.setattr(classifier, "environment_metadata", lambda: metadata)
+        # Must accept the ``probe`` kwarg: ``classify()`` passes an explicit
+        # pre-replay snapshot so the record reflects a defined moment.
+        monkeypatch.setattr(
+            classifier, "environment_metadata", lambda probe=None: dict(metadata)
+        )
+        # Injecting a metadata record simulates a WHOLE environment, so the
+        # kernel probe must agree with it. Otherwise the real post-replay probe
+        # would find this host's kernels and quietly "rescue" a record the test
+        # deliberately made unverified.
+        monkeypatch.setattr(
+            classifier, "_kernel_probe", lambda: _probe_matching(metadata)
+        )
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
         code = classifier.main()
     return code, json.loads(buffer.getvalue())
 
 
-def _verified_metadata() -> dict:
-    """A complete, well-formed record, independent of the real host."""
+def _verified_metadata(probe=None) -> dict:  # noqa: ARG001 - mock signature
+    """A complete, well-formed record, independent of the real host.
+
+    Accepts and ignores ``probe`` so this helper can be used directly as a
+    stand-in for ``classifier.environment_metadata``, which takes one.
+    """
     return {
         "python": "3.11.2",
         "implementation": "CPython",
@@ -129,6 +148,27 @@ def _verified_metadata() -> dict:
         "numpy_version": "1.26.4",
         "scipy_version": "1.15.3",
         "sklearn_version": "1.6.1",
+    }
+
+
+def _probe_matching(metadata: dict) -> dict:
+    """A kernel snapshot that agrees with an injected metadata record."""
+    methods = metadata.get("kernel_identification_method")
+    return {
+        "numpy_openblas_kernel": metadata.get("numpy_openblas_kernel"),
+        "scipy_openblas_kernel": metadata.get("scipy_openblas_kernel"),
+        "kernel_identification_method": {
+            "numpy_openblas_kernel": (
+                methods.get("numpy_openblas_kernel")
+                if isinstance(methods, dict)
+                else None
+            ),
+            "scipy_openblas_kernel": (
+                methods.get("scipy_openblas_kernel")
+                if isinstance(methods, dict)
+                else None
+            ),
+        },
     }
 
 
@@ -845,8 +885,10 @@ def test_payload_is_a_closed_metadata_vocabulary(monkeypatch):
         "field_reasons",
         "field_verdict",
         "issue",
+        "kernel_snapshot",
         "note",
         "replay_verdict",
+        "version_drift",
     }
 
 
@@ -883,3 +925,434 @@ def test_differing_case_ids_are_sorted_and_deduplicated(monkeypatch):
         _verified_metadata(),
     )
     assert payload["differing_case_ids"] == [_CASE_BASIC, _CASE_REST]
+
+
+# --------------------------------------------------------------------------- #
+# 7. Poisoned input cannot be echoed (P0, round 3)                           #
+# --------------------------------------------------------------------------- #
+
+_FORBIDDEN_FRAGMENTS = (
+    "/secret",
+    "/etc/passwd",
+    "/home/",
+    ".aws",
+    "credentials",
+    "hunter2",
+    "should-not-leak",
+    "should/never",
+    "token",
+    "BEGIN PRIVATE KEY",
+)
+
+
+def _assert_no_leak(payload, case: str) -> None:
+    rendered = json.dumps(payload, allow_nan=False)
+    for fragment in _FORBIDDEN_FRAGMENTS:
+        assert fragment not in rendered, f"{case}: leaked {fragment!r} -> {rendered}"
+
+
+@pytest.mark.parametrize(
+    "poisoned",
+    [
+        # A path where an integer count belongs.
+        {"status": "MISMATCH_FOUND", "cases_checked": "/secret/should-not-leak",
+         "cases_differing": 1, "mismatches": []},
+        {"status": "MISMATCH_FOUND", "cases_checked": 29,
+         "cases_differing": "/secret/should-not-leak", "mismatches": []},
+        # Floats must not survive as floats.
+        {"status": "MISMATCH_FOUND", "cases_checked": 29.5,
+         "cases_differing": 1.0, "mismatches": []},
+        # An unknown status token carrying a path.
+        {"status": "/secret/status", "cases_checked": 29,
+         "cases_differing": 0, "mismatches": []},
+        # A case id that is really a key path.
+        {"status": "MISMATCH_FOUND", "cases_checked": 29, "cases_differing": 1,
+         "mismatches": [{"case_id": "/home/user/.aws/credentials", "fields": []}]},
+        # A nested payload smuggled alongside the known keys.
+        {"status": "MISMATCH_FOUND", "cases_checked": 29, "cases_differing": 1,
+         "mismatches": [], "extra": {"nested": {"path": "/etc/passwd"}}},
+    ],
+)
+def test_poisoned_envelope_never_echoes_a_value(monkeypatch, poisoned):
+    """Rejecting a value must not also *print* the value it rejected."""
+    code, emitted = _run_main(monkeypatch, poisoned, _verified_metadata())
+    assert code == 2
+    assert emitted["field_verdict"] == classifier.INVALID_DIAGNOSTIC
+    _assert_no_leak(emitted, "poisoned envelope")
+    # Counts are either a real int or null, never the rejected object.
+    for key in ("cases_checked", "cases_differing"):
+        assert emitted[key] is None or (
+            isinstance(emitted[key], int) and not isinstance(emitted[key], bool)
+        )
+    # Only closed-vocabulary statuses are echoed.
+    assert emitted["replay_verdict"] in (None, "EXACT_REPLAY", "MISMATCH_FOUND")
+
+
+def test_poisoned_case_id_is_not_echoed_in_reasons(monkeypatch):
+    """A reason token embeds the untrusted case id; it must be sanitised."""
+    poisoned = {
+        "status": "MISMATCH_FOUND",
+        "cases_checked": 29,
+        "cases_differing": 1,
+        "mismatches": [
+            {"case_id": "/home/user/.aws/credentials", "fields": [], "expected_status": "X"}
+        ],
+    }
+    code, emitted = _run_main(monkeypatch, poisoned, _verified_metadata())
+    assert code == 2
+    _assert_no_leak(emitted, "poisoned case id")
+    assert emitted["differing_case_ids"] == []
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"OPENBLAS_CORETYPE": "/home/user/.aws/credentials",
+         "OPENBLAS_NUM_THREADS": "hunter2"},
+        {"OPENBLAS_CORETYPE": "../../etc/passwd", "OPENBLAS_NUM_THREADS": "-1"},
+        {"OPENBLAS_CORETYPE": "BEGIN PRIVATE KEY", "OPENBLAS_NUM_THREADS": "1e9"},
+    ],
+)
+def test_untrusted_environment_variables_are_never_echoed(monkeypatch, env):
+    """`OPENBLAS_*` are attacker-controllable; the record reports a shape only."""
+    monkeypatch.setattr(diagnose_fixture_replay, "diagnose", lambda: _exact_envelope())
+    with mock.patch.dict(os.environ, env, clear=False):
+        payload = classifier.classify()
+    _assert_no_leak(payload, "environment variables")
+    assert payload["environment"]["openblas_coretype_requested"] == "set_malformed"
+    assert payload["environment"]["openblas_num_threads"] == "set_malformed"
+    # A malformed request value does not corrupt the resolved identity.
+    assert payload["environment"]["numpy_openblas_kernel"] is not None
+
+
+def test_wellformed_environment_variables_are_reduced_to_shape(monkeypatch):
+    monkeypatch.setattr(diagnose_fixture_replay, "diagnose", lambda: _exact_envelope())
+    with mock.patch.dict(
+        os.environ, {"OPENBLAS_CORETYPE": "Haswell", "OPENBLAS_NUM_THREADS": "1"},
+        clear=False,
+    ):
+        payload = classifier.classify()
+    assert payload["environment"]["openblas_coretype_requested"] == "set_and_wellformed"
+    assert payload["environment"]["openblas_num_threads"] == "set_and_wellformed"
+
+
+def test_unset_environment_variables_are_null_not_absent(monkeypatch):
+    monkeypatch.setattr(diagnose_fixture_replay, "diagnose", lambda: _exact_envelope())
+    env = dict(os.environ)
+    env.pop("OPENBLAS_CORETYPE", None)
+    env.pop("OPENBLAS_NUM_THREADS", None)
+    with mock.patch.dict(os.environ, env, clear=True):
+        payload = classifier.classify()
+    assert payload["environment"]["openblas_coretype_requested"] is None
+    assert payload["environment"]["openblas_num_threads"] is None
+
+
+def test_sanitize_environment_drops_unknown_keys():
+    """The printed environment record cannot grow beyond its vocabulary."""
+    poisoned = dict(_verified_metadata())
+    poisoned["injected_key"] = "/secret"
+    safe = classifier._sanitize_environment(poisoned)
+    assert "injected_key" not in safe
+    assert set(safe) <= classifier._ALLOWED_ENVIRONMENT_KEYS
+
+
+def test_payload_key_vocabulary_is_enforced():
+    payload = classifier._payload(
+        field_verdict=classifier.EXACT_REPLAY,
+        environment_verdict=classifier.VERIFIED_ENVIRONMENT,
+        field_reasons=[],
+        environment_reasons=[],
+        metadata=_verified_metadata(),
+        result=_exact_envelope(),
+    )
+    assert set(payload) <= classifier._ALLOWED_PAYLOAD_KEYS
+
+
+def test_reason_tokens_containing_paths_are_redacted():
+    reasons = ["da_a2_resting_v1:different_field_count", "/etc/passwd:oops", "a b c:d"]
+    cleaned = classifier._safe_reasons(reasons)
+    assert "da_a2_resting_v1:different_field_count" in cleaned
+    assert classifier.REDACTED in cleaned
+    assert all("/" not in token for token in cleaned)
+
+
+def test_refusal_records_only_the_exception_class_name(monkeypatch):
+    def boom():
+        raise RuntimeError("/secret/path/should/never/be/printed")
+
+    monkeypatch.setattr(diagnose_fixture_replay, "diagnose", boom)
+    payload = classifier.classify()
+    assert payload["field_verdict"] == classifier.DIAGNOSTIC_REFUSED
+    assert payload["exception_type"] == "RuntimeError"
+    _assert_no_leak(payload, "refusal")
+
+
+# --------------------------------------------------------------------------- #
+# 8. Fresh-process CLI evidence (P1, round 3)                                #
+# --------------------------------------------------------------------------- #
+
+_REPO_ROOT = str(fixtures.__file__).rsplit("/research/", 1)[0]
+
+
+def _cli(env_extra: dict[str, str] | None = None, timeout: int = 600):
+    """Run the module exactly as CI would, in a genuinely cold interpreter."""
+    env = dict(os.environ)
+    env["PYTHONPATH"] = _REPO_ROOT
+    env.setdefault("OPENBLAS_NUM_THREADS", "1")
+    env.update(env_extra or {})
+    return subprocess.run(
+        [sys.executable, "-m", "research.intake.rh04_environment_class"],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=_REPO_ROOT,
+        timeout=timeout,
+    )
+
+
+@pytest.fixture(scope="module")
+def cold_cli_result():
+    """One cold-process run, shared by the assertions below (it costs ~10s)."""
+    return _cli()
+
+
+def test_cli_exits_with_a_defined_code_in_a_fresh_process(cold_cli_result):
+    assert cold_cli_result.returncode in (0, 1, 2), cold_cli_result.stderr[-2000:]
+    assert cold_cli_result.stdout.strip(), "CLI produced no JSON on stdout"
+    json.loads(cold_cli_result.stdout)  # must be valid JSON
+
+
+def test_cli_reports_both_kernels_with_methods_in_a_fresh_process(cold_cli_result):
+    payload = json.loads(cold_cli_result.stdout)
+    env = payload["environment"]
+    # Both identities must be present and carry a method token.
+    for key in ("numpy_openblas_kernel", "scipy_openblas_kernel"):
+        assert key in env, key
+        method = env["kernel_identification_method"][key]
+        assert method in {"rtld_noload", "process_symbol", "unverified"}, method
+        if method != "unverified":
+            assert isinstance(env[key], str) and env[key], (key, env[key])
+
+
+def test_fresh_process_records_a_post_replay_snapshot(cold_cli_result):
+    """The snapshot labelled `post_replay` must be the resolved one.
+
+    This is the P1 fix: probing *before* the replay reported `unverified` for
+    SciPy because its OpenBLAS is mapped lazily by the first BLAS call.
+    """
+    payload = json.loads(cold_cli_result.stdout)
+    snapshot = payload["kernel_snapshot"]
+    assert set(snapshot) >= {"pre_replay", "post_replay", "scope"}
+    post = snapshot["post_replay"]
+    assert post["scipy_openblas_kernel"] is not None, (
+        "post-replay SciPy kernel must resolve on this platform; "
+        f"payload={json.dumps(snapshot)}"
+    )
+    assert post["kernel_identification_method"]["scipy_openblas_kernel"] in {
+        "rtld_noload",
+        "process_symbol",
+    }
+
+
+def test_pre_replay_snapshot_is_labelled_and_not_used_for_the_verdict(
+    cold_cli_result,
+):
+    """`pre_replay` is allowed to be `unverified`; the verdict must not use it."""
+    payload = json.loads(cold_cli_result.stdout)
+    pre = payload["kernel_snapshot"]["pre_replay"]
+    # Whatever it says is fine, but it must not be conflated with the verdict:
+    # an exact replay plus resolved post-replay kernels is exit 0 even if the
+    # pre-replay SciPy probe was unresolved.
+    if payload["environment_verdict"] == classifier.VERIFIED_ENVIRONMENT:
+        assert payload["environment"]["scipy_openblas_kernel"] is not None
+        assert classifier.exit_code(payload) in (0, 1)
+    # The scope disclaimer must always be present.
+    assert "not proof" in payload["kernel_snapshot"]["scope"]
+
+
+@pytest.mark.parametrize(
+    "coretype",
+    ["SkylakeX", "Haswell", "Sandybridge"],
+)
+def test_cli_under_a_forced_dispatch_is_fail_closed_and_labelled(coretype):
+    """A known-exact dispatch and two documented non-golden ones, cold process."""
+    result = _cli({"OPENBLAS_CORETYPE": coretype})
+    payload = json.loads(result.stdout)
+    assert result.returncode == classifier.exit_code(payload)
+    assert payload["field_verdict"] in classifier.FIELD_VERDICTS
+    if payload["field_verdict"] == classifier.EXACT_REPLAY:
+        assert result.returncode in (0,)
+    else:
+        # Any non-exact outcome must not be reported as success.
+        assert result.returncode != 0
+        assert result.returncode == 2 or payload["environment_verdict"] != (
+            classifier.VERIFIED_ENVIRONMENT
+        ) or payload["field_verdict"] == classifier.EXPECTED_SINGLE_FIELD_DELTAS
+
+
+def test_cli_unverified_environment_exits_two_in_a_fresh_process():
+    """Force an unresolvable kernel by hiding the packaged libraries."""
+    # `OPENBLAS_CORETYPE` cannot make a kernel unresolvable, so instead run with
+    # a deliberately broken method expectation: point at a directory that has no
+    # OpenBLAS at all by overriding the probe target.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from research.intake import rh04_environment_class as m\n"
+                "m._resident_openblas_kernel = lambda *a, **k: (None, 'unverified')\n"
+                "raise SystemExit(m.main())\n"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONPATH": _REPO_ROOT, "OPENBLAS_NUM_THREADS": "1"},
+        cwd=_REPO_ROOT,
+        timeout=600,
+    )
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert payload["environment_verdict"] == classifier.UNVERIFIED_ENVIRONMENT
+    assert any(
+        "unverified_method" in reason or "unresolved" in reason
+        for reason in payload["environment_reasons"]
+    ), payload["environment_reasons"]
+
+
+def test_fresh_process_output_contains_no_path_or_float(cold_cli_result):
+    payload = json.loads(cold_cli_result.stdout)
+    _assert_no_leak(payload, "cold CLI")
+
+    def walk(node, path="payload"):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                walk(value, f"{path}.{key}")
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                walk(value, f"{path}[{index}]")
+        else:
+            assert not isinstance(node, float), f"float at {path}: {node!r}"
+
+    walk(payload)
+
+
+# --------------------------------------------------------------------------- #
+# 9. Strict environment values (P2, round 3)                                 #
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("bad", [None, "", "lol", "1.26", 1264, ["1.26.4"], "  "])
+@pytest.mark.parametrize("key", ["numpy_version", "scipy_version"])
+def test_version_values_must_be_usable_strings(key, bad):
+    """`numpy_version=None` must NOT yield VERIFIED_ENVIRONMENT (P2)."""
+    metadata = dict(_verified_metadata())
+    metadata[key] = bad
+    problems = classifier.environment_problems(metadata)
+    assert f"{key}:not_a_version" in problems, (key, bad, problems)
+
+
+@pytest.mark.parametrize("key", ["python", "architecture", "platform"])
+@pytest.mark.parametrize("bad", [None, "", "   ", 42, {"a": 1}])
+def test_platform_tokens_must_be_nonblank_strings(key, bad):
+    metadata = dict(_verified_metadata())
+    metadata[key] = bad
+    problems = classifier.environment_problems(metadata)
+    assert f"{key}:blank_or_not_a_string" in problems, (key, bad, problems)
+
+
+def test_verified_metadata_has_no_problems():
+    """The positive control: the well-formed record must be clean."""
+    assert classifier.environment_problems(_verified_metadata()) == []
+
+
+def test_version_drift_is_reported_but_is_not_a_failure():
+    """A different numerical stack is evidence, not a refusal."""
+    metadata = dict(_verified_metadata())
+    metadata["numpy_version"] = "1.24.0"
+    assert classifier.environment_problems(metadata) == []
+    drift = classifier.pinned_version_drift(metadata)
+    assert "numpy_version:not_pinned" in drift
+
+
+def test_pinned_versions_match_the_requirement_files():
+    """The tool's claimed pins must match the files CI actually installs."""
+    from pathlib import Path
+
+    required = Path(_REPO_ROOT) / "research" / "experiments" / "requirements.txt"
+    declared = {}
+    for line in required.read_text().splitlines():
+        line = line.strip()
+        if "==" in line and not line.startswith("#"):
+            name, _, version = line.partition("==")
+            declared[name.strip()] = version.strip()
+    assert declared["numpy"] == classifier.PINNED_VERSIONS["numpy_version"]
+    assert declared["scipy"] == classifier.PINNED_VERSIONS["scipy_version"]
+    assert declared["scikit-learn"] == classifier.PINNED_VERSIONS["sklearn_version"]
+
+
+# --------------------------------------------------------------------------- #
+# 10. Snapshot timing must be structurally enforced (P1, round 3)            #
+# --------------------------------------------------------------------------- #
+
+
+def test_pre_snapshot_is_taken_before_the_diagnostic_is_imported():
+    """Ordering is the whole point of the fix, so assert it on the AST.
+
+    A source-text check would be defeated by a refactor that moves the call;
+    the AST records the *statement order* inside `classify()`.
+    """
+    tree = ast.parse(inspect.getsource(classifier.classify))
+    function = tree.body[0]
+    assert isinstance(function, ast.FunctionDef)
+
+    events: list[str] = []
+
+    class Walker(ast.NodeVisitor):
+        def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+            if isinstance(node.func, ast.Name) and node.func.id == "_kernel_probe":
+                events.append("probe")
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "diagnose":
+                events.append("diagnose")
+            self.generic_visit(node)
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:  # noqa: N802
+            if any(alias.name == "diagnose_fixture_replay" for alias in node.names):
+                events.append("import_diagnostic")
+            self.generic_visit(node)
+
+    Walker().visit(function)
+    assert "import_diagnostic" in events, events
+    first_probe = events.index("probe")
+    import_at = events.index("import_diagnostic")
+    diagnose_at = events.index("diagnose")
+    assert first_probe < import_at, (
+        "the pre-replay snapshot must be taken BEFORE the diagnostic module is "
+        f"imported, because that import maps SciPy's BLAS: {events}"
+    )
+    assert import_at < diagnose_at, events
+    # Two probes: one before the replay, one after it.
+    assert events.count("probe") >= 2, events
+
+
+def test_environment_problems_ignoring_is_caught_by_the_exit_code(monkeypatch):
+    """`environment_problems` must actually feed the verdict, not just exist."""
+    metadata = dict(_verified_metadata())
+    metadata["numpy_version"] = None  # unusable value
+    code, emitted = _run_main(monkeypatch, _exact_envelope(), metadata)
+    assert code == 2
+    assert emitted["environment_verdict"] == classifier.UNVERIFIED_ENVIRONMENT
+    assert "numpy_version:not_a_version" in emitted["environment_reasons"]
+
+
+def test_envelope_validation_is_actually_reached(monkeypatch):
+    """Bypassing `_validate_envelope` must be observable (guards the guard)."""
+    code, emitted = _run_main(monkeypatch, _exact_envelope(), _verified_metadata())
+    assert code == 0
+    # Now make the validator itself refuse; the verdict must follow it.
+    monkeypatch.setattr(
+        classifier, "_validate_envelope", lambda result: ["envelope:forced"]
+    )
+    code2, emitted2 = _run_main(monkeypatch, _exact_envelope(), _verified_metadata())
+    assert code2 == 2
+    assert emitted2["field_verdict"] == classifier.INVALID_DIAGNOSTIC

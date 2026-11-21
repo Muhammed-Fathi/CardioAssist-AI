@@ -28,7 +28,9 @@ Neither fact is an acceptance claim, and neither is a "controlled experiment". S
 
 The single sentence that should appear in RH-07/RH-08 risk registers until this is resolved:
 
-> On the **one platform tested** (Linux x86-64, glibc 2.36, Python 3.11.2, NumPy 1.26.4 / SciPy 1.15.3, OpenBLAS 0.3.23.dev), the frozen RH-04 29-case Golden Replay is reproduced **exactly** under forced dispatches `SkylakeX` and `Cooperlake` **only**. Under `Sandybridge` and `Nehalem` it drifts in **two** fields on `da_a2_resting_v1` (`calibrated_log_odds` and `calibrated_research_score`); under `Haswell` (and `Zen`, which resolves to the Haswell kernel on this wheel) it drifts in `calibrated_log_odds` on both score cases. The observed deviations are 1-ULP-scale and are consistent with an arithmetic-order effect of the two-parameter SciPy L-BFGS-B calibration fit, not with a model, data or semantic difference. **Coefficient equality, response-field equality and canonical acceptance are three different predicates** (§1.4). No claim is made for wheels, hosts or kernel classes not tested here.
+> On the **one platform tested** (Linux x86-64, glibc 2.36, Python 3.11.2, NumPy 1.26.4 / SciPy 1.15.3, OpenBLAS 0.3.23.dev), the frozen RH-04 29-case Golden Replay is reproduced **exactly** in every run where **SciPy's resident OpenBLAS kernel is `SkylakeX`**, and drifts by 1-ULP-scale amounts in `calibrated_log_odds` (and, for two kernels, `calibrated_research_score`) in every run where it is not. That condition is met by requesting `SkylakeX` **or** `Cooperlake`; it is *not* met by `Sandybridge`, `Nehalem`, `Haswell`, `Atom`, `Prescott` or `Zen`.
+
+> **The governing variable is SciPy's kernel, not NumPy's, and not the requested name.** Requesting `Cooperlake` yields a NumPy kernel of `Cooperlake` but a SciPy kernel of `SkylakeX` — SciPy's packaged OpenBLAS has no Cooperlake kernel and falls back — and the replay is exact. Requesting `Zen` yields NumPy `Zen` and SciPy `Haswell`, and it drifts. Across nine requested values the replay outcome is a **function of the SciPy kernel alone** (§1.4). That is a one-platform, nine-point observation, not a general theorem, and no claim is made for wheels, hosts or kernels not tested here.
 
 ---
 
@@ -54,7 +56,7 @@ Reproduced on the exact base commit, Linux x86-64, Python 3.11.2, glibc 2.36, `n
 |---|---|---|---|---|---|
 | *(unset — host)* | SkylakeX | SkylakeX | `EXACT_REPLAY`, 0/29 | — | accepts |
 | `SkylakeX` | SkylakeX | SkylakeX | `EXACT_REPLAY`, 0/29 | — | accepts |
-| `Cooperlake` | Cooperlake | Cooperlake | `EXACT_REPLAY`, 0/29 | — | accepts |
+| `Cooperlake` | Cooperlake | **`SkylakeX`** (no Cooperlake kernel in SciPy's build) | `EXACT_REPLAY`, 0/29 | — | accepts |
 | `Sandybridge` | Sandybridge | Sandybridge | `MISMATCH_FOUND` | **1** (`da_a2_resting_v1`, **2 fields**) | **rejects** |
 | `Nehalem` | Nehalem | Nehalem | `MISMATCH_FOUND` | **1** (`da_a2_resting_v1`, **2 fields**) | **rejects** |
 | `Haswell` | Haswell | Haswell | `MISMATCH_FOUND` | **2** | **rejects** |
@@ -144,43 +146,70 @@ passing. Verified identical at base commit `10bee67`. See evidence matrix §9.
 
 ---
 
-### 1.4 Coefficient equality is not response equality — corrected measurements
+### 1.4 Which kernel actually governs the replay — full 29-case measurements
 
-The reviewer identified a contradiction in the first revision: §3 reported that
-`Sandybridge` and `Nehalem` fit **different calibrator parameters** from the
-golden fit, while — in the earlier text — they were described as 29/29 exact.
-Re-measuring the full 29-case pack per dispatch (rather than only the calibration
-fit) found the earlier description was **wrong in a second, independent way**:
-those dispatches are **not** 29/29 exact. They drift in **two** fields on the
-Cleveland case, so the canonical validator **rejects** them. Corrected table
-(`test_rh04_replay_tolerance` and `_approved_replay_equal` are unchanged; this is
-a documentation correction only):
+The first revision of this section compared *coefficient* equality with
+*response* equality and concluded that exactness held for
+`{SkylakeX, Cooperlake}`. That conclusion was right about the outcome and
+**wrong about the variable**: it attributed exactness to the NumPy kernel (and to
+the requested name) when the outcome actually tracks **SciPy's** kernel.
 
-| Dispatch | `da_a2_resting_v1` (Cleveland) | `da_a1_basic_clinical_v1` (UCI-412) | Canonical 29-case validator |
-|---|---|---|---|
-| `SkylakeX` | exact | exact | **accepts** (0 differing) |
-| `Cooperlake` | exact | exact | **accepts** (0 differing) |
-| `Sandybridge` | 2 fields: `calibrated_log_odds` 6.661e-16, `calibrated_research_score` 1.110e-16 | exact | **rejects** |
-| `Nehalem` | 2 fields: `calibrated_log_odds` 4.441e-16, `calibrated_research_score` 1.110e-16 | exact | **rejects** |
-| `Haswell` | 1 field: `calibrated_log_odds` 2.220e-16 (**pre-approved exception**) | 1 field: `calibrated_log_odds` 4.441e-16 | **rejects** (UCI-412 not excepted) |
-| `Zen` → `Haswell` | as `Haswell` | as `Haswell` | **rejects** |
+Re-measured across nine requested dispatches, replaying the **full 29 cases**
+each time in a fresh process (not a calibration-fit probe):
+
+| Requested `OPENBLAS_CORETYPE` | NumPy kernel | SciPy kernel | Replay | Differing |
+|---|---|---|---|---|
+| *(unset — host)* | SkylakeX | SkylakeX | `EXACT_REPLAY` | 0 |
+| `SkylakeX` | SkylakeX | SkylakeX | `EXACT_REPLAY` | 0 |
+| `Cooperlake` | Cooperlake | **SkylakeX** ¹ | `EXACT_REPLAY` | 0 |
+| `Sandybridge` | Sandybridge | Sandybridge | `MISMATCH_FOUND` | 1 (Cleveland, **2 fields**) |
+| `Nehalem` | Nehalem | Nehalem | `MISMATCH_FOUND` | 1 (Cleveland, **2 fields**) |
+| `Atom` | Nehalem | Nehalem | `MISMATCH_FOUND` | 1 (Cleveland, **2 fields**) |
+| `Haswell` | Haswell | Haswell | `MISMATCH_FOUND` | 2 |
+| `Zen` | Zen | **Haswell** ² | `MISMATCH_FOUND` | 2 |
+| `Prescott` | Prescott | Katmai | `MISMATCH_FOUND` | 2 |
+
+¹ SciPy's packaged OpenBLAS (`libscipy_openblas-68440149.so`) has **no**
+Cooperlake kernel, so it resolves to `SkylakeX` even though NumPy honours the
+request. ² NumPy's OpenBLAS has no Zen kernel on this wheel and falls back to
+`Haswell`; SciPy also lands on `Haswell`.
+
+**Grouped by the SciPy kernel, the outcome is perfectly consistent:**
+
+| SciPy kernel | Requested values mapping to it | Replay outcome |
+|---|---|---|
+| `SkylakeX` | *(host)*, `SkylakeX`, `Cooperlake` | **always exact** |
+| `Sandybridge` | `Sandybridge` | always 1 case, 2 fields |
+| `Nehalem` | `Nehalem`, `Atom` | always 1 case, 2 fields |
+| `Haswell` | `Haswell`, `Zen` | always 2 cases |
+| `Katmai` | `Prescott` | always 2 cases |
+
+No SciPy-kernel group contains both an exact and a non-exact outcome. Grouped by
+the *NumPy* kernel this is false — `Cooperlake` NumPy is exact while `Haswell`
+NumPy is not, and `Zen` NumPy drifts while its SciPy kernel is the same
+`Haswell` that also drifts. **The requested environment variable is therefore a
+request, never the resolved identity**, and only the resident SciPy kernel
+predicts the outcome on this platform.
 
 What this establishes, precisely:
 
-* **The measured exactness set is `{SkylakeX, Cooperlake}` only**, on this
-  platform and wheel set. The earlier "only SkylakeX/Cooperlake" phrasing was
-  therefore accidentally right about *acceptance* but wrong for the stated
-  reason; the earlier "Sandybridge/Nehalem are 29/29 exact" claim is **retracted**.
-* **A second, previously unrecorded drift mode exists**: `calibrated_research_score`
-  can differ by 1 ULP on Cleveland for `Sandybridge`/`Nehalem`. It happens to be
-  absorbed by `expit` on the `Haswell` path (where the log-odds ULP is smaller),
-  which is why it was not seen earlier. This is why the classifier treats a
-  two-field entry as `UNEXPECTED_DRIFT` rather than as permitted drift.
+* **The measured exactness condition is ``scipy_openblas_kernel == "SkylakeX"``**,
+  on this platform and wheel set. The earlier "`{SkylakeX, Cooperlake}` only"
+  phrasing is **retracted**: `Cooperlake` is exact *because it resolves to
+  SkylakeX in SciPy*, not because Cooperlake is itself an exact kernel. The
+  earlier "Sandybridge/Nehalem are 29/29 exact" claim remains retracted.
+* **A second drift mode exists**: `calibrated_research_score` differs by
+  1.110e-16 on Cleveland for the `Sandybridge`/`Nehalem` group. It happens to be
+  absorbed by `expit` where the log-odds ULP is smaller, which is why it was not
+  seen at first. It is why a two-field entry is `UNEXPECTED_DRIFT`, not
+  permitted drift.
 * **Coefficient equality ≠ response equality ≠ canonical acceptance.** Three
-  distinct predicates, and the frozen contract constrains only the last. A test
-  that compared fitted coefficients would be stricter than the contract and
-  would fail on `Sandybridge`/`Nehalem` even though those are already rejected
-  on the response field anyway.
+  distinct predicates; the frozen contract constrains only the last.
+* **Causation is not established by this table.** The nine points show that the
+  outcome is a function of the resident SciPy kernel *on this wheel and host*.
+  They do not prove that the kernel is the sole mechanism on other builds, and
+  the drift magnitude is 1 ULP, which is consistent with an arithmetic-order
+  effect rather than a semantic difference.
 * No guarantee is made for kernels, wheel builds or hosts outside this table.
 
 ### 1.5 How the BLAS kernel is identified (and why the first method was wrong)
@@ -458,20 +487,26 @@ must:
 - reduce the diagnostic JSON to the closed verdict vocabulary with **exit 0 only
   for a validated exact envelope with a verified environment**, exit 1 for
   classified single-field deltas, exit 2 for everything else;
-- **`continue-on-error: false` is irrelevant to the gate**: the canonical pytest
-  step still runs and still determines the job's result. The diagnostic step's
-  exit code is recorded in the job log and step summary as evidence. If an owner
-  wants the job's colour to *include* the diagnostic, the step can simply be left
-  failing on exit 1; that is a policy choice, **not** a correctness one, and this
-  PR does not choose it.
+- **the step is a non-voting observation and must be labelled as such.** It
+  records the classifier's exit code and verdict in the job summary, then exits
+  `0` for *every* classifier outcome. It deliberately does **not** use
+  `continue-on-error` or `|| true`, because it has no failure to suppress — it
+  never fails. The classifier itself fails closed (exit `2`); the CI step simply
+  does not vote.
+- **the canonical pytest step is untouched and remains the sole authority.** A
+  red `test_golden_replay` stays red regardless of what the observation step
+  records, and a green one stays green. This PR does **not** choose a policy in
+  which the job's colour includes the diagnostic; proposing that is a separate,
+  owner-authorized workflow change (`RH04_ISSUE132_CI_GATE_SPEC` §7).
 
 **Explicitly forbidden in that step:** mapping a classified mismatch to a
 passing job, skipping/xfailing/retrying, editing tolerances or the comparator,
 echoing numeric values.
 
 **Step 3 (tests, negative-first):** already implemented here — see
-`tests/experiments/test_rh04_issue132_environment_class.py` (101 tests, 14/14
-mutation-killed). The follow-up must keep them green.
+`tests/experiments/test_rh04_issue132_environment_class.py` (165 tests, 19/19
+mutations killed — one only when both defence-in-depth sites are removed). The
+follow-up must keep them green.
 
 **Step 4 (documentation):** amend `docs/rh04-portable-deterministic-calibration.md`
 and the RH-07/RH-08 risk registers with the §0 sentence.
@@ -639,7 +674,7 @@ git diff --stat 10bee67474b0eb9858f4ca6f298037c2f32459cc -- \
 |---|---|---|---|---|
 | `M-01` | Host-class dispatch (`SkylakeX`) → `EXACT_REPLAY` 0/29 | **measured** | Linux x86-64, Py3.11, OpenBLAS 0.3.23.dev | this branch |
 | `M-02` | `Haswell` → 2 cases differing, one field each (`calibrated_log_odds`): 2.220e-16 Cleveland (pre-approved exception, accepted) and **4.441e-16 UCI-412 (not excepted, rejected)** | **measured** | same | this branch |
-| `M-03` | `Cooperlake` → `EXACT_REPLAY` 0/29; `Sandybridge`/`Nehalem` → **2 differing fields on `da_a2_resting_v1`**, canonical validator **rejects** | **measured** | same | this branch, §1.4 |
+| `M-03` | `Cooperlake` → `EXACT_REPLAY` 0/29 **on the full 29-case replay**, via SciPy falling back to `SkylakeX`; `Sandybridge`/`Nehalem`/`Atom` → **2 differing fields on `da_a2_resting_v1`**, canonical validator **rejects** | **measured** | same | this branch, §1.4 |
 | `M-04` | `Zen` silently resolves to `Haswell` | **measured** | same | this branch |
 | `M-05` | 4 repeats, same dispatch → 1 distinct outcome | **measured** | same | this branch |
 | `M-06` | Threads 1/2/4 → identical | **measured** | same | this branch |
@@ -662,7 +697,7 @@ git diff --stat 10bee67474b0eb9858f4ca6f298037c2f32459cc -- \
 ## 11. Answers to the deliverable's explicit questions
 
 **Which aspects of reproducibility have been experimentally established?**
-On the tested platform: repeated-run stability at fixed dispatch (`E-01`); full stability of every pipeline stage except the two-parameter calibration fit (`E-04`, `M-08`, `M-09`); exactness of the frozen reference under `SkylakeX`/`Cooperlake` (`M-01`); the observed per-dispatch deviation set, which includes a **second** field on `Sandybridge`/`Nehalem` (`M-02`, `M-03`, §1.4); and the existence of a numerically portable fit under the tested conditions (`M-11`).
+On the tested platform: repeated-run stability at fixed dispatch (`E-01`); full stability of every pipeline stage except the two-parameter calibration fit (`E-04`, `M-08`, `M-09`); exactness of the frozen reference whenever SciPy's resident kernel is `SkylakeX` (`M-01`); the observed per-dispatch deviation set, which includes a **second** field on `Sandybridge`/`Nehalem` (`M-02`, `M-03`, §1.4); and the existence of a numerically portable fit under the tested conditions (`M-11`).
 
 **Which depend on CPU/OS/math library?**
 Only the L-BFGS-B fit: BLAS kernel selection → reduction order → the two fitted parameters (`M-07`, `M-10`). Consequently `calibration.json`, `model.joblib`, `evaluation_summary.json` and `manifest.json` bytes (`M-12`). Everything else — cohort, panels, preprocessor, forest, SHAP/LIME, statuses, abstentions, thresholds, route binding, digests of immutable artifacts — is dispatch-stable on tested classes.
