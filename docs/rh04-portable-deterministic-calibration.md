@@ -113,18 +113,23 @@ fully-portable, deterministic two-parameter L2-anchored logistic fit:
   form for `eta < 0`) and an overflow-safe objective/gradient/Hessian
   (`max(eta, 0) + log1p(exp(-|eta|))`, never a bare `log1p(exp(-eta))`), so
   extreme positive/negative logits cannot raise `OverflowError`,
-- box-constrained Newton step with an analytic Hessian and a proper
-  restricted-step active set: a component sitting on a box face is pinned and
-  the remaining free components take a Newton step on the restricted sub-Hessian
-  (1x1 or 2x2), with deterministic Armijo backtracking (factor 0.5, lower bound
-  2^-40, c1=1e-4) capped by the box,
-- explicit convergence verification: the projected-gradient KKT residual (max
-  of the per-component constrained stationarity tests — interior: |grad|, lower
-  face: max(0, -grad), upper face: max(0, grad)) must be <= gradient_tolerance
-  (default 1e-12); the last step also must be <= step_tolerance (default 5e-16)
-  as a secondary check; on the iteration-budget exhaustion the solver raises
-  `calibration_solver_did_not_converge` instead of silently returning
-  unconverged parameters;
+- box-constrained Newton step with an analytic Hessian and a KKT-aware
+  restricted-step active set: a component sitting on a box face is pinned ONLY
+  when no feasible inward descent direction exists (gradient flat or
+  outward); if the gradient points inward (an improving feasible direction) the
+  component is free and the Newton step proceeds — free components take a
+  Newton step on the 2x2 free block or the 1x1 restricted sub-Hessian, with
+  deterministic Armijo backtracking (factor 0.5, lower bound 2^-40, c1=1e-4,
+  correct sign `objective <= f_current + c1 * t * directional`) capped by the
+  box,
+- KKT-residual convergence verification: the projected-gradient KKT residual
+  (max of the per-component constrained stationarity tests — interior: |grad|,
+  lower face: max(0, -grad), upper face: max(0, grad)) must be <=
+  gradient_tolerance (default 1e-10); this is the sole convergence criterion —
+  a small step alone never certifies convergence; on iteration-budget
+  exhaustion, no feasible decreasing step, or a vanishing step with a nonzero
+  KKT residual, the solver raises `calibration_solver_did_not_converge`
+  instead of silently returning unconverged parameters;
 - full input validation at the API boundary (1-D finite equal-length arrays
   with n >= 2, finite positive l2_anchor, finite lower < upper bounds, finite
   integer max_iterations >= 1, finite positive tolerances) with the codes
@@ -134,11 +139,15 @@ fully-portable, deterministic two-parameter L2-anchored logistic fit:
   `calibration_solver_did_not_converge`,
 - an in-memory `solver` provenance field on the calibrator (`"scipy_lbfgsb"`
   default, `"deterministic_portable_newton"` opt-in, `"none"` for the
-  IDENTITY_CONSTANT_FALLBACK path), deliberately excluded from the canonical
-  serialized calibration.json so the frozen contract is unchanged,
-- bit-identical across `OPENBLAS_CORETYPE` dispatches (verified empirically for
-  the synthetic dataset across `generic`/`Haswell`/`Sandybridge`/`SkylakeX`,
-  and on the golden cohort data across SkylakeX/Haswell),
+  IDENTITY_CONSTANT_FALLBACK path, `"unknown"` for deserialized or directly
+  constructed calibrators), deliberately excluded from the canonical serialized
+  calibration.json so the frozen contract is unchanged,
+- bit-identical across `OPENBLAS_CORETYPE` dispatches on the empirically
+  tested CPU/OS/libm combinations (Linux x86_64, glibc; Python 3.11;
+  numpy 1.26.4 / scipy 1.15.3; generic/Haswell/Sandybridge/SkylakeX for the
+  synthetic dataset; SkylakeX/Haswell for the golden cohort).  This claim is
+  deliberately limited to those tested combinations — bit-portability across
+  libc/OS builds is not guaranteed;
 - validates the same inputs, and `fit_from_oof` dispatches to it behind
   `solver="deterministic_portable_newton"`.
 
@@ -215,12 +224,20 @@ remain unmerged and Issue #132 must remain open.
   `fit_from_oof(solver="deterministic_portable_newton")`, JSON round-trip,
   unknown-solver rejection, default-path contract (scipy L-BFGS-B stays default),
   plus the hardening guards: overflow-safe sigmoid/objective at extreme
-  positive/negative logits, boundary-optima convergence (slope/intercept pinned
-  to the box faces, including corner points), degenerate co-linear logits,
-  budget-exhausted `did_not_converge`, objective-quality improvement over the
-  (0, 1) start, API-boundary validation codes, affine/monotone exact-link
-  contract preservation, and in-memory solver provenance (excluded from the
-  serialized calibration contract).
+  positive/negative logits (finite `0 <= p <= 1`, no tautological assertion),
+  boundary-optima convergence (slope/intercept pinned to the box faces,
+  including corner points), degenerate co-linear logits, budget-exhausted
+  `did_not_converge`, objective-quality improvement over the (0, 1) start,
+  API-boundary validation codes, affine/monotone exact-link contract
+  preservation, in-memory solver provenance (excluded from the serialized
+  calibration contract; deserialized calibrators report honest `unknown`
+  provenance), and the reviewer-required boundary/KKT regression tests:
+  (a) nonstationary corner must not report convergence (both components pinned
+  to lower faces with strictly negative inward gradients — the adversarial
+  reviewer case), (b) boundary-coordinate movement inward off a box face when
+  the gradient points inward, (c) line-search sufficient-decrease, (d)
+  stalled/budget-exhausted fail-closed, (e) convergence verified by KKT rather
+  than by a small step alone.
 - `tests/experiments/test_rh04_calibration_dispatch.py` — unchanged: the
   frozen-value, frozen-response, SHAP-contract, workflow-guard and digest
   assertions remain exactly as they were on the frozen path.
