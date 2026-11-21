@@ -177,6 +177,8 @@ jobs:
               raise SystemExit("Numerical thread count not pinned to one")
           PY
 
-      - name: Inspect canonical 29-case synthetic replay (metadata only)
+      # Two separate Python/model-build processes: pinning must hold across replays.
+      - name: Inspect canonical 29-case synthetic replay twice (strict, metadata only)
         run: |
+          python -m research.intake.diagnose_fixture_replay
           python -m research.intake.diagnose_fixture_replay
