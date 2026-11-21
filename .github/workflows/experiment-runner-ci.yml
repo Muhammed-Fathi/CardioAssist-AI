@@ -26,6 +26,7 @@ jobs:
     # RH-04 numerical reproducibility experiment: pin BLAS/OpenMP pools before
     # Python/scikit-learn import in BOTH full suite and independent diagnosis.
     # Source fixtures, expected binary64 values and strict replay stay frozen.
+    # Pinned SkylakeX requires CPU feature preflight before NumPy/OpenBLAS import.
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
@@ -33,7 +34,6 @@ jobs:
       BLIS_NUM_THREADS: '1'
       NUMEXPR_NUM_THREADS: '1'
       VECLIB_MAXIMUM_THREADS: '1'
-      # RH-04 pinned binary64 baseline; requires AVX-512 Skylake-X CPU support.
       OPENBLAS_CORETYPE: 'SkylakeX'
 
     strategy:
@@ -163,6 +163,7 @@ jobs:
     # RH-04 numerical reproducibility experiment: pin BLAS/OpenMP pools before
     # Python/scikit-learn import in BOTH full suite and independent diagnosis.
     # Source fixtures, expected binary64 values and strict replay stay frozen.
+    # Pinned SkylakeX requires CPU feature preflight before NumPy/OpenBLAS import.
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
@@ -170,7 +171,6 @@ jobs:
       BLIS_NUM_THREADS: '1'
       NUMEXPR_NUM_THREADS: '1'
       VECLIB_MAXIMUM_THREADS: '1'
-      # RH-04 pinned binary64 baseline; requires AVX-512 Skylake-X CPU support.
       OPENBLAS_CORETYPE: 'SkylakeX'
     steps:
       - name: Check out synthetic-only source
