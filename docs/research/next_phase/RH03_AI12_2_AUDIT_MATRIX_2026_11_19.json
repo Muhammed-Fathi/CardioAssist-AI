@@ -1490,7 +1490,7 @@
             },
             {
               "line": 260,
-              "text": "Safety restrictions: no protected dataset rows, patient-level predicted values, actual original `report.json`/`predictions.csv`, private SHAP backgrounds, authorization manifests, credentials, signing keys or secret-bearing file paths can be committed to GitHub. Release requirements later include a fresh exact-SHA run, pip/dependency check, source-integrity hash check, exact-head CI, Windows 8/8 ACL tests, specified negative cases, sanitized report digests, reviewer evidence, and justified skips. These are **pending RH-05/RH-07**, not assumed passed merely because this manuscript exists."
+              "text": "Safety restrictions: no protected dataset rows, patient-level predicted values, actual original `report.json`/`predictions.csv`, private SHAP backgrounds, authorization manifests, credentials, signing keys or secret-bearing file paths may enter GitHub. RH-05's tested-source synthetic acceptance is already recorded and Issue #121 closed, with its own limited provenance; final RH-07/RH-08 release acceptance still requires an exact final release SHA, appropriate fresh CI/native Windows evidence where source changes warrant it, verified research claims, sanitized report digests, reviewer evidence and justified skips. Do not re-label RH-05's historical tested SHA as the later manuscript/merge SHA."
             }
           ]
         }
@@ -1970,7 +1970,7 @@
           "matched_report_lines": [
             {
               "line": 309,
-              "text": "- Scientific claims: [machine-readable original source/blob index](RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json), [RH-01 gap matrix](RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md), current [RH completion tracker](AI_RESEARCH_COMPLETION_TRACKER_2026_11_19.json), [AI-12.2 blueprint](AI12_2_FINAL_REPORT_BLUEPRINT_2026_11_19.md)."
+              "text": "- Scientific claims: [machine-readable original source/blob index](RH01_CLAIM_EVIDENCE_INDEX_2026_11_19.json), [RH-01 gap matrix](RH01_SOURCE_EVIDENCE_AND_GAP_MATRIX_2026_11_19.md), [RH-03 28-claim independent matrix](RH03_AI12_2_AUDIT_MATRIX_2026_11_19.json), [original-source triangulation](RH03_EXTERNAL_SOURCE_TRIANGULATION_2026_11_21.md), [TRIPOD+AI / PROBAST+AI item-level gaps](RH03_REPORTING_CROSSWALK_2026_11_21.md), [RH-05 engineering acceptance](RH05_INDEPENDENT_ACCEPTANCE_REVIEW_2026_11_20.md), [RH tracker](AI_RESEARCH_COMPLETION_TRACKER_2026_11_19.json), [AI-12.2 blueprint](AI12_2_FINAL_REPORT_BLUEPRINT_2026_11_19.md)."
             }
           ]
         }
