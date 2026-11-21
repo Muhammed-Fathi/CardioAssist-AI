@@ -26,3 +26,7 @@
 - Do **not** publish real-patient model data, SHAP backgrounds, sensitive local artifacts, protected `report.json`, or raw prediction rows.
 
 **Acceptance:** this index helps scope RH-07; it does not itself fill all missing model cards or close AC-09.
+
+## 2026-11-21 independent source-bound follow-up (PR #129 draft)
+
+The companion [source-bound model-card draft](RH07_SOURCE_BOUND_MODEL_CARDS_DRAFT_2026_11_21.md) and [machine-readable seven-record pack](RH07_SOURCE_BOUND_MODEL_CARDS_DRAFT_2026_11_21.json) now inventory the five frozen synthetic/blocked registry slots **and** two separately archived historic experiments. Their source/fixture consistency validator guards accidental approval or model-score promotion. This closes a **documentation coverage drafting gap only**; AC-09 still requires independent reviewer confirmation, artifact-specific evidence as applicable and final handoff acceptance. No protected experiment rerun, fitted real-serving model, clinical approval or RH-07 closure is implied.
