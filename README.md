@@ -41,6 +41,8 @@ This installs the repository's pinned research dependencies in a throwaway virtu
 
 ## Single source of truth
 
+- **Graduation delivery execution order and evidence closeout:** [Roadmap and acceptance register](docs/GRADUATION_DELIVERY_ROADMAP.md). This planning index links the existing canonical records; it does not supersede scientific or implementation authorization.
+
 - **Project vision and proposed features:** `research/source_materials/project_presentation.pdf` (47 slides) plus `project_presentation_speaker_notes.md`. Presentation citations, dataset recommendations and performance claims are **not approved research evidence**.
 - **Supervisor paper selection:** `research/source_materials/literature_review_status.csv` (export of the FIRST sheet of the original Excel workbook), with `Supervisor_Status` explicitly recorded; inspect original `literature_review_original.xlsx` if available.
 - **Research evidence:** approved GREEN papers, verified against their originals when accessible. PINK/ORANGE are pending; RED are excluded from the selected research scope. Current integrity target/results are recorded in `docs/blueprint/08_IMPLEMENTATION_STATUS_VS_FUTURE_SCOPE.md`.
