@@ -1829,3 +1829,125 @@ def test_full_reference_rejects_unknown_fields_and_edit_drift():
 def test_full_reference_structural_validation_passes():
     pack = _candidate_pack()
     assert full_reference.validate(pack, replay=False) == 29
+
+# --------------------------------------------------------------------------- #
+# 17. Path B — integrity-bound frozen parameters (D-V2-7, proposed)
+# --------------------------------------------------------------------------- #
+
+_FEATURES_10 = [f"f{index}" for index in range(10)]
+
+
+def _path_b_artifact():
+    import numpy as np
+
+    from research.intake import rh04_v2_frozen_parameters as frozen
+
+    generator = np.random.RandomState(5)
+    features = generator.randn(200, 10)
+    labels = (generator.rand(200) < 0.5).astype(int)
+    rows = [[float(v) for v in row] for row in features]
+    exemplars = [int(v) for v in labels]
+    fit = model_fit.fit_logistic_decimal(rows, exemplars, c_value=1.0)
+    artifact = frozen.build_frozen_artifact(
+        source_id="synthetic-path-b",
+        feature_names=_FEATURES_10,
+        model_family="l2_logistic_regression",
+        training_profile=model_fit.PROFILE_CLEVELAND,
+        training_rows=rows,
+        training_labels=exemplars,
+        fold_index=[index % 5 for index in range(200)],
+        coefficients=fit["coefficients"],
+        intercept=fit["intercept"],
+        calibration={"intercept": 0.0, "slope": 1.0},
+        protocol_version=model_fit.MODEL_FIT_PROTOCOL_ID,
+    )
+    return artifact, rows, exemplars
+
+
+def _scoring_rows():
+    return [[float(v) for v in row] for row in np.random.RandomState(6).randn(50, 10)]
+
+
+def test_path_b_replays_path_a_exactly():
+    """Frozen parameters must reproduce the refit output bit for bit."""
+    from research.intake import rh04_v2_frozen_parameters as frozen
+
+    artifact, _, _ = _path_b_artifact()
+    scoring = _scoring_rows()
+    path_b = frozen.score_with_frozen(
+        artifact, scoring, expected_feature_names=_FEATURES_10
+    )
+    path_a = [
+        upstream.score_as_float(score)
+        for score in upstream.exact_linear_scores(
+            artifact["coefficients"], scoring, artifact["intercept"]
+        )
+    ]
+    assert path_b == path_a
+
+
+def test_path_b_refuses_a_tampered_parameter():
+    from research.intake import rh04_v2_frozen_parameters as frozen
+
+    artifact, _, _ = _path_b_artifact()
+    tampered = copy.deepcopy(artifact)
+    tampered["intercept"] = artifact["intercept"] + 1e-9
+    with pytest.raises(frozen.FrozenParameterError, match="integrity mismatch"):
+        frozen.verify_frozen_artifact(tampered)
+
+
+def test_path_b_refuses_a_stale_binding():
+    from research.intake import rh04_v2_frozen_parameters as frozen
+
+    artifact, _, _ = _path_b_artifact()
+    with pytest.raises(frozen.FrozenParameterError, match="wrong source"):
+        frozen.verify_frozen_artifact(artifact, expected_source_id="a-different-source")
+    with pytest.raises(frozen.FrozenParameterError, match="wrong protocol version"):
+        frozen.verify_frozen_artifact(artifact, expected_protocol_version="v0")
+
+
+def test_path_b_refuses_a_wrong_panel_or_order():
+    from research.intake import rh04_v2_frozen_parameters as frozen
+
+    artifact, _, _ = _path_b_artifact()
+    reordered = list(reversed(_FEATURES_10))
+    with pytest.raises(frozen.FrozenParameterError, match="feature contract drift"):
+        frozen.verify_frozen_artifact(artifact, expected_feature_names=reordered)
+
+
+def test_path_b_refuses_a_missing_binding():
+    from research.intake import rh04_v2_frozen_parameters as frozen
+
+    artifact, _, _ = _path_b_artifact()
+    broken = copy.deepcopy(artifact)
+    del broken["split_digest"]
+    with pytest.raises(frozen.FrozenParameterError, match="stale artifact"):
+        frozen.verify_frozen_artifact(broken)
+
+
+def test_path_b_refuses_a_family_without_linear_parameters():
+    from research.intake import rh04_v2_frozen_parameters as frozen
+
+    _, rows, exemplars = _path_b_artifact()
+    with pytest.raises(frozen.FrozenParameterError, match="not defined for family"):
+        frozen.build_frozen_artifact(
+            source_id="x",
+            feature_names=_FEATURES_10,
+            model_family="constrained_random_forest",
+            training_profile=model_fit.PROFILE_CLEVELAND,
+            training_rows=rows,
+            training_labels=exemplars,
+            fold_index=[0] * 200,
+            coefficients=[0.0] * 10,
+            intercept=0.0,
+            calibration={},
+            protocol_version=model_fit.MODEL_FIT_PROTOCOL_ID,
+        )
+
+
+def test_path_b_is_marked_unratified():
+    from research.intake import rh04_v2_frozen_parameters as frozen
+
+    artifact, _, _ = _path_b_artifact()
+    assert artifact["sentinel"] == frozen.FROZEN_SENTINEL
+    assert frozen.FROZEN_SENTINEL.startswith("UNRATIFIED")
