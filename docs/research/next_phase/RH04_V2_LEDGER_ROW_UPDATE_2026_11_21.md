@@ -1,4 +1,19 @@
-# V2-01 … V2-10 — Round 8 status
+# WITHDRAWN — V2-01 … V2-10 Round 8 status
+
+> **THIS DOCUMENT IS WITHDRAWN AND MUST NOT BE USED AS AN ACCEPTANCE RECORD.**
+>
+> It reassigned the meanings of the V2 acceptance IDs. The controlling meanings
+> in `docs/rh04-issue132-acceptance-decision.md` §7 were not followed: rows labelled
+> V2-01…V2-07 here describe implementation work, not the acceptance gates those
+> IDs actually name. It also implied progress toward V2-04 that a toy Path B test
+> does not provide and V2-01 that only the owner can ratify.
+>
+> Superseded by
+> [`RH04_V2_ACCEPTANCE_LEDGER_RESTORED_2026_11_21.md`](RH04_V2_ACCEPTANCE_LEDGER_RESTORED_2026_11_21.md),
+> which restores the original meanings and separates implementation-task IDs from
+> acceptance-gate IDs. Retained unmodified below as historical evidence of the
+> error.
+
 
 Head `cd0209b` · base #138 `2469dc6` · PR #139 **Draft/Open** · Issue #132 **OPEN**.
 Nothing below is ratified. No acceptance semantics are active.
