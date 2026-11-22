@@ -10,6 +10,14 @@ the canonical V1 gate, which is unchanged and still authoritative:
 
 The suite is deliberately negative-first: every guarantee a V2 reference would
 rely on has a test that fails if that guarantee is removed.
+
+**Host dependence is measured, not assumed.** Generation is an exact function of
+the inputs *given to the reference fit*, but the float64 `gemv` upstream of it
+differs between OpenBLAS kernels (see the protocol, §4-§5). A generation is
+therefore expected to hash to one of the two *observed* digests, and the test
+asserts the pack is byte-stable **for the host it runs on** while reporting which
+class this host is. It does not assert that every host produces class A — that
+was the mistake that made the first revision of this suite red on CI.
 """
 
 from __future__ import annotations
@@ -376,21 +384,63 @@ def test_reference_module_makes_no_blas_call_indirectly():
 
 
 @pytest.fixture(scope="module")
-def generated_pack() -> dict:
-    """One generation, shared by the structural tests (it costs ~90 s)."""
-    return candidate.generate_candidate_pack()
+def host_generation() -> dict:
+    """One generation (≈90 s), plus the host class it lands in."""
+    from threadpoolctl import threadpool_info
+
+    pack = candidate.generate_candidate_pack()
+    digest = candidate.pack_digest(pack)
+    if digest not in candidate.V2_OBSERVED_PACK_DIGESTS:
+        raise AssertionError(
+            f"pack digest {digest} is not one of the observed classes "
+            f"{candidate.V2_OBSERVED_PACK_DIGESTS}; a new class is a finding, "
+            "not a test failure to update blindly"
+        )
+    kernels = [
+        item.get("architecture") for item in threadpool_info() or []
+    ]
+    return {"pack": pack, "digest": digest, "kernels": kernels}
 
 
-def test_generate_and_validate_round_trip_is_exact(generated_pack):
+@pytest.fixture(scope="module")
+def generated_pack(host_generation) -> dict:
+    """Backwards-compatible alias for the structural tests."""
+    return host_generation["pack"]
+
+
+def test_generate_and_validate_round_trip_is_exact(host_generation, generated_pack):
+    """A fresh generation must be byte-stable for *this* host, and re-validate.
+
+    The assertion is deliberately host-relative. Demanding one fixed digest
+    would silently assume the runner is class A, which is exactly the false
+    assumption that made the first revision of this suite red on CI (the hosted
+    runner is class B).
+    """
     assert len(generated_pack["cases"]) == 29
-    # The committed fixture must match a fresh generation byte for byte.
-    committed = json.loads(candidate.V2_FIXTURE_PATH.read_text())
-    assert candidate.pack_digest(generated_pack) == candidate.pack_digest(committed)
+    first = host_generation["digest"]
+    assert first in candidate.V2_OBSERVED_PACK_DIGESTS
+    # Same host, same content: regeneration must reproduce the digest exactly.
+    assert candidate.pack_digest(candidate.generate_candidate_pack()) == first
     assert candidate.validate(generated_pack, replay=False) == 29
 
 
+def test_committed_candidate_belongs_to_an_observed_class():
+    """The committed pack must be one of the two measured classes, no more."""
+    committed = json.loads(candidate.V2_FIXTURE_PATH.read_text())
+    assert candidate.pack_digest(committed) in candidate.V2_OBSERVED_PACK_DIGESTS
+    assert candidate.pack_digest(committed) == (
+        "b74f781d7c7839a33c3693e53511ac4d200b8bcf5b0a38526e9a9e2b657595f2"
+    )
+
+
 def test_a_one_ulp_edit_to_a_v2_expected_value_fails_validation(generated_pack):
-    """V2 tolerance is zero: a single bit is enough to fail closed."""
+    """V2 tolerance is zero: a single bit is enough to fail closed.
+
+    ``replay=False`` is used deliberately. The point under test is the *edited
+    value* being rejected, so the check must not be confounded by host-drift —
+    on a class-B runner a full replay would fail for an unrelated reason and the
+    test would pass for the wrong one.
+    """
     pack = json.loads(json.dumps(generated_pack))
     case = next(
         item
@@ -401,6 +451,8 @@ def test_a_one_ulp_edit_to_a_v2_expected_value_fails_validation(generated_pack):
     case["expected"]["outcomes"][0]["score"]["calibrated_log_odds"] = float(
         np.nextafter(value, math.inf)
     )
+    # The edited pack is structurally valid; only a replay can catch the bit.
+    assert candidate.validate(pack, replay=False) == 29
     with pytest.raises(ValueError) as info:
         candidate.validate(pack)
     assert "response mismatch" in str(info.value)
@@ -554,18 +606,25 @@ def test_audit_declares_the_decimal_stage_invariant_from_a_single_process():
 
 
 def _clean_env() -> dict[str, str]:
-    """Inherit the interpreter environment, minus any forced dispatch.
+    """Inherit the environment, keeping the *dispatch* under test.
 
-    Stripping the whole environment (as a naive isolation attempt would) drops
-    ``VIRTUAL_ENV``/``LD_LIBRARY_PATH`` and can silently import a different
-    numpy. Evidence integrity matters more than theatrical isolation here, so
-    only the variables that alter the *replay* are removed.
+    Two failure modes are avoided here, both learned the hard way:
+
+    * Stripping the whole environment (a naive "cold" isolation) drops
+      ``VIRTUAL_ENV``/``LD_LIBRARY_PATH`` and can silently import a different
+      numpy, which is a worse confound than the one it removes.
+    * Stripping ``OPENBLAS_CORETYPE`` makes the child run on the host's natural
+      kernel while the parent runs on the forced one. The two sides then measure
+      *different* numerical environments and any comparison between them is
+      meaningless — it reported a spurious pass when this suite was first run
+      under a forced dispatch.
+
+    So the dispatch variables are preserved deliberately: they define the
+    numerical environment being measured, not noise to be filtered out.
     """
     import os
 
     environment = dict(os.environ)
-    for name in ("OPENBLAS_CORETYPE", "NPY_DISABLE_CPU_FEATURES", "PYTHONHASHSEED"):
-        environment.pop(name, None)
     environment["OPENBLAS_NUM_THREADS"] = "1"
     environment["PYTHONHASHSEED"] = "0"
     environment["PYTHONPATH"] = str(REPO_ROOT)
@@ -588,13 +647,39 @@ def cold_check_result():
     return _cold_check()
 
 
-def test_cold_process_check_mode_replays_the_committed_candidate(cold_check_result):
-    """``--check`` must verify every case in a fresh interpreter, exactly."""
+def test_cold_process_check_mode_replays_the_committed_candidate(
+    cold_check_result, host_generation
+):
+    """``--check`` in a fresh interpreter must replay exactly — or fail closed.
+
+    The committed candidate was generated on a class-A host. On such a host this
+    must be an exact replay. On any other host the *correct* behaviour is a
+    fail-closed refusal naming the differing field, because the V2 reference has
+    zero tolerance and generation depends on the upstream float64 `gemv`.
+
+    What is never acceptable — and is asserted here — is a silent pass on a host
+    that does not reproduce the committed bytes, or a crash instead of a
+    diagnosis.
+    """
     result = cold_check_result
-    assert result.returncode == 0, result.stderr[-3000:]
-    payload = json.loads(result.stdout)
-    assert payload["status"] == "EXACT_REPLAY"
-    assert payload["cases"] == 29
-    assert payload["pack_sha256"] == candidate.pack_digest(
+    committed_digest = candidate.pack_digest(
         json.loads(candidate.V2_FIXTURE_PATH.read_text())
     )
+    reproduces = host_generation["digest"] == committed_digest
+
+    if reproduces:
+        assert result.returncode == 0, result.stderr[-3000:]
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "EXACT_REPLAY"
+        assert payload["cases"] == 29
+        assert payload["pack_sha256"] == committed_digest
+    else:
+        # Fail closed, with a redacted diagnosis rather than a traceback dump.
+        assert result.returncode != 0, (
+            "a host that does not reproduce the committed candidate must not "
+            "report success"
+        )
+        assert "response mismatch" in result.stderr
+        assert "redacted_field_diff" in result.stderr
+        # The diff must name a field but must never leak a value.
+        assert "calibrated_log_odds" in result.stderr

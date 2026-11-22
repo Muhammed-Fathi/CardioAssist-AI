@@ -251,6 +251,49 @@ failure*: capture the child's return code and signal name, and report
 `D-V2-2`, and it is deliberately **not** implemented here (the test lives in the
 merged PR #136 surface and changing it is a separate authorized step).
 
+### 5.5 What the hosted CI runner actually is — resolved
+
+The first revision of the V2 suite was red on this PR's own CI, on **both 3.11
+and 3.12**, while passing locally in exactly the same pinned wheel set. The cause
+is measured, not guessed:
+
+| Observation | Value |
+|---|---|
+| Local host kernel | `SkylakeX` (class A) → digest `b74f781d…` |
+| Hosted runner, inferred | **class B** → digest `3df8de94…` |
+| Group-B reproduction, local | `OPENBLAS_CORETYPE=Sandybridge` reproduces class B **exactly** |
+| Suite under a forced class-B dispatch | **41 passed** |
+
+The runner is not broken and the candidate is not wrong: the hosted runners land
+in **class B**, and the suite had hardcoded *"every host generates class A"* — a
+claim this document's own §5 already contradicted. **CI was right and the test
+was wrong.**
+
+Consequences for the contract, and they are load-bearing:
+
+1. **The V2 candidate is exact per host class, not universally.** A generation is
+   byte-stable on repeat and exact for every fit input it receives, but two host
+   classes exist because the float64 `gemv` feeding the fit differs.
+2. `--check` therefore **fails closed** on a class-B host against a class-A
+   fixture. That is correct under a zero-tolerance rule, and the suite now
+   asserts exactly that rather than assuming class A.
+3. A scoped exact gate (`D-V2-3` option b) must be scoped **per host class**,
+   never across all runners. This is the strongest available argument for
+   option (a), observe-only, as the immediate step.
+4. `V2-04`'s "*≥ 3 dispatch × {3.11, 3.12}*" requirement must record the
+   **class** of each measurement, not just pass/fail.
+
+Two secondary findings from the same episode, both real:
+
+* The CI's `pytest -W error` caught a genuine file-handle leak in the audit
+  `--compare` CLI (`open(...).read()` without a context manager) that local runs
+  without `-W error` never surfaced. Local runs now use the CI's exact flags.
+* The test helper that spawned "cold" child processes had stripped
+  `OPENBLAS_CORETYPE`, so the child ran on the host kernel while the parent ran
+  on the forced one. That made a cross-environment comparison meaningless and
+  produced a *spurious pass*. The dispatch variables are now preserved
+  deliberately: they define the numerical environment under test.
+
 ---
 
 ## 6. V1 → V2 numeric mapping (re-certification scope)

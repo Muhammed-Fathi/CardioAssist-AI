@@ -71,6 +71,16 @@ V2_FIXTURE_PATH: Final[Path] = (
 V2_PACK_SHA256: Final[str] = (
     "UNPINNED_CANDIDATE_PACK_DO_NOT_USE_AS_A_GATE"
 )
+# The digests actually observed for a fresh generation, keyed by OpenBLAS kernel
+# class. Class A is every measured kernel except the three in class B
+# (Sandybridge / Prescott / Katmai). Two classes exist because generation is an
+# exact function of the reference's *inputs*, and the float64 sklearn `gemv`
+# upstream of that feed is not portable — see §4-§5 of the V2 protocol.
+# This is an observation, not a gate: nothing in production or CI branches on it.
+V2_OBSERVED_PACK_DIGESTS: Final[dict[str, str]] = {
+    "b74f781d7c7839a33c3693e53511ac4d200b8bcf5b0a38526e9a9e2b657595f2": "class-a",
+    "3df8de9499e0eaafd47735462f71b75fee4941487a6d36b3a856478486789568": "class-b",
+}
 # The case inventory is part of the contract. Pinning it makes a *removed* case
 # fail closed even though a shorter pack is still internally consistent — the
 # failure mode that a pure digest cannot catch when the digest is unpinned.
