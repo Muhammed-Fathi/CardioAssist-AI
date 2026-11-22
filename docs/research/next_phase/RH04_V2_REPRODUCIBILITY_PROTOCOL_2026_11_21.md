@@ -251,39 +251,65 @@ failure*: capture the child's return code and signal name, and report
 `D-V2-2`, and it is deliberately **not** implemented here (the test lives in the
 merged PR #136 surface and changing it is a separate authorized step).
 
-### 5.5 What the hosted CI runner actually is — resolved
+### 5.5 RETRACTED — my earlier claim that the hosted runner is class B
 
-The first revision of the V2 suite was red on this PR's own CI, on **both 3.11
-and 3.12**, while passing locally in exactly the same pinned wheel set. The cause
-is measured, not guessed:
+An earlier revision of this section asserted that the hosted CI runner is V2
+"class B", inferred from a *local* forced-`Sandybridge` run that produced the same
+2 failures and 10 errors as the hosted job. **That inference was wrong**, and it
+is retracted rather than edited away.
 
-| Observation | Value |
+The independent reviewer supplied the actual hosted digests, and they settle it:
+
+| Hosted job | V2 pack digest | Reproduced locally by |
+|---|---|---|
+| Python 3.12 | `0a8bd8a6…05c0bd` | class A **plus** `python_version = 3.12.16` — **exact match** |
+| Python 3.11 | `84179f83…4a4b57` | **nothing I can produce** — a third, unreproduced outcome |
+
+Because the digest is a SHA-256 over a canonical document, the 3.12 match forces
+the conclusion that **every one of the 29 expected cases on the hosted Python 3.12
+runner was bit-identical to this host.** That runner is not class B. The
+`0a8bd8a6…` equality is proof; the earlier "class B" claim was inference.
+
+Two corrections follow, and both were my error:
+
+1. **`platform.python_version()` sat inside the digested document.** That is why
+   3.12 errored on nine tests despite producing a bit-identical numerical
+   reference. A bit-identical result was converted into a failure by metadata.
+2. **The Python 3.11 failure is a different phenomenon.** Its payload is not
+   class A and not class B; it is a third outcome I have not reproduced. Its
+   failure list also includes `[SkylakeX]` with a `JSONDecodeError` I never
+   observed locally — a *signal death*, not numerical drift.
+
+Full reconstruction, including the metadata-only experiment and the failure-count
+arithmetic that localises the 3.11 divergence, is in
+`RH04_V2_P0_RECONSTRUCTION_2026_11_21.md`.
+
+### 5.6 What survives from the A/B work, and what does not
+
+**Survives (still true, still useful):** running `main` with *no V2 code at all*
+under a forced class-B dispatch reproduces `test_golden_replay` failing plus ten
+cascading `test_rh04_report_assembly.py` errors. A pre-existing kernel sensitivity
+in the V1 gate genuinely exists.
+
+**Does not survive:** the claim that this explains the hosted PR #138 red. It
+does not. The hosted 3.12 job had a bit-identical numerical payload and failed for
+a metadata reason entirely of my making, and the hosted 3.11 job failed for a
+third reason not yet identified.
+
+Corrected attribution of the hosted failures:
+
+| Hosted failure | Attribution |
 |---|---|
-| Local host kernel | `SkylakeX` (class A) → digest `b74f781d…` |
-| Hosted runner, inferred | **class B** → digest `3df8de94…` |
-| Group-B reproduction, local | `OPENBLAS_CORETYPE=Sandybridge` reproduces class B **exactly** |
-| Suite under a forced class-B dispatch | **41 passed** |
+| 9 V2 errors on 3.12 | **mine** — interpreter metadata inside the gated digest |
+| 9 V2 errors on 3.11 | **mine**, plus an unexplained numerical difference |
+| `[SkylakeX]` `JSONDecodeError` on 3.11 | **pre-existing test**, mechanism not yet captured (see the classifier proposal) |
+| `test_golden_replay` + report-assembly errors | **pre-existing** V1 kernel sensitivity |
 
-The runner is not broken and the candidate is not wrong: the hosted runners land
-in **class B**, and the suite had hardcoded *"every host generates class A"* — a
-claim this document's own §5 already contradicted. **CI was right and the test
-was wrong.**
+The earlier statement "a bit-identical numerical result is not a failure" remains
+the single most important lesson, and it is now enforced by tests rather than by
+prose.
 
-Consequences for the contract, and they are load-bearing:
-
-1. **The V2 candidate is exact per host class, not universally.** A generation is
-   byte-stable on repeat and exact for every fit input it receives, but two host
-   classes exist because the float64 `gemv` feeding the fit differs.
-2. `--check` therefore **fails closed** on a class-B host against a class-A
-   fixture. That is correct under a zero-tolerance rule, and the suite now
-   asserts exactly that rather than assuming class A.
-3. A scoped exact gate (`D-V2-3` option b) must be scoped **per host class**,
-   never across all runners. This is the strongest available argument for
-   option (a), observe-only, as the immediate step.
-4. `V2-04`'s "*≥ 3 dispatch × {3.11, 3.12}*" requirement must record the
-   **class** of each measurement, not just pass/fail.
-
-Two secondary findings from the same episode, both real:
+### 5.7 Two secondary findings from the same episode, both real
 
 * The CI's `pytest -W error` caught a genuine file-handle leak in the audit
   `--compare` CLI (`open(...).read()` without a context manager) that local runs
@@ -344,8 +370,11 @@ Enforced by tests too (`test_v1_frozen_pack_digest_is_unchanged`,
 `test_v1_strict_comparator_is_type_exact`,
 `test_no_production_module_imports_the_v2_candidate`).
 
-The candidate V2 pack is **not** a gate: `V2_PACK_SHA256` is the literal
-`"UNPINNED_CANDIDATE_PACK_DO_NOT_USE_AS_A_GATE"`. Its content digest is
+The candidate V2 pack is **not** a gate: `V2_SEMANTIC_SHA256` is the literal
+`"UNPINNED_CANDIDATE_PACK_DO_NOT_USE_AS_A_GATE"`. Only the **semantic** tier may
+ever be pinned; the artifact tier exists for transit integrity and folds in
+interpreter metadata, which is precisely the defect that made hosted Python 3.12
+fail on a bit-identical reference (§5.5). Its content digest is
 `b74f781d7c7839a33c3693e53511ac4d200b8bcf5b0a38526e9a9e2b657595f2`.
 
 ---
@@ -468,7 +497,7 @@ tolerances, the default solver, `.github/workflows/**`, and PR #137.
 ## 12. What would make V2 certifiable
 
 1. `D-V2-1` accepted (scope + re-certification of §6) → record in `docs/DECISIONS.md`.
-2. `D-V2-3(b)` chosen → pin `V2_PACK_SHA256` and add the supported-class
+2. `D-V2-3(b)` chosen → pin `V2_SEMANTIC_SHA256` and add the supported-class
    declaration to `declared_protocol()`.
 3. Cross-environment evidence on the *pinned* digest: ≥3 dispatch classes ×
    {3.11, 3.12} on Linux (this document has 3.11 × 17 classes; 3.12 is `EV-11`)

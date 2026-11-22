@@ -23,6 +23,7 @@ was the mistake that made the first revision of this suite red on CI.
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import json
 import math
@@ -38,6 +39,7 @@ from ai import calibration as calibration_module
 from ai.errors import CalibrationIntegrityError
 from research.intake import offline_fixture_pack as v1
 from research.intake import rh04_v2_candidate as candidate
+from research.intake import rh04_v2_deterministic_upstream as upstream
 from research.intake import rh04_v2_portability_audit as audit
 from research.intake import rh04_v2_reference_fit as reference
 
@@ -108,7 +110,15 @@ def test_no_production_module_imports_the_v2_candidate():
 
 
 def test_candidate_pack_is_not_a_gate_digest():
-    assert candidate.V2_PACK_SHA256.startswith("UNPINNED")
+    """The candidate must not be usable as an acceptance gate yet.
+
+    The sentinel moved from ``V2_PACK_SHA256`` (artifact tier, which folded
+    interpreter metadata into the gate) to ``V2_SEMANTIC_SHA256`` (the tier that
+    is actually gate-worthy). Both are unpinned here on purpose: pinning is an
+    owner decision that follows ratification of `D-V2-1`.
+    """
+    assert candidate.V2_SEMANTIC_SHA256.startswith("UNPINNED")
+    assert not hasattr(candidate, "V2_PACK_SHA256")
 
 
 # --------------------------------------------------------------------------- #
@@ -384,53 +394,62 @@ def test_reference_module_makes_no_blas_call_indirectly():
 
 
 @pytest.fixture(scope="module")
-def host_generation() -> dict:
-    """One generation (≈90 s), plus the host class it lands in."""
-    from threadpoolctl import threadpool_info
+def generated_pack() -> dict:
+    """One real generation (≈90 s), shared by every structural test.
 
-    pack = candidate.generate_candidate_pack()
-    digest = candidate.pack_digest(pack)
-    if digest not in candidate.V2_OBSERVED_PACK_DIGESTS:
-        raise AssertionError(
-            f"pack digest {digest} is not one of the observed classes "
-            f"{candidate.V2_OBSERVED_PACK_DIGESTS}; a new class is a finding, "
-            "not a test failure to update blindly"
-        )
-    kernels = [
-        item.get("architecture") for item in threadpool_info() or []
-    ]
-    return {"pack": pack, "digest": digest, "kernels": kernels}
+    There is deliberately **no digest allowlist here**. An earlier revision
+    raised unless the complete pack digest was one of two recorded values, which
+    conflated three different questions and made a bit-identical numerical result
+    fail on a different interpreter: the digested document contained
+    ``platform.python_version()``. Measured consequence — the hosted Python 3.12
+    run produced all 29 cases bit-identically to this host and still errored on
+    nine tests.
 
-
-@pytest.fixture(scope="module")
-def generated_pack(host_generation) -> dict:
-    """Backwards-compatible alias for the structural tests."""
-    return host_generation["pack"]
-
-
-def test_generate_and_validate_round_trip_is_exact(host_generation, generated_pack):
-    """A fresh generation must be byte-stable for *this* host, and re-validate.
-
-    The assertion is deliberately host-relative. Demanding one fixed digest
-    would silently assume the runner is class A, which is exactly the false
-    assumption that made the first revision of this suite red on CI (the hosted
-    runner is class B).
+    Identity is now tiered (``semantic_digest`` / ``provenance_digest`` /
+    ``artifact_digest``). A figure is only ever gate-worthy at the semantic tier,
+    so that is what the assertions below use.
     """
-    assert len(generated_pack["cases"]) == 29
-    first = host_generation["digest"]
-    assert first in candidate.V2_OBSERVED_PACK_DIGESTS
-    # Same host, same content: regeneration must reproduce the digest exactly.
-    assert candidate.pack_digest(candidate.generate_candidate_pack()) == first
-    assert candidate.validate(generated_pack, replay=False) == 29
+    return candidate.generate_candidate_pack()
 
 
-def test_committed_candidate_belongs_to_an_observed_class():
-    """The committed pack must be one of the two measured classes, no more."""
+def test_generation_is_semantically_identical_to_the_committed_candidate(
+    generated_pack,
+):
+    """A fresh generation must match the committed *semantic* reference.
+
+    This is the real invariant: protocol, bindings, requests and all 29 expected
+    responses. It is host-independent by construction and must hold on every
+    supported interpreter, OS and BLAS kernel.
+    """
     committed = json.loads(candidate.V2_FIXTURE_PATH.read_text())
-    assert candidate.pack_digest(committed) in candidate.V2_OBSERVED_PACK_DIGESTS
-    assert candidate.pack_digest(committed) == (
-        "b74f781d7c7839a33c3693e53511ac4d200b8bcf5b0a38526e9a9e2b657595f2"
+    want = candidate.semantic_digest(committed)
+    got = candidate.semantic_digest(generated_pack)
+    if got != want:
+        observed = candidate.V2_OBSERVED_SEMANTIC_DIGESTS
+        this_class = observed.get(got, "PREVIOUSLY-UNOBSERVED")
+        that_class = observed.get(want, "PREVIOUSLY-UNOBSERVED")
+        pytest.fail(
+            "this host does not reproduce the committed semantic reference.\n"
+            f"  committed class : {that_class} ({want})\n"
+            f"  this host class : {this_class} ({got})\n"
+            "This is a PORTABILITY finding, not a metadata artifact and not a\n"
+            "regression: the numerical reference genuinely differs on this host.\n"
+            "It must stay failing; do not add the digest to an allowlist."
+        )
+    assert len(generated_pack["cases"]) == 29
+
+
+def test_generation_is_byte_stable_within_one_interpreter(generated_pack):
+    """Two generations in the same process must agree bit for bit.
+
+    This is a *determinism* claim about the reference given fixed inputs. It is
+    intentionally distinct from the cross-host claim above; conflating the two is
+    what made the previous revision fail on Python 3.12.
+    """
+    assert candidate.pack_digest(candidate.generate_candidate_pack()) == (
+        candidate.pack_digest(generated_pack)
     )
+    assert candidate.validate(generated_pack, replay=False) == 29
 
 
 def test_a_one_ulp_edit_to_a_v2_expected_value_fails_validation(generated_pack):
@@ -648,31 +667,39 @@ def cold_check_result():
 
 
 def test_cold_process_check_mode_replays_the_committed_candidate(
-    cold_check_result, host_generation
+    cold_check_result, generated_pack
 ):
     """``--check`` in a fresh interpreter must replay exactly — or fail closed.
 
-    The committed candidate was generated on a class-A host. On such a host this
-    must be an exact replay. On any other host the *correct* behaviour is a
-    fail-closed refusal naming the differing field, because the V2 reference has
-    zero tolerance and generation depends on the upstream float64 `gemv`.
+    Selection is on the **semantic** digest, so a different interpreter, OS or
+    BLAS build does not change the branch taken — only genuinely different
+    numerical content does. On a host that reproduces the reference this must be
+    an exact replay; on any other host the correct behaviour is a fail-closed
+    refusal naming the differing field, because the V2 reference has zero
+    tolerance.
 
     What is never acceptable — and is asserted here — is a silent pass on a host
     that does not reproduce the committed bytes, or a crash instead of a
     diagnosis.
     """
     result = cold_check_result
-    committed_digest = candidate.pack_digest(
-        json.loads(candidate.V2_FIXTURE_PATH.read_text())
+    committed = json.loads(candidate.V2_FIXTURE_PATH.read_text())
+    reproduces = candidate.semantic_digest(generated_pack) == (
+        candidate.semantic_digest(committed)
     )
-    reproduces = host_generation["digest"] == committed_digest
 
     if reproduces:
         assert result.returncode == 0, result.stderr[-3000:]
         payload = json.loads(result.stdout)
         assert payload["status"] == "EXACT_REPLAY"
         assert payload["cases"] == 29
-        assert payload["pack_sha256"] == committed_digest
+        # The reported identity is the semantic tier, not the raw artifact.
+        assert payload["identity"]["semantic_digest"] == (
+            candidate.semantic_digest(committed)
+        )
+        assert payload["identity"]["identity_version"] == (
+            candidate.V2_IDENTITY_VERSION
+        )
     else:
         # Fail closed, with a redacted diagnosis rather than a traceback dump.
         assert result.returncode != 0, (
@@ -683,3 +710,226 @@ def test_cold_process_check_mode_replays_the_committed_candidate(
         assert "redacted_field_diff" in result.stderr
         # The diff must name a field but must never leak a value.
         assert "calibrated_log_odds" in result.stderr
+
+
+# --------------------------------------------------------------------------- #
+# 7. Reference identity: five tiers, and what each one protects
+# --------------------------------------------------------------------------- #
+#
+# These tests exist because of a measured defect: the previous design folded
+# ``platform.python_version()`` into the single gated digest, so a *bit-identical*
+# numerical reference failed on a different interpreter (hosted Python 3.12
+# produced all 29 cases identically). Each test below pins one tier.
+
+
+def _committed() -> dict:
+    return json.loads(candidate.V2_FIXTURE_PATH.read_text())
+
+
+def test_identity_has_exactly_five_tiers():
+    described = candidate.describe_identity(_committed())
+    assert set(described) == {
+        "semantic_digest",
+        "provenance_digest",
+        "artifact_digest",
+        "environment",
+        "identity_version",
+    }
+    assert described["identity_version"] == "rh04.v2.reference-identity/v2"
+
+
+@pytest.mark.parametrize("version", ["3.9.1", "3.11.2", "3.11.18", "3.12.16", "3.13.0"])
+def test_metadata_only_change_never_moves_the_semantic_digest(version):
+    """A different interpreter is not a different reference."""
+    pack = _committed()
+    before_semantic = candidate.semantic_digest(pack)
+    before_artifact = candidate.pack_digest(pack)
+    original = pack["generation"]["python_version"]
+    pack["generation"]["python_version"] = version
+    assert candidate.semantic_digest(pack) == before_semantic
+    # The raw artifact digest must still bind provenance: same bytes for the same
+    # version, different bytes for a different one.
+    assert (candidate.pack_digest(pack) == before_artifact) == (version == original)
+
+
+def test_metadata_only_change_is_visible_in_provenance_and_environment():
+    pack = _committed()
+    before = candidate.provenance_digest(pack)
+    pack["generation"]["python_version"] = "3.12.16"
+    assert candidate.provenance_digest(pack) != before
+    assert candidate.environment_metadata(pack)["python_version"] == "3.12.16"
+
+
+def test_environment_metadata_is_never_part_of_the_semantic_digest():
+    """Structural proof, independent of any particular value."""
+    pack = _committed()
+    semantic = candidate.semantic_digest(pack)
+    metadata = candidate.environment_metadata(pack)
+    assert metadata, "the committed candidate must record its environment"
+    # Perturb every metadata field to a sentinel and require no semantic change.
+    for key in metadata:
+        pack["generation"][key] = "__perturbed__"
+    assert candidate.semantic_digest(pack) == semantic
+
+
+@pytest.mark.parametrize(
+    "section",
+    ["schema_version", "protocol", "bindings", "requests", "cases"],
+)
+def test_every_protected_section_changes_the_semantic_digest(section):
+    """Each contractual category must be covered by the canonical digest."""
+    pack = _committed()
+    before = candidate.semantic_digest(pack)
+    if section == "schema_version":
+        pack[section] = pack[section] + ".tampered"
+    elif section == "protocol":
+        pack[section] = dict(pack[section])
+        pack[section]["protocol_id"] = "tampered"
+    elif section == "bindings":
+        key = sorted(pack[section])[0]
+        pack[section] = dict(pack[section])
+        pack[section][key] = "tampered"
+    elif section == "requests":
+        key = sorted(pack[section])[0]
+        pack[section] = dict(pack[section])
+        pack[section][key] = {"tampered": True}
+    else:  # cases
+        pack[section] = copy.deepcopy(pack[section])
+        pack[section][0]["expected"]["status"] = "TAMPERED"
+    assert candidate.semantic_digest(pack) != before, section
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda c: c[0].__setitem__("id", "renamed"),
+        lambda c: c[0]["edits"].append({"op": "tampered"}),
+        lambda c: c[0]["expected"]["outcomes"][0]["score"].__setitem__(
+            "calibrated_log_odds", 1.0
+        ),
+        lambda c: c[0].__setitem__("route", "tampered"),
+        lambda c: c.reverse(),
+    ],
+    ids=["renamed", "edits", "expected-score", "route", "reordered"],
+)
+def test_case_level_tampering_changes_the_semantic_digest(mutate):
+    pack = _committed()
+    before = candidate.semantic_digest(pack)
+    pack["cases"] = copy.deepcopy(pack["cases"])
+    mutate(pack["cases"])
+    assert candidate.semantic_digest(pack) != before
+
+
+def test_validate_gates_on_the_semantic_tier_not_the_artifact():
+    """A pack that differs only in provenance must still validate structurally."""
+    pack = _committed()
+    pack["generation"]["python_version"] = "3.12.16"
+    assert candidate.validate(pack, replay=False) == 29
+
+
+def test_validate_rejects_a_semantic_change_even_with_correct_metadata():
+    """A pinned *semantic* digest catches an edited expected value.
+
+    ``replay=False`` alone deliberately does not inspect expected responses — it
+    is the structural half. The pin is what makes an edit fail closed without
+    paying for a 90 s replay, so that is what this test pins.
+    """
+    committed = _committed()
+    pinned = candidate.semantic_digest(committed)
+    pack = copy.deepcopy(committed)
+    pack["generation"]["python_version"] = "3.12.16"  # irrelevant, by design
+    pack["cases"][0]["expected"]["status"] = "TAMPERED"
+    # Structurally the pack is still fine...
+    assert candidate.validate(pack, replay=False) == 29
+    # ... but it no longer matches the pinned semantic reference.
+    assert candidate.semantic_digest(pack) != pinned
+    with pytest.raises(ValueError, match="semantic content changed"):
+        candidate.validate(pack, replay=False, expected_digest=pinned)
+
+
+def test_there_is_no_host_digest_allowlist_left():
+    """The allowlist was the defect; it must not quietly return."""
+    source = Path(candidate.__file__).read_text()
+    assert "V2_OBSERVED_PACK_DIGESTS" not in source
+    assert "V2_OBSERVED_SEMANTIC_DIGESTS" in source
+
+
+# --------------------------------------------------------------------------- #
+# 8. Deterministic upstream candidate (synthetic only)
+# --------------------------------------------------------------------------- #
+#
+# Measured motivation: sklearn's L-BFGS-B fit moves 11 of 12 coefficients between
+# kernels, so replacing the accumulation method cannot make scoring portable.
+# These tests pin the one thing that *is* host-invariant, and pin the negative
+# result so nobody "fixes" it by swapping in fsum again.
+
+
+def _fixed_problem():
+    rng = np.random.RandomState(7)
+    rows = [[float(v) for v in r] for r in rng.randn(300, 12)]
+    coefficients = [float(v) for v in rng.randn(12)]
+    return coefficients, rows, 0.25
+
+
+def test_deterministic_upstream_is_a_function_of_its_inputs():
+    coefficients, rows, intercept = _fixed_problem()
+    first = [upstream.score_as_float(s) for s in upstream.exact_linear_scores(
+        coefficients, rows, intercept)]
+    second = [upstream.score_as_float(s) for s in upstream.exact_linear_scores(
+        coefficients, rows, intercept)]
+    assert first == second
+    assert len(first) == 300
+
+
+def test_deterministic_upstream_matches_exact_rational_value():
+    """The returned float must be the correctly rounded exact rational."""
+    from fractions import Fraction
+
+    coefficients, rows, intercept = _fixed_problem()
+    for row in rows[:20]:
+        score = upstream.exact_linear_score(coefficients, row, intercept)
+        assert isinstance(score, Fraction)
+        assert upstream.score_as_float(score) == float(score)
+
+
+def test_deterministic_upstream_declares_no_host_dependent_operations():
+    protocol = upstream.declared_protocol()
+    assert protocol["protocol_id"] == "rh04.v2.exact-linear-score/v1"
+    assert "none" in str(protocol["host_dependent_operations"])
+
+
+def test_deterministic_upstream_refuses_non_finite_inputs():
+    with pytest.raises(ValueError):
+        upstream.exact_linear_score([float("nan")], [1.0], 0.0)
+    with pytest.raises(ValueError):
+        upstream.exact_linear_score([1.0], [float("inf")], 0.0)
+
+
+def test_deterministic_upstream_rejects_length_mismatch():
+    with pytest.raises(ValueError):
+        upstream.exact_linear_score([1.0, 2.0], [1.0], 0.0)
+
+
+def test_accumulation_swap_alone_is_documented_as_insufficient():
+    """Guard the measured negative result against a well-meaning regression.
+
+    ``fsum`` is *not* a portability fix: it sums coefficients that a prior stage
+    already made host-dependent. If someone replaces the exact scorer with a
+    compensated float accumulator, the module's declaration must stop claiming
+    exactness — this test fails loudly in that case.
+    """
+    source = Path(upstream.__file__).read_text()
+    assert "fsum" not in source.split("def exact_linear_score")[1].split("def ")[0]
+    assert "Fraction" in source
+
+
+def test_float64_agrees_with_exact_on_the_sign_of_the_score():
+    """Threshold and abstention semantics only need the sign; verify it holds."""
+    import numpy as np
+
+    coefficients, rows, intercept = _fixed_problem()
+    for row in rows:
+        exact = upstream.exact_linear_score(coefficients, row, intercept)
+        naive = float(np.dot(np.asarray(coefficients), np.asarray(row)) + intercept)
+        assert (naive > 0) == (exact > 0) or abs(float(exact)) < 1e-12
+        assert (naive == 0) == (exact == 0) or abs(float(exact)) < 1e-12
