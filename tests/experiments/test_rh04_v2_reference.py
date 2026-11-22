@@ -44,6 +44,7 @@ from research.intake import rh04_v2_deterministic_upstream as upstream
 from research.intake import rh04_v2_model_fit as model_fit
 from research.intake import rh04_v2_child_diagnosis as child_diag
 from research.intake import rh04_v2_integrated_candidate as integrated
+from research.intake import rh04_v2_full_reference as full_reference
 from research.intake import rh04_v2_portability_audit as audit
 from research.intake import rh04_v2_reference_fit as reference
 
@@ -1008,12 +1009,14 @@ def _fit_problem(seed: int = 3, n: int = 40, d: int = 3):
 
 
 def test_model_fit_declares_the_objective_it_actually_minimises():
-    declaration = model_fit.declared_objective()
-    assert declaration["protocol_id"] == "rh04.v2.decimal-model-fit/v1"
+    declaration = model_fit.declared_objective(model_fit.PROFILE_CLEVELAND)
+    assert declaration["protocol_id"] == "rh04.v2.decimal-model-fit/v2"
     assert "penalised" in str(declaration["intercept_treatment"])
     assert "none" in str(declaration["host_dependent_operations"])
     # The calibration objective must not be silently reused.
-    assert declaration["objective"] != reference.declared_protocol()["objective"]
+    calibration = reference.declared_protocol()
+    calibration_objective = calibration.get("objective") or json.dumps(calibration)
+    assert declaration["objective"] != calibration_objective
 
 
 def test_model_fit_reaches_the_declared_gradient_criterion():
@@ -1032,7 +1035,14 @@ def test_model_fit_matches_an_independent_mpmath_oracle():
 
     Agreement must be at the level of binary64 rounding, not merely "close".
     """
-    mpmath = pytest.importorskip("mpmath")
+    try:
+        import mpmath
+    except ImportError as error:  # pragma: no cover - dependency is declared
+        raise AssertionError(
+            "the independent oracle is required evidence, not an optional extra. "
+            "Install it with: python -m pip install -r "
+            "research/experiments/requirements-oracle.txt"
+        ) from error
     mpmath.mp.dps = 60
     features, labels = _fit_problem()
     fit = model_fit.fit_logistic_decimal(
@@ -1095,9 +1105,23 @@ def test_model_fit_matches_an_independent_mpmath_oracle():
                 break
             scale /= 2
 
+    # The oracle must have converged before its output is trusted. The bound is
+    # derived, not chosen: at 60 significant digits the representable floor is
+    # ~1e-60, and the solver's own stopping test asks for 1e-55. 1e-30 is
+    # therefore four orders of magnitude looser than requested and still 50+
+    # digits tighter than any binary64 claim. (An earlier 1e-50 bound was
+    # unreachable and failed for the right reason: the bound was wrong, not the
+    # oracle.)
+    gw_oracle, gb_oracle = gradient(w, b)
+    residual = max(abs(v) for v in gw_oracle + [gb_oracle])
+    assert residual < mpmath.mpf("1e-30"), f"oracle did not converge: {residual}"
+
+    # Agreement is required at binary64 rounding level, which is far tighter than
+    # the earlier 1e-15 and is the strongest claim available: the reference must
+    # round to the same double as an independent 60-digit solver.
     for index, value in enumerate(fit["coefficients"]):
-        assert abs(mpmath.mpf(value) - w[index]) < mpmath.mpf("1e-15"), index
-    assert abs(mpmath.mpf(fit["intercept"]) - b) < mpmath.mpf("1e-15")
+        assert abs(mpmath.mpf(value) - w[index]) < mpmath.mpf("1e-16"), index
+    assert abs(mpmath.mpf(fit["intercept"]) - b) < mpmath.mpf("1e-16")
 
 
 def test_model_fit_reproduces_across_repeated_calls():
@@ -1367,10 +1391,11 @@ def test_child_diagnosis_accepts_a_well_formed_payload():
     "environment,field_verdict,expected",
     [
         (child_diag.VERIFIED_ENVIRONMENT, child_diag.EXACT_REPLAY, 0),
-        (child_diag.VERIFIED_ENVIRONMENT, child_diag.MISMATCH_FOUND, 1),
+        (child_diag.VERIFIED_ENVIRONMENT, child_diag.EXPECTED_SINGLE_FIELD_DELTAS, 1),
+        (child_diag.VERIFIED_ENVIRONMENT, child_diag.UNEXPECTED_DRIFT, 2),
         (child_diag.VERIFIED_ENVIRONMENT, "UNEXPECTED", 2),
         ("UNVERIFIED_ENVIRONMENT", child_diag.EXACT_REPLAY, 2),
-        ("UNVERIFIED_ENVIRONMENT", child_diag.MISMATCH_FOUND, 2),
+        ("UNVERIFIED_ENVIRONMENT", child_diag.UNEXPECTED_DRIFT, 2),
     ],
 )
 def test_child_diagnosis_exit_code_uses_both_dimensions(
@@ -1397,7 +1422,12 @@ def test_child_diagnosis_does_not_modify_the_merged_classifier_surface():
         text=True,
     )
     if committed.returncode != 0:
-        pytest.skip("git object unavailable in this checkout")
+        raise AssertionError(
+            "required preservation evidence is unavailable: the canonical merged "
+            "test could not be compared against origin/main. This is a hard "
+            "failure, not a skip -- acceptance evidence must never vanish "
+            "silently. Re-run after 'git fetch origin main'."
+        )
     assert sha256(merged.read_bytes()).hexdigest() == sha256(
         committed.stdout.encode()
     ).hexdigest()
@@ -1442,8 +1472,14 @@ def test_integrated_pipeline_digest_is_stable_against_the_recorded_value():
     """Pin the measured digest so an accidental semantic change is visible."""
     features, labels, scoring = _pipeline_problem()
     result = integrated.run_pipeline(features, labels, scoring)
+    # Digest AFTER the calibration-ordering fix and after the corrected
+    # provenance fields were added to the result. History, kept explicit:
+    #   v1  19beafb7...  REVERSED calibration parameters -- incorrect, retained
+    #                    only as historical evidence (never a reference)
+    #   v2a 5ff6ce16...  ordering fixed, before the provenance fields existed
+    #   v2b fb6c87b9...  current
     assert integrated.pipeline_digest(result) == (
-        "19beafb7214c8b2257064cc590c13b9bce523166d7d007e55e389a12f9189951"
+        "fb6c87b9ae0c49e30a01f1671b2e0d2c65cb17e41ab13cd9e1a1b8750e0ecec5"
     )
 
 
@@ -1488,3 +1524,308 @@ def test_integrated_pipeline_fails_closed_on_mismatched_lengths():
     features, labels, scoring = _pipeline_problem()
     with pytest.raises(integrated.IntegratedPipelineError):
         integrated.run_pipeline(features, labels[:-1], scoring)
+
+# --------------------------------------------------------------------------- #
+# 13. Calibration parameter ordering — regression pin for a real defect
+# --------------------------------------------------------------------------- #
+#
+# ``decimal_logistic_fit`` returns ``(a, b)`` with the declared objective
+# ``eta = a + b*logit``: a IS the intercept, b IS the slope. The production
+# contract agrees (``OofLogisticCalibrator.transform_log_odds`` is
+# ``intercept + slope*raw_logits``).
+#
+# The integrated candidate previously unpacked this as ``slope, offset`` and
+# evaluated ``slope*logit + offset`` -- reversed. Every reproducibility test
+# still passed, because a parameter swap does not break determinism. On the
+# recorded 60x5 fixture the error was up to 4.26 in calibrated log-odds
+# (slope 1.1249 was used as 0.0042). These tests are what would have caught it.
+
+
+def test_calibration_return_order_matches_the_declared_objective():
+    """``(a, b)`` is intercept-first, anchored at slope 1 when inputs agree."""
+    from research.intake import rh04_v2_reference_fit as reference_fit
+
+    labels = np.asarray([0.0, 1.0] * 20, dtype=np.float64)
+    # A perfectly calibrated logit: the fit should land near a=0, b=1.
+    logits = np.where(labels == 1.0, 1.2, -1.2)
+    intercept, slope = reference_fit.decimal_logistic_fit(labels, logits)
+    # If the tuple were (slope, intercept) this would be ~1.2 and ~0.
+    assert abs(slope) > 0.2, f"first element is not the intercept: {intercept}"
+    assert abs(intercept) < 0.2, f"second element is not the slope: {slope}"
+
+
+def test_calibration_order_matches_the_production_calibrator():
+    """Pin the order against the real production class, not against prose.
+
+    ``OofLogisticCalibrator.transform_log_odds`` is the authority:
+    ``intercept + slope * raw_logits``. We construct one directly and require the
+    reference fit's tuple to reproduce it when the fitted values are substituted.
+    """
+    from ai.calibration import OofLogisticCalibrator
+    from research.intake import rh04_v2_reference_fit as reference_fit
+
+    generator = np.random.default_rng(4)
+    labels = np.asarray([0.0, 1.0] * 25, dtype=np.float64)
+    logits = generator.normal(0.0, 1.5, size=labels.size)
+    intercept, slope = reference_fit.decimal_logistic_fit(labels, logits)
+
+    probe = np.asarray([-2.0, -0.5, 0.0, 0.75, 2.5], dtype=np.float64)
+    # Construct the real dataclass, so the test uses the production code path and
+    # not a stand-in. It is a dataclass with required fields.
+    calibrator = OofLogisticCalibrator(
+        model_family="l2_logistic_regression",
+        intercept=float(intercept),
+        slope=float(slope),
+        development_prevalence=0.5,
+        n_oof_samples=int(labels.size),
+        oof_brier_before=0.0,
+        oof_brier_after=0.0,
+        status="FITTED_OOF_MONOTONE_LOGISTIC",
+        input_link="exact_raw_log_odds",
+    )
+    production = calibrator.transform_log_odds(probe)
+    expected = intercept + slope * probe
+    # Exact equality: the production transform is a plain affine expression.
+    assert np.array_equal(production, expected)
+
+
+def test_integrated_pipeline_uses_intercept_plus_slope_times_logit():
+    features, labels, scoring = _pipeline_problem()
+    result = integrated.run_pipeline(features, labels, scoring)
+    calibration = result["calibration"]
+    intercept = calibration["intercept"]
+    slope = calibration["slope"]
+    assert calibration["contract"] == "intercept + slope * raw_logit"
+    for raw, recorded in zip(
+        result["raw_logits"], result["calibrated_log_odds"]
+    ):
+        expected = Decimal(intercept) + Decimal(slope) * Decimal(raw)
+        assert abs(Decimal(recorded) - expected) <= abs(expected) * Decimal("1e-25")
+
+
+def test_integrated_pipeline_rejects_the_reversed_ordering():
+    """The historical reversed digest must not reappear as a valid result."""
+    features, labels, scoring = _pipeline_problem()
+    result = integrated.run_pipeline(features, labels, scoring)
+    digest = integrated.pipeline_digest(result)
+    assert digest != "19beafb7214c8b2257064cc590c13b9bce523166d7d007e55e389a12f9189951"
+    # Historical evidence must stay recorded and must stay distinct.
+    assert integrated.HISTORICAL_REVERSED_PIPELINE_DIGEST == (
+        "19beafb7214c8b2257064cc590c13b9bce523166d7d007e55e389a12f9189951"
+    )
+
+# --------------------------------------------------------------------------- #
+# 14. Two source-specific objectives (P0-02)
+# --------------------------------------------------------------------------- #
+
+
+def test_both_profiles_are_declared_and_differ_in_intercept_treatment():
+    cleveland = model_fit.declared_objective(model_fit.PROFILE_CLEVELAND)
+    generic = model_fit.declared_objective(model_fit.PROFILE_GENERIC)
+    assert cleveland["intercept_treatment"] == "penalised"
+    assert generic["intercept_treatment"] == "unpenalised"
+    assert cleveland["sklearn_solver"] == "liblinear"
+    assert generic["sklearn_solver"] == "lbfgs"
+    # The objectives must not be interchangeable.
+    assert cleveland["objective"] != generic["objective"]
+
+
+def test_unknown_profile_is_refused_rather_than_defaulted():
+    features, labels = _fit_problem(n=20)
+    rows = [[float(v) for v in row] for row in features]
+    with pytest.raises(model_fit.ModelFitError, match="unknown execution profile"):
+        model_fit.fit_logistic_decimal(rows, [int(v) for v in labels], c_value=1.0,
+                                       profile="SOME_OTHER_PROFILE")
+    with pytest.raises(model_fit.ModelFitError):
+        model_fit.declared_objective("SOME_OTHER_PROFILE")
+
+
+@pytest.mark.parametrize("profile", ["CLEVELAND_D047_FROZEN_V1", "AI1_GENERIC_V1"])
+def test_each_profile_reproduces_its_own_pinned_sklearn_solver(profile):
+    """Cleveland is verified against liblinear, generic against lbfgs.
+
+    The two solvers must not be swapped: that is the defect P0-02 identified.
+    """
+    from sklearn.linear_model import LogisticRegression
+
+    features, labels = _fit_problem()
+    solver = "liblinear" if profile == model_fit.PROFILE_CLEVELAND else "lbfgs"
+    kwargs = dict(penalty="l2", C=1.0, solver=solver, tol=1e-12, max_iter=5000,
+                  random_state=0)
+    if solver == "liblinear":
+        kwargs["class_weight"] = None
+    reference_model = LogisticRegression(**kwargs).fit(features, labels)
+
+    fit = model_fit.fit_logistic_decimal(
+        [[float(v) for v in row] for row in features],
+        [int(v) for v in labels],
+        c_value=1.0,
+        profile=profile,
+    )
+    for got, want in zip(fit["coefficients"], reference_model.coef_.ravel()):
+        # sklearn stops at its own tol; agreement near 1e-7 is expected.
+        assert abs(got - float(want)) < 1e-6, (profile, got, want)
+    assert abs(fit["intercept"] - float(reference_model.intercept_[0])) < 1e-6
+
+
+def test_profiles_produce_different_intercepts_on_the_same_data():
+    """If the intercept treatment is implemented, the fits must actually differ."""
+    features, labels = _fit_problem()
+    rows = [[float(v) for v in row] for row in features]
+    exemplars = [int(v) for v in labels]
+    cleveland = model_fit.fit_logistic_decimal(rows, exemplars, c_value=1.0,
+                                               profile=model_fit.PROFILE_CLEVELAND)
+    generic = model_fit.fit_logistic_decimal(rows, exemplars, c_value=1.0,
+                                             profile=model_fit.PROFILE_GENERIC)
+    assert cleveland["intercept"] != generic["intercept"]
+
+
+def test_model_fit_refuses_non_finite_c():
+    features, labels = _fit_problem(n=20)
+    rows = [[float(v) for v in row] for row in features]
+    exemplars = [int(v) for v in labels]
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        with pytest.raises(model_fit.ModelFitError):
+            model_fit.fit_logistic_decimal(rows, exemplars, c_value=bad)
+
+
+def test_model_fit_refuses_on_iteration_exhaustion():
+    features, labels = _fit_problem(n=20)
+    rows = [[float(v) for v in row] for row in features]
+    exemplars = [int(v) for v in labels]
+    with pytest.raises(model_fit.ModelFitError, match="did not converge"):
+        model_fit.fit_logistic_decimal(rows, exemplars, c_value=1.0,
+                                       max_iterations=1)
+
+
+# --------------------------------------------------------------------------- #
+# 15. Child-diagnostic exit policy against the real classifier (P0-04)
+# --------------------------------------------------------------------------- #
+
+
+def test_child_diagnosis_exit_policy_agrees_with_the_real_classifier():
+    """Compare the helper to ``rh04_environment_class.exit_code`` on the grid.
+
+    This is the check that would have caught mapping MISMATCH_FOUND to 1.
+    """
+    from research.intake import rh04_environment_class as classifier
+
+    environments = [classifier.VERIFIED_ENVIRONMENT, classifier.UNVERIFIED_ENVIRONMENT]
+    fields = [
+        classifier.EXACT_REPLAY,
+        classifier.EXPECTED_SINGLE_FIELD_DELTAS,
+        classifier.UNEXPECTED_DRIFT,
+        classifier.INVALID_DIAGNOSTIC,
+        classifier.DIAGNOSTIC_REFUSED,
+        "UNEXPECTED_VALUE",
+    ]
+    for environment in environments:
+        for field_verdict in fields:
+            payload = {
+                "environment_verdict": environment,
+                "field_verdict": field_verdict,
+                "environment": {},
+            }
+            assert child_diag.expected_exit_code(environment, field_verdict) == (
+                classifier.exit_code(payload)
+            ), (environment, field_verdict)
+
+
+def test_child_diagnosis_rejects_invalid_schema_beyond_presence():
+    base = {
+        "environment_verdict": child_diag.VERIFIED_ENVIRONMENT,
+        "field_verdict": child_diag.EXACT_REPLAY,
+        "environment": {},
+    }
+    invalid = [
+        dict(base, environment_verdict=123),
+        dict(base, field_verdict=None),
+        dict(base, environment="not-a-dict"),
+        dict(base, environment_verdict="NOT_A_REAL_VERDICT"),
+        dict(base, field_verdict="NOT_A_REAL_VERDICT"),
+    ]
+    for payload in invalid:
+        kind, parsed = child_diag.classify_child(
+            _outcome(stdout=json.dumps(payload))
+        )
+        assert kind == child_diag.KIND_INVALID_SCHEMA, payload
+        assert parsed is None
+
+
+def test_child_diagnosis_rejects_an_inconsistent_return_code():
+    """A signal-less non-zero exit with valid JSON is still not a clean outcome.
+
+    The verdict payload may parse, but a nonzero exit means the child itself
+    reported failure; the caller must not silently accept the payload.
+    """
+    payload = {
+        "environment_verdict": child_diag.VERIFIED_ENVIRONMENT,
+        "field_verdict": child_diag.EXACT_REPLAY,
+        "environment": {},
+    }
+    kind, _ = child_diag.classify_child(
+        _outcome(returncode=1, stdout=json.dumps(payload))
+    )
+    # It parses; the *exit code* is what must be checked against the verdict.
+    assert kind == child_diag.KIND_PARSED
+    assert child_diag.expected_exit_code(
+        payload["environment_verdict"], payload["field_verdict"]
+    ) != 1
+
+
+# --------------------------------------------------------------------------- #
+# 16. Full 29-case reference candidate (P0-03)
+# --------------------------------------------------------------------------- #
+
+
+_CANDIDATE_CACHE: dict[str, dict] = {}
+
+
+def _candidate_pack() -> dict:
+    """One real 29-case generation (~2 min), shared by the full-reference tests."""
+    if "pack" not in _CANDIDATE_CACHE:
+        _CANDIDATE_CACHE["pack"] = full_reference.generate_full_reference()
+    return _CANDIDATE_CACHE["pack"]
+
+
+def test_full_reference_declares_what_it_does_not_do():
+    declared = full_reference.declared_reference()
+    assert declared["sentinel"] == full_reference.FULL_REFERENCE_SENTINEL
+    assert declared["model_fit_verification"]["replaces_production_fit"] is False
+    assert declared["out_of_fold_calibration_preserved"] is True
+    assert declared["model_selection_preserved"] is True
+    assert declared["copied_expected_responses"] is False
+
+
+def test_full_reference_semantic_identity_includes_the_declaration():
+    """A changed algorithm declaration must move the semantic digest."""
+    pack = _candidate_pack()
+    before = full_reference.semantic_digest(pack)
+    mutated = copy.deepcopy(pack)
+    mutated["declared"]["calibration"]["protocol_id"] = "something-else"
+    assert full_reference.semantic_digest(mutated) != before
+
+
+def test_full_reference_rejects_a_missing_sentinel():
+    pack = _candidate_pack()
+    stripped = copy.deepcopy(pack)
+    stripped["declared"]["sentinel"] = "PINNED"
+    with pytest.raises(ValueError, match="sentinel|declaration drift"):
+        full_reference.validate(stripped, replay=False)
+
+
+def test_full_reference_rejects_unknown_fields_and_edit_drift():
+    pack = _candidate_pack()
+    extra = copy.deepcopy(pack)
+    extra["surprise"] = 1
+    with pytest.raises(ValueError, match="unknown field"):
+        full_reference.validate(extra, replay=False)
+    drifted = copy.deepcopy(pack)
+    drifted["cases"][0]["edits"] = list(drifted["cases"][0]["edits"]) + [{"op": "set"}]
+    with pytest.raises(ValueError, match="edit drift"):
+        full_reference.validate(drifted, replay=False)
+
+
+def test_full_reference_structural_validation_passes():
+    pack = _candidate_pack()
+    assert full_reference.validate(pack, replay=False) == 29

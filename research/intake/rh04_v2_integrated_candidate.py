@@ -46,7 +46,14 @@ from research.intake import rh04_v2_deterministic_upstream as upstream
 from research.intake import rh04_v2_model_fit as model_fit
 from research.intake import rh04_v2_reference_fit as reference_fit
 
-INTEGRATED_CANDIDATE_ID: Final[str] = "rh04.v2.integrated-pipeline/v1"
+INTEGRATED_CANDIDATE_ID: Final[str] = "rh04.v2.integrated-pipeline/v2"
+
+#: Digest produced by the v1 candidate, which unpacked the calibration tuple as
+#: ``(slope, offset)`` and therefore evaluated a reversed affine map. Retained as
+#: historical evidence of an incorrect implementation. NEVER a reference.
+HISTORICAL_REVERSED_PIPELINE_DIGEST: Final[str] = (
+    "19beafb7214c8b2257064cc590c13b9bce523166d7d007e55e389a12f9189951"
+)
 #: The evaluation threshold used by production (`ai/inference.py`:681) — the
 #: calibrated research score is compared with `>=` against this value.
 RESEARCH_THRESHOLD: Final[Decimal] = Decimal("0.5")
@@ -115,13 +122,21 @@ def run_pipeline(
     )
     train_logits = [upstream.score_as_float(score) for score in train_scores]
 
-    # ``decimal_logistic_fit`` takes *labels* and *raw logits*, not probabilities:
-    # it is the production calibration contract, and passing probabilities would
-    # be a different (and rejected) problem. It returns a plain (slope, offset)
-    # tuple of binary64 parameters.
+    # ``decimal_logistic_fit`` takes *labels* and *raw logits*, not probabilities.
+    # It returns ``(a, b)`` where the declared objective is ``eta = a + b*logit``,
+    # i.e. **a is the intercept and b is the slope**. The production contract
+    # agrees: ``OofLogisticCalibrator.transform_log_odds`` is
+    # ``self.intercept + self.slope * raw_logits``.
+    #
+    # An earlier revision unpacked this as ``slope, offset`` and then evaluated
+    # ``slope * logit + offset`` -- reversed. The bug was invisible because the
+    # pipeline is still deterministic when its parameters are swapped, so all
+    # reproducibility tests passed. It produced digest ``19beafb7...``, which is
+    # retained as historical evidence of the incorrect implementation and must
+    # never be treated as a reference.
     import numpy as np
 
-    slope, offset = reference_fit.decimal_logistic_fit(
+    offset, slope = reference_fit.decimal_logistic_fit(
         np.asarray([float(v) for v in labels], dtype=np.float64),
         np.asarray(train_logits, dtype=np.float64),
         l2_anchor=Decimal(_decimal_text(l2_anchor)),
@@ -155,7 +170,12 @@ def run_pipeline(
             "iterations": fit["iterations"],
             "gradient_inf_norm": fit["gradient_inf_norm"],
         },
-        "calibration": {"slope": slope, "intercept": offset},
+        "calibration": {
+            "slope": slope,
+            "intercept": offset,
+            "ordering": "intercept-first (a, b) per the declared objective",
+            "contract": "intercept + slope * raw_logit",
+        },
         "raw_logits": raw_logits,
         "calibrated_log_odds": calibrated_log_odds,
         "calibrated_research_scores": calibrated_scores,

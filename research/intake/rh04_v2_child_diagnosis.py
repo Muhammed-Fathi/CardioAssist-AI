@@ -37,8 +37,16 @@ from typing import Any, Final, Mapping
 #: The existing classifier's verdict tokens (mirrored, not imported, so this
 #: module cannot drag the production classifier into a test-only path).
 VERIFIED_ENVIRONMENT: Final[str] = "VERIFIED_ENVIRONMENT"
+UNVERIFIED_ENVIRONMENT: Final[str] = "UNVERIFIED_ENVIRONMENT"
 EXACT_REPLAY: Final[str] = "EXACT_REPLAY"
-MISMATCH_FOUND: Final[str] = "MISMATCH_FOUND"
+#: The canonical classifier's *classified* delta verdict. An earlier revision of
+#: this helper mapped ``MISMATCH_FOUND`` to exit 1, which is wrong: exit 1 means
+#: "these deltas are the documented ones", not "something mismatched".
+EXPECTED_SINGLE_FIELD_DELTAS: Final[str] = "EXPECTED_SINGLE_FIELD_DELTAS"
+#: Mirrors ``rh04_environment_class.UNEXPECTED_DRIFT``. The canonical classifier
+#: uses this token, not ``MISMATCH_FOUND``; using the wrong name would have made
+#: the helper and the classifier disagree without either being obviously wrong.
+UNEXPECTED_DRIFT: Final[str] = "UNEXPECTED_DRIFT"
 
 KIND_PARSED: Final[str] = "PARSED"
 KIND_TIMEOUT: Final[str] = "DIED_TIMEOUT"
@@ -58,6 +66,11 @@ _SIGNAL_NAMES: Final[dict[int, str]] = {
     11: "SIGSEGV",
     15: "SIGTERM",
 }
+
+#: Field verdicts the canonical classifier can emit.
+_KNOWN_FIELD_VERDICTS: Final[frozenset[str]] = frozenset(
+    {EXACT_REPLAY, EXPECTED_SINGLE_FIELD_DELTAS, UNEXPECTED_DRIFT}
+)
 
 #: Fields a valid classifier payload must expose. Missing ones are a schema error.
 _REQUIRED_FIELDS: Final[tuple[str, ...]] = (
@@ -124,6 +137,20 @@ def classify_child(outcome: ChildOutcome) -> tuple[str, dict[str, Any] | None]:
         return KIND_INVALID_SCHEMA, None
     if any(name not in payload for name in _REQUIRED_FIELDS):
         return KIND_INVALID_SCHEMA, None
+    # Presence is not enough: wrong types and unknown verdicts are also invalid.
+    if not isinstance(payload["environment"], dict):
+        return KIND_INVALID_SCHEMA, None
+    if not isinstance(payload["environment_verdict"], str):
+        return KIND_INVALID_SCHEMA, None
+    if not isinstance(payload["field_verdict"], str):
+        return KIND_INVALID_SCHEMA, None
+    if payload["environment_verdict"] not in {
+        VERIFIED_ENVIRONMENT,
+        UNVERIFIED_ENVIRONMENT,
+    }:
+        return KIND_INVALID_SCHEMA, None
+    if payload["field_verdict"] not in _KNOWN_FIELD_VERDICTS:
+        return KIND_INVALID_SCHEMA, None
     return KIND_PARSED, payload
 
 
@@ -135,7 +162,8 @@ def expected_exit_code(environment_verdict: str, field_verdict: str) -> int:
     * An *unverified* environment is exit 2 regardless of the field verdict: the
       run cannot claim a verified reading of a machine it could not identify.
     * A verified environment with an exact replay is exit 0.
-    * A verified environment with a single-field delta is exit 1.
+    * A verified environment with *classified* single-field deltas is exit 1.
+      ``UNEXPECTED_DRIFT`` is **not** that case and must be exit 2.
     * A verified environment with anything else (including an unexpected
       mismatch) is exit 2.
     """
@@ -143,7 +171,7 @@ def expected_exit_code(environment_verdict: str, field_verdict: str) -> int:
         return 2
     if field_verdict == EXACT_REPLAY:
         return 0
-    if field_verdict == MISMATCH_FOUND:
+    if field_verdict == EXPECTED_SINGLE_FIELD_DELTAS:
         return 1
     return 2
 

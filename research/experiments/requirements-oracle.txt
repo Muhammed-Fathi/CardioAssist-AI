@@ -1,0 +1,14 @@
+# Test-only independent numerical oracle for RH-04 V2 verification.
+#
+# This file is SEPARATE from requirements.txt on purpose: it is a new dependency
+# and therefore needs explicit review before it is added to any acceptance path.
+# It is never imported by production code (`ai/`, `backend/`).
+#
+# Used by: tests/experiments/test_rh04_v2_reference.py
+#          ::test_model_fit_matches_an_independent_mpmath_oracle
+#
+# Install:  python -m pip install -r research/experiments/requirements-oracle.txt
+# Fail-closed verification command (must pass, must NOT skip):
+#   python -m pytest tests/experiments/test_rh04_v2_reference.py -q -W error \
+#       -k independent_mpmath_oracle
+mpmath==1.4.1

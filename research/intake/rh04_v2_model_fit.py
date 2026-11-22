@@ -44,7 +44,37 @@ from __future__ import annotations
 from decimal import Decimal, ROUND_HALF_EVEN, localcontext
 from typing import Final, Sequence
 
-MODEL_FIT_PROTOCOL_ID: Final[str] = "rh04.v2.decimal-model-fit/v1"
+MODEL_FIT_PROTOCOL_ID: Final[str] = "rh04.v2.decimal-model-fit/v2"
+
+#: The two registered execution profiles. They do **not** share an objective:
+#: ``ai/training.py::_build_estimator`` selects ``liblinear`` for the frozen
+#: Cleveland profile and ``lbfgs`` for the generic one, and only liblinear
+#: penalises the intercept. Measured on the pinned wheel set: lbfgs leaves a
+#: persistent |g_b| = 7.157e-04 if the intercept is penalised, versus 9.160e-09
+#: when it is not.
+PROFILE_CLEVELAND: Final[str] = "CLEVELAND_D047_FROZEN_V1"
+PROFILE_GENERIC: Final[str] = "AI1_GENERIC_V1"
+
+#: Objective declaration per profile. Rejecting an unknown profile is mandatory:
+#: silently defaulting would substitute one source's objective for another's.
+PROFILE_OBJECTIVES: Final[dict[str, dict[str, object]]] = {
+    PROFILE_CLEVELAND: {
+        "solver": "liblinear",
+        "intercept_treatment": "penalised",
+        "regularisation_scaling": "1/(C*n) on slope and intercept",
+        "objective": (
+            "0.5*||w||^2/(C*n) + mean_i log(1+exp(-y_i(w.x_i+b))) + 0.5*b^2/(C*n)"
+        ),
+    },
+    PROFILE_GENERIC: {
+        "solver": "lbfgs",
+        "intercept_treatment": "unpenalised",
+        "regularisation_scaling": "1/(C*n) on the slope only",
+        "objective": (
+            "0.5*||w||^2/(C*n) + mean_i log(1+exp(-y_i(w.x_i+b)))"
+        ),
+    },
+}
 MODEL_FIT_PRECISION: Final[int] = 50
 MODEL_FIT_MAX_ITERATIONS: Final[int] = 200
 #: Declared convergence criterion: max |gradient component| of the *exact*
@@ -58,28 +88,41 @@ class ModelFitError(ValueError):
     """Fail-closed refusal. Never returns a partial or unverified fit."""
 
 
-def declared_objective() -> dict[str, object]:
-    """Machine-readable declaration, bound into the candidate's provenance."""
+def declared_objective(profile: str = PROFILE_CLEVELAND) -> dict[str, object]:
+    """Machine-readable declaration for one execution profile."""
+    if profile not in PROFILE_OBJECTIVES:
+        raise ModelFitError(
+            f"unknown execution profile {profile!r}; refusing to guess an objective"
+        )
+    objective = PROFILE_OBJECTIVES[profile]
     return {
         "protocol_id": MODEL_FIT_PROTOCOL_ID,
-        "objective": (
-            "0.5*||w||^2/(C*n) + mean_i log(1+exp(-y_i*(w.x_i+b))) "
-            "+ 0.5*b^2/(C*n)"
-        ),
+        "execution_profile": profile,
+        "objective": objective["objective"],
         "loss_normalisation": "mean over n samples",
-        "regularisation_scaling": "1/(C*n) on both slope and intercept",
-        "intercept_treatment": "penalised (measured, not assumed)",
+        "regularisation_scaling": objective["regularisation_scaling"],
+        "intercept_treatment": objective["intercept_treatment"],
+        "sklearn_solver": objective["solver"],
         "class_weights": "none (class_weight=None in the pinned configuration)",
+        "class_ordering": "positive class is 1; y in {-1,+1} internally",
+        "feature_representation": "dense binary64, used exactly as given (no scaling)",
+        "class_weights": "none (class_weight=None in both profiles)",
+        "sample_weights": "unsupported; refused rather than silently ignored",
         "class_ordering": "positive class is 1; y in {-1,+1} internally",
         "feature_representation": "dense binary64, used exactly as given (no scaling)",
         "initialisation": "w=0, b=0",
         "convergence_criterion": (
-            "max|grad| <= 1e-24 on the exact decimal objective"
+            "max|grad| <= 1e-24 on the declared decimal objective"
         ),
         "precision": MODEL_FIT_PRECISION,
         "final_rounding": "single round-half-even to binary64 per parameter",
         "host_dependent_operations": "none (no BLAS, no libm, no LAPACK)",
-        "solver": "Newton with exact-Gaussian-elimination linear solve",
+        "solver": "Newton with Gaussian elimination on Decimal entries",
+        "note": (
+            "the Newton iteration is finite-precision Decimal, not exact "
+            "arithmetic; 'exact' here refers to the criterion being evaluated in "
+            "software arithmetic rather than to a proof of exactness"
+        ),
     }
 
 
@@ -120,14 +163,17 @@ def _objective_and_gradient(
     rows: Sequence[Sequence[Decimal]],
     signs: Sequence[Decimal],
     inverse_penalty: Decimal,
+    penalise_intercept: bool = True,
 ) -> tuple[Decimal, list[Decimal], Decimal]:
-    """Exact objective and its gradient at ``(w, b)``."""
+    """Objective and its gradient at ``(w, b)`` in declared arithmetic."""
     n = Decimal(len(rows))
-    quadratic = sum((value * value for value in w), Decimal(0)) + b * b
+    quadratic = sum((value * value for value in w), Decimal(0))
+    if penalise_intercept:
+        quadratic += b * b
     total = quadratic * inverse_penalty / Decimal(2)
 
     grad_w = [value * inverse_penalty for value in w]
-    grad_b = b * inverse_penalty
+    grad_b = b * inverse_penalty if penalise_intercept else Decimal(0)
 
     for row, sign in zip(rows, signs):
         eta = b + sum((coef * feature for coef, feature in zip(w, row)), Decimal(0))
@@ -163,11 +209,14 @@ def _hessian(
     rows: Sequence[Sequence[Decimal]],
     signs: Sequence[Decimal],
     inverse_penalty: Decimal,
+    penalise_intercept: bool = True,
 ) -> list[list[Decimal]]:
-    """Exact Hessian of the objective, in software arithmetic."""
+    """Hessian of the objective in declared arithmetic."""
     dimension = len(w) + 1
     hessian = [[Decimal(0)] * dimension for _ in range(dimension)]
-    hessian[dimension - 1][dimension - 1] = inverse_penalty
+    hessian[dimension - 1][dimension - 1] = (
+        inverse_penalty if penalise_intercept else Decimal(0)
+    )
     for index in range(len(w)):
         hessian[index][index] = inverse_penalty
 
@@ -223,9 +272,15 @@ def fit_logistic_decimal(
     labels: Sequence[int],
     *,
     c_value: float,
+    profile: str = PROFILE_CLEVELAND,
     max_iterations: int = MODEL_FIT_MAX_ITERATIONS,
 ) -> dict[str, object]:
-    """Deterministic L2 logistic fit. Fails closed, never returns a partial fit."""
+    """Deterministic L2 logistic fit for one declared profile.
+
+    Fails closed; never returns a partial or unverified fit. An unknown profile
+    is refused rather than defaulted, because silently choosing one would
+    substitute one source's objective for another's.
+    """
     if len(features) != len(labels):
         raise ModelFitError("feature/label length mismatch")
     if len(features) < 2:
@@ -237,8 +292,15 @@ def fit_logistic_decimal(
         raise ModelFitError("ragged feature matrix")
     if set(labels) != {0, 1}:
         raise ModelFitError("both classes are required")
-    if not (c_value > 0):
-        raise ModelFitError("C must be strictly positive")
+    if profile not in PROFILE_OBJECTIVES:
+        raise ModelFitError(
+            f"unknown execution profile {profile!r}; refusing to guess an objective"
+        )
+    if not (c_value > 0) or c_value != c_value or c_value == float("inf"):
+        raise ModelFitError("C must be strictly positive and finite")
+    penalise_intercept = (
+        PROFILE_OBJECTIVES[profile]["intercept_treatment"] == "penalised"
+    )
 
     with localcontext() as context:
         context.prec = MODEL_FIT_PRECISION
@@ -253,7 +315,7 @@ def fit_logistic_decimal(
 
         for iteration in range(max_iterations):
             objective, grad_w, grad_b = _objective_and_gradient(
-                w, b, rows, signs, inverse_penalty
+                w, b, rows, signs, inverse_penalty, penalise_intercept
             )
             del objective
             worst = max(abs(value) for value in grad_w + [grad_b])
@@ -261,6 +323,7 @@ def fit_logistic_decimal(
                 parameters = [float(value) for value in w] + [float(b)]
                 return {
                     "protocol_id": MODEL_FIT_PROTOCOL_ID,
+                    "execution_profile": profile,
                     "coefficients": parameters[:-1],
                     "intercept": parameters[-1],
                     "iterations": iteration,
@@ -268,10 +331,10 @@ def fit_logistic_decimal(
                     "c_value": float(c_value),
                     "n_samples": len(rows),
                     "n_features": width,
-                    "declared": declared_objective(),
+                    "declared": declared_objective(profile),
                 }
 
-            hessian = _hessian(w, b, rows, signs, inverse_penalty)
+            hessian = _hessian(w, b, rows, signs, inverse_penalty, penalise_intercept)
             for index in range(len(hessian)):
                 hessian[index][index] += MODEL_FIT_DAMPING
             step = _solve(hessian, grad_w + [grad_b])
@@ -283,7 +346,7 @@ def fit_logistic_decimal(
             # That failure mode was measured on the calibration reference and is
             # not reintroduced here.
             w, b = _exact_line_minimisation(
-                w, b, step, rows, signs, inverse_penalty
+                w, b, step, rows, signs, inverse_penalty, penalise_intercept
             )
 
     raise ModelFitError(
@@ -298,8 +361,9 @@ def _exact_line_minimisation(
     rows: Sequence[Sequence[Decimal]],
     signs: Sequence[Decimal],
     inverse_penalty: Decimal,
+    penalise_intercept: bool = True,
 ) -> tuple[list[Decimal], Decimal]:
-    """Golden-section search for the exact minimiser along ``direction``.
+    """Golden-section search for the minimiser along ``direction``.
 
     Bracket ``[0, -1]`` in the descent sense is normalised so the step is
     ``x - t*direction``. Returns the improved point; never raises on a flat
@@ -310,7 +374,7 @@ def _exact_line_minimisation(
         trial_w = [value - t * delta for value, delta in zip(w, direction)]
         trial_b = b - t * direction[-1]
         objective, _, _ = _objective_and_gradient(
-            trial_w, trial_b, rows, signs, inverse_penalty
+            trial_w, trial_b, rows, signs, inverse_penalty, penalise_intercept
         )
         return objective, trial_w, trial_b
 
