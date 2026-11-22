@@ -52,6 +52,7 @@ import json
 import os
 import platform
 import sys
+from pathlib import Path
 from typing import Any, Callable, Final, Mapping
 
 AUDIT_SCHEMA_VERSION: Final[str] = "cardioassist.rh04.portability_audit/v1"
@@ -390,8 +391,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
 
     if args.compare:
-        left = json.loads(open(args.compare[0], encoding="utf-8").read())
-        right = json.loads(open(args.compare[1], encoding="utf-8").read())
+        left = json.loads(Path(args.compare[0]).read_text(encoding="utf-8"))
+        right = json.loads(Path(args.compare[1]).read_text(encoding="utf-8"))
         report = compare_audits(left, right)
         print(json.dumps(report, indent=2, sort_keys=True))
         return 0 if report["all_stages_invariant"] else 1

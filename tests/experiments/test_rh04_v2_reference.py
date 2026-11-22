@@ -521,7 +521,13 @@ def test_audit_payload_carries_no_values_paths_or_scores():
         assert "/" not in value
 
 
-def test_audit_compare_exit_code_reflects_drift(tmp_path):
+def test_audit_compare_exit_code_reflects_drift(tmp_path, capsys):
+    """``--compare`` must exit 1 on drift and 0 on agreement.
+
+    ``capsys`` is required, not cosmetic: the CLI prints a JSON report on the
+    success path, and without capture that write is attributed to the *next*
+    output-using test under ``-W error`` and fails it spuriously.
+    """
     left = tmp_path / "left.json"
     right = tmp_path / "right.json"
     same = {"schema_version": audit.AUDIT_SCHEMA_VERSION, "environment": {}, "stages": {"x": "1"}}
@@ -529,8 +535,10 @@ def test_audit_compare_exit_code_reflects_drift(tmp_path):
     left.write_text(json.dumps(same))
     right.write_text(json.dumps(different))
     assert audit.main(["--compare", str(left), str(right)]) == 1
+    assert json.loads(capsys.readouterr().out)["stages_differing"] == ["x"]
     right.write_text(json.dumps(same))
     assert audit.main(["--compare", str(left), str(right)]) == 0
+    assert json.loads(capsys.readouterr().out)["all_stages_invariant"] is True
 
 
 def test_audit_declares_the_decimal_stage_invariant_from_a_single_process():
