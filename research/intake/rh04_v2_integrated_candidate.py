@@ -184,13 +184,38 @@ def run_pipeline(
     }
 
 
+#: Identity version of :func:`pipeline_digest`.
+#:
+#: ``v1`` excluded ``declared`` from the payload, so an algorithm declaration
+#: could change without changing the digest. That is the defect review found.
+#: ``v2`` binds the full declaration. The version string is itself part of the
+#: payload, so a v1 digest can never be mistaken for a v2 digest.
+PIPELINE_DIGEST_VERSION: Final[str] = "rh04.v2.pipeline-digest/v2"
+
+#: Digests produced by the ``v1`` (declaration-excluded) algorithm, retained as
+#: historical evidence only. They are never accepted as a reference identity.
+HISTORICAL_V1_PIPELINE_DIGESTS: Final[dict[str, str]] = {
+    "reversed_calibration_parameters": (
+        "19beafb7214c8b2257064cc590c13b9bce523166d7d007e55e389a12f9189951"
+    ),
+    "corrected_calibration_pre_provenance": (
+        "5ff6ce16287c739129558fb470d97f4dc07e115f3ff941986dffde2b5b19056f"
+    ),
+    "corrected_calibration_declaration_excluded": (
+        "fb6c87b9ae0c49e30a01f1671b2e0d2c65cb17e41ab13cd9e1a1b8750e0ecec5"
+    ),
+}
+
+
 def pipeline_digest(result: dict[str, Any]) -> str:
-    """Semantic digest of a pipeline run (declaration excluded)."""
-    payload = {
-        key: value
-        for key, value in result.items()
-        if key != "declared"
-    }
+    """Semantic digest of a pipeline run, binding the full algorithm declaration.
+
+    Every key of ``result`` participates, including ``declared``, plus the
+    digest version. The declaration is therefore integrity-bound: editing the
+    declared algorithm changes the digest by construction.
+    """
+    payload = dict(result)
+    payload["digest_version"] = PIPELINE_DIGEST_VERSION
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()

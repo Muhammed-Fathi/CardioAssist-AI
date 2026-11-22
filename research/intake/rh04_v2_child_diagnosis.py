@@ -36,6 +36,8 @@ from typing import Any, Final, Mapping
 
 #: The existing classifier's verdict tokens (mirrored, not imported, so this
 #: module cannot drag the production classifier into a test-only path).
+INVALID_DIAGNOSTIC: Final[str] = "INVALID_DIAGNOSTIC"
+DIAGNOSTIC_REFUSED: Final[str] = "DIAGNOSTIC_REFUSED"
 VERIFIED_ENVIRONMENT: Final[str] = "VERIFIED_ENVIRONMENT"
 UNVERIFIED_ENVIRONMENT: Final[str] = "UNVERIFIED_ENVIRONMENT"
 EXACT_REPLAY: Final[str] = "EXACT_REPLAY"
@@ -67,9 +69,23 @@ _SIGNAL_NAMES: Final[dict[int, str]] = {
     15: "SIGTERM",
 }
 
-#: Field verdicts the canonical classifier can emit.
+#: Environment verdicts the canonical classifier can emit.
+_KNOWN_ENVIRONMENT_VERDICTS: Final[frozenset[str]] = frozenset(
+    {VERIFIED_ENVIRONMENT, UNVERIFIED_ENVIRONMENT}
+)
+
+#: Field verdicts the canonical classifier can emit. ``INVALID_DIAGNOSTIC`` and
+#: ``DIAGNOSTIC_REFUSED`` are real canonical refusals and must be classified
+#: (both imply exit 2), so they belong here; anything outside this set is an
+#: unknown verdict and is rejected outright.
 _KNOWN_FIELD_VERDICTS: Final[frozenset[str]] = frozenset(
-    {EXACT_REPLAY, EXPECTED_SINGLE_FIELD_DELTAS, UNEXPECTED_DRIFT}
+    {
+        EXACT_REPLAY,
+        EXPECTED_SINGLE_FIELD_DELTAS,
+        UNEXPECTED_DRIFT,
+        INVALID_DIAGNOSTIC,
+        DIAGNOSTIC_REFUSED,
+    }
 )
 
 #: Fields a valid classifier payload must expose. Missing ones are a schema error.
@@ -78,6 +94,10 @@ _REQUIRED_FIELDS: Final[tuple[str, ...]] = (
     "field_verdict",
     "environment",
 )
+
+
+class ChildDiagnosisError(Exception):
+    """A child process produced an inconsistent or unusable diagnosis."""
 
 
 @dataclass(frozen=True)
@@ -167,6 +187,12 @@ def expected_exit_code(environment_verdict: str, field_verdict: str) -> int:
     * A verified environment with anything else (including an unexpected
       mismatch) is exit 2.
     """
+    # Both verdicts are validated here, not by the caller. An unknown verdict
+    # must never fall through to a numeric expectation.
+    if environment_verdict not in _KNOWN_ENVIRONMENT_VERDICTS:
+        raise ValueError(f"unknown environment verdict {environment_verdict!r}")
+    if field_verdict not in _KNOWN_FIELD_VERDICTS:
+        raise ValueError(f"unknown field verdict {field_verdict!r}")
     if environment_verdict != VERIFIED_ENVIRONMENT:
         return 2
     if field_verdict == EXACT_REPLAY:
@@ -174,6 +200,26 @@ def expected_exit_code(environment_verdict: str, field_verdict: str) -> int:
     if field_verdict == EXPECTED_SINGLE_FIELD_DELTAS:
         return 1
     return 2
+
+
+def verify_child_return_code(payload: Mapping[str, Any], actual_rc: int) -> int:
+    """Compare a child's *actual* return code with the independently derived one.
+
+    Rejects an inconsistent child: a child that claims a verdict but exits with
+    a code the policy does not imply is a failure, never a pass. The canonical
+    classifier's own ``exit_code`` is untouched; this is a separate check.
+    """
+    if isinstance(actual_rc, bool) or not isinstance(actual_rc, int):
+        raise ValueError("child return code must be an integer")
+    environment_verdict = payload.get("environment_verdict")
+    field_verdict = payload.get("field_verdict")
+    expected = expected_exit_code(environment_verdict, field_verdict)
+    if actual_rc != expected:
+        raise ChildDiagnosisError(
+            f"child return code {actual_rc} is inconsistent with the declared "
+            f"verdicts (expected {expected})"
+        )
+    return expected
 
 
 def failure_message(kind: str, outcome: ChildOutcome) -> str:

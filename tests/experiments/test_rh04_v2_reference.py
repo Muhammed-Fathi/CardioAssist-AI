@@ -1393,7 +1393,6 @@ def test_child_diagnosis_accepts_a_well_formed_payload():
         (child_diag.VERIFIED_ENVIRONMENT, child_diag.EXACT_REPLAY, 0),
         (child_diag.VERIFIED_ENVIRONMENT, child_diag.EXPECTED_SINGLE_FIELD_DELTAS, 1),
         (child_diag.VERIFIED_ENVIRONMENT, child_diag.UNEXPECTED_DRIFT, 2),
-        (child_diag.VERIFIED_ENVIRONMENT, "UNEXPECTED", 2),
         ("UNVERIFIED_ENVIRONMENT", child_diag.EXACT_REPLAY, 2),
         ("UNVERIFIED_ENVIRONMENT", child_diag.UNEXPECTED_DRIFT, 2),
     ],
@@ -1405,6 +1404,12 @@ def test_child_diagnosis_exit_code_uses_both_dimensions(
 
     This is the defect being corrected: mapping from ``field_verdict`` only would
     report 0/1 for a machine that was never identified.
+
+    This case previously also asserted that an *unknown* field verdict mapped to
+    2. That expectation was strengthened, not dropped: an unknown verdict is now
+    rejected outright by :func:`expected_exit_code` itself, so it can never
+    acquire a numeric expectation at all. See
+    ``test_expected_exit_code_rejects_unknown_verdicts_itself``.
     """
     assert child_diag.expected_exit_code(environment, field_verdict) == expected
 
@@ -1472,15 +1477,41 @@ def test_integrated_pipeline_digest_is_stable_against_the_recorded_value():
     """Pin the measured digest so an accidental semantic change is visible."""
     features, labels, scoring = _pipeline_problem()
     result = integrated.run_pipeline(features, labels, scoring)
-    # Digest AFTER the calibration-ordering fix and after the corrected
-    # provenance fields were added to the result. History, kept explicit:
-    #   v1  19beafb7...  REVERSED calibration parameters -- incorrect, retained
-    #                    only as historical evidence (never a reference)
-    #   v2a 5ff6ce16...  ordering fixed, before the provenance fields existed
-    #   v2b fb6c87b9...  current
+    # Digest hierarchy, kept explicit. The algorithm changed, so the identity
+    # version changed with it; a historical digest is never reused as current.
+    #   digest v1, 19beafb7...  REVERSED calibration parameters -- incorrect;
+    #                           historical evidence only, never a reference
+    #   digest v1, 5ff6ce16...  ordering fixed, before the provenance fields
+    #   digest v1, fb6c87b9...  provenance recorded, but ``declared`` EXCLUDED
+    #                           from the payload -- the identity did not bind
+    #                           the algorithm declaration (review defect)
+    #   digest v2, 0460ffc5...  current: full declaration bound, version in
+    #                           payload
+    assert integrated.PIPELINE_DIGEST_VERSION == "rh04.v2.pipeline-digest/v2"
     assert integrated.pipeline_digest(result) == (
-        "fb6c87b9ae0c49e30a01f1671b2e0d2c65cb17e41ab13cd9e1a1b8750e0ecec5"
+        "0460ffc5140e081c533a5b1e1a7372751d12bd98c316d01190b9638e9746dc50"
     )
+    # The superseded v1 digests remain recorded as history, not as identities.
+    assert (
+        integrated.HISTORICAL_V1_PIPELINE_DIGESTS[
+            "corrected_calibration_declaration_excluded"
+        ]
+        == "fb6c87b9ae0c49e30a01f1671b2e0d2c65cb17e41ab13cd9e1a1b8750e0ecec5"
+    )
+    assert integrated.pipeline_digest(result) not in (
+        integrated.HISTORICAL_V1_PIPELINE_DIGESTS.values()
+    )
+
+
+def test_integrated_pipeline_digest_binds_the_declaration():
+    """Editing the declared algorithm must change the identity."""
+    features, labels, scoring = _pipeline_problem()
+    result = integrated.run_pipeline(features, labels, scoring)
+    tampered = dict(result)
+    declared = dict(tampered["declared"])
+    declared["solver"] = "an_undeclared_solver"
+    tampered["declared"] = declared
+    assert integrated.pipeline_digest(tampered) != integrated.pipeline_digest(result)
 
 
 def test_integrated_pipeline_uses_the_exact_scorer_not_a_placeholder():
@@ -1717,7 +1748,6 @@ def test_child_diagnosis_exit_policy_agrees_with_the_real_classifier():
         classifier.UNEXPECTED_DRIFT,
         classifier.INVALID_DIAGNOSTIC,
         classifier.DIAGNOSTIC_REFUSED,
-        "UNEXPECTED_VALUE",
     ]
     for environment in environments:
         for field_verdict in fields:
@@ -1729,6 +1759,21 @@ def test_child_diagnosis_exit_policy_agrees_with_the_real_classifier():
             assert child_diag.expected_exit_code(environment, field_verdict) == (
                 classifier.exit_code(payload)
             ), (environment, field_verdict)
+
+    # An *unknown* verdict is refused by both layers, by different mechanisms:
+    # the canonical classifier maps it to 2 (fail-closed), while the helper
+    # rejects it outright. Both are refusals; neither yields an acceptance.
+    unknown = "UNEXPECTED_VALUE"
+    canonical_rc = classifier.exit_code(
+        {
+            "environment_verdict": classifier.VERIFIED_ENVIRONMENT,
+            "field_verdict": unknown,
+            "environment": {},
+        }
+    )
+    assert canonical_rc == 2
+    with pytest.raises(ValueError, match="unknown field verdict"):
+        child_diag.expected_exit_code(classifier.VERIFIED_ENVIRONMENT, unknown)
 
 
 def test_child_diagnosis_rejects_invalid_schema_beyond_presence():
@@ -1951,3 +1996,520 @@ def test_path_b_is_marked_unratified():
     artifact, _, _ = _path_b_artifact()
     assert artifact["sentinel"] == frozen.FROZEN_SENTINEL
     assert frozen.FROZEN_SENTINEL.startswith("UNRATIFIED")
+
+
+# ---------------------------------------------------------------------------
+# Round 9 — registered model selection, trusted admission, portable inference
+# ---------------------------------------------------------------------------
+
+_PORTABLE_KEY = bytes(range(32))
+_BASIC_ROUTE = "da_a1_basic_clinical_v1"
+
+
+def _registered_bundles():
+    """Build the two registered synthetic bundles once and cache them."""
+    import tempfile
+    from pathlib import Path
+
+    from ai.filesystem_security import ensure_private_directory
+    from research.intake import offline_fixture_pack as v1
+
+    cache = getattr(_registered_bundles, "_cache", None)
+    if cache is not None:
+        return cache
+    tmp = tempfile.mkdtemp(prefix="rh04-bundles-")
+    local = v1.sources(ensure_private_directory(Path(tmp)))
+    cache = {
+        route: {
+            "bundle_dir": local[route].bundle_dir,
+            "source": local[route],
+        }
+        for route in (v1.REST, v1.BASIC)
+    }
+    _registered_bundles._cache = cache
+    return cache
+
+
+def _portable_artifacts():
+    from research.intake import rh04_v2_portable_inference as portable
+
+    cache = getattr(_portable_artifacts, "_cache", None)
+    if cache is not None:
+        return cache
+    bundles = _registered_bundles()
+    artifacts = {}
+    for route, info in bundles.items():
+        window = portable.export_artifact(
+            info["bundle_dir"], signing_key=_PORTABLE_KEY
+        )
+        artifacts[route] = portable.attest(window, _PORTABLE_KEY)
+    _portable_artifacts._cache = artifacts
+    return artifacts
+
+
+def _expected_source(artifact):
+    return {k: artifact["source"][k] for k in artifact["source"]}
+
+
+def test_registered_selection_records_the_actual_selected_family():
+    """The selected family is measured from the bundle, never assumed."""
+    import json
+
+    bundles = _registered_bundles()
+    families = {}
+    for route, info in bundles.items():
+        manifest = json.loads((info["bundle_dir"] / "manifest.json").read_text())
+        families[route] = manifest["model"]["selected_model_family"]
+    # Both registered families really are exercised by the two score routes.
+    assert sorted(families.values()) == [
+        "constrained_random_forest",
+        "l2_logistic_regression",
+    ], families
+
+
+def test_registered_selection_does_not_assume_logistic_regression():
+    """Explicitly pin that one scored route selects a forest, not a linear model."""
+    import json
+
+    from research.intake import offline_fixture_pack as v1
+
+    bundles = _registered_bundles()
+    manifest = json.loads((bundles[v1.BASIC]["bundle_dir"] / "manifest.json").read_text())
+    assert manifest["model"]["selected_model_family"] == "constrained_random_forest"
+    assert set(manifest["model"]["selected_hyperparameters"]) == {
+        "max_depth",
+        "min_samples_leaf",
+    }
+
+
+def test_registered_selection_records_profile_and_oof_provenance():
+    """Profile, hyperparameters and OOF provenance are recorded per source."""
+    import json
+
+    for route, info in _registered_bundles().items():
+        directory = info["bundle_dir"]
+        manifest = json.loads((directory / "manifest.json").read_text())
+        calibration = json.loads((directory / "calibration.json").read_text())
+        assert manifest["model"]["execution_profile"] in (
+            model_fit.PROFILE_CLEVELAND,
+            model_fit.PROFILE_GENERIC,
+        )
+        assert isinstance(manifest["model"]["selected_hyperparameters"], dict)
+        assert calibration["fitted_strictly_out_of_fold"] is True
+        assert calibration["fit_scope"] == "FULL_DEVELOPMENT_OOF_FINAL"
+        assert calibration["model_family"] == manifest["model"]["selected_model_family"]
+
+
+def test_portable_admission_accepts_a_correctly_attested_artifact():
+    from research.intake import rh04_v2_portable_inference as portable
+
+    for artifact in _portable_artifacts().values():
+        admitted = portable.admit(
+            artifact,
+            trusted_artifact_sha256=portable.artifact_digest(artifact),
+            signing_key=_PORTABLE_KEY,
+            expected_source=_expected_source(artifact),
+        )
+        assert admitted["sentinel"] == portable.PORTABLE_SENTINEL
+
+
+def test_portable_admission_refuses_a_recomputed_internal_hash():
+    """The reviewer's core point: a self-hash is not authenticity."""
+    import copy
+
+    from research.intake import rh04_v2_portable_inference as portable
+
+    artifact = copy.deepcopy(_portable_artifacts()[next(iter(_portable_artifacts()))])
+    if artifact["model"]["family"] == "l2_logistic_regression":
+        artifact["model"]["representation"]["coef"][0] += 0.25
+    else:
+        artifact["model"]["representation"]["trees"][0]["threshold"][0] += 0.25
+    artifact["artifact_sha256"] = portable.artifact_digest(artifact)
+    with pytest.raises(portable.PortableArtifactError, match="attestation does not verify"):
+        portable.admit(
+            artifact,
+            trusted_artifact_sha256=artifact["artifact_sha256"],
+            signing_key=_PORTABLE_KEY,
+            expected_source=_expected_source(artifact),
+        )
+
+
+def test_portable_admission_refuses_a_recomputed_calibration_hash():
+    import copy
+
+    from research.intake import rh04_v2_portable_inference as portable
+
+    artifact = copy.deepcopy(_portable_artifacts()[next(iter(_portable_artifacts()))])
+    artifact["calibration"]["slope"] = 1.5
+    artifact["artifact_sha256"] = portable.artifact_digest(artifact)
+    with pytest.raises(portable.PortableArtifactError):
+        portable.admit(
+            artifact,
+            trusted_artifact_sha256=artifact["artifact_sha256"],
+            signing_key=_PORTABLE_KEY,
+            expected_source=_expected_source(artifact),
+        )
+
+
+def test_portable_admission_requires_an_external_trusted_digest():
+    from research.intake import rh04_v2_portable_inference as portable
+
+    artifact = _portable_artifacts()[next(iter(_portable_artifacts()))]
+    with pytest.raises(portable.PortableArtifactError, match="externally trusted digest"):
+        portable.admit(
+            artifact,
+            trusted_artifact_sha256="0" * 64,
+            signing_key=_PORTABLE_KEY,
+            expected_source=_expected_source(artifact),
+        )
+
+
+def test_portable_admission_refuses_a_coordinated_stale_training_binding():
+    import copy
+
+    from research.intake import rh04_v2_portable_inference as portable
+
+    artifact = copy.deepcopy(_portable_artifacts()[next(iter(_portable_artifacts()))])
+    artifact["training_identity"]["n_training_rows"] = 1
+    artifact["preprocessing"]["n_training_rows"] = 1
+    artifact["artifact_sha256"] = portable.artifact_digest(artifact)
+    with pytest.raises(portable.PortableArtifactError):
+        portable.admit(
+            artifact,
+            trusted_artifact_sha256=artifact["artifact_sha256"],
+            signing_key=_PORTABLE_KEY,
+            expected_source=_expected_source(artifact),
+        )
+
+
+def test_portable_admission_refuses_training_row_calibration():
+    """The smoke pipeline's own-rows calibration must never be accepted."""
+    import copy
+
+    from research.intake import rh04_v2_portable_inference as portable
+
+    artifact = copy.deepcopy(_portable_artifacts()[next(iter(_portable_artifacts()))])
+    artifact["calibration"]["fitted_strictly_out_of_fold"] = False
+    forged = portable.attest(
+        {k: v for k, v in artifact.items() if k not in ("attestation", "artifact_sha256")},
+        _PORTABLE_KEY,
+    )
+    with pytest.raises(portable.PortableArtifactError, match="not fitted strictly out of fold"):
+        portable.admit(
+            forged,
+            trusted_artifact_sha256=portable.artifact_digest(forged),
+            signing_key=_PORTABLE_KEY,
+            expected_source=_expected_source(forged),
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutate", "pattern"),
+    [
+        (lambda a: a["model"].__setitem__("family", "prevalence_dummy"), "no declared portable representation"),
+        (lambda a: a["model"].__setitem__("family", "gradient_boosting"), "unsupported model family"),
+        (lambda a: a["model"].__setitem__("classes", [1, 0]), "classes must be exactly"),
+        (lambda a: a["calibration"].__setitem__("slope", 0.0), "admissible range"),
+        (lambda a: a["calibration"].__setitem__("slope", -1.0), "admissible range"),
+        (lambda a: a["calibration"].__setitem__("intercept", "0.1"), "must be a number"),
+        (lambda a: a["calibration"].__setitem__("intercept", True), "must be a number"),
+        (lambda a: a["calibration"].__setitem__("model_family", "l2_logistic_regression"), "does not match the model family"),
+        (lambda a: a.__setitem__("injected", {}), "unknown fields"),
+        (lambda a: a.pop("training_identity"), "is missing"),
+        (lambda a: a.__setitem__("protocol_id", "other/v1"), "unexpected portable protocol id"),
+        (lambda a: a.__setitem__("sentinel", "ACCEPTED"), "not labelled as an unratified candidate"),
+        (lambda a: a["preprocessing"].__setitem__("panel_contract_sha256", "0" * 64), "does not match the source panel"),
+        (lambda a: a["preprocessing"]["encoded_feature_names"].__setitem__(1, a["preprocessing"]["encoded_feature_names"][0]), "must be unique"),
+        (lambda a: a["preprocessing"]["field_transforms"][0].__setitem__("slice_indices", [99]), "out of range"),
+        (lambda a: a["model"]["representation"]["trees"][0]["left"].__setitem__(0, -1), "half-missing child"),
+    ],
+)
+def test_portable_structural_refusals_survive_a_valid_attestation(mutate, pattern):
+    """Structural checks must fire even though the MAC is valid.
+
+    This attacker holds the key, so only the structural layer can refuse.
+    """
+    import copy
+
+    from research.intake import rh04_v2_portable_inference as portable
+
+    artifact = copy.deepcopy(_portable_artifacts()[_BASIC_ROUTE])
+    body = {k: v for k, v in artifact.items() if k not in ("attestation", "artifact_sha256")}
+    mutate(body)
+    forged = portable.attest(body, _PORTABLE_KEY)
+    with pytest.raises(portable.PortableArtifactError, match=pattern):
+        portable.admit(
+            forged,
+            trusted_artifact_sha256=portable.artifact_digest(forged),
+            signing_key=_PORTABLE_KEY,
+            expected_source=_expected_source(forged),
+        )
+
+
+def test_portable_refuses_a_non_finite_parameter():
+    import copy
+    import math
+
+    from research.intake import rh04_v2_portable_inference as portable
+
+    artifact = copy.deepcopy(_portable_artifacts()[_BASIC_ROUTE])
+    body = {k: v for k, v in artifact.items() if k not in ("attestation", "artifact_sha256")}
+    body["model"]["representation"]["trees"][0]["threshold"][0] = math.nan
+    with pytest.raises(portable.PortableArtifactError, match="canonically serialised"):
+        portable.attest(body, _PORTABLE_KEY)
+
+
+def test_portable_transformation_matches_the_registered_preprocessor():
+    """Encoded rows must agree with the registered preprocessing contract."""
+    import numpy as np
+
+    from ai.preprocessing import FoldSafeClinicalPreprocessor
+    from research.intake import rh04_v2_portable_inference as portable
+
+    artifacts = _portable_artifacts()
+    bundles = _registered_bundles()
+    # Direct comparison using the registered preprocessor object.
+    for route, artifact in artifacts.items():
+        directory = bundles[route]["bundle_dir"]
+        import json as _json
+
+        raw_pre = _json.loads((directory / "preprocessing.json").read_text())
+        pre = FoldSafeClinicalPreprocessor.from_json_dict(raw_pre)
+        from research.intake import offline_fixture_pack as v1
+
+        request = v1.materialize(v1.inputs()[route], [])
+        features = request["records"][0]["features"]
+        ours = portable._transform(artifact["preprocessing"], dict(features))
+        column_order = [t.name for t in pre.field_transforms]
+        row = np.array([[features[name] for name in column_order]], dtype=np.float64)
+        theirs = pre.transform(row)[0]
+        assert np.array_equal(np.asarray(ours), theirs), route
+
+
+def _portable_pack():
+    """Execute the full 29-case portable replay once and cache it."""
+    from research.intake import rh04_v2_portable_inference as portable
+
+    cache = getattr(_portable_pack, "_cache", None)
+    if cache is not None:
+        return cache
+    pack = portable.build_portable_pack(
+        signing_key=_PORTABLE_KEY, routed_artifacts=_portable_artifacts()
+    )
+    _portable_pack._cache = pack
+    return pack
+
+
+def _registered_replay():
+    """Independently execute the registered replay for all 29 cases."""
+    import json
+
+    from research.intake import offline_fixture_pack as v1
+
+    cache = getattr(_registered_replay, "_cache", None)
+    if cache is not None:
+        return cache
+    bundles = _registered_bundles()
+    source = json.loads(v1.PACK.read_text())
+    outcomes = {}
+    for case in source["cases"]:
+        source_entry = bundles.get(case["route"])
+        request = v1.materialize(source["requests"][case["route"]], case["edits"])
+        target = source_entry["source"] if source_entry else None
+        outcomes[case["id"]] = v1.example(request, target)
+    _registered_replay._cache = outcomes
+    return outcomes
+
+
+def test_portable_pack_executes_all_29_cases():
+    pack = _portable_pack()
+    assert pack["generation"]["case_count"] == 29
+    assert len(pack["cases"]) == 29
+    assert len({c["id"] for c in pack["cases"]}) == 29
+
+
+def test_portable_pack_covers_every_registered_case_id():
+    import json
+
+    from research.intake import offline_fixture_pack as v1
+
+    registered = {c["id"] for c in json.loads(v1.PACK.read_text())["cases"]}
+    portable_ids = {c["id"] for c in _portable_pack()["cases"]}
+    assert registered == portable_ids
+
+
+def test_portable_pack_evaluates_both_selected_families():
+    """Both registered families reach the portable evaluator."""
+    from research.intake import rh04_v2_portable_inference as portable
+
+    pack = _portable_pack()
+    evaluated = [c for c in pack["cases"] if c["lane"] == "model-evaluated"]
+    assert len(evaluated) == 2
+    families = {c["route"]: None for c in evaluated}
+    artifacts = _portable_artifacts()
+    for route in families:
+        families[route] = artifacts[route]["model"]["family"]
+    assert sorted(families.values()) == [
+        "constrained_random_forest",
+        "l2_logistic_regression",
+    ]
+
+
+def test_portable_declares_the_unrepresentable_family_as_a_blocker():
+    """A selected dummy model must be refused, never approximated."""
+    from research.intake import rh04_v2_portable_inference as portable
+
+    assert "prevalence_dummy" in portable.UNREPRESENTABLE_FAMILIES
+    assert "prevalence_dummy" not in portable.SUPPORTED_FAMILIES
+
+
+def test_portable_matches_the_independent_registered_reference():
+    """Full-path equivalence against an independently generated reference.
+
+    The reference is produced by the registered replay, not by the artifact
+    under test.
+    """
+    from research.intake import rh04_v2_portable_inference as portable
+
+    pack = _portable_pack()
+    reference = _registered_replay()
+    compared = 0
+    for case in pack["cases"]:
+        if case["lane"] != "model-evaluated":
+            continue
+        comparison = portable.compare_with_registered(
+            case["outcome"], reference[case["id"]]
+        )
+        assert comparison["status_match"] is True
+        assert comparison["within_declared_bound"] is True, comparison
+        assert comparison["max_delta"] <= portable.DECLARED_SCORE_AGREEMENT
+        compared += 1
+    assert compared == 2
+
+
+def test_portable_comparison_refuses_a_missing_score():
+    """Regression: an absent score once compared equal to nothing."""
+    from research.intake import rh04_v2_portable_inference as portable
+
+    with pytest.raises(portable.PortableArtifactError, match="no outcomes"):
+        portable.compare_with_registered({"status": "SYNTHETIC_RESULT"}, {})
+    with pytest.raises(portable.PortableArtifactError, match="no outcomes"):
+        portable.compare_with_registered(
+            {"outcomes": [{"status": "SYNTHETIC_RESULT"}]},
+            {"outcomes": [{"status": "SYNTHETIC_RESULT", "score": {}}]},
+        )
+
+
+def test_portable_comparison_refuses_a_reference_missing_a_field():
+    from research.intake import rh04_v2_portable_inference as portable
+
+    with pytest.raises(portable.PortableArtifactError, match="lacks"):
+        portable.compare_with_registered(
+            {"outcomes": [{"score": {"calibrated_log_odds": 1.0}}]},
+            {"outcomes": [{"score": {"calibrated_log_odds": 1.0}}]},
+        )
+
+
+def test_portable_refusal_routes_are_declared_not_fabricated():
+    """The 27 non-scored cases are declared refusals, not invented scores."""
+    from research.intake import rh04_v2_portable_inference as portable
+
+    pack = _portable_pack()
+    for case in pack["cases"]:
+        if case["lane"] == "declared-refusal":
+            assert case["outcome"]["status"] in (
+                "REFUSAL_ROUTE_DECLARED",
+                "REQUEST_EDIT_OUT_OF_PORTABLE_SCOPE",
+            )
+            assert case["outcome"]["score"] is None
+        assert any(route == case["route"] for route in portable.REFUSAL_ROUTES) or (
+            case["lane"] == "model-evaluated"
+        ) or case["outcome"]["status"] == "REQUEST_EDIT_OUT_OF_PORTABLE_SCOPE"
+
+
+def test_portable_pack_is_marked_unratified():
+    from research.intake import rh04_v2_portable_inference as portable
+
+    pack = _portable_pack()
+    assert pack["sentinel"] == portable.PORTABLE_SENTINEL
+    assert pack["sentinel"].startswith("UNRATIFIED")
+    assert pack["declared"]["claims"]["acceptance_reference"] is False
+    assert pack["declared"]["claims"]["replaces_regeneration"] is False
+    assert pack["declared"]["claims"]["ratifies_D_V2_7"] is False
+
+
+def test_portable_declares_no_field_bit_identical():
+    from research.intake import rh04_v2_portable_inference as portable
+
+    claims = portable.declared_protocol()["claims"]
+    assert claims["bit_identical_to_scikit_learn"] is False
+    assert claims["any_exported_score_field_bit_identical"] is False
+    assert claims["host_independent_probability_link"] is False
+
+
+# ---------------------------------------------------------------------------
+# Round 9 — diagnostic helper: unknown verdicts and inconsistent child rcs
+# ---------------------------------------------------------------------------
+
+
+def test_expected_exit_code_rejects_unknown_verdicts_itself():
+    """The helper validates both verdicts; no caller-side default may be relied on."""
+    from research.intake import rh04_v2_child_diagnosis as diagnosis
+
+    with pytest.raises(ValueError, match="unknown field verdict"):
+        diagnosis.expected_exit_code(
+            diagnosis.VERIFIED_ENVIRONMENT, "NOT_A_VERDICT"
+        )
+    with pytest.raises(ValueError, match="unknown environment verdict"):
+        diagnosis.expected_exit_code("NOT_AN_ENVIRONMENT", diagnosis.EXACT_REPLAY)
+
+
+def test_verify_child_return_code_accepts_only_consistent_children():
+    from research.intake import rh04_v2_child_diagnosis as diagnosis
+
+    verified = diagnosis.VERIFIED_ENVIRONMENT
+    payload = {
+        "environment_verdict": verified,
+        "field_verdict": diagnosis.UNEXPECTED_DRIFT,
+    }
+    assert diagnosis.verify_child_return_code(payload, 2) == 2
+    for inconsistent in (0, 1, 3, -11):
+        with pytest.raises(diagnosis.ChildDiagnosisError, match="inconsistent"):
+            diagnosis.verify_child_return_code(payload, inconsistent)
+
+
+def test_verify_child_return_code_rejects_a_non_integer_rc():
+    from research.intake import rh04_v2_child_diagnosis as diagnosis
+
+    payload = {
+        "environment_verdict": diagnosis.VERIFIED_ENVIRONMENT,
+        "field_verdict": diagnosis.EXACT_REPLAY,
+    }
+    for bogus in (True, "0", None, 0.0):
+        with pytest.raises(ValueError, match="must be an integer"):
+            diagnosis.verify_child_return_code(payload, bogus)
+
+
+def test_diagnostic_helper_still_agrees_with_the_canonical_classifier():
+    """The helper never redefines canonical acceptance semantics."""
+    from research.intake import rh04_v2_child_diagnosis as diagnosis
+    from research.intake import rh04_environment_class as canonical
+
+    for environment_verdict in (
+        canonical.VERIFIED_ENVIRONMENT,
+        canonical.UNVERIFIED_ENVIRONMENT,
+    ):
+        for field_verdict in (
+            canonical.EXACT_REPLAY,
+            canonical.EXPECTED_SINGLE_FIELD_DELTAS,
+            canonical.UNEXPECTED_DRIFT,
+        ):
+            expected = diagnosis.expected_exit_code(environment_verdict, field_verdict)
+            if environment_verdict != canonical.VERIFIED_ENVIRONMENT:
+                assert expected == 2
+            elif field_verdict == canonical.EXACT_REPLAY:
+                assert expected == 0
+            elif field_verdict == canonical.EXPECTED_SINGLE_FIELD_DELTAS:
+                assert expected == 1
+            else:
+                assert expected == 2
