@@ -71,6 +71,44 @@ V2_FIXTURE_PATH: Final[Path] = (
 V2_PACK_SHA256: Final[str] = (
     "UNPINNED_CANDIDATE_PACK_DO_NOT_USE_AS_A_GATE"
 )
+# The case inventory is part of the contract. Pinning it makes a *removed* case
+# fail closed even though a shorter pack is still internally consistent — the
+# failure mode that a pure digest cannot catch when the digest is unpinned.
+# 29 cases: 5 route cases plus refusal/edit probes. Pinning the exact list makes
+# a *removed* case fail closed even though a shorter pack is internally
+# consistent — the failure mode a digest alone cannot catch when unpinned.
+V2_EXPECTED_CASE_IDS: Final[tuple[str, ...]] = (
+    "da_a2_resting_v1",
+    "da_a1_basic_clinical_v1",
+    "da_a2_resting_labs_v1",
+    "da_a1_clinical_core_labs_v1",
+    "da_a2_hungary_locked_transportability_v1",
+    "wrong-panel",
+    "wrong-dataset",
+    "stale-hash",
+    "wrong-unit",
+    "bad-category",
+    "bad-generator",
+    "patient_wearable",
+    "uploaded_image_or_ocr",
+    "track_b",
+    "ca",
+    "Cath",
+    "LAD",
+    "required",
+    "optional",
+    "da_a1_clinical_core_labs_v1-wrong-dataset",
+    "da_a1_clinical_core_labs_v1-stale-hash",
+    "da_a2_hungary_locked_transportability_v1-wrong-dataset",
+    "da_a2_hungary_locked_transportability_v1-stale-hash",
+    "da_a2_resting_labs_v1-wrong-dataset",
+    "da_a2_resting_labs_v1-stale-hash",
+    "optional-null",
+    "optional-null-structural-reason",
+    "optional-null-no-reason",
+    "required-null",
+)
+V2_EXPECTED_CASE_COUNT: Final[int] = len(V2_EXPECTED_CASE_IDS)
 
 
 def canonical_json_bytes(document: Mapping[str, Any]) -> bytes:
@@ -225,8 +263,20 @@ def generate_candidate_pack() -> dict[str, Any]:
     return pack
 
 
-def validate(pack: Mapping[str, Any], *, expected_digest: str | None = None) -> int:
-    """Strict V2 replay: no tolerances, no approved-exception branch.
+def validate(
+    pack: Mapping[str, Any],
+    *,
+    expected_digest: str | None = None,
+    replay: bool = True,
+) -> int:
+    """Strict V2 validation. No tolerances and no approved-exception branch.
+
+    ``replay=False`` performs the structural checks only (schema, declared
+    protocol, case inventory, bindings, integrity). ``replay=True`` additionally
+    rebuilds every synthetic artifact and compares each case with exact
+    type-and-value equality. Exact replay costs ~90 s, so the structural half is
+    separated for use in fast negative tests; the full replay is exercised by
+    the cold-process end-to-end test and by ``--check``.
 
     Returns the number of cases verified. Raises ``ValueError`` on any
     deviation — including a mismatch in a single binary64 bit.
@@ -237,6 +287,13 @@ def validate(pack: Mapping[str, Any], *, expected_digest: str | None = None) -> 
         raise ValueError("unexpected v2 schema version")
     if pack.get("protocol") != reference_fit.declared_protocol():
         raise ValueError("declared protocol drift")
+    cases = pack.get("cases")
+    if not isinstance(cases, list) or len(cases) != V2_EXPECTED_CASE_COUNT:
+        raise ValueError(
+            f"v2 case inventory changed: expected {V2_EXPECTED_CASE_COUNT} cases"
+        )
+    if tuple(case.get("id") for case in cases) != V2_EXPECTED_CASE_IDS:
+        raise ValueError("v2 case inventory changed: ids or order differ")
     if pack.get("bindings") != v1.bindings():
         raise ValueError("stale binding")
     if pack.get("requests") != v1.inputs():
@@ -251,7 +308,8 @@ def validate(pack: Mapping[str, Any], *, expected_digest: str | None = None) -> 
 
     from ai.filesystem_security import ensure_private_directory
 
-    cases = pack["cases"]
+    if not replay:
+        return len(cases)
     with TemporaryDirectory() as tmp:
         with decimal_reference_seam(), _deterministic_solver_default():
             local = v1.sources(ensure_private_directory(Path(tmp)))

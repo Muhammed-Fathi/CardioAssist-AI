@@ -104,7 +104,11 @@ def micro_stages() -> dict[str, str]:
     probabilities = _fixed_probabilities()
 
     # libm path used by the calibrator's input link.
-    stages["np_log"] = _digest_floats(np.log(probabilities))
+    # Probabilities are clamped before the log, so this stage measures the libm
+    # value and not IEEE -inf handling.
+    stages["np_log"] = _digest_floats(
+        np.log(np.clip(probabilities, 1e-6, 1.0 - 1e-6))
+    )
     # Deliberately clamped first: log1p(-1.0) is -inf and would make this stage
     # a test of IEEE infinity handling rather than of the libm value.
     stages["np_log1p"] = _digest_floats(
