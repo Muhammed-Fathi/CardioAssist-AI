@@ -131,11 +131,22 @@ def _kernel_block(node: Any) -> dict[str, str | None]:
     }
 
 
-def summarise(payload: Any, exit_code: int) -> dict[str, Any]:
+def summarise(
+    payload: Any,
+    exit_code: int,
+    *,
+    stdout_parseable: bool = True,
+    stderr_present: bool = False,
+) -> dict[str, Any]:
     """Reduce a classifier payload to allowlisted, metadata-only evidence.
 
     Every field here is independently validated; nothing from ``payload`` is
     echoed merely because it was present.
+
+    ``stdout_parseable`` and ``stderr_present`` are *booleans about the child
+    process*, not content from it. They are recorded so a human can tell "the
+    classifier refused cleanly" from "the classifier produced garbage", without
+    the raw text ever being emitted.
     """
     body: Mapping[str, Any] = payload if isinstance(payload, Mapping) else {}
 
@@ -152,6 +163,8 @@ def summarise(payload: Any, exit_code: int) -> dict[str, Any]:
 
     return {
         "exit_code": exit_code,
+        "classifier_stdout_parseable": stdout_parseable is True,
+        "classifier_stderr_present": stderr_present is True,
         "classification": EXIT_CLASSIFICATIONS.get(exit_code, REFUSED_LABEL),
         "field_verdict": (
             field_verdict if field_verdict in _FIELD_VERDICTS else None
@@ -228,6 +241,11 @@ def render_summary(summary: Mapping[str, Any]) -> str:
         f"- **Environment verdict:** {_fmt(summary['environment_verdict'])}",
         f"- **Cases:** {_fmt(summary['cases_checked'])} checked, "
         f"{_fmt(summary['cases_differing'])} differing",
+        f"- **Classifier stdout parseable:** "
+        f"`{str(summary['classifier_stdout_parseable']).lower()}`",
+        f"- **Classifier stderr present:** "
+        f"`{str(summary['classifier_stderr_present']).lower()}`"
+        " (text never recorded)",
     ]
 
     if summary["differing_case_ids"]:
@@ -281,7 +299,13 @@ def _run_classifier(timeout: int = _SUBPROCESS_TIMEOUT_SECONDS) -> tuple[int, st
 
 
 def _write_summary(text: str) -> None:
-    """Append to the Actions step summary, or echo it when running locally."""
+    """Append to the Actions step summary, or echo it locally.
+
+    Locally (no ``GITHUB_STEP_SUMMARY``) the block goes to **stderr**, not
+    stdout, so that stdout carries exactly one machine-readable object: the
+    sanitised summary JSON. That keeps the log stream parseable and keeps every
+    human-readable byte on the same stream as the other diagnostics.
+    """
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if path:
         try:
@@ -291,41 +315,51 @@ def _write_summary(text: str) -> None:
         except OSError:
             # Never let summary-writing failure change the step outcome.
             pass
-    print(text)
+    print(text, file=sys.stderr)
 
 
 def main() -> int:
-    """Observe, record, and **always** return 0."""
+    """Observe, record, and **always** return 0.
+
+    Nothing the child process wrote is ever echoed, on any stream.
+
+    The child's stdout and stderr are treated as untrusted input: a different
+    or compromised classifier version could emit arbitrary text, and GitHub
+    Actions raw logs are as visible as the step summary. A previous revision
+    forwarded both verbatim, which silently bypassed the redaction that the
+    summary path enforces. Only values that passed :func:`summarise` are now
+    emitted, plus the closed booleans ``classifier_stdout_parseable`` and
+    ``classifier_stderr_present``, which describe the child without quoting it.
+    """
     try:
         exit_code, stdout, stderr = _run_classifier()
 
-        # Forward the classifier's own (already redacted) output to the log so a
-        # human reading a failing job sees the evidence in place.
-        if stderr.strip():
-            print("--- classifier stderr ---", file=sys.stderr)
-            print(stderr.rstrip(), file=sys.stderr)
+        # Facts about the child, never its text.
+        stderr_present = bool(isinstance(stderr, str) and stderr.strip())
 
+        stdout_parseable = True
         try:
             payload = json.loads(stdout)
         except (ValueError, TypeError):
             payload = None
+            stdout_parseable = False
 
-        if payload is None:
-            summary = summarise(None, exit_code)
-            print(
-                "RH-04 observation: classifier output was not parseable JSON; "
-                f"exit code {exit_code} recorded without echoing it.",
-                file=sys.stderr,
-            )
-        else:
-            summary = summarise(payload, exit_code)
-            print(json.dumps(payload, indent=2, sort_keys=True))
+        summary = summarise(
+            payload,
+            exit_code,
+            stdout_parseable=stdout_parseable,
+            stderr_present=stderr_present,
+        )
 
+        # Sanitised, allowlisted evidence only.
+        print(json.dumps(summary, indent=2, sort_keys=True))
         print(
             f"RH-04 observation: exit={summary['exit_code']} "
             f"classification={summary['classification']} "
             f"field={summary['field_verdict']} "
-            f"environment={summary['environment_verdict']}",
+            f"environment={summary['environment_verdict']} "
+            f"stdout_parseable={summary['classifier_stdout_parseable']} "
+            f"stderr_present={summary['classifier_stderr_present']}",
             file=sys.stderr,
         )
         _write_summary(render_summary(summary))

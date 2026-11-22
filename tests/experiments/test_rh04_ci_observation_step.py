@@ -27,7 +27,9 @@ authority. See ``docs/research/next_phase/RH04_ISSUE132_CI_GATE_SPEC_2026_11_21.
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import re
 from pathlib import Path
@@ -420,7 +422,7 @@ def test_summary_emits_only_allowlisted_keys():
         "differing_case_ids", "field_reasons", "environment_reasons",
         "version_drift", "python", "numpy_version", "scipy_version",
         "sklearn_version", "glibc", "resolved_environment", "pre_replay",
-        "post_replay",
+        "post_replay", "classifier_stdout_parseable", "classifier_stderr_present",
     }
     assert set(summary) == allowed
     assert "injected" not in json.dumps(summary)
@@ -457,3 +459,149 @@ def test_observer_command_is_exactly_the_specified_module_invocation():
     """The workflow must call the helper, which itself calls the classifier."""
     observer_source = _OBSERVER.read_text(encoding="utf-8")
     assert 'CLASSIFIER_MODULE = "research.intake.rh04_environment_class"' in observer_source
+
+
+# --------------------------------------------------------------------------- #
+# 5. main() must not leak through ANY stream (P0, stage A review)             #
+# --------------------------------------------------------------------------- #
+
+
+def _run_main_capturing(observer, monkeypatch, classifier_result=None, raises=False):
+    """Call ``main()`` and capture BOTH stdout and stderr.
+
+    The step summary path was already sanitised, but the log path was not: a
+    previous revision forwarded the child's raw stdout/stderr and printed the
+    raw parsed payload. GitHub Actions raw logs are as visible as the summary,
+    so both streams must now be clean.
+    """
+    if raises:
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("/secret/path/should-never-appear")
+
+        monkeypatch.setattr(observer, "_run_classifier", boom)
+    else:
+        monkeypatch.setattr(
+            observer, "_run_classifier", lambda *a, **k: classifier_result
+        )
+
+    # Isolate the summary file so nothing leaks to disk either.
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = observer.main()
+    return code, out.getvalue(), err.getvalue()
+
+
+def _assert_streams_clean(stdout_text: str, stderr_text: str, case: str) -> None:
+    for stream_name, text in (("stdout", stdout_text), ("stderr", stderr_text)):
+        for fragment in _FORBIDDEN:
+            assert fragment not in text, (
+                f"{case}: leaked {fragment!r} on {stream_name}: {text!r}"
+            )
+
+
+def test_main_does_not_echo_injected_payload_fields(monkeypatch):
+    """A parseable payload with extra/sensitive fields must not be printed."""
+    observer = _observer()
+    malicious = json.dumps(
+        {
+            "injected": "/secret/raw-payload",
+            "token": "hunter2",
+            "nested": {"path": "/etc/passwd", "key": "BEGIN PRIVATE KEY"},
+            "field_verdict": "EXACT_REPLAY",
+            "environment_verdict": "VERIFIED_ENVIRONMENT",
+            "cases_checked": 29,
+            "cases_differing": 0,
+        }
+    )
+    code, out, err = _run_main_capturing(observer, monkeypatch, (0, malicious, ""))
+    assert code == 0
+    _assert_streams_clean(out, err, "injected payload")
+    # Sanitised evidence is still present and useful.
+    assert "EXACT_REPLAY" in out
+    assert "VERIFIED_ENVIRONMENT" in out
+
+
+def test_main_does_not_echo_malicious_child_stderr(monkeypatch):
+    """A valid payload with hostile stderr must not have that stderr forwarded."""
+    observer = _observer()
+    payload = json.dumps(
+        {"field_verdict": "EXACT_REPLAY", "environment_verdict": "VERIFIED_ENVIRONMENT"}
+    )
+    code, out, err = _run_main_capturing(
+        observer, monkeypatch, (0, payload, "token=/secret/stderr-dump")
+    )
+    assert code == 0
+    _assert_streams_clean(out, err, "malicious stderr")
+    # Only the closed boolean marker appears, never the text.
+    assert "classifier_stderr_present" in out  # JSON evidence on stdout
+    assert "stderr_present=True" in err        # fixed-format label on stderr
+
+
+def test_main_does_not_echo_unparseable_stdout(monkeypatch):
+    """Unparseable child stdout must be recorded as a boolean, not quoted."""
+    observer = _observer()
+    code, out, err = _run_main_capturing(
+        observer, monkeypatch, (2, "/secret/not-json {broken", "")
+    )
+    assert code == 0
+    _assert_streams_clean(out, err, "unparseable stdout")
+    assert "stdout_parseable=False" in err
+    assert "NON_EXACT_OR_UNVERIFIED" in out
+
+
+def test_main_does_not_echo_when_the_classifier_raises(monkeypatch):
+    """An exception message must never reach either stream."""
+    observer = _observer()
+    code, out, err = _run_main_capturing(observer, monkeypatch, raises=True)
+    assert code == 0
+    _assert_streams_clean(out, err, "classifier raised")
+    assert "RuntimeError" in err
+    # The exception *message* is not forwarded, only its class name.
+    assert "should-never-appear" not in err
+
+
+@pytest.mark.parametrize(
+    "classifier_result",
+    [
+        (0, '{"field_verdict":"/secret","environment_verdict":"/secret"}', ""),
+        (2, '{"cases_checked":"/secret","differing_case_ids":["/secret"]}', "/secret"),
+        (1, '{"field_reasons":["/secret"]}', "/secret"),
+        (2, "not json at all /secret", "/secret"),
+    ],
+)
+def test_main_never_leaks_across_all_exit_codes(monkeypatch, classifier_result):
+    observer = _observer()
+    code, out, err = _run_main_capturing(observer, monkeypatch, classifier_result)
+    assert code == 0, "the observer must remain non-voting"
+    _assert_streams_clean(out, err, f"exit {classifier_result[0]}")
+
+
+def test_main_emits_only_allowlisted_keys_to_stdout(monkeypatch):
+    """The JSON printed to the log is the sanitised summary, nothing else."""
+    observer = _observer()
+    payload = json.dumps(
+        {
+            "field_verdict": "EXACT_REPLAY",
+            "environment_verdict": "VERIFIED_ENVIRONMENT",
+            "injected": "/secret",
+            "score": 0.8123,
+        }
+    )
+    code, out, err = _run_main_capturing(observer, monkeypatch, (0, payload, ""))
+    assert code == 0
+    printed = json.loads(out)
+    allowed = {
+        "exit_code", "classification", "field_verdict", "environment_verdict",
+        "replay_verdict", "cases_checked", "cases_differing",
+        "differing_case_ids", "field_reasons", "environment_reasons",
+        "version_drift", "python", "numpy_version", "scipy_version",
+        "sklearn_version", "glibc", "resolved_environment", "pre_replay",
+        "post_replay", "classifier_stdout_parseable",
+        "classifier_stderr_present",
+    }
+    assert set(printed) == allowed
+    assert "injected" not in out
+    assert "0.8123" not in out
