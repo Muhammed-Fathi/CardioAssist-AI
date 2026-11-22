@@ -1,0 +1,156 @@
+"""RH-04 V2 — child-process diagnosis before JSON decoding (proposal implementation).
+
+Scope
+-----
+Self-contained helper module. It **does not modify** the merged #136 classifier or
+its tests (`test_rh04_issue132_environment_class.py` is byte-identical to `main`).
+It exists so the proposed correction in
+`RH04_V2_CLASSIFIER_TEST_CORRECTION_PROPOSAL_2026_11_21.md` is executable and
+reviewable rather than prose.
+
+Why
+---
+The hosted Python 3.11 job failed
+``test_cli_under_a_forced_dispatch_is_fail_closed_and_labelled[SkylakeX]`` with
+``JSONDecodeError`` on **empty child stdout**. Locally, forcing an incompatible
+kernel reproduces that signature exactly::
+
+    returncode -4        # negative => killed by a signal
+    signal      4        # SIGILL
+    stdout      ''       # empty
+    stderr      ''       # ALSO empty
+
+So a ``JSONDecodeError`` on empty stdout carries no information at all about
+which of several very different things happened. This module classifies *before*
+decoding, and every non-parsed outcome remains a **failure**.
+
+Exit status is deliberately NOT derived from ``field_verdict`` alone. The existing
+classifier also requires ``VERIFIED_ENVIRONMENT``, and mapping from one field
+would silently change semantics.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Final, Mapping
+
+#: The existing classifier's verdict tokens (mirrored, not imported, so this
+#: module cannot drag the production classifier into a test-only path).
+VERIFIED_ENVIRONMENT: Final[str] = "VERIFIED_ENVIRONMENT"
+EXACT_REPLAY: Final[str] = "EXACT_REPLAY"
+MISMATCH_FOUND: Final[str] = "MISMATCH_FOUND"
+
+KIND_PARSED: Final[str] = "PARSED"
+KIND_TIMEOUT: Final[str] = "DIED_TIMEOUT"
+KIND_SIGNAL: Final[str] = "DIED_WITH_SIGNAL"
+KIND_CLEAN_NO_OUTPUT: Final[str] = "EXITED_CLEAN_WITH_NO_OUTPUT"
+KIND_NONZERO_NO_PAYLOAD: Final[str] = "EXITED_NONZERO_WITHOUT_VALID_PAYLOAD"
+KIND_INVALID_JSON: Final[str] = "STDOUT_NOT_JSON"
+KIND_INVALID_SCHEMA: Final[str] = "JSON_WITH_INVALID_SCHEMA"
+
+#: Signal names we can render without importing ``signal`` (which is fine, but
+#: keeps the report stable across platforms).
+_SIGNAL_NAMES: Final[dict[int, str]] = {
+    4: "SIGILL",
+    6: "SIGABRT",
+    8: "SIGFPE",
+    9: "SIGKILL",
+    11: "SIGSEGV",
+    15: "SIGTERM",
+}
+
+#: Fields a valid classifier payload must expose. Missing ones are a schema error.
+_REQUIRED_FIELDS: Final[tuple[str, ...]] = (
+    "environment_verdict",
+    "field_verdict",
+    "environment",
+)
+
+
+@dataclass(frozen=True)
+class ChildOutcome:
+    """Everything knowable about a child process, captured before decoding."""
+
+    returncode: int
+    stdout: str
+    stderr_present: bool
+    timed_out: bool = False
+    extra: Mapping[str, Any] = field(default_factory=dict)
+
+    @property
+    def signal_number(self) -> int | None:
+        """POSIX convention: a negative return code means it was signalled."""
+        return -self.returncode if self.returncode < 0 else None
+
+    @property
+    def stdout_empty(self) -> bool:
+        return not self.stdout.strip()
+
+    def redacted_summary(self) -> str:
+        """A description safe to print: no child output, no paths, no secrets."""
+        signal_number = self.signal_number
+        signal_name = _SIGNAL_NAMES.get(signal_number or -1, "UNKNOWN")
+        return (
+            f"returncode={self.returncode}"
+            f" signal={signal_number}({signal_name})"
+            f" timed_out={self.timed_out}"
+            f" stdout_empty={self.stdout_empty}"
+            f" stderr_present={self.stderr_present}"
+        )
+
+
+def classify_child(outcome: ChildOutcome) -> tuple[str, dict[str, Any] | None]:
+    """Classify a child outcome. Returns ``(kind, payload)``.
+
+    ``payload`` is non-``None`` **only** for :data:`KIND_PARSED`. Every other kind
+    is a failure the caller must report; there is no branch in which an
+    unparseable or abnormally terminated child is treated as success.
+    """
+    import json
+
+    if outcome.timed_out:
+        return KIND_TIMEOUT, None
+    if outcome.signal_number is not None:
+        return KIND_SIGNAL, None
+    if outcome.stdout_empty:
+        if outcome.returncode == 0:
+            return KIND_CLEAN_NO_OUTPUT, None
+        return KIND_NONZERO_NO_PAYLOAD, None
+    try:
+        payload = json.loads(outcome.stdout)
+    except json.JSONDecodeError:
+        return KIND_INVALID_JSON, None
+    if not isinstance(payload, dict):
+        return KIND_INVALID_SCHEMA, None
+    if any(name not in payload for name in _REQUIRED_FIELDS):
+        return KIND_INVALID_SCHEMA, None
+    return KIND_PARSED, payload
+
+
+#: The existing classifier's exit-code policy, restated independently so a
+#: ``field_verdict``-only mapping cannot creep in. Both dimensions matter.
+def expected_exit_code(environment_verdict: str, field_verdict: str) -> int:
+    """Independently derived expectation for the (environment, field) grid.
+
+    * An *unverified* environment is exit 2 regardless of the field verdict: the
+      run cannot claim a verified reading of a machine it could not identify.
+    * A verified environment with an exact replay is exit 0.
+    * A verified environment with a single-field delta is exit 1.
+    * A verified environment with anything else (including an unexpected
+      mismatch) is exit 2.
+    """
+    if environment_verdict != VERIFIED_ENVIRONMENT:
+        return 2
+    if field_verdict == EXACT_REPLAY:
+        return 0
+    if field_verdict == MISMATCH_FOUND:
+        return 1
+    return 2
+
+
+def failure_message(kind: str, outcome: ChildOutcome) -> str:
+    """A failing assertion message that never contains raw child output."""
+    return (
+        f"child did not produce a usable classifier payload: {kind} "
+        f"({outcome.redacted_summary()})"
+    )

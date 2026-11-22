@@ -29,6 +29,7 @@ import json
 import math
 import subprocess
 import sys
+from fractions import Fraction
 from decimal import Decimal
 from pathlib import Path
 
@@ -40,6 +41,9 @@ from ai.errors import CalibrationIntegrityError
 from research.intake import offline_fixture_pack as v1
 from research.intake import rh04_v2_candidate as candidate
 from research.intake import rh04_v2_deterministic_upstream as upstream
+from research.intake import rh04_v2_model_fit as model_fit
+from research.intake import rh04_v2_child_diagnosis as child_diag
+from research.intake import rh04_v2_integrated_candidate as integrated
 from research.intake import rh04_v2_portability_audit as audit
 from research.intake import rh04_v2_reference_fit as reference
 
@@ -881,15 +885,67 @@ def test_deterministic_upstream_is_a_function_of_its_inputs():
     assert len(first) == 300
 
 
-def test_deterministic_upstream_matches_exact_rational_value():
-    """The returned float must be the correctly rounded exact rational."""
-    from fractions import Fraction
+def test_deterministic_upstream_rounds_half_to_even_at_the_halfway_point():
+    """An *independent* rounding oracle, not ``float(score) == float(score)``.
 
-    coefficients, rows, intercept = _fixed_problem()
-    for row in rows[:20]:
-        score = upstream.exact_linear_score(coefficients, row, intercept)
-        assert isinstance(score, Fraction)
-        assert upstream.score_as_float(score) == float(score)
+    ``score_as_float`` is checked against hand-derived halfway cases where the
+    exact rational is precisely between two binary64 values. Round-half-even is
+    what ``float(Fraction)`` provides, so the expectation is stated explicitly
+    rather than by calling it.
+    """
+    # 2^53 + 1 is exactly halfway between two representable doubles; ties-to-even
+    # takes the even one, 2^53.
+    exact = Fraction(2**53 + 1, 1)
+    assert upstream.score_as_float(exact) == float(2**53)
+
+    # 2^53 + 3 is also halfway; ties-to-even again takes the even neighbour.
+    assert upstream.score_as_float(Fraction(2**53 + 3, 1)) == float(2**53 + 4)
+
+    # A half-integer well inside the integer-exact range rounds exactly.
+    assert upstream.score_as_float(Fraction(7, 2)) == 3.5
+    assert upstream.score_as_float(Fraction(-7, 2)) == -3.5
+
+    # 1 - 2^-54 IS a genuine halfway point below 1.0: the neighbours there have
+    # spacing 2^-53, so ties-to-even picks the even significand, 1.0.
+    # (1 - 2^-53 is *not* a halfway point -- it is exactly representable -- which
+    # an earlier revision of this test wrongly asserted.)
+    halfway = Fraction(2**54 - 1, 2**54)
+    assert upstream.score_as_float(halfway) == 1.0
+    assert upstream.score_as_float(Fraction(2**53 - 1, 2**53)) == 1.0 - 2.0**-53
+
+
+def test_deterministic_upstream_handles_cancellation_exactly():
+    """Catastrophic cancellation must not appear: the sum is exact."""
+    # Sum of 1e16, 1.0 and -1e16 is exactly 1.0 in rational arithmetic, whereas
+    # the float64 sum in a naive order loses the 1.0 entirely.
+    coefficients = [1.0, 1.0, 1.0]
+    features = [1e16, 1.0, -1e16]
+    score = upstream.exact_linear_score(coefficients, features, 0.0)
+    assert score == Fraction(1)
+    assert upstream.score_as_float(score) == 1.0
+
+
+def test_deterministic_upstream_preserves_signed_zero_policy():
+    """A sum that is exactly zero yields +0.0, never -0.0."""
+    score = upstream.exact_linear_score([1.0, -1.0], [1.0, 1.0], 0.0)
+    assert score == 0
+    assert math.copysign(1.0, upstream.score_as_float(score)) == 1.0
+
+
+def test_deterministic_upstream_is_exact_near_the_subnormal_boundary():
+    smallest = 5e-324  # smallest positive subnormal
+    score = upstream.exact_linear_score([1.0], [smallest], 0.0)
+    assert upstream.score_as_float(score) == smallest
+
+
+def test_deterministic_upstream_rounds_rather_than_overflowing():
+    """A product beyond binary64 range must be refused, not silently inf."""
+    with pytest.raises(ValueError):
+        upstream.exact_linear_score([float("inf")], [1.0], 0.0)
+    # A finite product whose exact value exceeds the float range is a caller
+    # error at conversion time; the rational itself is still exact.
+    huge = upstream.exact_linear_score([1.7e308], [10.0], 0.0)
+    assert huge > 10**308
 
 
 def test_deterministic_upstream_declares_no_host_dependent_operations():
@@ -933,3 +989,502 @@ def test_float64_agrees_with_exact_on_the_sign_of_the_score():
         naive = float(np.dot(np.asarray(coefficients), np.asarray(row)) + intercept)
         assert (naive > 0) == (exact > 0) or abs(float(exact)) < 1e-12
         assert (naive == 0) == (exact == 0) or abs(float(exact)) < 1e-12
+
+# --------------------------------------------------------------------------- #
+# 9. Deterministic model fit (isolated candidate, synthetic only)
+# --------------------------------------------------------------------------- #
+#
+# Measured motivation: stage S1 is the only remaining host dependence. These
+# tests pin the declared objective, an INDEPENDENT high-precision oracle, and
+# fail-closed behaviour. They are deliberately not "small delta" tests: the
+# review forbids claiming equivalence from small coefficient differences.
+
+
+def _fit_problem(seed: int = 3, n: int = 40, d: int = 3):
+    generator = np.random.RandomState(seed)
+    features = generator.randn(n, d)
+    labels = (generator.rand(n) < 0.5).astype(int)
+    return features, labels
+
+
+def test_model_fit_declares_the_objective_it_actually_minimises():
+    declaration = model_fit.declared_objective()
+    assert declaration["protocol_id"] == "rh04.v2.decimal-model-fit/v1"
+    assert "penalised" in str(declaration["intercept_treatment"])
+    assert "none" in str(declaration["host_dependent_operations"])
+    # The calibration objective must not be silently reused.
+    assert declaration["objective"] != reference.declared_protocol()["objective"]
+
+
+def test_model_fit_reaches_the_declared_gradient_criterion():
+    features, labels = _fit_problem()
+    fit = model_fit.fit_logistic_decimal(
+        [[float(v) for v in row] for row in features],
+        [int(v) for v in labels],
+        c_value=1.0,
+    )
+    assert float(fit["gradient_inf_norm"]) <= 1e-24
+    assert fit["iterations"] < 50
+
+
+def test_model_fit_matches_an_independent_mpmath_oracle():
+    """Independent 60-digit Newton in mpmath, a separate code path.
+
+    Agreement must be at the level of binary64 rounding, not merely "close".
+    """
+    mpmath = pytest.importorskip("mpmath")
+    mpmath.mp.dps = 60
+    features, labels = _fit_problem()
+    fit = model_fit.fit_logistic_decimal(
+        [[float(v) for v in row] for row in features],
+        [int(v) for v in labels],
+        c_value=1.0,
+    )
+    n = len(labels)
+    signs = [1 if int(v) == 1 else -1 for v in labels]
+    design = [[mpmath.mpf(float(v)) for v in row] for row in features]
+
+    def objective(w, b):
+        total = mpmath.mpf("0.5") * (sum(v * v for v in w) + b * b) / n
+        for index, row in enumerate(design):
+            eta = b + sum(c * x for c, x in zip(w, row))
+            total += mpmath.log1p(mpmath.exp(-signs[index] * eta)) / n
+        return total
+
+    def gradient(w, b):
+        gw = [v / n for v in w]
+        gb = b / n
+        for index, row in enumerate(design):
+            eta = b + sum(c * x for c, x in zip(w, row))
+            sigmoid = 1 / (1 + mpmath.exp(signs[index] * eta))
+            factor = -sigmoid * signs[index] / n
+            for k in range(len(w)):
+                gw[k] += factor * row[k]
+            gb += factor
+        return gw, gb
+
+    def hessian(w, b):
+        dimension = len(w) + 1
+        matrix = mpmath.matrix(dimension, dimension)
+        for k in range(dimension):
+            matrix[k, k] = mpmath.mpf(1) / n
+        for index, row in enumerate(design):
+            eta = b + sum(c * x for c, x in zip(w, row))
+            sigmoid = 1 / (1 + mpmath.exp(signs[index] * eta))
+            weight = sigmoid * (1 - sigmoid) / n
+            vector = list(row) + [mpmath.mpf(1)]
+            for a in range(dimension):
+                for c in range(dimension):
+                    matrix[a, c] += weight * vector[a] * vector[c]
+        return matrix
+
+    w = [mpmath.mpf(0)] * len(features[0])
+    b = mpmath.mpf(0)
+    for _ in range(60):
+        gw, gb = gradient(w, b)
+        if max(abs(v) for v in gw + [gb]) < mpmath.mpf("1e-55"):
+            break
+        step = mpmath.lu_solve(hessian(w, b), mpmath.matrix(gw + [gb]))
+        scale = mpmath.mpf(1)
+        current = objective(w, b)
+        for _ in range(80):
+            trial_w = [w[k] - scale * step[k] for k in range(len(w))]
+            trial_b = b - scale * step[len(w)]
+            if objective(trial_w, trial_b) < current:
+                w, b = trial_w, trial_b
+                break
+            scale /= 2
+
+    for index, value in enumerate(fit["coefficients"]):
+        assert abs(mpmath.mpf(value) - w[index]) < mpmath.mpf("1e-15"), index
+    assert abs(mpmath.mpf(fit["intercept"]) - b) < mpmath.mpf("1e-15")
+
+
+def test_model_fit_reproduces_across_repeated_calls():
+    features, labels = _fit_problem(seed=9)
+    rows = [[float(v) for v in row] for row in features]
+    exemplars = [int(v) for v in labels]
+    first = model_fit.fit_logistic_decimal(rows, exemplars, c_value=0.1)
+    second = model_fit.fit_logistic_decimal(rows, exemplars, c_value=0.1)
+    assert first["coefficients"] == second["coefficients"]
+    assert first["intercept"] == second["intercept"]
+
+
+def test_model_fit_declines_the_calibration_objective():
+    """The model objective has no slope anchor and a different normalisation."""
+    declaration = model_fit.declared_objective()
+    calibration = reference.declared_protocol()
+    assert declaration["objective"] != calibration["objective"]
+    assert "anchor" not in str(declaration["objective"])
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["single_class", "ragged", "empty_feature", "length_mismatch", "non_positive_c"],
+)
+def test_model_fit_fails_closed_on_invalid_configuration(case):
+    features, labels = _fit_problem(n=10)
+    rows = [[float(v) for v in row] for row in features]
+    exemplars = [int(v) for v in labels]
+    if case == "single_class":
+        exemplars = [0] * len(exemplars)
+    elif case == "ragged":
+        rows = [rows[0], rows[1][:-1]] + rows[2:]
+    elif case == "empty_feature":
+        rows = [[] for _ in rows]
+    elif case == "length_mismatch":
+        exemplars = exemplars[:-1]
+    else:
+        with pytest.raises(model_fit.ModelFitError):
+            model_fit.fit_logistic_decimal(rows, exemplars, c_value=0.0)
+        return
+    with pytest.raises(model_fit.ModelFitError):
+        model_fit.fit_logistic_decimal(rows, exemplars, c_value=1.0)
+
+
+def test_model_fit_converges_on_hard_designs():
+    """Near-singular, correlated, imbalanced and separable designs."""
+    generator = np.random.RandomState(11)
+    designs = {}
+    base = generator.randn(50, 2)
+    designs["duplicate_column"] = (np.column_stack([base, base[:, 0]]), None)
+    designs["perfectly_correlated"] = (np.column_stack([base, base[:, 0] * 2.0]), None)
+    imbalanced = generator.randn(50, 3)
+    labels = np.zeros(50, int)
+    labels[:2] = 1
+    designs["imbalanced"] = (imbalanced, labels)
+    designs["extreme"] = (generator.randn(50, 3) * 100, None)
+    separable = generator.randn(40, 2)
+    designs["separable"] = (separable, (separable[:, 0] > 0).astype(int))
+
+    for name, (features, labels) in designs.items():
+        if labels is None:
+            labels = (generator.rand(50) < 0.5).astype(int)
+        fit = model_fit.fit_logistic_decimal(
+            [[float(v) for v in row] for row in features],
+            [int(v) for v in labels],
+            c_value=1.0,
+        )
+        assert float(fit["gradient_inf_norm"]) <= 1e-24, name
+
+
+def test_model_fit_declares_no_blas_or_libm_dependency():
+    """AST proof: the fit module imports no numerical library at all."""
+    source = Path(model_fit.__file__).read_text()
+    tree = ast.parse(source)
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module)
+    assert "numpy" not in imported
+    assert "scipy" not in imported
+    assert "sklearn" not in imported
+
+# --------------------------------------------------------------------------- #
+# 10. Validator hardening: routes, edits, unknown fields, raw-file integrity
+# --------------------------------------------------------------------------- #
+
+
+def test_validator_rejects_unknown_top_level_field():
+    pack = _committed()
+    pack["unexpected_section"] = {"x": 1}
+    with pytest.raises(ValueError, match="unknown pack field"):
+        candidate.validate(pack, replay=False)
+
+
+def test_validator_rejects_unknown_case_field():
+    pack = _committed()
+    pack["cases"] = copy.deepcopy(pack["cases"])
+    pack["cases"][0]["extra"] = True
+    with pytest.raises(ValueError, match="unknown case field"):
+        candidate.validate(pack, replay=False)
+
+
+def test_validator_rejects_an_invented_route():
+    pack = _committed()
+    pack["cases"] = copy.deepcopy(pack["cases"])
+    pack["cases"][0]["route"] = "invented_route"
+    with pytest.raises(ValueError, match="unknown route|route drift"):
+        candidate.validate(pack, replay=False)
+
+
+def test_validator_rejects_edit_drift():
+    pack = _committed()
+    pack["cases"] = copy.deepcopy(pack["cases"])
+    pack["cases"][0]["edits"] = list(pack["cases"][0]["edits"]) + [{"op": "injected"}]
+    with pytest.raises(ValueError, match="edit script drift|unknown"):
+        candidate.validate(pack, replay=False)
+
+
+def test_validator_rejects_coordinated_edit_and_expected_tampering():
+    """Both halves tampered together must still fail: V1 is the authority."""
+    pack = _committed()
+    pack["cases"] = copy.deepcopy(pack["cases"])
+    case = pack["cases"][0]
+    case["edits"] = list(case["edits"]) + [{"op": "injected"}]
+    case["expected"]["status"] = "TAMPERED"
+    with pytest.raises(ValueError):
+        candidate.validate(pack, replay=False)
+
+
+def test_raw_file_digest_differs_from_canonical_document_digest(tmp_path):
+    """A trailing newline changes the raw digest and not the canonical one."""
+    pack = _committed()
+    canonical = candidate.canonical_document_digest(pack)
+    assert canonical == candidate.pack_digest(pack)  # documented alias
+
+    plain = tmp_path / "a.json"
+    plain.write_text(json.dumps(pack, sort_keys=True))
+    padded = tmp_path / "b.json"
+    padded.write_text(json.dumps(pack, sort_keys=True) + "\n")
+
+    assert candidate.raw_file_sha256(plain) != candidate.raw_file_sha256(padded)
+    assert json.loads(plain.read_text()) == json.loads(padded.read_text())
+
+
+def test_raw_file_digest_matches_the_committed_fixture_bytes():
+    """True byte-level integrity of the committed candidate, recorded as evidence."""
+    from hashlib import sha256
+
+    path = candidate.V2_FIXTURE_PATH
+    assert candidate.raw_file_sha256(path) == sha256(path.read_bytes()).hexdigest()
+
+
+def test_actual_solver_identity_tracks_the_live_function():
+    """Provenance must describe what runs, not what was requested."""
+    outside = candidate.actual_solver_identity()
+    assert outside["seam_active"] is False
+    with candidate.decimal_reference_seam():
+        inside = candidate.actual_solver_identity()
+        assert inside["seam_active"] is True
+        assert inside["live_callable"] != outside["live_callable"]
+    assert candidate.actual_solver_identity()["seam_active"] is False
+
+
+def test_resident_kernels_are_measured_not_requested():
+    record = candidate.resident_numerical_kernels()
+    assert record["requested_coretype"] is not None
+    assert record["libraries"], "threadpoolctl must report at least one library"
+    for library in record["libraries"]:
+        assert set(library) == {
+            "internal_api",
+            "architecture",
+            "version",
+            "threading_layer",
+            "num_threads",
+        }
+
+
+def test_candidate_is_unmistakably_not_an_authoritative_reference():
+    pack = _committed()
+    identity = candidate.describe_identity(pack)
+    assert candidate.V2_SEMANTIC_SHA256.startswith("UNPINNED")
+    assert identity["identity_version"] == candidate.V2_IDENTITY_VERSION
+    # The old candidate and its historical hash must remain recoverable.
+    assert candidate.pack_digest(pack) == (
+        "b74f781d7c7839a33c3693e53511ac4d200b8bcf5b0a38526e9a9e2b657595f2"
+    )
+
+# --------------------------------------------------------------------------- #
+# 11. Child-process diagnosis (separate concern from numerical acceptance)
+# --------------------------------------------------------------------------- #
+#
+# These tests cover the *proposed* correction only. The merged #136 classifier
+# and its tests are untouched; this module is a separate, reviewable artifact.
+
+
+def _outcome(**kwargs):
+    defaults = dict(returncode=0, stdout="", stderr_present=False)
+    defaults.update(kwargs)
+    return child_diag.ChildOutcome(**defaults)
+
+
+def test_child_diagnosis_classifies_every_failure_mode_distinctly():
+    cases = {
+        child_diag.KIND_TIMEOUT: _outcome(timed_out=True),
+        child_diag.KIND_SIGNAL: _outcome(returncode=-4),
+        child_diag.KIND_CLEAN_NO_OUTPUT: _outcome(returncode=0, stdout=""),
+        child_diag.KIND_NONZERO_NO_PAYLOAD: _outcome(returncode=3, stdout="  \n"),
+        child_diag.KIND_INVALID_JSON: _outcome(stdout="not json at all"),
+        child_diag.KIND_INVALID_SCHEMA: _outcome(stdout='{"only": "one field"}'),
+    }
+    kinds = set()
+    for expected, outcome in cases.items():
+        kind, payload = child_diag.classify_child(outcome)
+        assert kind == expected, (expected, kind)
+        assert payload is None, expected
+        kinds.add(kind)
+    # Every failure mode must be distinguishable; no two collapse together.
+    assert len(kinds) == len(cases)
+
+
+def test_child_diagnosis_never_treats_an_abnormal_child_as_success():
+    for outcome in (
+        _outcome(returncode=-11),
+        _outcome(timed_out=True),
+        _outcome(returncode=0, stdout=""),
+        _outcome(returncode=1, stdout=""),
+        _outcome(stdout="{"),
+    ):
+        kind, payload = child_diag.classify_child(outcome)
+        assert kind != child_diag.KIND_PARSED
+        assert payload is None
+
+
+def test_child_diagnosis_reports_sigill_by_name():
+    outcome = _outcome(returncode=-4)
+    assert outcome.signal_number == 4
+    assert "SIGILL" in outcome.redacted_summary()
+
+
+def test_child_diagnosis_summary_leaks_no_child_output():
+    outcome = _outcome(
+        returncode=2,
+        stdout='{"secret": "patient_123_score"}',
+        stderr_present=True,
+    )
+    summary = outcome.redacted_summary()
+    for forbidden in ("patient", "secret", "score", "/home", "/tmp"):
+        assert forbidden not in summary
+    message = child_diag.failure_message(child_diag.KIND_INVALID_SCHEMA, outcome)
+    assert "patient" not in message
+
+
+def test_child_diagnosis_accepts_a_well_formed_payload():
+    payload = {
+        "environment_verdict": child_diag.VERIFIED_ENVIRONMENT,
+        "field_verdict": child_diag.EXACT_REPLAY,
+        "environment": {"numpy_openblas_kernel": "SkylakeX"},
+    }
+    kind, parsed = child_diag.classify_child(_outcome(stdout=json.dumps(payload)))
+    assert kind == child_diag.KIND_PARSED
+    assert parsed == payload
+
+
+@pytest.mark.parametrize(
+    "environment,field_verdict,expected",
+    [
+        (child_diag.VERIFIED_ENVIRONMENT, child_diag.EXACT_REPLAY, 0),
+        (child_diag.VERIFIED_ENVIRONMENT, child_diag.MISMATCH_FOUND, 1),
+        (child_diag.VERIFIED_ENVIRONMENT, "UNEXPECTED", 2),
+        ("UNVERIFIED_ENVIRONMENT", child_diag.EXACT_REPLAY, 2),
+        ("UNVERIFIED_ENVIRONMENT", child_diag.MISMATCH_FOUND, 2),
+    ],
+)
+def test_child_diagnosis_exit_code_uses_both_dimensions(
+    environment, field_verdict, expected
+):
+    """A verified environment is required for 0/1; ``field_verdict`` alone is not.
+
+    This is the defect being corrected: mapping from ``field_verdict`` only would
+    report 0/1 for a machine that was never identified.
+    """
+    assert child_diag.expected_exit_code(environment, field_verdict) == expected
+
+
+def test_child_diagnosis_does_not_modify_the_merged_classifier_surface():
+    """The independent #136 test file must remain byte-identical to main."""
+    from hashlib import sha256
+    import subprocess as sp
+
+    merged = REPO_ROOT / "tests/experiments/test_rh04_issue132_environment_class.py"
+    committed = sp.run(
+        ["git", "show", f"origin/main:{merged.relative_to(REPO_ROOT)}"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if committed.returncode != 0:
+        pytest.skip("git object unavailable in this checkout")
+    assert sha256(merged.read_bytes()).hexdigest() == sha256(
+        committed.stdout.encode()
+    ).hexdigest()
+
+# --------------------------------------------------------------------------- #
+# 12. Integrated deterministic pipeline (synthetic only)
+# --------------------------------------------------------------------------- #
+
+
+def _pipeline_problem(seed: int = 21, n: int = 60, d: int = 5, m: int = 30):
+    generator = np.random.RandomState(seed)
+    features = generator.randn(n, d)
+    labels = (generator.rand(n) < 0.5).astype(int)
+    scoring = generator.randn(m, d)
+    return (
+        [[float(v) for v in row] for row in features],
+        [int(v) for v in labels],
+        [[float(v) for v in row] for row in scoring],
+    )
+
+
+def test_integrated_pipeline_declares_every_stage():
+    declaration = integrated.declared_pipeline()
+    names = [stage["name"] for stage in declaration["stages"]]
+    assert names == [
+        "model_fit",
+        "linear_scoring",
+        "calibration",
+        "calibrated_evaluation",
+    ]
+    assert declaration["host_dependent_operations"] == "none"
+
+
+def test_integrated_pipeline_is_reproducible_in_process():
+    features, labels, scoring = _pipeline_problem()
+    first = integrated.run_pipeline(features, labels, scoring)
+    second = integrated.run_pipeline(features, labels, scoring)
+    assert integrated.pipeline_digest(first) == integrated.pipeline_digest(second)
+
+
+def test_integrated_pipeline_digest_is_stable_against_the_recorded_value():
+    """Pin the measured digest so an accidental semantic change is visible."""
+    features, labels, scoring = _pipeline_problem()
+    result = integrated.run_pipeline(features, labels, scoring)
+    assert integrated.pipeline_digest(result) == (
+        "19beafb7214c8b2257064cc590c13b9bce523166d7d007e55e389a12f9189951"
+    )
+
+
+def test_integrated_pipeline_uses_the_exact_scorer_not_a_placeholder():
+    features, labels, scoring = _pipeline_problem()
+    result = integrated.run_pipeline(features, labels, scoring)
+    coefficients = result["model_fit"]["coefficients"]
+    intercept = result["model_fit"]["intercept"]
+    expected = [
+        upstream.score_as_float(score)
+        for score in upstream.exact_linear_scores(coefficients, scoring, intercept)
+    ]
+    assert result["raw_logits"] == expected
+
+
+def test_integrated_pipeline_threshold_is_the_production_rule():
+    features, labels, scoring = _pipeline_problem()
+    result = integrated.run_pipeline(features, labels, scoring)
+    for score_text, flag in zip(
+        result["calibrated_research_scores"], result["above_threshold"]
+    ):
+        assert flag == (Decimal(score_text) >= Decimal("0.5"))
+
+
+def test_integrated_pipeline_does_not_touch_production_or_the_v1_pack():
+    source = Path(integrated.__file__).read_text()
+    for forbidden in ("ai.cli", "ai.inference", "offline_fixture_pack"):
+        assert forbidden not in source
+    assert integrated_module_is_unimported_by_production()
+
+
+def integrated_module_is_unimported_by_production() -> bool:
+    offenders = []
+    for root in (REPO_ROOT / "ai", REPO_ROOT / "backend"):
+        for path in root.rglob("*.py"):
+            if "rh04_v2_" in path.read_text(encoding="utf-8", errors="ignore"):
+                offenders.append(str(path))
+    return offenders == []
+
+
+def test_integrated_pipeline_fails_closed_on_mismatched_lengths():
+    features, labels, scoring = _pipeline_problem()
+    with pytest.raises(integrated.IntegratedPipelineError):
+        integrated.run_pipeline(features, labels[:-1], scoring)

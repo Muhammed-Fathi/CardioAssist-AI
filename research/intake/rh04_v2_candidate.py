@@ -169,13 +169,29 @@ def _digest_subset(pack: Mapping[str, Any], sections: tuple[str, ...]) -> str:
     return hashlib.sha256(canonical_json_bytes(subset)).hexdigest()
 
 
-def pack_digest(pack: Mapping[str, Any]) -> str:
-    """Raw artifact integrity over the **entire** document, provenance included.
+def canonical_document_digest(pack: Mapping[str, Any]) -> str:
+    """Digest of the **canonical re-encoding**, not of the file on disk.
 
-    Use this only to prove that a file was not corrupted in transit. It must
-    never be used to compare two hosts, because ``generation`` is inside it.
+    This is what ``pack_digest`` used to be called. The name was wrong: this
+    value ignores whitespace, key order and trailing newlines, so it cannot
+    detect a byte-level change to a file. Use ``raw_file_sha256`` for that.
     """
     return hashlib.sha256(canonical_json_bytes(pack)).hexdigest()
+
+
+def raw_file_sha256(path: Path) -> str:
+    """True byte-level SHA-256 of a file exactly as stored.
+
+    Separate from every content digest on purpose: this answers "were these the
+    bytes on disk?", which is a different question from "is this the same
+    reference?". A trailing newline changes this and nothing else.
+    """
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+#: Backwards-compatible alias. Still the canonical-document digest, NOT the raw
+#: file bytes — the misleading name is kept only so older evidence parses.
+pack_digest = canonical_document_digest
 
 
 def semantic_digest(pack: Mapping[str, Any]) -> str:
@@ -357,6 +373,60 @@ def generate_candidate_pack() -> dict[str, Any]:
     return pack
 
 
+#: Top-level keys a V2 pack may contain. Anything else is rejected rather than
+#: ignored, so a stray or misspelled section cannot ride along unnoticed.
+V2_ALLOWED_TOP_LEVEL: Final[frozenset[str]] = frozenset(
+    {
+        "schema_version",
+        "protocol",
+        "bindings",
+        "requests",
+        "cases",
+        "generation",
+    }
+)
+
+#: Keys a case may contain.
+V2_ALLOWED_CASE_KEYS: Final[frozenset[str]] = frozenset(
+    {"id", "route", "edits", "expected"}
+)
+
+
+def _reject_unknown_keys(pack: Mapping[str, Any]) -> None:
+    """Fail closed on unknown top-level or per-case fields."""
+    unknown = set(pack) - V2_ALLOWED_TOP_LEVEL
+    if unknown:
+        raise ValueError(f"unknown pack field(s): {sorted(unknown)}")
+    for case in pack["cases"]:
+        extra = set(case) - V2_ALLOWED_CASE_KEYS
+        if extra:
+            raise ValueError(f"unknown case field(s) in {case.get('id')}: {sorted(extra)}")
+
+
+def _validate_routes_and_edits(pack: Mapping[str, Any]) -> None:
+    """Bind each case's route and edit script to the frozen V1 definitions.
+
+    V1 is the authority: the V2 reference may never invent a route or an edit
+    script. This is checked structurally, so it holds even with an unpinned digest.
+    """
+    from research.intake import offline_fixture_pack as v1
+
+    source = _v1_pack()
+    known_routes = set(source["requests"]) | {"blocked"}
+    v1_cases = {case["id"]: case for case in source["cases"]}
+    for case in pack["cases"]:
+        route = case.get("route")
+        if route not in known_routes:
+            raise ValueError(f"unknown route {route!r} in case {case.get('id')}")
+        original = v1_cases.get(case.get("id"))
+        if original is None:
+            raise ValueError(f"case {case.get('id')} is not a V1 case")
+        if case.get("edits") != original.get("edits"):
+            raise ValueError(f"edit script drift in case {case.get('id')}")
+        if case.get("route") != original.get("route"):
+            raise ValueError(f"route drift in case {case.get('id')}")
+
+
 def validate(
     pack: Mapping[str, Any],
     *,
@@ -392,6 +462,11 @@ def validate(
         raise ValueError("stale binding")
     if pack.get("requests") != v1.inputs():
         raise ValueError("non-fixture request")
+    # Route and edit inventory are validated against the *frozen V1 definitions*,
+    # independently of any digest sentinel. A pack whose route names or edit
+    # scripts drifted would otherwise pass whenever the digest is unpinned.
+    _validate_routes_and_edits(pack)
+    _reject_unknown_keys(pack)
     # Identity is checked at the *semantic* tier. The artifact digest is a
     # different question (was this file corrupted in transit?) and is available
     # as ``pack_digest``; gating on it would make the reference depend on the
@@ -488,6 +563,58 @@ def _v1_digest() -> str:
     return v1.PACK_SHA256
 
 
+def actual_solver_identity() -> dict[str, Any]:
+    """The solver actually installed on ``ai.calibration`` right now.
+
+    The old record stored only ``DETERMINISTIC_CALIBRATION_SOLVER``, which is the
+    *selector string the monkeypatch requests*, not the function that will run.
+    Those differ whenever the seam is active, so recording the selector alone can
+    misreport provenance.
+    """
+    from ai.calibration import DETERMINISTIC_CALIBRATION_SOLVER
+    import ai.calibration as calibration
+
+    live = calibration.deterministic_logistic_fit
+    return {
+        # The seam replaces the function object, so identity is the honest test.
+        "seam_active": getattr(live, "__name__", "") == "seam",
+        "live_callable": f"{getattr(live, '__module__', '?')}."
+        f"{getattr(live, '__qualname__', getattr(live, '__name__', '?'))}",
+        "selector_string": DETERMINISTIC_CALIBRATION_SOLVER,
+        "declared_protocol_id": getattr(
+            reference_fit, "V2_FIT_PROTOCOL_ID", "(absent)"
+        ),
+    }
+
+
+def resident_numerical_kernels() -> dict[str, Any]:
+    """The kernels actually loaded, as reported by threadpoolctl.
+
+    ``OPENBLAS_CORETYPE`` is a *request*. It can be ignored, unsupported, or
+    silently clamped, so it must never be recorded as if it were the kernel.
+    """
+    record: dict[str, Any] = {"requested_coretype": None, "libraries": []}
+    import os
+
+    record["requested_coretype"] = os.environ.get("OPENBLAS_CORETYPE", "(unset)")
+    try:
+        from threadpoolctl import threadpool_info
+    except Exception:  # pragma: no cover - threadpoolctl is pinned present
+        record["error"] = "threadpoolctl unavailable"
+        return record
+    for item in threadpool_info() or []:
+        record["libraries"].append(
+            {
+                "internal_api": item.get("internal_api"),
+                "architecture": item.get("architecture"),
+                "version": item.get("version"),
+                "threading_layer": item.get("threading_layer"),
+                "num_threads": item.get("num_threads"),
+            }
+        )
+    return record
+
+
 def environment_record() -> dict[str, Any]:
     """Host record emitted for *evidence*, never folded into the reference."""
     import numpy
@@ -502,12 +629,8 @@ def environment_record() -> dict[str, Any]:
         "numpy": numpy.__version__,
         "scipy": scipy.__version__,
         "scikit_learn": sklearn.__version__,
-        "requested_openblas_coretype": __import__("os").environ.get(
-            "OPENBLAS_CORETYPE", "(unset)"
-        ),
-        "openblas_num_threads": __import__("os").environ.get(
-            "OPENBLAS_NUM_THREADS", "(unset)"
-        ),
+        "resident_kernels": resident_numerical_kernels(),
+        "solver": actual_solver_identity(),
     }
 
 
