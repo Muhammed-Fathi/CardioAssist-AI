@@ -39,7 +39,10 @@ if payload["environment_verdict"] == classifier.VERIFIED_ENVIRONMENT:
     # The environment is identified; the outcome is whatever the replay said.
     assert payload["environment"]["scipy_openblas_kernel"] is not None
     assert payload["environment"]["numpy_openblas_kernel"] is not None
-    assert classifier.exit_code(payload) == classifier.exit_code(payload)  # noqa
+# Both dimensions always matter -- see the table below.
+assert classifier.exit_code(payload) == EXPECTED[(
+    payload["environment_verdict"], payload["field_verdict"]
+)]
 ```
 
 More concretely, and without weakening anything: assert that a verified
@@ -51,6 +54,25 @@ if payload["environment_verdict"] == classifier.VERIFIED_ENVIRONMENT:
     assert payload["environment"]["scipy_openblas_kernel"] is not None
 assert classifier.exit_code(payload) == CLASSIFIER_EXIT_CODE[payload["field_verdict"]]
 ```
+
+### The exit-code grid (independently expected, not derived from one field)
+
+| environment | field verdict | exit | meaning |
+|---|---|---|---|
+| `VERIFIED_ENVIRONMENT` | `EXACT_REPLAY` | **0** | verified host, exact pack |
+| `VERIFIED_ENVIRONMENT` | `EXPECTED_SINGLE_FIELD_DELTAS` | **1** | verified host, documented deltas |
+| `VERIFIED_ENVIRONMENT` | `UNEXPECTED_DRIFT` | **2** | verified host, **unclassified** drift |
+| `VERIFIED_ENVIRONMENT` | `INVALID_DIAGNOSTIC` / `DIAGNOSTIC_REFUSED` | **2** | unusable diagnosis |
+| `UNVERIFIED_ENVIRONMENT` | anything | **2** | host never identified |
+
+An earlier revision of this proposal mapped `MISMATCH_FOUND` to exit 1. That was
+wrong twice: the canonical token is `UNEXPECTED_DRIFT`, and exit 1 means *these
+deltas are the documented ones*, never *something mismatched*. `MISMATCH_FOUND`
+is not a token the canonical classifier emits at all.
+
+The implemented helper (`rh04_v2_child_diagnosis.expected_exit_code`) is now
+compared against the **real** `rh04_environment_class.exit_code` on the complete
+grid above, with zero mismatches.
 
 ### What this deliberately does not change
 
