@@ -36,7 +36,9 @@ nothing about real-world provenance.
 
 from __future__ import annotations
 
+import base64
 import hashlib
+from pathlib import Path
 import hmac
 import json
 import math
@@ -505,6 +507,7 @@ ARCHIVE_KEYS: Final[tuple[str, ...]] = (
     "sentinel",
     "source",
     "feature_contract",
+    "registry_descriptor",
     "preprocessing",
     "model",
     "calibration",
@@ -542,8 +545,30 @@ def validate_archive(archive: Any) -> dict[str, Any]:
         "archive.feature_contract",
     )
     _require(
+        archive["registry_descriptor"],
+        (
+            "bundle_schema_version",
+            "calibration_status",
+            "explainability",
+            "eligibility",
+            "research_authorization",
+            "target_block",
+        ),
+        "archive.registry_descriptor",
+    )
+    _require(
         archive["training_identity"],
-        ("n_training_rows", "selected_hyperparameters", "split_sha256"),
+        (
+            "n_training_rows",
+            "selected_hyperparameters",
+            "split_sha256",
+            "split_assignments_sha256",
+            "shap_background_document",
+            "shap_background_sha256_raw",
+            "calibration_sha256_raw",
+            "calibration_document",
+            "preprocessing_sha256_raw",
+        ),
         "archive.training_identity",
     )
     _validate_preprocessing(archive["preprocessing"])
@@ -584,6 +609,7 @@ MANIFEST_KEYS: Final[tuple[str, ...]] = (
     "key_label",
     "routes",
     "case_ids",
+    "cases",
 )
 
 #: Every field a manifest must pin for one route. Nothing here is optional: an
@@ -617,6 +643,10 @@ MANIFEST_ROUTE_KEYS: Final[tuple[str, ...]] = (
     "calibration_n_oof_samples",
     "representation_version",
     "fold_ensemble_sha256",
+    "raw_archive_sha256",
+    "split_assignments",
+    "registry_metadata_sha256",
+    "shap_background_sha256_raw",
 )
 
 
@@ -634,6 +664,45 @@ def calibration_sha256(calibration: Mapping[str, Any]) -> str:
 
 def fold_ensemble_sha256(ensemble: Sequence[Mapping[str, Any]]) -> str:
     return _sha256(canonical_bytes(list(ensemble)))
+
+
+def _validate_split_assignments(assignments: Any, where: str) -> None:
+    """An assignment means ordered index lists, recomputable and complete."""
+    _require(
+        assignments,
+        (
+            "cohort_sha256",
+            "n_rows",
+            "outer_folds",
+            "outer_assignment_sha256",
+            "derivation",
+            "n_positive",
+            "holdout_indices",
+        ),
+        where,
+    )
+    folds = assignments["outer_folds"]
+    if not isinstance(folds, list) or not folds:
+        raise ArchiveError(f"{where}.outer_folds must be a non-empty list")
+    n_rows = int(assignments["n_rows"])
+    for fold in folds:
+        _require(
+            fold,
+            ("repeat_seed", "fold_index", "train_indices", "validation_indices"),
+            f"{where}.outer_folds[]",
+        )
+        train = fold["train_indices"]
+        validation = fold["validation_indices"]
+        if not train or not validation:
+            raise ArchiveError(f"{where}: empty train or validation assignment")
+        if set(train) & set(validation):
+            raise ArchiveError(f"{where}: train and validation indices overlap")
+        if len(set(train) | set(validation)) != n_rows:
+            raise ArchiveError(
+                f"{where}: fold assignment does not partition {n_rows} ordered rows"
+            )
+    if _sha256(canonical_bytes(folds)) != assignments["outer_assignment_sha256"]:
+        raise ArchiveError(f"{where}: fold assignment digest is inconsistent")
 
 
 def validate_manifest(manifest: Any) -> dict[str, Any]:
@@ -654,6 +723,14 @@ def validate_manifest(manifest: Any) -> dict[str, Any]:
         raise ArchiveError("manifest.routes must be a non-empty object")
     for route, entry in routes.items():
         _require(entry, MANIFEST_ROUTE_KEYS, f"manifest.routes[{route!r}]")
+        _validate_split_assignments(
+            entry["split_assignments"], f"manifest.routes[{route!r}].split_assignments"
+        )
+        raw_digest = entry["raw_archive_sha256"]
+        if not isinstance(raw_digest, str) or len(raw_digest) != 64:
+            raise ArchiveError(
+                f"manifest.routes[{route!r}].raw_archive_sha256 must be a full SHA-256"
+            )
         if entry["route_id"] != route:
             raise ArchiveError(
                 f"manifest route key {route!r} disagrees with its route_id"
@@ -776,6 +853,29 @@ def admit(
         raise ArchiveError("calibration identity disagrees with the manifest")
     if fold_ensemble_sha256(archive["fold_ensemble"]) != pinned["fold_ensemble_sha256"]:
         raise ArchiveError("outer-fold ensemble disagrees with the manifest")
+
+    # 4. The archive's own record of the ordered split assignment must agree with
+    #    the manifest, and the manifest's assignment must recompute from the
+    #    pinned seed schedule.
+    if (
+        archive["training_identity"]["split_assignments_sha256"]
+        != pinned["split_assignments"]["outer_assignment_sha256"]
+    ):
+        raise ArchiveError("split assignment disagrees with the manifest")
+    if (
+        archive["training_identity"]["split_assignments_sha256"]
+        != split_assignments(expected_route)["outer_assignment_sha256"]
+    ):
+        raise ArchiveError(
+            "split assignment does not recompute from the pinned seed schedule"
+        )
+
+    # 5. The SHAP background the archive pins must be the digest the manifest pins.
+    if (
+        archive["training_identity"]["shap_background_sha256_raw"]
+        != pinned["shap_background_sha256_raw"]
+    ):
+        raise ArchiveError("pinned SHAP background disagrees with the manifest")
     return dict(archive)
 
 
@@ -958,10 +1058,22 @@ def export_archive(bundle_dir: Any, *, signing_key: bytes | None = None) -> dict
     panel_block = manifest["panel_contract"]
     target_block = manifest["target"]
 
+    # The descriptor fields the registered identity checks read must come from
+    # the producer manifest, not be invented at rehydration time.
+    capabilities_block = manifest.get("capabilities") or {}
+    explainability_block = model_block.get("explainability") or {}
     return {
         "schema_version": ARCHIVE_SCHEMA,
         "protocol_id": ARCHIVE_PROTOCOL_ID,
         "sentinel": ARCHIVE_SENTINEL,
+        "registry_descriptor": {
+            "bundle_schema_version": manifest["bundle_schema_version"],
+            "calibration_status": model_block.get("calibration_status"),
+            "explainability": dict(explainability_block),
+            "eligibility": dict(manifest.get("eligibility") or {}),
+            "research_authorization": manifest.get("research_authorization"),
+            "target_block": dict(target_block),
+        },
         "source": {
             "route_id": panel_block["panel_id"],
             "dataset_id": target_block["development_dataset_id"],
@@ -1011,12 +1123,137 @@ def export_archive(bundle_dir: Any, *, signing_key: bytes | None = None) -> dict
                     }
                 )
             ),
+            # The SHAP background is a required inference dependency. The producer
+            # bundle forbids committing the document itself (it is declared as
+            # encoded training projections), so it is pinned here as canonical
+            # base64 and its raw SHA-256 is pinned separately in the manifest.
+            "shap_background_document": base64.b64encode(
+                (root / "shap_background.json").read_bytes()
+            ).decode("ascii"),
+            "shap_background_sha256_raw": _sha256(
+                (root / "shap_background.json").read_bytes()
+            ),
+            "split_assignments_sha256": split_assignments(panel_block["panel_id"])[
+                "outer_assignment_sha256"
+            ],
+            "calibration_sha256_raw": _sha256((root / "calibration.json").read_bytes()),
+            # The full producer calibration document, required verbatim by the
+            # reviewed parser (the summary block above is a projection of it).
+            "calibration_document": calibration,
+            "preprocessing_sha256_raw": _sha256(
+                (root / "preprocessing.json").read_bytes()
+            ),
         },
     }
 
 
+
+#: Exact split derivations for the two registered synthetic development cohorts.
+#: These reproduce the *ordered index assignments* the training run consumed,
+#: from the pinned seed and fold schedule -- not a hash of metadata about them.
+SPLIT_DERIVATIONS: Final[dict[str, dict[str, Any]]] = {
+    "da_a2_resting_v1": {
+        "cohort_builder": "resting_demo",
+        "n_rows": 96,
+        "seed": 20261025,
+        "outer_folds": 3,
+        "inner_folds": 2,
+        "repeat_seeds": [20261025],
+    },
+    "da_a1_basic_clinical_v1": {
+        "cohort_builder": "uci412_basic_clinical",
+        "n_development": 120,
+        "n_test": 60,
+        "seed": 20261025,
+        "outer_folds": 3,
+        "inner_folds": 2,
+        "repeat_seeds": [20261025],
+    },
+}
+
+
+def _ordered_cohort_labels(route: str) -> list[int]:
+    """Rebuild the exact ordered label vector the registered training run used."""
+    spec = SPLIT_DERIVATIONS[route]
+    if spec["cohort_builder"] == "resting_demo":
+        from ai.research_demo import _cohort
+
+        _, labels = _cohort()
+        return [int(v) for v in labels]
+    from ai.uci412_research import build_synthetic_uci412_basic_clinical_cohort
+
+    _, labels = build_synthetic_uci412_basic_clinical_cohort(
+        int(spec["n_development"]), seed=int(spec["seed"])
+    )
+    return [int(v) for v in labels]
+
+
+def split_assignments(route: str) -> dict[str, Any]:
+    """Return the actual ordered train/validation and outer-fold assignments.
+
+    Values are index lists into the ordered development cohort, so an auditor can
+    recompute them from the pinned seed and fold schedule. This is an assignment
+    digest, not a digest of metadata *about* an assignment.
+    """
+    import numpy as np
+    from sklearn.model_selection import StratifiedKFold
+
+    spec = SPLIT_DERIVATIONS[route]
+    labels = _ordered_cohort_labels(route)
+    y = np.asarray(labels, dtype=np.int64)
+    outer = []
+    for seed in spec["repeat_seeds"]:
+        splitter = StratifiedKFold(
+            n_splits=int(spec["outer_folds"]), shuffle=True, random_state=int(seed)
+        )
+        for fold_idx, (train_idx, test_idx) in enumerate(
+            splitter.split(np.zeros(len(y)), y), start=1
+        ):
+            outer.append(
+                {
+                    "repeat_seed": int(seed),
+                    "fold_index": int(fold_idx),
+                    "train_indices": [int(i) for i in train_idx],
+                    "validation_indices": [int(i) for i in test_idx],
+                }
+            )
+    try:
+        from ai.uci412_research import Uci412ResearchModelConfig
+
+        n_test = int(SPLIT_DERIVATIONS[route].get("n_test", 0) or 0)
+        _ = Uci412ResearchModelConfig
+    except Exception:  # noqa: BLE001
+        n_test = 0
+    holdout = sorted(range(len(y), len(y) + n_test)) if n_test else []
+    return {
+        "cohort_sha256": _sha256(canonical_bytes(labels)),
+        "n_rows": int(len(y)),
+        "n_positive": int(y.sum()),
+        "outer_folds": outer,
+        "outer_assignment_sha256": _sha256(canonical_bytes(outer)),
+        "holdout_indices": holdout,
+        "derivation": {
+            "method": "StratifiedKFold(shuffle=True)",
+            "n_splits": int(spec["outer_folds"]),
+            "random_state": int(spec["repeat_seeds"][0]),
+            "ordered_cohort_builder": spec["cohort_builder"],
+            "seed": int(spec["seed"]),
+        },
+    }
+
+
+def _registered_cases() -> list[dict[str, Any]]:
+    """The 29 registered cases, read from the frozen V1 pack (never modified)."""
+    from research.intake import offline_fixture_pack as v1
+
+    return list(json.loads(v1.PACK.read_text(encoding="utf-8"))["cases"])
+
+
 def build_manifest(
-    archives: Mapping[str, Mapping[str, Any]], *, reference_id: str
+    archives: Mapping[str, Mapping[str, Any]],
+    *,
+    reference_id: str,
+    raw_digests: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Build the *independent* trusted manifest for a set of archives.
 
@@ -1025,8 +1262,10 @@ def build_manifest(
     the artifact under test.
     """
     routes: dict[str, Any] = {}
+    raw_digests = dict(raw_digests or {})
     for route, archive in archives.items():
         body = archive
+        raw_archive_sha256 = raw_digests.get(route)
         routes[route] = {
             "archive_sha256": archive_digest(body),
             "route_id": body["source"]["route_id"],
@@ -1064,6 +1303,21 @@ def build_manifest(
             "calibration_n_oof_samples": body["calibration"]["n_oof_samples"],
             "representation_version": body["model"]["representation_version"],
             "fold_ensemble_sha256": fold_ensemble_sha256(body["fold_ensemble"]),
+            # Raw on-disk archive digests: the identity of the committed file
+            # itself, independent of the semantic body digest above.
+            "raw_archive_sha256": raw_archive_sha256,
+            # The actual ordered split/fold assignments, not a hash of metadata.
+            "split_assignments": split_assignments(route),
+            # The exact pinned registry declarations Lane B reconstructs the
+            # descriptor from, and the digest of the pinned SHAP background.
+            "registry_metadata_sha256": registry_metadata_digest(
+                body["source"]["panel_id"],
+                body["source"]["model_id"],
+                body["source"]["model_version"],
+            ),
+            "shap_background_sha256_raw": body["training_identity"][
+                "shap_background_sha256_raw"
+            ],
         }
     return {
         "manifest_schema": MANIFEST_SCHEMA,
@@ -1071,7 +1325,16 @@ def build_manifest(
         "reference_id": reference_id,
         "key_label": FIXTURE_KEY_LABEL,
         "routes": routes,
-        "case_ids": [],
+        "case_ids": [case["id"] for case in _registered_cases()],
+        "cases": [
+            {
+                "case_id": case["id"],
+                "route_id": case["route"],
+                "edits_sha256": _sha256(canonical_bytes(case["edits"])),
+                "expected_sha256": _sha256(canonical_bytes(case["expected"])),
+            }
+            for case in _registered_cases()
+        ],
     }
 
 
@@ -1086,110 +1349,230 @@ def build_manifest(
 SEAM_NAME: Final[str] = "_load_artifact"
 
 
-class _PortableLoadedArtifact:
-    """Mirror of the facade's loaded-artifact record, built without pickle."""
+#: Pinned registry metadata binding. The panel contract and model entry are
+#: static, reviewed declarations in the source tree -- not training output --
+#: and their digests are recorded in the trusted manifest so a consumer proves
+#: it is using the same registry revision the archives were produced against.
+REGISTRY_METADATA_KEYS: Final[tuple[str, ...]] = (
+    "panel_id",
+    "model_id",
+    "panel_contract_sha256",
+    "registry_metadata_sha256",
+)
 
-    def __init__(self, *, predictor: Any, descriptor: Any, capabilities: Any,
-                 model_family: str, signing_key_provided: bool) -> None:
+
+def registry_metadata_digest(panel_id: str, model_id: str, model_version: str) -> str:
+    """Digest of the exact non-sensitive registry declarations Lane B relies on."""
+    from ai.panels import REGISTERED_PANELS
+    from ai.research_registry import RESEARCH_MODEL_REGISTRY
+
+    panel = REGISTERED_PANELS[panel_id]
+    entry = RESEARCH_MODEL_REGISTRY[f"{model_id}@{model_version}"]
+    return _sha256(
+        canonical_bytes(
+            {
+                "panel": {
+                    "panel_id": panel.panel_id,
+                    "panel_version": panel.panel_version,
+                    "dataset_id": panel.dataset_id,
+                    "source_family": panel.source_family,
+                    "stage": panel.stage,
+                    "target_id": panel.target_id,
+                    "fields": [
+                        {
+                            "name": f.name,
+                            "role": f.role,
+                            "order": int(f.order),
+                            "required": bool(f.required),
+                            "unit": f.unit,
+                            "strictly_positive": bool(f.strictly_positive),
+                            "categorical_codes": list(f.categorical_codes or ()),
+                            "text_vocabulary": dict(f.text_vocabulary or {}),
+                        }
+                        for f in panel.fields
+                    ],
+                },
+                "entry": {
+                    "model_id": entry.model_id,
+                    "model_version": entry.model_version,
+                    "protocol_id": entry.protocol_id,
+                    "execution_profile": entry.execution_profile,
+                    "panel_id": entry.panel_id,
+                    "panel_version": entry.panel_version,
+                    "target_id": entry.target_id,
+                },
+            }
+        )
+    )
+
+
+def _build_descriptor(
+    admitted: Mapping[str, Any], panel: Any, entry: Any
+) -> Any:
+    """Build the verified-descriptor equivalent from pinned registry data.
+
+    ``producer_authenticated`` and ``safe_for_pickle_deserialization`` are
+    **False** by design: this describes a portable archive, not an authenticated
+    producer bundle, and nothing downstream may deserialise.
+    """
+    from ai.packaging import VerifiedBundleDescriptor
+
+    training = admitted["training_identity"]
+    pinned = admitted["registry_descriptor"]
+    manifest = {
+        "bundle_schema_version": pinned["bundle_schema_version"],
+        "eligibility": dict(pinned["eligibility"]),
+        "research_authorization": pinned["research_authorization"],
+        "model": {
+            "model_id": entry.model_id,
+            "model_version": entry.model_version,
+            "protocol_id": entry.protocol_id,
+            "execution_profile": entry.execution_profile,
+            "selected_model_family": admitted["model"]["family"],
+            "calibration_status": pinned["calibration_status"],
+            "selected_hyperparameters": dict(training["selected_hyperparameters"]),
+            "explainability": dict(pinned["explainability"]),
+        },
+        "panel_contract": {
+            "panel_id": panel.panel_id,
+            "panel_version": panel.panel_version,
+            "contract_sha256": panel.contract_sha256,
+            "ordered_feature_names": list(panel.feature_names),
+        },
+        "target": dict(pinned["target_block"]),
+        "files": {
+            "calibration.json": {"sha256": training["calibration_sha256_raw"]},
+            "preprocessing.json": {"sha256": training["preprocessing_sha256_raw"]},
+            "shap_background.json": {"sha256": training["shap_background_sha256_raw"]},
+        },
+        "local_producer_attestation": {"scheme": "not_applicable_pinned_archive"},
+    }
+    return VerifiedBundleDescriptor(
+        bundle_dir=Path("<pinned-archive>"),
+        manifest=manifest,
+        panel=panel,
+        verified_files={k: dict(v) for k, v in manifest["files"].items()},
+        integrity_verified_only_not_authenticated=True,
+        producer_authenticated=False,
+        safe_for_pickle_deserialization=False,
+    )
+
+
+def _shap_background_from_pinned(training: Mapping[str, Any]) -> dict[str, Any]:
+    """Decode the SHAP background from its pinned canonical bytes.
+
+    The producer bundle marks this document ``commit_or_public_upload_prohibited``
+    and declares it encoded training projections, so it is **not** committed.
+    It is pinned as base64 in the archive and its SHA-256 must match the value
+    the independently trusted manifest carries before it is used.
+    """
+    encoded = training["shap_background_document"]
+    if not isinstance(encoded, str):
+        raise ArchiveError("shap background must be pinned as canonical base64")
+    try:
+        raw = base64.b64decode(encoded.encode("ascii"), validate=True)
+    except Exception as exc:  # noqa: BLE001
+        raise ArchiveError("shap background is not valid base64") from exc
+    if _sha256(raw) != training["shap_background_sha256_raw"]:
+        raise ArchiveError(
+            "shap background digest does not match the independently pinned value"
+        )
+    document = json.loads(raw.decode("utf-8"))
+    if not isinstance(document, Mapping):
+        raise ArchiveError("shap background must decode to an object")
+    return dict(document)
+
+
+class _PortableLoadedArtifact:
+    """Facade-compatible loaded artifact built without deserialisation."""
+
+    def __init__(
+        self,
+        *,
+        predictor: Any,
+        descriptor: Any,
+        capabilities: Any,
+        model_family: str,
+        facade: Any,
+    ) -> None:
         self.predictor = predictor
         self.descriptor = descriptor
         self.capabilities = capabilities
         self.model_family = model_family
-        self.signing_key_provided = signing_key_provided
+        self.signing_key_provided = False
+        self._facade = facade
 
     def safe_block(self) -> dict[str, Any]:
-        """Reuse the project's own path-free artifact identity block.
-
-        The block is a property of the *verified bundle descriptor*, not of how
-        the estimator was obtained, so the registered implementation is reused
-        unchanged rather than re-derived here.
-        """
-        register = getattr(self, "_safe_block_impl", None)
-        if register is None:  # pragma: no cover - defensive
-            raise ArchiveError("safe_block implementation was not bound")
-        return register()
+        """Delegate to the facade's own path-free identity block."""
+        shadow = type("_Shadow", (), {})()
+        shadow.descriptor = self.descriptor
+        shadow.signing_key_provided = self.signing_key_provided
+        return self._facade._LoadedArtifact.safe_block(shadow)
 
 
-def _load_artifact_from_archive(
+def load_artifact_from_archive(
     facade: Any,
-    archive: Mapping[str, Any],
+    admitted: Mapping[str, Any],
     *,
-    trusted_local_root: Any,
-    signing_key: bytes | None,
-):
-    """Stand in for ``facade._load_artifact`` using a verified portable archive.
+    entry: Any,
+    panel: Any,
+) -> _PortableLoadedArtifact:
+    """Build the facade artifact from an **already admitted** archive.
 
-    The registered sequence is preserved and re-executed here:
+    Every inference dependency comes from pinned data:
 
-    1. verify the producer bundle (containment, ACLs, sibling digests, HMAC),
-    2. synthetic-provenance / execution-profile gate,
-    3. registry identity cross-check against the verified manifest,
-    4. request-versus-artifact agreement,
-    5. capabilities from verified JSON,
-    6. **then** obtain the estimator -- here by rehydration from arrays rather
-       than ``joblib.load``.
+    * model            -- rehydrated from the archive's declarative arrays;
+    * preprocessing    -- the archive's own record;
+    * calibration      -- the archive's own record;
+    * fold ensemble    -- the archive's own record;
+    * SHAP background  -- decoded from pinned canonical bytes, digest-checked;
+    * descriptor/panel -- reconstructed from pinned registry metadata.
 
-    Steps 1-5 run the project's own code unchanged. Only step 6 differs, which is
-    exactly the property the portable lane is meant to establish.
+    The producer bundle is never read. Every value is checked against the
+    independently trusted manifest before this function can be reached.
     """
     from ai.calibration import OofLogisticCalibrator
-    from ai.inference import ResearchCadPredictor
-    from ai.packaging import (
-        CALIBRATION_FILENAME,
-        PREPROCESSING_FILENAME,
-        SHAP_BG_FILENAME,
-        verify_trusted_local_bundle,
-    )
-    from ai.preprocessing import FoldSafeClinicalPreprocessor
     from ai.cli import assert_cli_predict_supported
+    from ai.explainability import ShapBackgroundReference
+    from ai.inference import ResearchCadPredictor
+    from ai.preprocessing import FoldSafeClinicalPreprocessor
     from ai.research_registry import (
         ResearchRegistryError,
         assert_artifact_identity,
         derive_artifact_capabilities,
     )
-    from ai.explainability import ShapBackgroundReference
+    from ai.training import FoldEnsembleMember
 
-    request = _load_artifact_from_archive._request
-    binding = _load_artifact_from_archive._binding
-    panel = _load_artifact_from_archive._panel
-    source = request.model_source
-    entry = binding.entry
     Refusal = facade._Refusal
+    descriptor = _build_descriptor(admitted, panel, entry)
     try:
-        descriptor = verify_trusted_local_bundle(
-            source.bundle_dir,
-            trusted_local_root=trusted_local_root,
-            signing_key=signing_key,
-        )
         assert_cli_predict_supported(descriptor.manifest)
         model_family = assert_artifact_identity(descriptor.manifest, entry)
-        facade._assert_request_matches_artifact(request, descriptor.manifest, entry)
-        calibration_doc = facade._read_verified_json(descriptor, CALIBRATION_FILENAME)
+        if model_family != admitted["model"]["family"]:
+            raise Refusal("artifact_identity_mismatch", stage="artifact")
+        preprocessor = FoldSafeClinicalPreprocessor.from_json_dict(
+            dict(admitted["preprocessing"]), expected_panel=descriptor.panel
+        )
+        calibration_doc = dict(admitted["training_identity"]["calibration_document"])
         calibrator = OofLogisticCalibrator.from_json_dict(calibration_doc)
+        background_doc = _shap_background_from_pinned(admitted["training_identity"])
         capabilities = derive_artifact_capabilities(
             descriptor.manifest,
             entry=entry,
             calibrator=calibrator,
-            background_document=facade._read_verified_json(descriptor, SHAP_BG_FILENAME),
+            background_document=background_doc,
             model_family=model_family,
         )
-        preprocessor = FoldSafeClinicalPreprocessor.from_json_dict(
-            facade._read_verified_json(descriptor, PREPROCESSING_FILENAME),
-            expected_panel=descriptor.panel,
-        )
         background = ShapBackgroundReference.from_json_dict(
-            facade._read_verified_json(descriptor, SHAP_BG_FILENAME),
+            background_doc,
             preprocessor=preprocessor,
             require_synthetic=True,
             is_authorized_research_bundle=False,
         )
-        estimator = rehydrate(archive)
-        from ai.training import FoldEnsembleMember
-
         members = []
-        for index, spec in enumerate(archive["fold_ensemble"]):
+        for spec in admitted["fold_ensemble"]:
             member_pre = FoldSafeClinicalPreprocessor.from_json_dict(
-                spec["preprocessing"], expected_panel=descriptor.panel
+                dict(spec["preprocessing"]), expected_panel=descriptor.panel
             )
             member_cal = OofLogisticCalibrator.from_json_dict(dict(spec["calibrator"]))
             if member_cal.model_family != spec["model_family"]:
@@ -1206,7 +1589,7 @@ def _load_artifact_from_archive(
         predictor = ResearchCadPredictor(
             descriptor=descriptor,
             preprocessor=preprocessor,
-            estimator=estimator,
+            estimator=rehydrate(admitted),
             calibrator=calibrator,
             shap_background=background,
             fold_ensemble=tuple(members),
@@ -1214,88 +1597,112 @@ def _load_artifact_from_archive(
     except Refusal:
         raise
     except ResearchRegistryError as exc:
-        raise Refusal(exc.code, stage="artifact", field_name=exc.field, panel=panel) from exc
+        raise Refusal(
+            exc.code, stage="artifact", field_name=exc.field, panel=descriptor.panel
+        ) from exc
     except ArchiveError:
         raise
-    except Exception as exc:  # noqa: BLE001 - never leak exception text in a response
-        # The response stays generic, but the cause is preserved on the exception
-        # chain so an operator can diagnose it without exposing it to a caller.
-        raise Refusal("bundle_verification_failed", stage="artifact", panel=panel) from exc
+    except Exception as exc:  # noqa: BLE001 - generic in the response, chained for operators
+        raise Refusal(
+            "bundle_verification_failed", stage="artifact", panel=descriptor.panel
+        ) from exc
 
     if (
         predictor.model_id != entry.model_id
         or predictor.model_version != entry.model_version
         or predictor.panel.panel_id != entry.panel_id
         or predictor.execution_profile != entry.execution_profile
-        or predictor.model_family != archive["model"]["family"]
     ):
-        raise Refusal("artifact_identity_mismatch", stage="artifact", panel=panel)
-    loaded = _PortableLoadedArtifact(
+        raise Refusal("artifact_identity_mismatch", stage="artifact")
+    return _PortableLoadedArtifact(
         predictor=predictor,
         descriptor=descriptor,
         capabilities=capabilities,
         model_family=model_family,
-        signing_key_provided=signing_key is not None,
+        facade=facade,
     )
-    # Bind the registered implementation of the identity block; it only reads
-    # the verified descriptor, so it is valid for a rehydrated model too.
-    def _safe_block() -> dict[str, Any]:
-        class _DescriptorOnly:
-            descriptor = loaded.descriptor
-            signing_key_provided = loaded.signing_key_provided
-
-        return facade._LoadedArtifact.safe_block(_DescriptorOnly())  # type: ignore[arg-type]
-
-    loaded._safe_block_impl = _safe_block
-    return loaded
 
 
-def _seam_adapter(facade: Any, archive: dict[str, Any]):
-    """Return a drop-in replacement for ``facade._load_artifact``."""
-
-    def load(request, binding, panel):
-        _load_artifact_from_archive._request = request
-        _load_artifact_from_archive._binding = binding
-        _load_artifact_from_archive._panel = panel
-        source = request.model_source
-        return _load_artifact_from_archive(
-            facade,
-            archive,
-            trusted_local_root=source.trusted_local_root,
-            signing_key=source.signing_key,
-        )
-
-    return load
+def rehydrate_member(spec: Mapping[str, Any]):
+    """Rehydrate one outer-fold estimator from its declarative representation."""
+    return rehydrate(
+        {
+            "model": {
+                "family": spec["model_family"],
+                "classes": [0, 1],
+                "representation": spec["representation"],
+            },
+            "preprocessing": spec["preprocessing"],
+        }
+    )
 
 
 class PortableReplay:
-    """Context manager: run the registered facade with a portable artifact.
+    """Run the registered facade against **admitted** portable archives.
 
-    Only the model-transition seam is substituted. Request parsing, ordered
-    validation, route resolution, source binding, abstention, refusal,
-    unavailable and error handling all remain the facade's own code.
+    Admission is mandatory and happens in the constructor, before any facade
+    call is possible:
+
+    * the trusted manifest and key are required arguments;
+    * the expected route set must match the manifest's route set exactly;
+    * ``admit()`` runs for every route;
+    * only the admitted archives are retained and used.
+
+    No scoring or estimator construction can occur before that succeeds, because
+    the archives are not even stored until every route has been admitted.
     """
 
-    def __init__(self, facade: Any, archives: Mapping[str, Mapping[str, Any]]) -> None:
-        self._facade = facade
-        self._archives = dict(archives)
-        self._original = None
-        self._active_route: str | None = None
+    def __init__(
+        self,
+        facade: Any,
+        *,
+        manifest: Mapping[str, Any],
+        key: bytes,
+        archives: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        manifest = validate_manifest(manifest)
+        expected = set(manifest["routes"])
+        supplied = set(archives)
+        missing = sorted(expected - supplied)
+        unexpected = sorted(supplied - expected)
+        if missing:
+            raise ArchiveError(f"archives missing for manifest routes {missing}")
+        if unexpected:
+            raise ArchiveError(f"archives supplied for unpinned routes {unexpected}")
+        if len(archives) != len(supplied):
+            raise ArchiveError("duplicate routes in the archive mapping")
 
-    def select(self, route: str) -> None:
-        self._active_route = route
+        admitted: dict[str, dict[str, Any]] = {}
+        for route in sorted(expected):
+            admitted[route] = admit(
+                archives[route], manifest, key=key, expected_route=route
+            )
+        # Only now, after every route admitted, are the archives retained.
+        self._facade = facade
+        self._admitted = admitted
+        self._manifest = manifest
+        self._key = bytes(key)
+        self._original = None
+
+    @property
+    def admitted_routes(self) -> tuple[str, ...]:
+        return tuple(sorted(self._admitted))
 
     def __enter__(self) -> "PortableReplay":
         self._original = getattr(self._facade, SEAM_NAME)
+        facade = self._facade
+        admitted = self._admitted
 
-        def dispatch(request, binding, panel):
+        def dispatch(request, binding, request_panel):
             route = request.route_id
-            if route not in self._archives:
-                raise self._facade._Refusal(
-                    "portable_archive_absent_for_route", stage="artifact"
+            if route not in admitted:
+                raise facade._Refusal(
+                    "portable_archive_absent_for_route",
+                    stage="artifact",
+                    panel=request_panel,
                 )
-            return _seam_adapter(self._facade, self._archives[route])(
-                request, binding, panel
+            return load_artifact_from_archive(
+                facade, admitted[route], entry=binding.entry, panel=request_panel
             )
 
         setattr(self._facade, SEAM_NAME, dispatch)
@@ -1338,9 +1745,36 @@ def shape_response(response: Any) -> dict[str, Any]:
     return out
 
 
-def execute_case(facade: Any, request: Mapping[str, Any], replay: "PortableReplay",
-                 *, model_source: Any) -> dict[str, Any]:
-    """Execute one registered case through the facade and export the response."""
+#: A path that deliberately does not exist. The portable lane passes a source
+#: pointing here, so any code that actually tried to read a producer bundle would
+#: fail loudly instead of silently borrowing one.
+ABSENT_BUNDLE_PATH: Final[Path] = Path(
+    "<no-producer-bundle-is-present-in-the-portable-lane>"
+)
+
+
+def declared_absent_source() -> Any:
+    """The registered source type, pointed at a path that does not exist."""
+    from ai.research_facade import LocalSyntheticBundleSource
+
+    return LocalSyntheticBundleSource(ABSENT_BUNDLE_PATH, ABSENT_BUNDLE_PATH)
+
+
+def execute_case(
+    facade: Any,
+    request: Mapping[str, Any],
+    replay: "PortableReplay",
+    *,
+    model_source: Any = None,
+) -> dict[str, Any]:
+    """Execute one registered case through the facade and export the response.
+
+    ``model_source`` defaults to a source whose paths do not exist: the portable
+    lane must not need any producer bundle, and the facade's own request
+    validation only needs the registered source *type*.
+    """
+    if model_source is None:
+        model_source = declared_absent_source()
     with replay:
         response = facade.run_offline_research_inference_from_document(
             dict(request), model_source=model_source
@@ -1348,14 +1782,13 @@ def execute_case(facade: Any, request: Mapping[str, Any], replay: "PortableRepla
     return shape_response(response)
 
 
-def rehydrate_member(spec: Mapping[str, Any]):
-    """Rehydrate one outer-fold estimator from its declarative representation."""
-    pseudo = {
-        "model": {
-            "family": spec["model_family"],
-            "classes": [0, 1],
-            "representation": spec["representation"],
-        },
-        "preprocessing": spec["preprocessing"],
-    }
-    return rehydrate(pseudo)
+def response_identity(facade: Any, requests: Sequence[Mapping[str, Any]],
+                      replay: "PortableReplay", *, model_source: Any) -> str:
+    """Order-independent digest over the 29 exported responses."""
+    digests = [
+        _sha256(canonical_bytes(
+            execute_case(facade, request, replay, model_source=model_source)
+        ))
+        for request in requests
+    ]
+    return _sha256("".join(digests).encode("ascii"))

@@ -32,11 +32,16 @@ These are *work items*. Completing one closes nothing.
 | `T-SELECTION` | Actual selected family/profile/hyperparameters recorded per source | **DONE (round 9)** |
 | `T-PORTABLE` | Declarative portable archive rehydrated into the registered estimator | **DONE (round 10)** |
 | `T-ADMISSION` | Independent trusted manifest + HMAC; verifier derives nothing from the artifact | **DONE (round 10)** |
+| `T-ADMISSION-PATH` | Admission is mandatory **in the replay constructor** and runs for every route before any facade call; missing/unexpected/swapped/duplicate/foreign-key routes refuse | **DONE (round 10.1)** |
 | `T-REPLAY29` | **All 29 cases executed through the real facade**, exact type-and-value | **DONE (round 10)** |
 | `T-NOTOLERANCE` | Portability established without a numeric tolerance; `1e-14` removed | **DONE (round 10)** |
+| `T-LANEB-INDEPENDENT` | Lane B reads no producer bundle: model, preprocessing, calibration, fold ensemble, SHAP background and descriptor all come from pinned archive/manifest/registry declarations | **DONE (round 10.1)** |
+| `T-LANEB-FIXEDREF` | Lane B has its own fixed reference identity from the pinned artifact (`891d9e3b…`), never a freshly trained Lane A result | **DONE (round 10.1)** |
+| `T-MANIFEST-COMPLETE` | Raw archive-file SHA-256, semantic digest, actual ordered split/fold assignments, calibration OOF provenance, SHAP background digest, registry metadata digest; `build_manifest()` emits the real 29 case IDs | **DONE (round 10.1)** |
+| `T-CONCURRENCY` | No mutable request/binding/panel state; 8 concurrent executions leak nothing | **DONE (round 10.1)** |
 | `T-DIGEST-BIND` | Full algorithm declaration bound into `pipeline_digest` | **DONE (round 9)** |
 | `T-CHILD-RC` | Helper rejects unknown verdicts and inconsistent child rcs | **DONE (round 9)** |
-| `T-XENV` | Requested vs resident kernel matrix, cold processes | **PARTIAL** |
+| `T-XENV` | Requested vs resident kernel matrix, cold processes, rehydrated Lane B (5 classes → 1 group) | **PARTIAL** (3.12 / Windows NOT MEASURED) |
 | `T-WIN` | Native Windows executed by a reviewer | **BLOCKED** (no Windows host) |
 | `T-CI` | Hosted exact-head verification of the corrected commit | **BLOCKED** (see §5) |
 
@@ -140,7 +145,11 @@ states evidence, status, blocker and next action.
 - **Runtime:** ~117 s per full reference.
 
 ### Option B — portable frozen-artifact inference as the *reference-producing* lane
-- Lane B: attestation-admitted declarative artifacts, exact-rational evaluation.
+- Lane B: admission-gated declarative artifacts rehydrated into genuine scikit-learn
+  estimators, executed through the registered facade, compared exactly against a
+  fixed reference identity derived from the pinned artifact. **The exact-rational
+  evaluator described in earlier revisions of this ledger is superseded and no
+  longer exists.**
 - **Establishes:** host-independent scoring and calibration **by construction**; a bounded, reviewable artifact (4096-byte class); no pickle on the verification path; refused tampering.
 - **Does not establish:** bit-identity with scikit-learn (measured ≤6.66e-15); training reproducibility — training still happens once, on Lane A.
 - **V2-04 outcome:** `EXACT_REPLAY` becomes achievable *for the portable lane* on any host, because the arithmetic is rational.
@@ -161,7 +170,9 @@ Neither lane replaces the other; each answers a different question.
 [`RH04_V2_AMENDMENT_PROPOSAL_2026_11_21.md`](RH04_V2_AMENDMENT_PROPOSAL_2026_11_21.md).**
 Summary:
 1. **V2-04** — split into `V2-04a` (Lane A: ≥3 classes × 3.11/3.12 + Windows, each reporting its measured verdict, `EXACT_REPLAY` required only on a declared host class) and `V2-04b` (Lane B: `EXACT_REPLAY` required on every host).
-2. **V2-06** — declare Lane B's arithmetic and its ≤1e-14 agreement bound in the manifest wording.
+2. **V2-06** — declare Lane B's arithmetic. *(Superseded: there is no agreement
+   bound to declare. `1e-14` is removed; Lane B compares exactly against its own
+   fixed identity.)*
 3. **V2-08** — state that `DECLARED_SCORE_AGREEMENT` is a *reported* bound in the candidate lane and that no existing gate consumes it; if the owner prefers, make Lane B report deltas with no pass/fail threshold at all.
 4. **D-V2-7** — remains proposed; Lane B is an inference path, never a replacement for regeneration.
 
@@ -189,6 +200,7 @@ install command; they never skip.
 
 - No clinical validity, no model equivalence, no patient readiness.
 - The portable lane is **not** bit-identical to scikit-learn.
-- `1e-14` is a declared candidate agreement bound, **not** a relaxation of any existing acceptance tolerance.
+- `1e-14` is **removed**. It was a candidate agreement bound in Round 9; Round 10
+  deleted it and Round 10.1 leaves Lane B with no numeric exception surface at all.
 - Fixed coefficients do **not** imply SHAP/LIME reproducibility; those are outside the exported replay fields.
 - The Round 8 ledger is withdrawn as an acceptance record.

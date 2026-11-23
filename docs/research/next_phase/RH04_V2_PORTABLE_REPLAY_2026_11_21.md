@@ -42,10 +42,87 @@ Measured: rehydration is **bit-identical** to the original fitted estimator.
 | `l2_logistic_regression` | `predict_proba` | 200 | **bit-identical** |
 | `constrained_random_forest` | `predict_proba` | 500 | **bit-identical** |
 
-Consequence: **there is no numeric comparison policy left to argue about.**
-Lane A and Lane B must agree exactly, and verification refuses any difference.
-`DECLARED_SCORE_AGREEMENT` is gone from the new module; the stale
-`EXACT_FIELDS = ("calibrated_log_odds",)` designation is gone with it.
+Consequence: **there is no numeric comparison policy left to argue about
+inside Lane B.** `DECLARED_SCORE_AGREEMENT` is gone from the new module; the
+stale `EXACT_FIELDS = ("calibrated_log_odds",)` designation is gone with it.
+Lane B compares exactly against its **own** fixed reference identity, with no
+numeric exception surface.
+
+One clarification added in Round 10.1: the table above is a *within-process*
+equivalence between a fitted estimator and its rehydrated twin on the same host.
+It does **not** license using freshly trained Lane A output as Lane B's expected
+reference. Lane A and the registered path still differ from the portable lane at
+the last bits on some kernels, and Lane B's reference is generated once from the
+committed artifact and pinned as a constant.
+
+## 1a. Round 10.1 — the two defects Round 10 still carried
+
+Round 10 executed 29 cases for real, but review found that the *independence* it
+claimed was not actually enforced. Both defects are now fixed.
+
+| Defect | What was wrong | What changed |
+|---|---|---|
+| **P0-01** | `PortableReplay.__init__(self, facade, archives)` took raw archive JSON and never called `admit()`. A test could construct a replay over an archive that would have been refused by `admit()`, and the "admission" tests exercised a function the replay never called. | `PortableReplay` now **requires** the trusted manifest and key, checks the expected route set exactly (missing / unexpected / swapped / duplicate all refuse), and calls `admit()` for every route in the constructor. The archives are not even retained until every route has been admitted, so no scoring or estimator construction can precede admission. |
+| **P0-02** | `_load_artifact_from_archive` obtained the descriptor, preprocessing, calibration and SHAP background through `verify_trusted_local_bundle(source.bundle_dir, …)` — the **freshly generated producer bundle**. Lane B was a hybrid that borrowed most of its inference state from a just-trained artifact. | The freshly-trained dependency is gone. Descriptor fields, eligibility, target block and the full calibration document are pinned *inside the archive*; the SHAP background travels as pinned canonical bytes with a SHA-256 in the independently trusted manifest; the panel and registry entry are the static reviewed declarations. `v1.sources()` is no longer called anywhere in the Lane B path. |
+
+### Admission is in the execution path, and tampering is proven to fail before evaluation
+
+The adversarial test is end-to-end, not a unit test of `admit()`:
+
+1. modify a **semantic** field in a committed archive (a tree node value — not a
+   bookkeeping field, which `archive_digest` would ignore);
+2. recompute the archive's internal `archive_sha256`;
+3. recompute the fixture MAC **with the committed key**, which the attacker has;
+4. regenerate the manifest's per-route `archive_sha256` pin;
+5. attempt a full `PortableReplay` construction.
+
+Result: **refused**, and `rehydrate` / `rehydrate_member` are trapped for the
+whole test and never fire, so no estimator was constructed and no record was
+scored. The archive's own hash is not an identity, and a manifest that merely
+echoes it is not an independent pin; the pinned split assignment and the SHAP
+background digest are what still disagree.
+
+### Lane B needs no producer bundle at all
+
+`test_cold_process_replay_needs_no_producer_bundle` runs all 29 cases in a fresh
+interpreter with `v1.sources()` never called, so no producer bundle exists on
+disk. The result is identical to the in-process replay:
+
+| | value |
+|---|---|
+| cases executed | **29 / 29** |
+| statuses | 2 `SYNTHETIC_RESULT`, 2 `ABSTAIN`, 3 `UNAVAILABLE`, 22 `ERROR` |
+| digest | `891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8` |
+
+`execute_case` now defaults `model_source` to a `LocalSyntheticBundleSource`
+whose paths **do not exist**. The facade's request grammar needs the registered
+source *type*; nothing in Lane B needs its contents. Any code that tried to read a
+bundle would fail loudly instead of silently succeeding.
+
+### The SHAP background: a deliberate, narrow exception
+
+The producer bundle marks `shap_background.json` with
+`commit_or_public_upload_prohibited: true` and declares it as *encoded training
+projections*. Committing that document as a separate file would violate the
+bundle's own policy. It is therefore **not** committed as a file. It travels as
+canonical base64 inside the archive's `training_identity`, with its raw SHA-256
+pinned twice (in the archive and in the independently trusted manifest), and it
+is decoded and digest-checked at load time.
+
+This is still a *recorded training projection*, and it is described as such
+wherever it appears. It is a synthetic-cohort background (the document's own
+privacy block declares `synthetic_only: true`), it is small — 2,687 B for the
+10-feature REST panel and 4,281 B for the 16-feature BASIC panel — and the
+alternative (recomputing it from a fresh training run) is exactly the dependency
+P0-02 forbids. It is the narrowest way to satisfy both constraints, and it is
+called out here rather than buried.
+
+### Concurrency
+
+The Round 10 adapter transported `_request` / `_binding` / `_panel` through
+mutable function attributes. Those are gone; every value is passed as an explicit
+argument, and concurrent execution of the same replay from eight threads returns
+eight identical results with no route or request leakage.
 
 ## 2. All 29 cases now execute through the real facade
 

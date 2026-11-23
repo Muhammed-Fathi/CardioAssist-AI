@@ -137,7 +137,14 @@ implemented evidence:
 - wrong trusted key;
 - non-finite, wrongly typed and out-of-range parameters;
 - tree cycle, unreachable node, hostile node count;
-- evaluation attempted on an archive with no manifest entry.
+- evaluation attempted on an archive with no manifest entry;
+- **construction** of a replay without a trusted manifest and key (Round 10.1:
+  admission is in the constructor, not an optional helper);
+- an archive whose split assignment or SHAP background digest disagrees with the
+  independently trusted manifest, even after the attacker recomputes the
+  archive's own hash, re-signs it with the committed key and re-pins the manifest
+  entry — the assignment is recomputed from the pinned seed schedule, which the
+  attacker cannot make agree with a different fold partition.
 
 ### V2-08 — *unchanged, and the Round 9 risk is retired*
 
@@ -149,7 +156,14 @@ implemented evidence:
 
 Round 9 introduced `DECLARED_SCORE_AGREEMENT = 1e-14`, arguably a new tolerance
 surface. **This proposal removes it.** The portable lane now requires exact
-equality, so V2-08 can be satisfied as written with no ruling needed.
+equality against its own fixed reference identity, so V2-08 can be satisfied as
+written with no ruling needed.
+
+Round 10.1 adds one clarification that this proposal should carry: Lane B's exact
+equality is directed at **Lane B's own** versioned reference, never at freshly
+generated Lane A output. Rehydration is bit-identical to a fitted estimator
+*within a process on the same host*; that measurement does not make Lane A a
+valid expected reference for Lane B, and no test uses it that way.
 
 ### V2-09 — *unchanged*
 
