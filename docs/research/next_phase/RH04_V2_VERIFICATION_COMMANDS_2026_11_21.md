@@ -461,3 +461,154 @@ closed an exploitable hole would have been false, and is not claimed.
 This distinction is recorded because the honest version is weaker than the
 convenient one, and because a reader comparing traversal counts 4 → 1 could
 otherwise reasonably infer an exploit was fixed.
+
+---
+
+## 8. The hosted 3.12 diagnostic was read, and it inverts the earlier reading
+
+The workflow correction could not be pushed as a workflow edit (see §9), so the
+workflow at `89b0a8f` is **byte-identical to `main`** — no oracle install, no base
+fetch. A new run therefore exercised the *unchanged* workflow and produced the
+cleanest evidence so far about the diagnostic.
+
+### Run `45247762503` at `89b0a8f`, unchanged workflow
+
+| job | conclusion | duration |
+|---|---|---|
+| RH-04 fixture structural drift diagnostic (3.12) | **success** | 13.6 min |
+| Synthetic experiment runner (3.11) | **cancelled** | 13.6 min |
+| Synthetic experiment runner (3.12) | **failure** | 13.6 min |
+
+### The diagnostic passed here and failed at `f78f521`, with identical configuration
+
+```
+f78f521 workflow sha256: e77ab0089a8e4970…  (f78f521 ran the CORRECTED workflow)
+89b0a8f workflow sha256: e77ab0089a8e4970…  (89b0a8f runs main's workflow)
+```
+
+The hashes are equal because `89b0a8f` restored the file to `main`, which is
+exactly what `f78f521`'s corrected version was based on — so **both runs used the
+same diagnostic command and the same pinned dependencies.** Nothing in the workflow
+differs between them.
+
+And the diagnostic cannot see the work that changed in between. It imports only V1
+modules:
+
+```python
+from ai.report_comparison import ABS_TOL, REL_TOL
+from ai.research_facade import canonical_response_digest
+from research.intake import offline_fixture_pack as fixtures
+```
+
+The only files that changed between the two commits are
+`research/intake/rh04_v2_portable_archive.py` and
+`tests/experiments/test_rh04_v2_reference.py` — neither is imported by the
+diagnostic, directly or transitively.
+
+**Conclusion, and it is the opposite of the convenient one:** the diagnostic is
+**non-deterministic across runners**, not deterministically red. The same command
+on the same frozen fixture produced `MISMATCH_FOUND` (2 differing cases) on one
+GitHub-hosted runner and `EXACT_REPLAY` on another 20 minutes later. That is
+stronger evidence for the V1 host-dependence finding than the single failure was:
+the divergence is real, it is environment-dependent, and it is not attributable to
+anything in this delivery.
+
+### Consequences
+
+1. **The earlier prediction in §6 was wrong.** I wrote that the diagnostic "will
+   fail again" on a divergent runner. It can, but it need not — it flipped to
+   green without any change to it. The prediction is corrected here rather than
+   left standing.
+2. **A green diagnostic is not evidence of correctness.** It is one draw from a
+   distribution that has now been observed in both states. Reporting it as a pass
+   without that context would repeat exactly the error this round exists to fix.
+3. **No claim of resolution is made.** The oracle and base-ref failures are
+   reproduced and their fixes are verified locally, but the corrected workflow has
+   never run in CI, because it cannot be pushed (§9).
+
+### The 3.12 test failure — attribution is NOT available
+
+The 3.12 runner's step 6 (`Run synthetic experiment-runner and dataset-audit
+tests`) failed, and step 7 — the `if: failure() && 3.12` diagnostic — **succeeded**.
+The only annotation is `Process completed with exit code 1` at `.github` line 108,
+which is a file-level position, not a test name. **The job logs are unreachable**
+(blob storage returns `EOF` on every attempt; see §9). The failing test is therefore
+**not identified**, and it is not attributed to `mpmath` here.
+
+That distinction matters: at `f78f521` the 3.11 job showed 2 failed with one being
+the oracle test. At `89b0a8f` the 3.11 job was **cancelled** before step 6 completed,
+so no count exists for it at all.
+
+### Why 3.11 was cancelled despite `fail-fast: false`
+
+`fail-fast: false` is set, and no newer run superseded this one (`cancel-in-progress`
+had nothing to cancel). All three jobs stopped at 13.6 minutes against a
+`timeout-minutes: 20` budget, so it is not the job timeout either. The 3.11 job's
+own `conclusion` is `cancelled` with `Complete job: success`. The cause is **not
+determined** from the available data; it is recorded as an unexplained
+cancellation of a job that had already passed dependency installation and thread
+verification.
+
+---
+
+## 9. Blocker — the workflow correction cannot be pushed or dispatched
+
+**This is a hard blocker, and it is external to the work.**
+
+### What happened
+
+```
+$ git push origin delivery/rh04-v2-final
+! [remote rejected] ... (refusing to allow a GitHub App to create or update
+  workflow `.github/workflows/experiment-runner-ci.yml` without `workflows` permission)
+```
+
+The App token used here has no `workflows` scope. `workflow_dispatch` is refused
+as well:
+
+```
+$ gh workflow run experiment-runner-ci.yml --ref delivery/rh04-v2-final
+could not create workflow dispatch event: HTTP 403: Resource not accessible by
+integration
+```
+
+Both routes to executing the correction are closed. Reading job logs is also
+blocked independently: every `actions/jobs/<id>/logs` call redirects to Azure blob
+storage and returns `EOF`, so the 3.12 failure text cannot be retrieved either.
+
+### What was delivered instead
+
+The rest of the round's work was pushed and is under review at `89b0a8f`. The
+workflow edit was extracted to:
+
+```
+docs/research/next_phase/ci-oracle-and-base-ref.patch
+```
+
+Verified with `patch --dry-run -p1` against `main`'s copy of the workflow:
+**applies cleanly.** It contains exactly the three authorized items and nothing
+else:
+
+| hunk | content |
+|---|---|
+| `fetch-depth: 0` + comment | full history for the preservation comparison |
+| new "Fetch trusted base reference" step | `git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"`, prints checkout and base SHAs |
+| oracle install + `pip check` + version printout | installs the existing pinned `requirements-oracle.txt`, then reports resolved versions |
+
+No tolerance, thread setting, comparator, fixture, verdict or voting policy appears
+in the diff. `yaml.safe_load` parses it.
+
+### What is required to unblock
+
+Either:
+
+1. a token with `workflows` permission, so the patch can be applied and pushed; or
+2. a maintainer applies `ci-oracle-and-base-ref.patch` and triggers a run;
+
+in either case followed by reading the resulting logs. **Until then:**
+
+- the two reproduced-and-fixed failures (oracle, base ref) remain unfixed **in
+  hosted CI**;
+- the 3.12 diagnostic's state remains whatever the next runner happens to draw;
+- no claim of resolved CI infrastructure is made, and none should be attributed to
+  this delivery.

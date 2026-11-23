@@ -151,6 +151,17 @@ whichever environments happened to be measurable.
 the complete environment matrix.
 **Withdrawn:** the requirement that the *training* path achieve it.
 
+**Evidence added since this clause was drafted.** The Lane A environment dependence
+is no longer inferred from one red run. The same diagnostic command on the same
+frozen fixture produced `MISMATCH_FOUND` (2 differing cases) on one GitHub-hosted
+runner at `f78f521` and `EXACT_REPLAY` on another at `89b0a8f`, with identical
+workflow bytes and a commit range containing nothing the diagnostic imports. The
+kernel table (§1) shows the same effect locally across five resident dispatch
+classes. Lane A is therefore environment-dependent **and non-deterministic per
+run**, which is why `V2-04a` is a diagnostic clause and `V2-04b` carries the
+mandatory exactness. This also means a single green Lane A observation is never by
+itself evidence of anything.
+
 ### V2-06 — Semantics re-statement
 
 **ORIGINAL:** (unchanged)

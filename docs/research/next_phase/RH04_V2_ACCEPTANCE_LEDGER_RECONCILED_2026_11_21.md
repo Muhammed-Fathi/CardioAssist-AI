@@ -19,7 +19,7 @@ remains refused.
 | V2-01 | OPEN | **OPEN** | unchanged; owner-only |
 | V2-02 | PARTIAL | **PARTIAL** | amendment text written; criterion still not shown host-independent |
 | V2-03 | PARTIAL | **PARTIAL** | pack now bound to approved identity; per-value delta table still missing |
-| V2-04 | NOT MET | **NOT MET** | divergence now *measured and reproduced*, not merely reported |
+| V2-04 | NOT MET | **NOT MET** | divergence measured, reproduced, and **observed non-deterministic in hosted CI** |
 | V2-05 | NOT STARTED | **PROPOSED** | stage contract written; nothing wired into CI |
 | V2-06 | PARTIAL | **PARTIAL** | semantics clause drafted; production wording untouched |
 | V2-07 | PARTIAL | **PARTIAL** | four negative tests added, one mutation-verified; unreachable-criterion reconciled |
@@ -71,7 +71,12 @@ Measured now, for the first time with reproduction:
 | Nehalem | 1 |
 | Sandybridge | 1 |
 
-CI's 3.12 diagnostic reported exactly 2 differing cases, matching Prescott/Haswell.
+CI's 3.12 diagnostic reported exactly 2 differing cases at `f78f521`, matching
+Prescott/Haswell. **Hosted non-determinism is now directly observed:** the same
+diagnostic command on the unchanged workflow passed at `89b0a8f` twenty minutes
+later, on a commit whose only changes are files the diagnostic does not import. So
+the gate is not deterministically red — it is environment-dependent, which is a
+stronger form of the same finding.
 So Lane A cannot produce `EXACT_REPLAY` across ≥3 classes without changing the
 scientific method, which is forbidden. **Not met, and not amendable to "met" by
 redefinition** — only by an owner decision on scope. Lane B does replay all 29

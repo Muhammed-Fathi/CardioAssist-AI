@@ -63,7 +63,22 @@ Exact head SHA, base SHA, Python version, installed dependency versions, and the
 - Introduces no tolerance, retry or rerun-to-green.
 - Uses existing official GitHub Actions with least-privilege permissions.
 - Protected-workflow changes require separate authorization; the amendment packet
-  does not itself authorize them.
+  does not itself authorize them. **In this delivery the authorization existed but
+  the capability did not:** the App token has no `workflows` permission, so the
+  stage contract is specified and not wired. See §9 of the verification document.
+
+### 1.7 One requirement the stage design must inherit
+
+V1 scoped verification (stage 1) and the 3.12 diagnostic have now been observed
+producing **different verdicts on the same frozen input in hosted CI** — red at
+`f78f521`, green at `89b0a8f`, with identical workflow configuration and a commit
+range that the diagnostic does not import. A dual-run window that treats a single
+green V1/diagnostic observation as a pass would therefore be unsound.
+
+Stage 1 must report the observed verdict **with its environment identity**, and a
+pass on one runner must not be recorded as establishing the invariant. This is a
+consequence of the measurement, not a relaxation: it makes the gate harder to
+satisfy, not easier, and it adds no tolerance.
 
 ---
 
