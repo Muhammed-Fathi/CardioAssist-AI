@@ -286,3 +286,11 @@ a documented red check for this head.
 The other three workflows at this head are green: `contract-validation`,
 `audit-toolchain-validation`, `mock-backend-validation`, plus the Python 3.12
 RH-04 structural drift diagnostic.
+
+**Confirmed on both interpreters.** A later run of the same workflow failed on
+**Python 3.11 and Python 3.12**, both at step 6, with the same single test. The
+cause is interpreter-independent: the workflow does not install the oracle file.
+
+**One gap closed.** The Python 3.12 RH-04 structural drift diagnostic job
+**passes**, so Python 3.12 is no longer wholly unmeasured for the structural path.
+It remains unmeasured for the full suite.
