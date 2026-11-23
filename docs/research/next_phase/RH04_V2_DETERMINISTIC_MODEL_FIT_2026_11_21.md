@@ -216,4 +216,3 @@ python -m pytest tests/experiments/test_rh04_v2_reference.py -q -k mpmath_oracle
 **What to report back:** step 3's resident kernel list, step 4's digest, and the
 pass/fail counts from steps 5-6. If step 4 differs from the expected digest, that
 is a genuine portability finding — report it, do not adjust the expectation.
-
