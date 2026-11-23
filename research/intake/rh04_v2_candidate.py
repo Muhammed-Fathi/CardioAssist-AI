@@ -68,18 +68,20 @@ V2_FIXTURE_PATH: Final[Path] = (
 )
 # Filled in only after a reviewed generation run; an empty string means
 # "candidate, not yet pinned". Never invent this value.
-V2_PACK_SHA256: Final[str] = (
+V2_SEMANTIC_SHA256: Final[str] = (
     "UNPINNED_CANDIDATE_PACK_DO_NOT_USE_AS_A_GATE"
 )
-# The digests actually observed for a fresh generation, keyed by OpenBLAS kernel
-# class. Class A is every measured kernel except the three in class B
-# (Sandybridge / Prescott / Katmai). Two classes exist because generation is an
-# exact function of the reference's *inputs*, and the float64 sklearn `gemv`
-# upstream of that feed is not portable — see §4-§5 of the V2 protocol.
-# This is an observation, not a gate: nothing in production or CI branches on it.
-V2_OBSERVED_PACK_DIGESTS: Final[dict[str, str]] = {
-    "b74f781d7c7839a33c3693e53511ac4d200b8bcf5b0a38526e9a9e2b657595f2": "class-a",
-    "3df8de9499e0eaafd47735462f71b75fee4941487a6d36b3a856478486789568": "class-b",
+# Reference identity is versioned so historical evidence stays interpretable.
+V2_IDENTITY_VERSION: Final[str] = "rh04.v2.reference-identity/v2"
+# Observed *semantic* digests, per measured numerical class. Deliberately a
+# separate, non-gating registry: it answers "have I seen this reference before?"
+# and never "may this host pass?". A gate on a host-specific hash list is the
+# failed approach; see RH04_V2_P0_RECONSTRUCTION_2026_11_21.md.
+#   class-a: every measured kernel this host can dispatch except the three below
+#   class-b: Sandybridge / Prescott / Katmai
+V2_OBSERVED_SEMANTIC_DIGESTS: Final[dict[str, str]] = {
+    "042612c492ff5735cf4e3ab07e09f0f6eb93bd90b8a12e1c67be7bc40b2978b4": "class-a",
+    "72b180718b1177e79ef22ed906012e4d7c7d8642a4f944f3a7e7af0f50dd0c28": "class-b",
 }
 # The case inventory is part of the contract. Pinning it makes a *removed* case
 # fail closed even though a shorter pack is still internally consistent — the
@@ -121,6 +123,36 @@ V2_EXPECTED_CASE_IDS: Final[tuple[str, ...]] = (
 V2_EXPECTED_CASE_COUNT: Final[int] = len(V2_EXPECTED_CASE_IDS)
 
 
+# --------------------------------------------------------------------------- #
+# Reference identity — five separated concerns, five distinct digests
+# --------------------------------------------------------------------------- #
+#
+# A single digest over the whole document conflates five concerns that have
+# genuinely different lifetimes. That conflation is a measured defect, not a
+# style preference: on the hosted Python 3.12 runner every one of the 29 expected
+# cases was bit-identical to this host (proven by an exact digest match after
+# changing *only* the metadata fields), yet the suite failed, because
+# ``platform.python_version()`` sat inside the digested document.
+#
+# So identity is split. Only V2_SEMANTIC_DIGEST is allowed to fail a test for a
+# numerical or contractual reason; the others are recorded and never gate.
+
+#: Content that defines the *semantic* reference. Changing any of these changes
+#: what the reference claims, so it must change the canonical digest.
+V2_SEMANTIC_SECTIONS: Final[tuple[str, ...]] = (
+    "schema_version",
+    "protocol",
+    "bindings",
+    "requests",
+    "cases",
+)
+
+#: Sections that carry provenance only. They are hashed separately and are
+#: *never* a failure cause, because they legitimately differ between hosts,
+#: interpreters and points in time.
+V2_PROVENANCE_SECTIONS: Final[tuple[str, ...]] = ("generation",)
+
+
 def canonical_json_bytes(document: Mapping[str, Any]) -> bytes:
     """Canonical encoding used for every V2 digest (stable across hosts)."""
     return json.dumps(
@@ -132,8 +164,76 @@ def canonical_json_bytes(document: Mapping[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def pack_digest(pack: Mapping[str, Any]) -> str:
+def _digest_subset(pack: Mapping[str, Any], sections: tuple[str, ...]) -> str:
+    subset = {name: pack[name] for name in sections if name in pack}
+    return hashlib.sha256(canonical_json_bytes(subset)).hexdigest()
+
+
+def canonical_document_digest(pack: Mapping[str, Any]) -> str:
+    """Digest of the **canonical re-encoding**, not of the file on disk.
+
+    This is what ``pack_digest`` used to be called. The name was wrong: this
+    value ignores whitespace, key order and trailing newlines, so it cannot
+    detect a byte-level change to a file. Use ``raw_file_sha256`` for that.
+    """
     return hashlib.sha256(canonical_json_bytes(pack)).hexdigest()
+
+
+def raw_file_sha256(path: Path) -> str:
+    """True byte-level SHA-256 of a file exactly as stored.
+
+    Separate from every content digest on purpose: this answers "were these the
+    bytes on disk?", which is a different question from "is this the same
+    reference?". A trailing newline changes this and nothing else.
+    """
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+#: Backwards-compatible alias. Still the canonical-document digest, NOT the raw
+#: file bytes — the misleading name is kept only so older evidence parses.
+pack_digest = canonical_document_digest
+
+
+def semantic_digest(pack: Mapping[str, Any]) -> str:
+    """Canonical semantic reference: protocol, bindings, requests, cases.
+
+    This is the **only** digest permitted to fail a test. It is invariant across
+    interpreters, operating systems, BLAS kernels and generation timestamps, and
+    it changes the moment any contractual or numerical content changes.
+    """
+    return _digest_subset(pack, V2_SEMANTIC_SECTIONS)
+
+
+def provenance_digest(pack: Mapping[str, Any]) -> str:
+    """Bound generation provenance. Recorded for audit, never gated on."""
+    return _digest_subset(pack, V2_PROVENANCE_SECTIONS)
+
+
+def environment_metadata(pack: Mapping[str, Any]) -> dict[str, Any]:
+    """The environment fields that must never influence identity.
+
+    Returned as plain data so tests can assert, structurally, that none of them
+    reaches ``semantic_digest``.
+    """
+    generation = pack.get("generation", {})
+    if not isinstance(generation, Mapping):
+        return {}
+    return {
+        key: generation[key]
+        for key in ("python_version", "python_implementation")
+        if key in generation
+    }
+
+
+def describe_identity(pack: Mapping[str, Any]) -> dict[str, Any]:
+    """All five tiers at once, for reports and negative tests."""
+    return {
+        "semantic_digest": semantic_digest(pack),
+        "provenance_digest": provenance_digest(pack),
+        "artifact_digest": pack_digest(pack),
+        "environment": environment_metadata(pack),
+        "identity_version": V2_IDENTITY_VERSION,
+    }
 
 
 @contextmanager
@@ -273,6 +373,60 @@ def generate_candidate_pack() -> dict[str, Any]:
     return pack
 
 
+#: Top-level keys a V2 pack may contain. Anything else is rejected rather than
+#: ignored, so a stray or misspelled section cannot ride along unnoticed.
+V2_ALLOWED_TOP_LEVEL: Final[frozenset[str]] = frozenset(
+    {
+        "schema_version",
+        "protocol",
+        "bindings",
+        "requests",
+        "cases",
+        "generation",
+    }
+)
+
+#: Keys a case may contain.
+V2_ALLOWED_CASE_KEYS: Final[frozenset[str]] = frozenset(
+    {"id", "route", "edits", "expected"}
+)
+
+
+def _reject_unknown_keys(pack: Mapping[str, Any]) -> None:
+    """Fail closed on unknown top-level or per-case fields."""
+    unknown = set(pack) - V2_ALLOWED_TOP_LEVEL
+    if unknown:
+        raise ValueError(f"unknown pack field(s): {sorted(unknown)}")
+    for case in pack["cases"]:
+        extra = set(case) - V2_ALLOWED_CASE_KEYS
+        if extra:
+            raise ValueError(f"unknown case field(s) in {case.get('id')}: {sorted(extra)}")
+
+
+def _validate_routes_and_edits(pack: Mapping[str, Any]) -> None:
+    """Bind each case's route and edit script to the frozen V1 definitions.
+
+    V1 is the authority: the V2 reference may never invent a route or an edit
+    script. This is checked structurally, so it holds even with an unpinned digest.
+    """
+    from research.intake import offline_fixture_pack as v1
+
+    source = _v1_pack()
+    known_routes = set(source["requests"]) | {"blocked"}
+    v1_cases = {case["id"]: case for case in source["cases"]}
+    for case in pack["cases"]:
+        route = case.get("route")
+        if route not in known_routes:
+            raise ValueError(f"unknown route {route!r} in case {case.get('id')}")
+        original = v1_cases.get(case.get("id"))
+        if original is None:
+            raise ValueError(f"case {case.get('id')} is not a V1 case")
+        if case.get("edits") != original.get("edits"):
+            raise ValueError(f"edit script drift in case {case.get('id')}")
+        if case.get("route") != original.get("route"):
+            raise ValueError(f"route drift in case {case.get('id')}")
+
+
 def validate(
     pack: Mapping[str, Any],
     *,
@@ -308,11 +462,21 @@ def validate(
         raise ValueError("stale binding")
     if pack.get("requests") != v1.inputs():
         raise ValueError("non-fixture request")
-    digest = pack_digest(pack)
+    # Route and edit inventory are validated against the *frozen V1 definitions*,
+    # independently of any digest sentinel. A pack whose route names or edit
+    # scripts drifted would otherwise pass whenever the digest is unpinned.
+    _validate_routes_and_edits(pack)
+    _reject_unknown_keys(pack)
+    # Identity is checked at the *semantic* tier. The artifact digest is a
+    # different question (was this file corrupted in transit?) and is available
+    # as ``pack_digest``; gating on it would make the reference depend on the
+    # interpreter that happened to generate the file, which is exactly the defect
+    # measured on hosted Python 3.12.
+    digest = semantic_digest(pack)
     if expected_digest is not None and digest != expected_digest:
-        raise ValueError("fixture integrity mismatch")
-    if not V2_PACK_SHA256.startswith("UNPINNED") and digest != V2_PACK_SHA256:
-        raise ValueError("fixture integrity mismatch")
+        raise ValueError("reference identity mismatch: semantic content changed")
+    if not V2_SEMANTIC_SHA256.startswith("UNPINNED") and digest != V2_SEMANTIC_SHA256:
+        raise ValueError("reference identity mismatch: semantic content changed")
 
     from tempfile import TemporaryDirectory
 
@@ -387,7 +551,7 @@ def build_mapping(v1_pack: Mapping[str, Any], v2_pack: Mapping[str, Any]) -> dic
     return {
         "schema_version": "cardioassist.rh04.v1_to_v2_mapping/v1",
         "v1_pack_sha256": _v1_digest(),
-        "v2_pack_sha256": pack_digest(v2_pack),
+        "v2_identity": describe_identity(v2_pack),
         "total_changed_paths": sum(len(entry["changes"]) for entry in entries),
         "cases": entries,
     }
@@ -397,6 +561,58 @@ def _v1_digest() -> str:
     from research.intake import offline_fixture_pack as v1
 
     return v1.PACK_SHA256
+
+
+def actual_solver_identity() -> dict[str, Any]:
+    """The solver actually installed on ``ai.calibration`` right now.
+
+    The old record stored only ``DETERMINISTIC_CALIBRATION_SOLVER``, which is the
+    *selector string the monkeypatch requests*, not the function that will run.
+    Those differ whenever the seam is active, so recording the selector alone can
+    misreport provenance.
+    """
+    from ai.calibration import DETERMINISTIC_CALIBRATION_SOLVER
+    import ai.calibration as calibration
+
+    live = calibration.deterministic_logistic_fit
+    return {
+        # The seam replaces the function object, so identity is the honest test.
+        "seam_active": getattr(live, "__name__", "") == "seam",
+        "live_callable": f"{getattr(live, '__module__', '?')}."
+        f"{getattr(live, '__qualname__', getattr(live, '__name__', '?'))}",
+        "selector_string": DETERMINISTIC_CALIBRATION_SOLVER,
+        "declared_protocol_id": getattr(
+            reference_fit, "V2_FIT_PROTOCOL_ID", "(absent)"
+        ),
+    }
+
+
+def resident_numerical_kernels() -> dict[str, Any]:
+    """The kernels actually loaded, as reported by threadpoolctl.
+
+    ``OPENBLAS_CORETYPE`` is a *request*. It can be ignored, unsupported, or
+    silently clamped, so it must never be recorded as if it were the kernel.
+    """
+    record: dict[str, Any] = {"requested_coretype": None, "libraries": []}
+    import os
+
+    record["requested_coretype"] = os.environ.get("OPENBLAS_CORETYPE", "(unset)")
+    try:
+        from threadpoolctl import threadpool_info
+    except Exception:  # pragma: no cover - threadpoolctl is pinned present
+        record["error"] = "threadpoolctl unavailable"
+        return record
+    for item in threadpool_info() or []:
+        record["libraries"].append(
+            {
+                "internal_api": item.get("internal_api"),
+                "architecture": item.get("architecture"),
+                "version": item.get("version"),
+                "threading_layer": item.get("threading_layer"),
+                "num_threads": item.get("num_threads"),
+            }
+        )
+    return record
 
 
 def environment_record() -> dict[str, Any]:
@@ -413,12 +629,8 @@ def environment_record() -> dict[str, Any]:
         "numpy": numpy.__version__,
         "scipy": scipy.__version__,
         "scikit_learn": sklearn.__version__,
-        "requested_openblas_coretype": __import__("os").environ.get(
-            "OPENBLAS_CORETYPE", "(unset)"
-        ),
-        "openblas_num_threads": __import__("os").environ.get(
-            "OPENBLAS_NUM_THREADS", "(unset)"
-        ),
+        "resident_kernels": resident_numerical_kernels(),
+        "solver": actual_solver_identity(),
     }
 
 
@@ -433,7 +645,7 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "status": "EXACT_REPLAY",
                     "cases": count,
-                    "pack_sha256": pack_digest(pack),
+                    "identity": describe_identity(pack),
                     "environment": environment_record(),
                 },
                 indent=2,
@@ -447,7 +659,7 @@ def main(argv: list[str] | None = None) -> int:
         V2_FIXTURE_PATH.write_text(
             json.dumps(pack, indent=2, sort_keys=True, allow_nan=False) + "\n"
         )
-        print(json.dumps({"pack_sha256": pack_digest(pack)}, indent=2))
+        print(json.dumps(describe_identity(pack), indent=2, sort_keys=True))
         return 0
     print("usage: python -m research.intake.rh04_v2_candidate --check|--write")
     return 2
