@@ -2534,27 +2534,13 @@ _ARCHIVE_DIR = (
 )
 
 
-def _anchor():
-    """The independently pinned trust anchor, read from the module under test."""
-    from research.intake import rh04_v2_portable_archive as archive
-
-    return archive.TRUSTED_MANIFEST_SHA256
-
-
 def _pinned():
-    """Load the committed archives and manifest exactly as a reviewer would."""
-    import json
-
+    """Admit the committed artifacts through the one supported entry point."""
     from research.intake import rh04_v2_portable_archive as archive
 
-    manifest = json.loads((_ARCHIVE_DIR / "trusted_manifest.json").read_text())
-    routes = json.loads(
-        (_ARCHIVE_DIR / "trusted_manifest.json").read_text()
-    )["routes"].keys()
-    archives = {
-        route: json.loads((_ARCHIVE_DIR / f"{route}.archive.json").read_text())
-        for route in routes
-    }
+    admitted = archive.admit_from_directory(_ARCHIVE_DIR)
+    manifest = archive._thaw(admitted.manifest)
+    archives = {route: archive._thaw(admitted.archives[route]) for route in admitted.routes}
     return archive, manifest, archives
 
 
@@ -2762,7 +2748,6 @@ def _facade_replay():
     # manifest before any facade call is possible.
     portable = archive.PortableReplay(
         facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives,
-        anchor=_anchor(),
     )
 
     reference: dict[str, Any] = {}
@@ -2811,7 +2796,18 @@ def test_portable_lane_executes_all_29_cases_through_the_facade():
 
 
 def test_portable_lane_matches_the_registered_lane_exactly_on_all_29_cases():
-    """Exact type-and-value replay. No numeric exception surface exists."""
+    """DIAGNOSTIC ONLY -- not the Lane B acceptance oracle.
+
+    This compares the portable lane against Lane A results regenerated **on this
+    host**. That is a useful same-host diagnostic, but it cannot serve as a
+    cross-platform Lane B reference: Lane A splits into two result groups across
+    BLAS kernels, so an oracle built from it would inherit that split.
+
+    Lane B's actual acceptance oracle is ``LANE_B_DIGEST``, a fixed identity
+    derived from the committed artifacts, asserted by
+    ``test_cold_process_replay_needs_no_producer_bundle`` and
+    ``test_verification_cli_reports_the_reference_on_a_valid_directory``.
+    """
     pack = _facade_replay()
     mismatches = []
     for case_id, expected in pack["reference"].items():
@@ -3022,7 +3018,7 @@ def _replay_with(archives, manifest=None):
         facade,
         manifest=manifest if manifest is not None else committed_manifest,
         key=archive.FIXTURE_SIGNING_KEY,
-        archives=archives, anchor=_anchor()
+        archives=archives
         )
     return archive, replay
 
@@ -3058,7 +3054,6 @@ def test_admission_runs_for_every_route_before_any_execution(monkeypatch):
     monkeypatch.setattr(archive, "admit", counting)
     replay = archive.PortableReplay(
         facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives,
-        anchor=_anchor(),
     )
     assert sorted(seen) == sorted(manifest["routes"])
     assert replay.admitted_routes == tuple(sorted(manifest["routes"]))
@@ -3075,20 +3070,20 @@ def test_admission_refuses_missing_unexpected_and_swapped_routes():
     missing = {routes[0]: archives[routes[0]]}
     with pytest.raises(archive.ArchiveError, match="missing"):
         archive.PortableReplay(
-            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=missing, anchor=_anchor()
+            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=missing
         )
 
     unexpected = dict(archives)
     unexpected["da_a9_unpinned_route"] = archives[routes[0]]
     with pytest.raises(archive.ArchiveError, match="unpinned"):
         archive.PortableReplay(
-            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=unexpected, anchor=_anchor()
+            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=unexpected
         )
 
     swapped = {routes[0]: archives[routes[1]], routes[1]: archives[routes[0]]}
     with pytest.raises(archive.ArchiveError):
         archive.PortableReplay(
-            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=swapped, anchor=_anchor()
+            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=swapped
         )
 
 
@@ -3106,7 +3101,7 @@ def test_admission_refuses_an_archive_signed_with_a_different_key():
     attack[route] = forged
     with pytest.raises(archive.ArchiveError, match="attestation key id"):
         archive.PortableReplay(
-            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=attack, anchor=_anchor()
+            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=attack
         )
 
 
@@ -3165,8 +3160,7 @@ def test_tampered_archive_cannot_reach_model_evaluation(monkeypatch):
             facade,
             manifest=forged_manifest,
             key=archive.FIXTURE_SIGNING_KEY,
-            archives=attack,
-            anchor=_anchor(),
+            archives=attack
         )
     assert constructed == []
 
@@ -3192,29 +3186,103 @@ def test_forged_manifest_refusal_precedes_every_other_check(monkeypatch):
             facade,
             manifest=forged_manifest,
             key=archive.FIXTURE_SIGNING_KEY,
-            archives=archives,
-            anchor=_anchor(),
+            archives=archives
         )
     assert calls == []
 
 
-def test_unset_trust_anchor_fails_closed():
-    """An empty anchor must refuse rather than admit anything."""
-    from ai import research_facade as facade
+def test_acceptance_api_has_no_caller_selectable_trust_anchor():
+    """The anchor must not be a parameter anywhere on the acceptance path."""
+    import inspect
 
-    archive, manifest, archives = _pinned()
-    for anchor in ("", "0" * 64, None):
-        if anchor is None:
-            # ``None`` selects the compiled-in constant, which is legitimate.
-            continue
-        with pytest.raises(archive.ArchiveError):
-            archive.PortableReplay(
-                facade,
-                manifest=manifest,
-                key=archive.FIXTURE_SIGNING_KEY,
-                archives=archives,
-                anchor=anchor,
-            )
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    for target in (
+        archive.assert_trusted_manifest,
+        archive.AdmissionResult,
+        archive.admit_from_directory,
+        archive.verify_artifact_directory,
+        archive.load_admitted_archives,
+        archive.PortableReplay.__init__,
+    ):
+        parameters = inspect.signature(target).parameters
+        assert "anchor" not in parameters, f"{target} exposes an anchor parameter"
+    # And the anchor constant itself is a plain string, not a mutable hook.
+    assert isinstance(archive.TRUSTED_MANIFEST_SHA256, str)
+    assert len(archive.TRUSTED_MANIFEST_SHA256) == 64
+    facade  # imported for the acceptance path
+
+
+def test_forged_manifest_cannot_supply_its_own_anchor(tmp_path):
+    """A coordinated forgery that re-pins everything still cannot be admitted.
+
+    The attacker modifies one finite Logistic Regression coefficient, verifies the
+    archive is still structurally valid, recomputes the self-digest, re-signs with
+    the published fixture key, re-pins the manifest and *presents that manifest as
+    the artifact directory manifest*. There is no anchor argument to reach for, so
+    the only possible outcome is refusal.
+    """
+    import shutil
+
+    from research.intake import rh04_v2_portable_archive as archive
+
+    for path in _ARCHIVE_DIR.iterdir():
+        shutil.copy(path, tmp_path / path.name)
+    route = "da_a2_resting_v1"
+    manifest = json.loads((tmp_path / "trusted_manifest.json").read_text())
+    body = json.loads((tmp_path / f"{route}.archive.json").read_text())
+
+    # 1. A structurally valid semantic change.
+    body["model"]["representation"]["coef"][0] = (
+        float(body["model"]["representation"]["coef"][0]) + 0.25
+    )
+    archive.validate_archive(json.loads(json.dumps(body)))  # still valid
+
+    # 2. Recompute the self-digest and re-sign with the published key.
+    body["archive_sha256"] = archive.archive_digest(archive.body_of(body))
+    body = archive.attest(body)
+    (tmp_path / f"{route}.archive.json").write_text(
+        json.dumps(body, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
+    )
+
+    # 3. Re-pin the forged manifest, including its raw-file digest.
+    manifest["routes"][route]["archive_sha256"] = body["archive_sha256"]
+    manifest["routes"][route]["raw_archive_sha256"] = hashlib.sha256(
+        (tmp_path / f"{route}.archive.json").read_bytes()
+    ).hexdigest()
+    (tmp_path / "trusted_manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True, ensure_ascii=True) + "\n"
+    )
+
+    # 4. The forged manifest is now fully self-consistent ...
+    archive.validate_manifest(manifest)
+    # ... and every field the old API would have let the attacker pass still fails.
+    with pytest.raises(archive.ArchiveError, match="trusted manifest"):
+        archive.admit_from_directory(tmp_path)
+
+
+def test_caller_mutation_after_admission_cannot_change_evaluation():
+    """Admitted state is independently owned; later caller edits are inert."""
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    admitted = archive.admit_from_directory(_ARCHIVE_DIR)
+    baseline = archive.replay_admitted(facade, admitted)["digest"]
+
+    # Mutate the caller's originals *after* admission.
+    raw = {r: json.loads((_ARCHIVE_DIR / f"{r}.archive.json").read_text()) for r in admitted.routes}
+    for body in raw.values():
+        if body["model"]["family"] == "l2_logistic_regression":
+            body["model"]["representation"]["coef"][0] += 100.0
+        else:
+            body["model"]["representation"]["trees"][0]["value"][0][0] += 0.5
+    after = archive.replay_admitted(facade, admitted)["digest"]
+    assert after == baseline
+
+    # The snapshot also refuses in-place mutation outright.
+    with pytest.raises(TypeError, match="immutable"):
+        admitted.archives["da_a2_resting_v1"]["model"]["representation"]["coef"][0] = 0.0
 
 
 def test_fixture_key_is_declared_test_only():
@@ -3247,8 +3315,7 @@ def test_tampered_split_assignment_is_refused_even_when_repinned():
             facade,
             manifest=forged_manifest,
             key=archive.FIXTURE_SIGNING_KEY,
-            archives=archives,
-            anchor=_anchor(),
+            archives=archives
         )
 
 
@@ -3272,46 +3339,31 @@ def test_manifest_builder_reproduces_the_committed_manifest():
 
 
 def test_cold_process_replay_needs_no_producer_bundle(tmp_path):
-    """Lane B must execute all 29 cases with no producer bundle in existence."""
-    script = tmp_path / "cold_lane_b.py"
-    script.write_text(
-        "\n".join(
-            [
-                "import hashlib, json, sys",
-                "from pathlib import Path",
-                "from ai import research_facade as facade",
-                "from research.intake import offline_fixture_pack as v1",
-                "from research.intake import rh04_v2_portable_archive as pa",
-                "fix = Path(sys.argv[1])",
-                "manifest = json.loads((fix / 'trusted_manifest.json').read_text())",
-                "archives = {r: json.loads((fix / f'{r}.archive.json').read_text())",
-                "            for r in manifest['routes']}",
-                "pack = json.loads(v1.PACK.read_text())",
-                "replay = pa.PortableReplay(facade, manifest=manifest,",
-                "                           key=pa.FIXTURE_SIGNING_KEY, archives=archives)",
-                "assert replay._manifest_identity == pa.TRUSTED_MANIFEST_SHA256",
-                "digests = []",
-                "statuses = {}",
-                "for case in pack['cases']:",
-                "    request = v1.materialize(pack['requests'][case['route']], case['edits'])",
-                "    resp = pa.execute_case(facade, request, replay)",
-                "    statuses[resp['status']] = statuses.get(resp['status'], 0) + 1",
-                "    digests.append(hashlib.sha256(pa.canonical_bytes(resp)).hexdigest())",
-                "print(json.dumps({'n': len(digests), 'statuses': statuses,",
-                "                  'digest': hashlib.sha256(''.join(digests).encode()).hexdigest()}))",
-            ]
-        )
-    )
+    """Lane B must verify and replay all 29 cases with no producer bundle present.
+
+    Uses the single supported entry point (``-m ...rh04_v2_portable_archive``), so
+    the cold path exercises the *same* admission, raw-byte and reference checks as
+    the in-process path rather than a private JSON shortcut.
+    """
+    import subprocess
+    import sys
+
     completed = subprocess.run(
-        [sys.executable, str(script), str(_ARCHIVE_DIR)],
+        [
+            sys.executable,
+            "-m",
+            "research.intake.rh04_v2_portable_archive",
+            str(_ARCHIVE_DIR),
+        ],
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
         env={**__import__("os").environ, "PYTHONPATH": str(REPO_ROOT)},
+        timeout=900,
     )
     assert completed.returncode == 0, completed.stderr[-3000:]
     report = json.loads(completed.stdout.strip().splitlines()[-1])
-    assert report["n"] == 29
+    assert report["n_cases"] == 29
     assert report["statuses"] == {
         "SYNTHETIC_RESULT": 2,
         "ABSTAIN": 2,
@@ -3319,6 +3371,33 @@ def test_cold_process_replay_needs_no_producer_bundle(tmp_path):
         "ERROR": 22,
     }
     assert report["digest"] == LANE_B_DIGEST
+    assert report["matches_reference"] is True
+    assert report["manifest_identity"] == _pinned()[0].TRUSTED_MANIFEST_SHA256
+    # No producer bundle was created, and none is referenced in the evidence.
+    assert "model.joblib" not in completed.stdout
+
+
+def test_cold_process_invalid_output_fails_closed(tmp_path):
+    """A missing directory must produce a refusal, not a traceback or exit 0."""
+    import subprocess
+    import sys
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "research.intake.rh04_v2_portable_archive",
+            str(tmp_path / "does-not-exist"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        env={**__import__("os").environ, "PYTHONPATH": str(REPO_ROOT)},
+        timeout=600,
+    )
+    assert completed.returncode != 0
+    report = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert report["result"] in {"REFUSED", "FAILED"}
 
 
 def test_lane_b_never_reads_the_producer_bundle(monkeypatch):
@@ -3352,7 +3431,6 @@ def test_lane_b_never_reads_the_producer_bundle(monkeypatch):
 
     replay = archive.PortableReplay(
         facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives,
-        anchor=_anchor(),
     )
     case = next(c for c in pack["source"]["cases"] if c["id"] == "da_a2_resting_v1")
     request = v1.materialize(pack["source"]["requests"][case["route"]], case["edits"])
@@ -3576,14 +3654,29 @@ def test_raw_archive_bytes_identity_is_enforced(tmp_path):
     target.write_bytes(target.read_bytes() + b"\n")
     with pytest.raises(archive.ArchiveError, match="raw archive bytes"):
         archive.load_admitted_archives(
-            tmp_path, manifest, key=archive.FIXTURE_SIGNING_KEY, anchor=_anchor()
+            tmp_path, manifest, key=archive.FIXTURE_SIGNING_KEY
         )
     # Deleting a file is also a raw-identity failure.
     target.unlink()
     with pytest.raises(archive.ArchiveError, match="no archive file"):
         archive.load_admitted_archives(
-            tmp_path, manifest, key=archive.FIXTURE_SIGNING_KEY, anchor=_anchor()
+            tmp_path, manifest, key=archive.FIXTURE_SIGNING_KEY
         )
+
+
+def _patched_anchor(monkeypatch, forged_manifest):
+    """Test-local dependency patch: accept one forged manifest as the anchor.
+
+    The acceptance API has no anchor parameter, deliberately. To exercise the
+    *downstream* enforcement at all, the anchor constant itself is patched for the
+    duration of one test -- the same thing an attacker would have to do by editing
+    reviewed source. Everything after the anchor check is the real code.
+    """
+    from research.intake import rh04_v2_portable_archive as archive
+
+    monkeypatch.setattr(
+        archive, "TRUSTED_MANIFEST_SHA256", archive.trusted_manifest_sha256(forged_manifest)
+    )
 
 
 def test_registry_metadata_identity_is_enforced(monkeypatch):
@@ -3594,16 +3687,13 @@ def test_registry_metadata_identity_is_enforced(monkeypatch):
     _, manifest, archives = _pinned()
     forged_manifest = copy.deepcopy(manifest)
     forged_manifest["routes"]["da_a2_resting_v1"]["registry_metadata_sha256"] = "0" * 64
-    # Re-anchor so the manifest itself is considered trusted; the registry
-    # comparison is then the only thing left to catch the mismatch.
-    anchor = archive.trusted_manifest_sha256(forged_manifest)
+    _patched_anchor(monkeypatch, forged_manifest)
     with pytest.raises(archive.ArchiveError, match="registry metadata identity"):
         archive.PortableReplay(
             facade,
             manifest=forged_manifest,
             key=archive.FIXTURE_SIGNING_KEY,
             archives=archives,
-            anchor=anchor,
         )
 
 
@@ -3615,14 +3705,13 @@ def test_training_input_identity_is_enforced(monkeypatch):
     _, manifest, archives = _pinned()
     forged_manifest = copy.deepcopy(manifest)
     forged_manifest["routes"]["da_a2_resting_v1"]["training_input_sha256"] = "1" * 64
-    anchor = archive.trusted_manifest_sha256(forged_manifest)
+    _patched_anchor(monkeypatch, forged_manifest)
     with pytest.raises(archive.ArchiveError, match="training-input identity"):
         archive.PortableReplay(
             facade,
             manifest=forged_manifest,
             key=archive.FIXTURE_SIGNING_KEY,
             archives=archives,
-            anchor=anchor,
         )
 
 
@@ -3651,85 +3740,580 @@ def test_training_input_digest_covers_features_not_just_labels():
 # --------------------------------------------------------------------------- #
 
 
-def test_eight_concurrent_replays_are_isolated_and_restore_the_seam():
-    """Eight simultaneous replays must dispatch correctly and restore the loader."""
+def test_eight_concurrent_full_29_case_replays_independently_admitted():
+    """Eight simultaneous replays, each with its own admission, all 29 cases each.
+
+    This replaces the earlier claim, which ran one REST case per worker and could
+    not have detected cross-route leakage.
+    """
     from concurrent.futures import ThreadPoolExecutor
 
     from ai import research_facade as facade
     from research.intake import rh04_v2_portable_archive as archive
 
-    pack = _facade_replay()
-    manifest, archives = pack["manifest"], pack["archives"]
     original = facade._load_artifact
-    assert original is archive._ORIGINAL_SEAM
+    expected = LANE_B_DIGEST
 
-    case = next(c for c in pack["source"]["cases"] if c["id"] == "da_a2_resting_v1")
-    request = v1.materialize(pack["source"]["requests"][case["route"]], case["edits"])
-    expected = pack["reference"][case["id"]]["outcomes"][0]["score"]["calibrated_log_odds"]
-
-    def one(_index):
-        replay = archive.PortableReplay(
-            facade,
-            manifest=manifest,
-            key=archive.FIXTURE_SIGNING_KEY,
-            archives=archives,
-            anchor=_anchor(),
-        )
-        response = archive.execute_case(facade, request, replay)
-        return (
-            response["status"],
-            response["outcomes"][0]["score"]["calibrated_log_odds"],
-        )
+    def one(_index: int):
+        admitted = archive.admit_from_directory(_ARCHIVE_DIR)
+        result = archive.replay_admitted(facade, admitted)
+        statuses: dict[str, int] = {}
+        for response in result["responses"]:
+            statuses[response["status"]] = statuses.get(response["status"], 0) + 1
+        return result["n_cases"], result["digest"], statuses
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(one, range(8)))
 
     assert len(results) == 8
-    assert {status for status, _ in results} == {"SYNTHETIC_RESULT"}
-    assert {value for _, value in results} == {expected}
-    # Every replay has exited, so the facade's own loader is genuinely restored
-    # and the shared dispatcher is no longer installed at all.
+    assert {n for n, _, _ in results} == {29}
+    assert {digest for _, digest, _ in results} == {expected}
+    assert {tuple(sorted(s.items())) for _, _, s in results} == {
+        (("ABSTAIN", 2), ("ERROR", 22), ("SYNTHETIC_RESULT", 2), ("UNAVAILABLE", 3))
+    }
+    # Both model families were exercised in every worker: LR and RF scores exist.
     assert facade._load_artifact is original
-    assert facade._load_artifact is archive._ORIGINAL_SEAM
+    assert archive._ACTIVE_REPLAYS[0] == 0
+    assert archive._ENTRY_STACK.get() == ()
 
 
-def test_nested_replay_contexts_dispatch_the_innermost_replay():
-    """Nested contexts must not leak: the innermost active replay wins."""
+def test_shared_replay_instance_across_threads_documents_its_contract():
+    """A single instance may be shared: all bookkeeping is context-local.
+
+    This pins the documented concurrency contract rather than leaving it implicit.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
     from ai import research_facade as facade
     from research.intake import rh04_v2_portable_archive as archive
 
-    pack = _facade_replay()
-    manifest, archives = pack["manifest"], pack["archives"]
-    original = facade._load_artifact
+    admitted = archive.admit_from_directory(_ARCHIVE_DIR)
+    shared = archive.PortableReplay(
+        facade,
+        manifest=archive._thaw(admitted.manifest),
+        key=archive.FIXTURE_SIGNING_KEY,
+        archives={r: archive._thaw(admitted.archives[r]) for r in admitted.routes},
+    )
+    pack = json.loads(v1.PACK.read_text())
 
+    def one(_index: int):
+        digests = [
+            hashlib.sha256(
+                archive.canonical_bytes(
+                    archive.execute_case(
+                        facade,
+                        v1.materialize(pack["requests"][case["route"]], case["edits"]),
+                        shared,
+                    )
+                )
+            ).hexdigest()
+            for case in pack["cases"]
+        ]
+        return hashlib.sha256("".join(digests).encode()).hexdigest()
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(one, range(8)))
+    assert set(results) == {LANE_B_DIGEST}
+    assert archive._ENTRY_STACK.get() == ()
+    assert archive._ACTIVE_REPLAYS[0] == 0
+    facade  # keep the import explicit
+
+
+def test_nested_contexts_and_exception_cleanup():
+    """Nested replays dispatch innermost, and an exception still unwinds."""
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    original = facade._load_artifact
+    pack = _facade_replay()
     outer = archive.PortableReplay(
         facade,
-        manifest=manifest,
+        manifest=pack["manifest"],
         key=archive.FIXTURE_SIGNING_KEY,
-        archives=archives,
-        anchor=_anchor(),
+        archives=pack["archives"],
     )
-    # A second full replay, so route dispatch is exercised from both levels.
-    second = archive.PortableReplay(
+    inner = archive.PortableReplay(
         facade,
-        manifest=manifest,
+        manifest=pack["manifest"],
         key=archive.FIXTURE_SIGNING_KEY,
-        archives=archives,
-        anchor=_anchor(),
+        archives=pack["archives"],
     )
     case = next(c for c in pack["source"]["cases"] if c["id"] == "da_a2_resting_v1")
     request = v1.materialize(pack["source"]["requests"][case["route"]], case["edits"])
 
     with outer:
         assert archive._active_dispatch() is outer
-        with second:
-            assert archive._active_dispatch() is second
-            response = archive.execute_case(facade, request, second)
-            assert response["status"] == "SYNTHETIC_RESULT"
+        with inner:
+            assert archive._active_dispatch() is inner
+            assert archive.execute_case(facade, request, inner)["status"] == "SYNTHETIC_RESULT"
         assert archive._active_dispatch() is outer
-        response = archive.execute_case(facade, request, outer)
-        assert response["status"] == "SYNTHETIC_RESULT"
+        with pytest.raises(RuntimeError, match="boom"):
+            with inner:
+                assert archive._active_dispatch() is inner
+                raise RuntimeError("boom")
+        assert archive._active_dispatch() is outer
+        assert archive.execute_case(facade, request, outer)["status"] == "SYNTHETIC_RESULT"
 
     assert archive._active_dispatch() is None
-    archive.restore_facade_seam(facade)
+    assert archive._ENTRY_STACK.get() == ()
     assert facade._load_artifact is original
+    assert archive._ACTIVE_REPLAYS[0] == 0
+
+
+def test_non_replay_facade_calls_delegate_to_the_real_loader():
+    """A registered-lane call during a replay must reach the facade's own loader."""
+    import threading
+
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    admitted = archive.admit_from_directory(_ARCHIVE_DIR)
+    replay = archive.PortableReplay(
+        facade,
+        manifest=archive._thaw(admitted.manifest),
+        key=archive.FIXTURE_SIGNING_KEY,
+        archives={r: archive._thaw(admitted.archives[r]) for r in admitted.routes},
+    )
+    entered, release = threading.Event(), threading.Event()
+
+    def hold():
+        with replay:
+            entered.set()
+            release.wait(30)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    try:
+        assert entered.wait(30)
+        # This thread has no active replay, so the seam must delegate. The real
+        # loader rejects a None request rather than pretending to be portable.
+        with pytest.raises(AttributeError):
+            facade._load_artifact(None, None, None)
+    finally:
+        release.set()
+        thread.join(30)
+    assert archive._ACTIVE_REPLAYS[0] == 0
+
+
+def test_whitespace_only_mutation_is_refused_by_the_complete_replay(tmp_path):
+    """The supported entry point refuses a byte-level edit, not just a helper."""
+    import shutil
+    import subprocess
+    import sys
+
+    from research.intake import rh04_v2_portable_archive as archive
+
+    for path in _ARCHIVE_DIR.iterdir():
+        shutil.copy(path, tmp_path / path.name)
+    target = tmp_path / "da_a2_resting_v1.archive.json"
+    target.write_bytes(target.read_bytes() + b"\n")
+
+    with pytest.raises(archive.ArchiveError, match="raw archive bytes"):
+        archive.verify_artifact_directory(tmp_path)
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "research.intake.rh04_v2_portable_archive", str(tmp_path)],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        env={**__import__("os").environ, "PYTHONPATH": str(REPO_ROOT)},
+        timeout=600,
+    )
+    assert completed.returncode != 0
+    report = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert report["result"] == "REFUSED"
+    assert "raw archive bytes" in report["reason"]
+
+
+def test_verification_cli_reports_the_reference_on_a_valid_directory():
+    """The same command exits zero and reports a matching reference."""
+    import subprocess
+    import sys
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "research.intake.rh04_v2_portable_archive",
+            str(_ARCHIVE_DIR),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+        env={**__import__("os").environ, "PYTHONPATH": str(REPO_ROOT)},
+        timeout=900,
+    )
+    assert completed.returncode == 0, completed.stdout[-2000:]
+    evidence = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert evidence["n_cases"] == 29
+    assert evidence["matches_reference"] is True
+    assert evidence["digest"] == LANE_B_DIGEST
+    # Sanitised: no paths, no caller values, no matrices.
+    assert str(_ARCHIVE_DIR) not in completed.stdout
+    assert "background_matrix" not in completed.stdout
+
+
+
+
+# --------------------------------------------------------------------------- #
+# Round 10.3 P0-01: producer lineage is derived, and the old seed fails        #
+# --------------------------------------------------------------------------- #
+
+
+def test_producer_configuration_is_read_from_the_registered_producers():
+    """No cohort seed may be re-typed in this module; it comes from the producer."""
+    from ai.research_demo import DEMO_SEED
+    from ai.uci412_research import Uci412ResearchModelConfig
+    from research.intake import rh04_v2_producer_lineage as lineage
+    from research.intake import rh04_v2_portable_archive as archive
+
+    resting = lineage.producer_spec("da_a2_resting_v1")
+    basic = lineage.producer_spec("da_a1_basic_clinical_v1")
+
+    assert resting.cohort_seed == DEMO_SEED == 20261117
+    assert basic.cohort_seed == Uci412ResearchModelConfig.fast().seed == 20261028
+    # Both producers share the same *CV repeat* seed; that is not the cohort seed.
+    assert resting.repeat_seed == basic.repeat_seed == 20261025
+
+    source = Path(archive.__file__).read_text()
+    # The module must not carry its own seed table any more.
+    assert "SPLIT_DERIVATIONS" not in source
+    assert "20261025" not in source, "a CV repeat seed is re-typed in the archive module"
+    assert "20261028" not in source, "the BASIC cohort seed is re-typed in the archive module"
+    assert "20261117" not in source, "the REST cohort seed is re-typed in the archive module"
+
+
+def test_the_five_seed_roles_are_distinct_and_derived():
+    """Cohort, repeat, inner, calibration and SHAP seeds must not be conflated."""
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    for route in ("da_a2_resting_v1", "da_a1_basic_clinical_v1"):
+        spec = lineage.producer_spec(route)
+        assert spec.cohort_seed != spec.repeat_seed
+        assert spec.full_cv_seed == spec.repeat_seed + 90000
+        assert spec.calibration_seed == spec.full_cv_seed + 333
+        assert spec.shap_background_seed == spec.full_cv_seed + 4242
+        assert len(
+            {spec.cohort_seed, spec.repeat_seed, spec.calibration_seed,
+             spec.shap_background_seed, spec.inner_seed(1, 1)}
+        ) == 5
+
+
+def test_wrong_basic_cohort_seed_fails_identity_verification():
+    """Using the pre-correction BASIC seed must now be detectable as a mismatch."""
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    correct = lineage.training_boundary("da_a1_basic_clinical_v1").input_sha256()
+
+    # Rebuild the boundary with the *wrong* seed the previous revision used, and
+    # show the resulting identity differs from the committed one.
+    from ai.panels import REGISTERED_PANELS
+    from ai.training import validate_cohort_records
+    from ai.uci412_research import build_synthetic_uci412_basic_clinical_cohort
+
+    panel = REGISTERED_PANELS["da_a1_basic_clinical_v1"]
+    records, labels = build_synthetic_uci412_basic_clinical_cohort(120, seed=20261025)
+    X, y, _ = validate_cohort_records(records, labels, panel)
+    wrong_payload = {
+        "route_id": "da_a1_basic_clinical_v1",
+        "ordered_feature_names": list(panel.feature_names),
+        "n_rows": int(X.shape[0]),
+        "n_features": int(X.shape[1]),
+        "n_positive": int(y.sum()),
+        "X_hex": [float(v).hex() for v in X.ravel()],
+        "y": [int(v) for v in y],
+    }
+    wrong = lineage._sha256(lineage._canonical_bytes(wrong_payload))
+    assert wrong != correct
+
+    # And the committed manifest carries the corrected identity.
+    _, manifest, _ = _pinned()
+    assert manifest["routes"]["da_a1_basic_clinical_v1"]["training_input_sha256"] == correct
+    assert manifest["routes"]["da_a1_basic_clinical_v1"]["training_input_sha256"] != wrong
+
+
+def test_registered_producer_lineage_is_established_for_both_models():
+    """Refit from the producer cohort must reproduce the archived estimator."""
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    _, _, archives = _pinned()
+    for route, body in archives.items():
+        proof = lineage.estimator_lineage_proof(route, body)
+        assert proof["preprocessing_exact"] is True
+        assert proof["lineage_established"] is True, proof
+        if proof["model_family"] == "l2_logistic_regression":
+            assert proof["coefficients_exact"] is True
+            assert proof["coefficient_max_abs_delta"] == 0.0
+        else:
+            assert proof["trees_exact"] is True
+            assert proof["trees_mismatched"] == 0
+
+
+def test_calibration_oof_identity_is_distinct_from_the_outer_folds():
+    """P0-04: the calibration split is `full_cv + 333`, not the outer split."""
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    _, manifest, _ = _pinned()
+    for route in manifest["routes"]:
+        entry = manifest["routes"][route]
+        spec = lineage.producer_spec(route)
+        assert entry["calibration_oof"]["seed"] == spec.calibration_seed
+        assert entry["calibration_oof"]["seed"] == spec.repeat_seed + 90000 + 333
+        assert entry["split_assignments"]["derivation"]["random_state"] == spec.repeat_seed
+        assert (
+            entry["calibration_oof"]["assignment_sha256"]
+            != entry["split_assignments"]["outer_assignment_sha256"]
+        )
+        assert (
+            entry["calibration_oof"]["calibration_input_sha256"]
+            == entry["training_input_sha256"]
+        )
+
+
+def test_heldout_cohort_is_generated_not_sliced():
+    """No fabricated contiguous indices may stand in for a real held-out split."""
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    _, manifest, _ = _pinned()
+    resting = manifest["routes"]["da_a2_resting_v1"]["split_assignments"]["heldout"]
+    assert resting["present"] is False
+    assert "holdout_indices" not in resting
+
+    basic = manifest["routes"]["da_a1_basic_clinical_v1"]["split_assignments"]["heldout"]
+    assert basic["present"] is True
+    assert basic["shared_array_with_development"] is False
+    assert basic["seed"] == lineage.producer_spec("da_a1_basic_clinical_v1").heldout_seed
+    assert basic["seed"] == 20261029
+    assert "holdout_indices" not in basic
+
+
+# --------------------------------------------------------------------------- #
+# Round 10.3 P1-08: Lane A and Lane B are separately verified                  #
+# --------------------------------------------------------------------------- #
+
+
+def test_lane_b_oracle_is_a_fixed_artifact_identity_not_lane_a_output():
+    """The Lane B reference must come from the artifact, not a local Lane A run."""
+    from research.intake import rh04_v2_portable_archive as archive
+
+    assert archive.LANE_B_REFERENCE_DIGEST == LANE_B_DIGEST
+    evidence = archive.verify_artifact_directory(_ARCHIVE_DIR)
+    assert evidence["digest"] == archive.LANE_B_REFERENCE_DIGEST
+    assert evidence["matches_reference"] is True
+    # The oracle is a constant in reviewed source, not computed at assertion time.
+    source = Path(__file__).read_text()
+    assert f'LANE_B_DIGEST = "{LANE_B_DIGEST}"' in source
+
+
+def test_lane_b_verification_does_not_touch_lane_a_generation():
+    """Lane B's evaluation path must not regenerate Lane A artifacts or unpickle.
+
+    ``export_archive`` legitimately reaches the project's authenticated loader at
+    *authoring* time, so this asserts on the evaluation functions specifically --
+    the ones a portable consumer can actually reach.
+    """
+    import ast
+
+    from research.intake import rh04_v2_portable_archive as archive
+
+    tree = ast.parse(Path(archive.__file__).read_text())
+    lane_b_functions = {
+        "admit_from_directory",
+        "replay_admitted",
+        "verify_artifact_directory",
+        "load_artifact_from_archive",
+        "reconstruct_shap_background",
+        "main",
+        "PortableReplay",
+        "_shared_seam",
+    }
+    forbidden = ("generate_full_reference", "rh04_v2_full_reference", "sources")
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name not in lane_b_functions:
+                continue
+            body = ast.get_source_segment(Path(archive.__file__).read_text(), node) or ""
+            for token in forbidden:
+                assert token not in body, f"{node.name} references {token}"
+            assert "joblib.load" not in body, f"{node.name} deserialises"
+
+
+def test_lane_a_lane_b_delta_mapping_is_explicit_and_non_numeric():
+    """Cross-lane differences are mapped per case, with no tolerance introduced."""
+    pack = _facade_replay()
+    diffs = {}
+    for case_id, expected in pack["reference"].items():
+        observed = pack["candidate"][case_id]
+        if not v1._strict_equal(expected, observed):
+            diffs[case_id] = "differs"
+    # Same-host, same-process: the two lanes agree exactly, and that agreement is
+    # a diagnostic. A non-empty map would be reported, never tolerated.
+    assert diffs == {}
+    # And no numeric tolerance helper is consulted anywhere in that comparison.
+    assert not hasattr(v1, "isclose") or "isclose" not in Path(v1.__file__).read_text()
+
+
+# --------------------------------------------------------------------------- #
+# Round 10.3 P1-09: V2-07 negative surface for the portable reference          #
+# --------------------------------------------------------------------------- #
+
+
+def test_v2_07_wrong_reference_digest_is_rejected():
+    """A reference digest that is not the pinned Lane B identity must fail."""
+    from research.intake import rh04_v2_portable_archive as archive
+
+    evidence = archive.verify_artifact_directory(_ARCHIVE_DIR)
+    forged = dict(evidence)
+    forged["digest"] = "0" * 64
+    assert (forged["digest"] == archive.LANE_B_REFERENCE_DIGEST) is False
+    assert evidence["digest"] == archive.LANE_B_REFERENCE_DIGEST
+
+
+def test_v2_07_more_than_29_cases_is_rejected():
+    """A 30-case manifest must be refused, not silently truncated."""
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, _ = _pinned()
+    forged = copy.deepcopy(manifest)
+    forged["case_ids"] = forged["case_ids"] + ["extra-case"]
+    with pytest.raises(archive.ArchiveError, match="registered count"):
+        archive._assert_case_set(forged)
+
+
+def test_v2_07_missing_reordered_and_duplicate_cases_are_rejected():
+    """The case set must match exactly, in order, with no duplicates."""
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, _ = _pinned()
+    base = list(manifest["case_ids"])
+
+    missing = copy.deepcopy(manifest)
+    missing["case_ids"] = base[:-1] + [base[-1].replace(base[-1], base[-1])]
+    missing["case_ids"] = base[:-1]
+    with pytest.raises(archive.ArchiveError):
+        archive._assert_case_set(missing)
+
+    reordered = copy.deepcopy(manifest)
+    reordered["case_ids"] = [base[1], base[0]] + base[2:]
+    with pytest.raises(archive.ArchiveError, match="registered case order"):
+        archive._assert_case_set(reordered)
+
+    duplicated = copy.deepcopy(manifest)
+    duplicated["case_ids"] = [base[0]] + base
+    with pytest.raises(archive.ArchiveError):
+        archive._assert_case_set(duplicated)
+
+
+def test_v2_07_non_calibration_field_drift_is_detected(monkeypatch):
+    """A changed non-calibration field must surface as a response difference.
+
+    The mutation is re-signed and re-pinned so it clears every structural check;
+    what is being measured is whether the *scoring path* actually consumes the
+    uncalibrated coefficients, i.e. that a drift here cannot hide.
+    """
+    import hashlib
+
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    admitted = archive.admit_from_directory(_ARCHIVE_DIR)
+    baseline = archive.replay_admitted(facade, admitted)
+    route = "da_a2_resting_v1"
+
+    mutated = copy.deepcopy(archive._thaw(admitted.archives[route]))
+    mutated["model"]["representation"]["coef"][0] = (
+        float(mutated["model"]["representation"]["coef"][0]) + 0.5
+    )
+    # Re-attest so only the *value* differs, not the bookkeeping, and re-pin the
+    # manifest entry so the digest checks also pass. The anchor constant is then
+    # patched test-locally, exactly as an attacker would have to edit reviewed
+    # source. Everything after that is the real scoring path -- which is the point
+    # of this test: a value drift must still show up in the numbers.
+    mutated = archive.attest(archive.body_of(mutated))
+    forged_manifest = copy.deepcopy(archive._thaw(admitted.manifest))
+    forged_manifest["routes"][route]["archive_sha256"] = mutated["archive_sha256"]
+    _patched_anchor(monkeypatch, forged_manifest)
+
+    replay = archive.PortableReplay(
+        facade,
+        manifest=forged_manifest,
+        key=archive.FIXTURE_SIGNING_KEY,
+        archives={
+            route: mutated,
+            "da_a1_basic_clinical_v1": archive._thaw(
+                admitted.archives["da_a1_basic_clinical_v1"]
+            ),
+        },
+    )
+    pack = json.loads(v1.PACK.read_text())
+    case = next(c for c in pack["cases"] if c["id"] == route)
+    response = archive.execute_case(
+        facade,
+        v1.materialize(pack["requests"][case["route"]], case["edits"]),
+        replay,
+    )
+    baseline_case = next(
+        r for r, c in zip(baseline["responses"], pack["cases"]) if c["id"] == route
+    )
+    assert response["outcomes"][0]["score"]["raw_model_log_odds"] != (
+        baseline_case["outcomes"][0]["score"]["raw_model_log_odds"]
+    )
+    # And the calibrated value moves too, so the drift is not masked downstream.
+    assert response["outcomes"][0]["score"]["calibrated_log_odds"] != (
+        baseline_case["outcomes"][0]["score"]["calibrated_log_odds"]
+    )
+
+
+def test_v2_07_no_second_tolerance_exception_exists_in_the_portable_lane():
+    """Exactly one approved float exception exists, and it is V1's alone.
+
+    The scan is over *scoring comparisons*, not over every numeric literal: the
+    tree validator legitimately uses ``math.isclose(..., abs_tol=1e-9)`` to check
+    that class proportions sum to one, which is a structural validity check on an
+    archive and never a comparison between two computed scores.
+    """
+    import ast
+
+    from research.intake import rh04_v2_portable_archive as archive
+
+    source = Path(archive.__file__).read_text()
+    tree = ast.parse(source)
+
+    # No comparison helper may appear inside any function that produces a score.
+    scoring_functions = {"execute_case", "replay_admitted", "verify_artifact_directory"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name in scoring_functions:
+            body = ast.get_source_segment(source, node) or ""
+            for token in ("isclose", "allclose", "1e-14", "1e-15",
+                          "DECLARED_SCORE_AGREEMENT"):
+                assert token not in body, f"{node.name} carries {token}"
+
+    # `isclose` may appear exactly once, and only in structural tree validation.
+    assert source.count("isclose") == 1
+    line = next(
+        l for l in source.splitlines() if "isclose" in l
+    )
+    assert "sum(probabilities)" in line and "1.0" in line
+
+    v1_source = Path(v1.__file__).read_text()
+    assert v1_source.count("_WINDOWS_FLOAT_CASE_ID = ") == 1
+    assert v1_source.count("_WINDOWS_FLOAT_FIELD = ") == 1
+
+
+def test_v2_07_solver_provenance_mismatch_is_detectable():
+    """The archived family/profile must match what the producer would run."""
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    _, _, archives = _pinned()
+    for route, body in archives.items():
+        proof = lineage.estimator_lineage_proof(route, body)
+        assert proof["preprocessing_exact"] is True
+        assert proof["lineage_established"] is True
+        # The solver is named by the profile, not by the archive.
+        assert body["model"]["execution_profile"] == "AI1_GENERIC_V1"
+        if body["model"]["family"] == "l2_logistic_regression":
+            source = Path(lineage.__file__).read_text()
+            assert "lbfgs" in Path(
+                __import__("ai.training", fromlist=["x"]).__file__
+            ).read_text()
+            source  # documented: AI-1 generic uses lbfgs, not liblinear

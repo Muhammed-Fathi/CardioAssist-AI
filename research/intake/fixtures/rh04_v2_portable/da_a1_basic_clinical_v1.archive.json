@@ -1,7 +1,7 @@
 {
-  "archive_sha256": "5ecdeeb33b0a071750b83f971db9cd5591137540bccf1058ecb6b07df3c79c65",
+  "archive_sha256": "33be3035dba8d7360b8fadddb749e0a4bdd08c48d095dd1bd7e21b1c8a72fd8a",
   "attestation": {
-    "hmac_sha256": "58f76c13a7e10cb2eef7af8b0c97407fc330cbbdf55a4abf70aee22ac428efc7",
+    "hmac_sha256": "aa07ebae93d856f5bf1b9163dbd047163eda31e99ba0033f5863ca1921a2556d",
     "key_id": "b7d21598135c6b97",
     "key_label": "PUBLIC_TEST_FIXTURE_KEY_NOT_A_SECRET",
     "scheme": "hmac-sha256-local-producer-v1"
@@ -24997,23 +24997,27 @@
     },
     "shap_background_recipe": {
       "derivation": {
-        "background_seed_offset": 4242,
-        "cohort_builder": "uci412_basic_clinical",
+        "builder": "uci412_basic_clinical",
         "cohort_seed": 20261028,
-        "full_cv_seed_offset": 90000,
-        "max_samples": 24,
+        "heldout_seed": 20261029,
+        "inner_folds": 2,
         "n_development": 120,
-        "repeat_seed": 20261025
+        "n_heldout": 60,
+        "outer_folds": 3,
+        "repeat_seed": 20261025,
+        "rf_n_estimators": 50,
+        "route_id": "da_a1_basic_clinical_v1"
       },
       "max_samples": 24,
       "method": "ShapBackgroundReference.from_training_encoded",
       "seed": 20355267,
+      "seed_derivation": "repeat_seed + 90000 + 4242",
       "stores_training_projection": false,
       "synthetic_only": true
     },
     "shap_background_sha256_raw": "f9b1455d9e407393e0bcc045c72c431606ab6a73820e63a8897edf930946ccab",
-    "split_assignments_sha256": "1d370dbf0b74dc9a1be403f6489087d975518aff3a0edfd6cc59ae35ad1f0950",
+    "split_assignments_sha256": "e31ea88e4e847665b18efb4451efe23c3e25b1e85f136ba8ed8f34e214e190cc",
     "split_sha256": "56dfc34cd88dbbe5d02ec483ee4b47da182cb042660f840df942af1faade7396",
-    "training_input_sha256": "763755c3392e62d71139f95d78589b8cd1f38bebcf2e7a630b8b9e15cbcbf346"
+    "training_input_sha256": "8192e79ce74963a757c59639774aa0a77121126bfb2b7781fb2b5a09a8b4c0fc"
   }
 }

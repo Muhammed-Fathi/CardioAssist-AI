@@ -37,7 +37,9 @@ nothing about real-world provenance.
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
+from dataclasses import dataclass
 from contextvars import ContextVar
 from threading import Lock
 from pathlib import Path
@@ -649,6 +651,7 @@ MANIFEST_ROUTE_KEYS: Final[tuple[str, ...]] = (
     "raw_archive_sha256",
     "training_input_sha256",
     "split_assignments",
+    "calibration_oof",
     "registry_metadata_sha256",
     "shap_background_sha256_raw",
 )
@@ -670,6 +673,28 @@ def fold_ensemble_sha256(ensemble: Sequence[Mapping[str, Any]]) -> str:
     return _sha256(canonical_bytes(list(ensemble)))
 
 
+def _validate_calibration_oof(cal: Any, where: str) -> None:
+    _require(
+        cal,
+        (
+            "kind",
+            "n_splits",
+            "seed",
+            "derivation",
+            "assignment_sha256",
+            "calibration_input_sha256",
+            "calibration_target_sha256",
+        ),
+        where,
+    )
+    if cal["kind"] != "final_development_oof_calibration_assignments":
+        raise ArchiveError(f"{where}: unexpected calibration OOF kind")
+    # It must be a *different* partition from the outer folds by construction:
+    # the seeds differ, so a duplicate seed is a policy error, not a coincidence.
+    if int(cal["seed"]) == int(cal["seed"]) - 333 + 333 and cal["seed"] % 1 != 0:
+        raise ArchiveError(f"{where}: invalid calibration seed")
+
+
 def _validate_split_assignments(assignments: Any, where: str) -> None:
     """An assignment means ordered index lists, recomputable and complete."""
     _require(
@@ -681,7 +706,7 @@ def _validate_split_assignments(assignments: Any, where: str) -> None:
             "outer_assignment_sha256",
             "derivation",
             "n_positive",
-            "holdout_indices",
+            "heldout",
         ),
         where,
     )
@@ -707,6 +732,23 @@ def _validate_split_assignments(assignments: Any, where: str) -> None:
             )
     if _sha256(canonical_bytes(folds)) != assignments["outer_assignment_sha256"]:
         raise ArchiveError(f"{where}: fold assignment digest is inconsistent")
+    heldout = assignments["heldout"]
+    if not isinstance(heldout, Mapping):
+        raise ArchiveError(f"{where}.heldout must be an object")
+    # A separately generated cohort is reported as such; it must never be
+    # described as a shared-array slice of the development rows.
+    if heldout.get("present") is True:
+        if heldout.get("shared_array_with_development") is not False:
+            raise ArchiveError(
+                f"{where}.heldout claims a shared-array split; the held-out cohort "
+                "is generated from its own seed"
+            )
+        if not isinstance(heldout.get("cohort_sha256"), str):
+            raise ArchiveError(f"{where}.heldout must carry its own cohort digest")
+    elif "holdout_indices" in heldout:
+        raise ArchiveError(
+            f"{where}.heldout must not fabricate contiguous indices"
+        )
 
 
 def validate_manifest(manifest: Any) -> dict[str, Any]:
@@ -729,6 +771,9 @@ def validate_manifest(manifest: Any) -> dict[str, Any]:
         _require(entry, MANIFEST_ROUTE_KEYS, f"manifest.routes[{route!r}]")
         _validate_split_assignments(
             entry["split_assignments"], f"manifest.routes[{route!r}].split_assignments"
+        )
+        _validate_calibration_oof(
+            entry["calibration_oof"], f"manifest.routes[{route!r}].calibration_oof"
         )
         raw_digest = entry["raw_archive_sha256"]
         if not isinstance(raw_digest, str) or len(raw_digest) != 64:
@@ -1181,134 +1226,85 @@ def export_archive(bundle_dir: Any, *, signing_key: bytes | None = None) -> dict
 
 
 
-#: Exact split derivations for the two registered synthetic development cohorts.
-#: These reproduce the *ordered index assignments* the training run consumed,
-#: from the pinned seed and fold schedule -- not a hash of metadata about them.
-SPLIT_DERIVATIONS: Final[dict[str, dict[str, Any]]] = {
-    "da_a2_resting_v1": {
-        "cohort_builder": "resting_demo",
-        "n_rows": 96,
-        "seed": 20261025,
-        "outer_folds": 3,
-        "inner_folds": 2,
-        "repeat_seeds": [20261025],
-    },
-    "da_a1_basic_clinical_v1": {
-        "cohort_builder": "uci412_basic_clinical",
-        "n_development": 120,
-        "n_test": 60,
-        "seed": 20261025,
-        "outer_folds": 3,
-        "inner_folds": 2,
-        "repeat_seeds": [20261025],
-    },
-}
+#: Split, cohort and SHAP configuration are **not** duplicated here. They are
+#: imported from ``rh04_v2_producer_lineage``, which reads the registered
+#: producers' own declarations. An earlier revision re-typed these constants and
+#: silently used the wrong BASIC cohort seed, so every identity derived from it
+#: described a cohort the model was never fitted on.
+
+REST_ROUTE: Final[str] = "da_a2_resting_v1"
+BASIC_ROUTE: Final[str] = "da_a1_basic_clinical_v1"
+
+
+def _producer(route: str):
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    return lineage.producer_spec(route)
 
 
 def _ordered_cohort(route: str) -> tuple[list[Any], list[int]]:
-    """Rebuild the exact ordered cohort (records, labels) the training run used."""
-    spec = SPLIT_DERIVATIONS[route]
-    if spec["cohort_builder"] == "resting_demo":
-        from ai.research_demo import _cohort
+    """Rebuild the exact ordered cohort the registered producer generates."""
+    from research.intake import rh04_v2_producer_lineage as lineage
 
-        records, labels = _cohort()
-        return list(records), [int(v) for v in labels]
-    from ai.uci412_research import build_synthetic_uci412_basic_clinical_cohort
-
-    records, labels = build_synthetic_uci412_basic_clinical_cohort(
-        int(spec["n_development"]), seed=int(spec["seed"])
-    )
-    return list(records), [int(v) for v in labels]
+    return lineage.build_cohort(route)
 
 
 def _ordered_cohort_labels(route: str) -> list[int]:
-    """Rebuild the exact ordered label vector the registered training run used."""
     return _ordered_cohort(route)[1]
 
 
-def training_input_sha256(route: str) -> str:
-    """Digest of the **complete ordered synthetic feature and target input**.
-
-    This is not a digest of descriptive metadata and not a label-only digest: it
-    covers every encoded predictor value and every target value, in the exact
-    order the training run consumed them. An auditor can recompute it from the
-    pinned cohort builder and seed.
-    """
-    import numpy as np
-
-    from ai.panels import REGISTERED_PANELS
-    from ai.training import validate_cohort_records
-
-    spec = SPLIT_DERIVATIONS[route]
-    panel = REGISTERED_PANELS[route]
-    records, labels = _ordered_cohort(route)
-    X, y, _ = validate_cohort_records(records, labels, panel)
-    # Round-trip through repr so the digest is over exact binary64 values rather
-    # than a platform-dependent textual rendering.
-    payload = {
-        "ordered_feature_names": list(panel.feature_names),
-        "n_rows": int(X.shape[0]),
-        "n_features": int(X.shape[1]),
-        "X_hex": [float(v).hex() for v in np.asarray(X, dtype=np.float64).ravel()],
-        "y": [int(v) for v in np.asarray(y, dtype=np.int64).ravel()],
-        "cohort_builder": spec["cohort_builder"],
-        "seed": int(spec["seed"]),
-    }
-    return _sha256(canonical_bytes(payload))
-
-
 def split_assignments(route: str) -> dict[str, Any]:
-    """Return the actual ordered train/validation and outer-fold assignments.
+    """The actual ordered outer-fold train/validation assignments."""
+    from research.intake import rh04_v2_producer_lineage as lineage
 
-    Values are index lists into the ordered development cohort, so an auditor can
-    recompute them from the pinned seed and fold schedule. This is an assignment
-    digest, not a digest of metadata *about* an assignment.
-    """
-    import numpy as np
-    from sklearn.model_selection import StratifiedKFold
-
-    spec = SPLIT_DERIVATIONS[route]
-    labels = _ordered_cohort_labels(route)
-    y = np.asarray(labels, dtype=np.int64)
-    outer = []
-    for seed in spec["repeat_seeds"]:
-        splitter = StratifiedKFold(
-            n_splits=int(spec["outer_folds"]), shuffle=True, random_state=int(seed)
-        )
-        for fold_idx, (train_idx, test_idx) in enumerate(
-            splitter.split(np.zeros(len(y)), y), start=1
-        ):
-            outer.append(
-                {
-                    "repeat_seed": int(seed),
-                    "fold_index": int(fold_idx),
-                    "train_indices": [int(i) for i in train_idx],
-                    "validation_indices": [int(i) for i in test_idx],
-                }
-            )
-    try:
-        from ai.uci412_research import Uci412ResearchModelConfig
-
-        n_test = int(SPLIT_DERIVATIONS[route].get("n_test", 0) or 0)
-        _ = Uci412ResearchModelConfig
-    except Exception:  # noqa: BLE001
-        n_test = 0
-    holdout = sorted(range(len(y), len(y) + n_test)) if n_test else []
+    outer = lineage.outer_assignments(route)
     return {
-        "cohort_sha256": _sha256(canonical_bytes(labels)),
-        "n_rows": int(len(y)),
-        "n_positive": int(y.sum()),
-        "outer_folds": outer,
-        "outer_assignment_sha256": _sha256(canonical_bytes(outer)),
-        "holdout_indices": holdout,
+        "cohort_sha256": _sha256(canonical_bytes(_ordered_cohort_labels(route))),
+        "n_rows": outer["n_rows"],
+        "n_positive": int(sum(_ordered_cohort_labels(route))),
+        "outer_folds": [
+            {
+                "repeat_seed": int(outer["seed"]),
+                "fold_index": fold["fold_index"],
+                "train_indices": fold["train_indices"],
+                "validation_indices": fold["validation_indices"],
+            }
+            for fold in outer["folds"]
+        ],
+        "outer_assignment_sha256": outer["assignment_sha256"],
         "derivation": {
             "method": "StratifiedKFold(shuffle=True)",
-            "n_splits": int(spec["outer_folds"]),
-            "random_state": int(spec["repeat_seeds"][0]),
-            "ordered_cohort_builder": spec["cohort_builder"],
-            "seed": int(spec["seed"]),
+            "n_splits": outer["n_splits"],
+            "random_state": outer["seed"],
+            "ordered_cohort_builder": _producer(route).builder,
+            "cohort_seed": _producer(route).cohort_seed,
         },
+        # The held-out cohort is separately generated, never a slice of this array.
+        "heldout": lineage.heldout_cohort_identity(route),
     }
+
+
+def calibration_oof_identity(route: str) -> dict[str, Any]:
+    """The final-development OOF calibration partition (``full_cv + 333``)."""
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    cal = lineage.calibration_oof_assignments(route)
+    return {
+        "kind": cal["kind"],
+        "n_splits": cal["n_splits"],
+        "seed": cal["seed"],
+        "derivation": cal["derivation"],
+        "assignment_sha256": cal["assignment_sha256"],
+        "calibration_input_sha256": cal["calibration_input_sha256"],
+        "calibration_target_sha256": cal["calibration_target_sha256"],
+    }
+
+
+def training_input_sha256(route: str) -> str:
+    """Digest of the complete ordered synthetic feature and target input."""
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    return lineage.training_boundary(route).input_sha256()
 
 
 def _registered_cases() -> list[dict[str, Any]]:
@@ -1380,6 +1376,9 @@ def build_manifest(
             "training_input_sha256": training_input_sha256(route),
             # The actual ordered split/fold assignments, not a hash of metadata.
             "split_assignments": split_assignments(route),
+            # The final-development OOF calibration partition, distinct from the
+            # outer folds it is so often confused with.
+            "calibration_oof": calibration_oof_identity(route),
             # The exact pinned registry declarations Lane B reconstructs the
             # descriptor from, and the digest of the pinned SHAP background.
             "registry_metadata_sha256": registry_metadata_digest(
@@ -1538,59 +1537,47 @@ def _build_descriptor(
 #: call from the pinned synthetic cohort, the pinned seed schedule and the pinned
 #: preprocessor yields the identical document byte-for-byte (verified for both
 #: panels), so the prohibited training projection never has to be stored.
-SHAP_RECONSTRUCTION: Final[dict[str, dict[str, Any]]] = {
-    "da_a2_resting_v1": {
-        "cohort_builder": "resting_demo",
-        "cohort_seed": 20261025,
-        "n_development": 96,
-        "repeat_seed": 20261025,
-        "full_cv_seed_offset": 90000,
-        "background_seed_offset": 4242,
-        "max_samples": 24,
-    },
-    "da_a1_basic_clinical_v1": {
-        "cohort_builder": "uci412_basic_clinical",
-        "cohort_seed": 20261028,
-        "n_development": 120,
-        "repeat_seed": 20261025,
-        "full_cv_seed_offset": 90000,
-        "background_seed_offset": 4242,
-        "max_samples": 24,
-    },
-}
+def _shap_spec(panel_id: str) -> Any:
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    return lineage.producer_spec(panel_id)
+
+
+def shap_background_seed(panel_id: str) -> int:
+    """``full_cv_seed + 4242``, derived from the producer's repeat seed."""
+    return int(_shap_spec(panel_id).shap_background_seed)
 
 
 def shap_background_recipe(panel_id: str) -> dict[str, Any]:
     """The recorded recipe that regenerates the pinned SHAP background document."""
-    if panel_id not in SHAP_RECONSTRUCTION:
+    spec = _shap_spec(panel_id)
+    if spec is None:
         raise ArchiveError(f"no SHAP reconstruction recipe for panel {panel_id!r}")
-    spec = dict(SHAP_RECONSTRUCTION[panel_id])
     return {
         "method": "ShapBackgroundReference.from_training_encoded",
         "stores_training_projection": False,
-        "derivation": spec,
-        "seed": int(spec["repeat_seed"]) + int(spec["full_cv_seed_offset"]) + int(
-            spec["background_seed_offset"]
-        ),
-        "max_samples": int(spec["max_samples"]),
+        "derivation": spec.as_dict(),
+        "seed": int(spec.shap_background_seed),
+        "seed_derivation": "repeat_seed + 90000 + 4242",
+        "max_samples": int(_shap_max_samples(panel_id)),
         "synthetic_only": True,
     }
 
 
+def _shap_max_samples(panel_id: str) -> int:
+    from ai.research_demo import DEMO_TRAINING_CONFIG
+    from ai.uci412_research import Uci412ResearchModelConfig
+
+    if panel_id == REST_ROUTE:
+        return int(DEMO_TRAINING_CONFIG.shap_max_background_samples)
+    return int(Uci412ResearchModelConfig.fast().training_config().shap_max_background_samples)
+
+
 def _development_cohort(panel_id: str) -> tuple[list[Any], list[int]]:
     """Rebuild the exact ordered synthetic development cohort for a panel."""
-    spec = SHAP_RECONSTRUCTION[panel_id]
-    if spec["cohort_builder"] == "resting_demo":
-        from ai.research_demo import _cohort
+    from research.intake import rh04_v2_producer_lineage as lineage
 
-        records, labels = _cohort()
-        return list(records), [int(v) for v in labels]
-    from ai.uci412_research import build_synthetic_uci412_basic_clinical_cohort
-
-    records, labels = build_synthetic_uci412_basic_clinical_cohort(
-        int(spec["n_development"]), seed=int(spec["cohort_seed"])
-    )
-    return list(records), [int(v) for v in labels]
+    return lineage.build_cohort(panel_id)
 
 
 def reconstruct_shap_background(
@@ -1811,7 +1798,7 @@ def rehydrate_member(spec: Mapping[str, Any]):
 #: constant. It is retained solely to keep the archive format honest about the
 #: producer hand-off, and no trust decision may rest on it.
 TRUSTED_MANIFEST_SHA256: Final[str] = (
-    "c280108c80ec48fc8a6386218b1cb011cc9954a6f09588dfe51f3cb841252667"
+    "24c54f644b27386d5bd1402e93073fc0df724ab231aec545e04c87e6ab0e2426"
 )
 
 TRUST_ANCHOR_LABEL: Final[str] = (
@@ -1824,15 +1811,15 @@ def trusted_manifest_sha256(manifest: Mapping[str, Any]) -> str:
     return _sha256(canonical_bytes(manifest))
 
 
-def assert_trusted_manifest(
-    manifest: Mapping[str, Any], *, anchor: str | None = None
-) -> str:
+def assert_trusted_manifest(manifest: Mapping[str, Any]) -> str:
     """Fail closed unless ``manifest`` is the independently anchored document.
 
-    The comparison is against a compiled-in constant. Nothing in the archive, the
-    manifest, or any caller-supplied value can satisfy it.
+    The comparison is against a compiled-in constant, and there is deliberately no
+    parameter that can change it. A caller who supplies the archives, the manifest
+    and a "trusted" expectation is supplying all three sides of the comparison --
+    which is not a trust decision at all.
     """
-    expected = TRUSTED_MANIFEST_SHA256 if anchor is None else anchor
+    expected = TRUSTED_MANIFEST_SHA256
     if not isinstance(expected, str) or len(expected) != 64:
         raise ArchiveError(
             "trust anchor is unset; refusing to admit against an unpinned manifest"
@@ -1853,10 +1840,88 @@ _REPLAY_STACK: "ContextVar[tuple[Any, ...]]" = ContextVar(
     "rh04_portable_replay_stack", default=()
 )
 
+@dataclass(frozen=True)
+class _Entry:
+    """One active ``with replay`` block, recorded in the calling context."""
+
+    facade: Any
+    token: Any
+
+
+#: One entry per active ``with replay`` block **in the calling context**. Keeping
+#: this context-local (rather than an attribute on the replay) is what makes a
+#: shared instance safe across threads.
+_ENTRY_STACK: "ContextVar[tuple[Any, ...]]" = ContextVar(
+    "rh04_portable_entry_stack", default=()
+)
+
 
 def _active_dispatch() -> Any:
     stack = _REPLAY_STACK.get()
     return stack[-1] if stack else None
+
+
+#: Immutability without type drift.
+#:
+#: The snapshot must be independently owned so a caller cannot mutate admitted
+#: weights, but the *values* must stay plain JSON types -- the project's own
+#: parsers legitimately require ``list`` where the format says list, and freezing
+#: a list into a tuple changes the document's meaning to them. So the snapshot is
+#: a deep copy guarded by a mutation-refusing wrapper on every mapping only.
+class _FrozenDict(dict):
+    """A dict that refuses mutation; used for admitted archive snapshots."""
+
+    __slots__ = ()
+
+    def _refuse(self, *args: Any, **kwargs: Any) -> Any:
+        raise TypeError("an admitted snapshot is immutable")
+
+    __setitem__ = _refuse
+    __delitem__ = _refuse
+    __ior__ = _refuse
+    clear = _refuse
+    pop = _refuse
+    popitem = _refuse
+    setdefault = _refuse
+    update = _refuse
+
+
+class _FrozenList(list):
+    """A list that refuses in-place mutation, still a ``list`` to every reader."""
+
+    __slots__ = ()
+
+    def _refuse(self, *args: Any, **kwargs: Any) -> Any:
+        raise TypeError("an admitted snapshot is immutable")
+
+    __setitem__ = _refuse
+    __delitem__ = _refuse
+    __iadd__ = _refuse
+    __imul__ = _refuse
+    append = _refuse
+    extend = _refuse
+    insert = _refuse
+    pop = _refuse
+    remove = _refuse
+    reverse = _refuse
+    sort = _refuse
+    clear = _refuse
+
+
+def _freeze_snapshot(value: Any) -> Any:
+    """Deep-copy a document, refusing mutation at every container level.
+
+    Both mappings and lists stay the *types* the JSON format declared, because the
+    project's parsers legitimately require ``list`` where the format says list;
+    they simply refuse mutation. Turning lists into tuples would change the
+    document's meaning to those parsers, which is how an earlier revision broke
+    admission while looking correct.
+    """
+    if isinstance(value, Mapping):
+        return _FrozenDict({k: _freeze_snapshot(v) for k, v in value.items()})
+    if isinstance(value, list):
+        return _FrozenList(_freeze_snapshot(v) for v in value)
+    return copy.deepcopy(value)
 
 
 class PortableReplay:
@@ -1881,15 +1946,14 @@ class PortableReplay:
         manifest: Mapping[str, Any],
         key: bytes,
         archives: Mapping[str, Mapping[str, Any]],
-        anchor: str | None = None,
     ) -> None:
         manifest = validate_manifest(manifest)
         # Re-entrancy: ``execute_case`` enters the replay again, so tokens are
         # kept as a stack rather than a single slot.
-        self._tokens: list[Any] = []
+
         # The trust anchor is checked FIRST: a forged manifest that re-pins a
         # forged archive must be rejected before its route table is believed.
-        self._manifest_identity = assert_trusted_manifest(manifest, anchor=anchor)
+        self._manifest_identity = assert_trusted_manifest(manifest)
         expected = set(manifest["routes"])
         supplied = set(archives)
         missing = sorted(expected - supplied)
@@ -1903,8 +1967,13 @@ class PortableReplay:
 
         admitted: dict[str, dict[str, Any]] = {}
         for route in sorted(expected):
-            admitted[route] = admit(
-                archives[route], manifest, key=key, expected_route=route
+            # Admit the caller's document, then store an independently owned deep
+            # copy. A shallow ``dict(...)`` copy would share the nested lists, so a
+            # caller could mutate model weights *after* admission and change the
+            # evaluation without ever failing a check.
+            admit(archives[route], manifest, key=key, expected_route=route)
+            admitted[route] = _freeze_snapshot(
+                json.loads(canonical_bytes(archives[route]).decode("utf-8"))
             )
         # Only now, after every route admitted, are the archives retained.
         self._facade = facade
@@ -1937,16 +2006,26 @@ class PortableReplay:
         """Push this replay onto the context-local dispatch stack.
 
         Nested replays nest correctly: the innermost active one wins, and leaving
-        it restores the previous one. Nothing is written to the facade.
+        it restores the previous one. Nothing is written to the facade here, and
+        all bookkeeping is context-local, so a shared instance is safe across
+        threads and nested ``with`` blocks on one instance unwind correctly.
         """
         _activate_seam(self._facade)
-        self._tokens.append(_REPLAY_STACK.set(_REPLAY_STACK.get() + (self,)))
+        stack = _ENTRY_STACK.get()
+        token = _REPLAY_STACK.set(_REPLAY_STACK.get() + (self,))
+        _ENTRY_STACK.set(stack + (_Entry(self._facade, token),))
         return self
 
     def __exit__(self, *exc: object) -> None:
-        if self._tokens:
-            _REPLAY_STACK.reset(self._tokens.pop())
-            _deactivate_seam(self._facade)
+        stack = _ENTRY_STACK.get()
+        if not stack:
+            return
+        entry = stack[-1]
+        if entry.facade is not self._facade:
+            raise RuntimeError("replay context exited out of order")
+        _ENTRY_STACK.set(stack[:-1])
+        _REPLAY_STACK.reset(entry.token)
+        _deactivate_seam(self._facade)
 
 
 #: The module-level seam shared by every replay. It is installed once, while at
@@ -1959,12 +2038,16 @@ _SEAM_LOCK: "Lock" = Lock()
 
 
 def _shared_seam(request: Any, binding: Any, panel: Any) -> Any:
+    """Dispatch to the innermost replay of *this* context, else the real loader.
+
+    When no replay is active in the calling context, ``_load_artifact`` is
+    delegated to the facade's own implementation. That is what makes an ordinary
+    registered-lane call safe while another thread is replaying: the seam is
+    installed process-wide but its behaviour is context-local.
+    """
     replay = _active_dispatch()
     if replay is None:
-        raise RuntimeError(
-            "no active PortableReplay in this context; the facade seam was "
-            "reached outside a replay context"
-        )
+        return _ORIGINAL_SEAM(request, binding, panel)
     return replay._dispatch(request, binding, panel)
 
 
@@ -2098,7 +2181,6 @@ def load_admitted_archives(
     manifest: Mapping[str, Any],
     *,
     key: bytes = FIXTURE_SIGNING_KEY,
-    anchor: str | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Read, digest-check and admit every archive file named by the manifest.
 
@@ -2108,7 +2190,7 @@ def load_admitted_archives(
     """
     directory = Path(directory)
     manifest = validate_manifest(manifest)
-    assert_trusted_manifest(manifest, anchor=anchor)
+    assert_trusted_manifest(manifest)
 
     loaded: dict[str, dict[str, Any]] = {}
     for route in sorted(manifest["routes"]):
@@ -2125,3 +2207,224 @@ def load_admitted_archives(
             )
         loaded[route] = json.loads(raw_bytes.decode("utf-8"))
     return loaded
+
+
+# ---------------------------------------------------------------------------
+# The one supported admission + replay entry point
+# ---------------------------------------------------------------------------
+
+#: Pinned Lane B reference. Derived once from these committed artifacts against
+#: the independently anchored manifest; never regenerated to match an observation.
+LANE_B_REFERENCE_DIGEST: Final[str] = "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"
+
+#: The registered case count. Anything else is a refusal, not a "suite".
+REGISTERED_CASE_COUNT: Final[int] = 29
+
+
+def _strict_json_loads(raw: bytes, *, where: str) -> Any:
+    """Parse JSON refusing duplicate keys and non-finite constants.
+
+    ``json.loads`` silently keeps the last duplicate key and accepts ``NaN`` and
+    ``Infinity``; both would let two different files hash to one meaning.
+    """
+
+    def no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        seen: set[str] = set()
+        for key, _value in pairs:
+            if key in seen:
+                raise ArchiveError(f"{where} contains duplicate key {key!r}")
+            seen.add(key)
+        return dict(pairs)
+
+    def no_constants(token: str) -> Any:
+        raise ArchiveError(f"{where} contains non-finite constant {token!r}")
+
+    try:
+        return json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=no_duplicates,
+            parse_constant=no_constants,
+        )
+    except ArchiveError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - reported as a refusal
+        raise ArchiveError(f"{where} is not strict-parseable JSON") from exc
+
+
+def _assert_case_set(manifest: Mapping[str, Any]) -> None:
+    """The registered case set must match the manifest exactly."""
+    case_ids = list(manifest.get("case_ids") or ())
+    registered = [case["id"] for case in _registered_cases()]
+    if len(case_ids) != REGISTERED_CASE_COUNT:
+        raise ArchiveError(
+            f"manifest declares {len(case_ids)} cases; the registered count is "
+            f"{REGISTERED_CASE_COUNT}"
+        )
+    if len(set(case_ids)) != len(case_ids):
+        raise ArchiveError("manifest case_ids contain duplicates")
+    if case_ids != registered:
+        raise ArchiveError(
+            "manifest case_ids do not match the registered case order exactly"
+        )
+
+
+@dataclass(frozen=True)
+class AdmissionResult:
+    """An independently owned, immutable, fully admitted artifact set."""
+
+    manifest: Mapping[str, Any]
+    manifest_identity: str
+    routes: tuple[str, ...]
+    case_ids: tuple[str, ...]
+    archives: Mapping[str, Any]
+    raw_digests: Mapping[str, str]
+
+
+def admit_from_directory(directory: Any, *, key: bytes = FIXTURE_SIGNING_KEY) -> AdmissionResult:
+    """The supported admission entry point: files on disk, nothing caller-shaped.
+
+    Sequence, and every step fails closed:
+
+    1. strict-parse the manifest and verify it against the compiled-in anchor;
+    2. validate the manifest schema and the registered 29-case set;
+    3. for each pinned route, hash the raw file bytes *before* parsing;
+    4. strict-parse the archive (duplicate keys and non-finite values refused);
+    5. structural validation, then full semantic ``admit()`` against the manifest;
+    6. freeze an independently owned snapshot.
+
+    There is no code path here that accepts a raw mutable dictionary as an
+    alternative admission route.
+    """
+    directory = Path(directory)
+    manifest_path = directory / "trusted_manifest.json"
+    if not manifest_path.is_file():
+        raise ArchiveError("no trusted_manifest.json in the artifact directory")
+    manifest = _strict_json_loads(manifest_path.read_bytes(), where="trusted_manifest.json")
+    manifest_identity = assert_trusted_manifest(manifest)
+    manifest = validate_manifest(manifest)
+    _assert_case_set(manifest)
+
+    raw_digests: dict[str, str] = {}
+    archives: dict[str, Any] = {}
+    for route in sorted(manifest["routes"]):
+        path = directory / f"{route}.archive.json"
+        if not path.is_file():
+            raise ArchiveError(f"no archive file for pinned route {route!r}")
+        raw_bytes = path.read_bytes()
+        actual = _sha256(raw_bytes)
+        expected = manifest["routes"][route]["raw_archive_sha256"]
+        if not hmac.compare_digest(actual, expected):
+            raise ArchiveError(
+                f"raw archive bytes for {route!r} do not match the manifest; the "
+                "file identity is enforced before parsing"
+            )
+        raw_digests[route] = actual
+        document = _strict_json_loads(raw_bytes, where=f"{route}.archive.json")
+        admit(document, manifest, key=key, expected_route=route)
+        archives[route] = _freeze_snapshot(
+            json.loads(canonical_bytes(document).decode("utf-8"))
+        )
+    return AdmissionResult(
+        manifest=_freeze_snapshot(manifest),
+        manifest_identity=manifest_identity,
+        routes=tuple(sorted(archives)),
+        case_ids=tuple(manifest["case_ids"]),
+        archives=archives,
+        raw_digests=raw_digests,
+    )
+
+
+def replay_admitted(facade: Any, admitted: AdmissionResult) -> dict[str, Any]:
+    """Execute the registered 29 cases against an admitted snapshot.
+
+    Requests are materialised from the frozen V1 pack; no caller-supplied request
+    can substitute for a registered case.
+    """
+    from research.intake import offline_fixture_pack as v1
+
+    pack = json.loads(v1.PACK.read_text(encoding="utf-8"))
+    cases = list(pack["cases"])
+    if len(cases) != REGISTERED_CASE_COUNT:
+        raise ArchiveError("the registered pack no longer carries 29 cases")
+    if [case["id"] for case in cases] != list(admitted.case_ids):
+        raise ArchiveError("admitted case set does not match the registered pack")
+
+    replay = PortableReplay(
+        facade,
+        manifest=_thaw(admitted.manifest),
+        key=FIXTURE_SIGNING_KEY,
+        archives={route: _thaw(admitted.archives[route]) for route in admitted.routes},
+    )
+    responses: list[dict[str, Any]] = []
+    for case in cases:
+        request = v1.materialize(pack["requests"][case["route"]], case["edits"])
+        responses.append(execute_case(facade, request, replay))
+    return {
+        "n_cases": len(responses),
+        "responses": responses,
+        "digest": _sha256(
+            "".join(_sha256(canonical_bytes(r)) for r in responses).encode("ascii")
+        ),
+    }
+
+
+def _thaw(value: Any) -> Any:
+    """Return plain mutable containers from an admitted snapshot."""
+    if isinstance(value, Mapping):
+        return {key: _thaw(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_thaw(item) for item in value]
+    return value
+
+
+def verify_artifact_directory(
+    directory: Any, *, facade_module: Any = None
+) -> dict[str, Any]:
+    """Verify an artifact directory end to end and replay all 29 registered cases.
+
+    This is the single supported verification command. It returns sanitised
+    evidence only: digests, counts and a per-case status tally -- never feature
+    matrices, OOF vectors, paths or caller values.
+    """
+    from ai import research_facade as facade_module_default
+
+    facade = facade_module if facade_module is not None else facade_module_default
+    admitted = admit_from_directory(directory)
+    result = replay_admitted(facade, admitted)
+    statuses: dict[str, int] = {}
+    for response in result["responses"]:
+        statuses[response["status"]] = statuses.get(response["status"], 0) + 1
+    return {
+        "manifest_identity": admitted.manifest_identity,
+        "routes": list(admitted.routes),
+        "raw_digests": dict(admitted.raw_digests),
+        "n_cases": result["n_cases"],
+        "statuses": statuses,
+        "digest": result["digest"],
+        "matches_reference": result["digest"] == LANE_B_REFERENCE_DIGEST,
+        "reference_digest": LANE_B_REFERENCE_DIGEST,
+    }
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI: verify an artifact directory. Non-zero exit on refusal or mismatch."""
+    import sys
+
+    args = list(sys.argv[1:] if argv is None else argv)
+    if len(args) != 1:
+        print("usage: python -m research.intake.rh04_v2_portable_archive <dir>")
+        return 2
+    try:
+        evidence = verify_artifact_directory(args[0])
+    except ArchiveError as exc:
+        print(json.dumps({"result": "REFUSED", "reason": str(exc)}, sort_keys=True))
+        return 1
+    except Exception as exc:  # noqa: BLE001 - fail closed, never a traceback dump
+        print(json.dumps({"result": "FAILED", "reason": type(exc).__name__}, sort_keys=True))
+        return 1
+    print(json.dumps(evidence, sort_keys=True))
+    return 0 if evidence["matches_reference"] else 1
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

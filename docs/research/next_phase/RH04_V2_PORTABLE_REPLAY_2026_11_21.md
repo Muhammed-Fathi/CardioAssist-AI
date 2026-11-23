@@ -101,21 +101,37 @@ bundle would fail loudly instead of silently succeeding.
 
 ### The SHAP background: a deliberate, narrow exception
 
-The producer bundle marks `shap_background.json` with
-`commit_or_public_upload_prohibited: true` and declares it as *encoded training
-projections*. Committing that document as a separate file would violate the
-bundle's own policy. It is therefore **not** committed as a file. It travels as
-canonical base64 inside the archive's `training_identity`, with its raw SHA-256
-pinned twice (in the archive and in the independently trusted manifest), and it
-is decoded and digest-checked at load time.
+> **SUPERSEDED 2026-11-21 (Round 10.2).** This section previously described the
+> background travelling as **base64 inside the archive**. That was wrong:
+> base64 is an encoding, not a change in publication class, so a re-encoded copy
+> is just as prohibited as the original. Round 10.2 removed the representation
+> entirely.
 
-This is still a *recorded training projection*, and it is described as such
-wherever it appears. It is a synthetic-cohort background (the document's own
-privacy block declares `synthetic_only: true`), it is small — 2,687 B for the
-10-feature REST panel and 4,281 B for the 16-feature BASIC panel — and the
-alternative (recomputing it from a fresh training run) is exactly the dependency
-P0-02 forbids. It is the narrowest way to satisfy both constraints, and it is
-called out here rather than buried.
+The producer bundle marks `shap_background.json` with
+`commit_or_public_upload_prohibited: true` and declares it as encoded training
+projections. It is now **not committed in any representation** — not as a file,
+not as base64, not as hex.
+
+Instead the archive carries a **recipe plus the expected digest**:
+
+* `shap_background_recipe` names the generator, the producer-derived seed
+  (`repeat_seed + 90000 + 4242`), the sample budget, and explicitly records
+  `stores_training_projection: false`;
+* the raw SHA-256 is pinned in the independently anchored manifest;
+* reconstruction replays `ShapBackgroundReference.from_training_encoded` over the
+  producer's own cohort and preprocessor, and the result is **byte-identical** to
+  the producer document (`6de846b5…` REST, `f9b1455d…` BASIC);
+* a reconstruction that does not match the pinned digest is a refusal.
+
+The prohibition therefore costs nothing in fidelity: the background is fully
+recoverable from reviewed code and a public seed, which is exactly why publishing
+it was avoidable in the first place.
+
+**History note:** the prohibited base64 representation remains reachable in
+pushed history at `b67ed4e`. It is absent from the current tree, but a corrective
+commit cannot remove it from history. See
+`RH04_V2_SHAP_HISTORY_REMEDIATION_PROPOSAL_2026_11_21.md` — proposal only, nothing
+executed, no exception granted.
 
 ### Concurrency
 
@@ -123,6 +139,66 @@ The Round 10 adapter transported `_request` / `_binding` / `_panel` through
 mutable function attributes. Those are gone; every value is passed as an explicit
 argument, and concurrent execution of the same replay from eight threads returns
 eight identical results with no route or request leakage.
+
+## 1b. Round 10.3 — the producer lineage was wrong, and is now derived
+
+Review found a concrete source mismatch, and it was real.
+
+`SPLIT_DERIVATIONS` hardcoded `20261025` as the cohort seed for **both** routes.
+For BASIC the registered producer uses `Uci412ResearchModelConfig.seed = 20261028`,
+so the committed `training_input_sha256` and fold assignments for that route were
+computed from a cohort the model was never fitted on. The two cohorts differ
+materially: 95 positives at the correct seed versus 101 at the wrong one.
+
+For REST the outcome was different and worth stating precisely: `_cohort()`
+ignores the recorded seed and uses the producer's own `DEMO_SEED = 20261117`, so
+the generated *data* was correct and only the recorded *metadata* was wrong.
+
+The duplicated seed table has been deleted. `rh04_v2_producer_lineage` imports
+`DEMO_SEED`, `DEMO_N_ROWS`, `DEMO_TRAINING_CONFIG` and
+`Uci412ResearchModelConfig` directly, and the archive module now re-types none of
+them.
+
+### The five seed roles are kept distinct
+
+| role | REST | BASIC | derivation |
+|---|---|---|---|
+| cohort generation | 20261117 | 20261028 | producer constant |
+| CV repeat | 20261025 | 20261025 | producer config |
+| inner CV | repeat+1000·fold+10·family | same | `ai/training` |
+| full CV | repeat+90000 | same | `ai/training` |
+| final calibration OOF | full_cv+333 | same | `ai/training` |
+| SHAP background | full_cv+4242 | same | `ai/training` |
+
+### Lineage is established, not assumed
+
+Refitting from the **producer's** cohort with the **producer's** final-fit seed
+(`full_cv + 9999`) independently reproduces the archived estimator:
+
+| route | preprocessing | fitted parameters |
+|---|---|---|
+| `da_a2_resting_v1` | byte-identical | LR coefficients **exact**, max\|Δ\| = `0.0` |
+| `da_a1_basic_clinical_v1` | byte-identical | RF tree values **exact**, 0 mismatched trees |
+
+This is the strongest evidence available: the refit depends on the cohort seed and
+the final-fit seed, both derived from producer sources, so the archive cannot make
+it agree by construction.
+
+### The correction changed provenance, not inference
+
+Measured, not assumed: every inference-relevant block (`model`, `preprocessing`,
+`calibration`, `fold_ensemble`) is **byte-identical** to `b67ed4e` for both routes.
+Only `training_identity` changed. Consequently the Lane B reference digest is
+unchanged at `891d9e3b…`.
+
+### The held-out cohort is generated, not sliced
+
+Previously the manifest reported `holdout_indices` as contiguous rows after the
+development cohort. That was fabricated: the UCI-412 held-out cohort is built from
+its own seed (`config.seed + 1 = 20261029`), not by slicing the development array.
+The manifest now records a separately generated cohort with its own digest and
+`shared_array_with_development: false`, and the REST route correctly reports that
+it has no separate held-out cohort at all.
 
 ## 2. All 29 cases now execute through the real facade
 

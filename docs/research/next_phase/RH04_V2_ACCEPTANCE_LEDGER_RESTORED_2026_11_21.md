@@ -42,7 +42,12 @@ These are *work items*. Completing one closes nothing.
 | `T-MANIFEST-ANCHOR` | The trusted manifest is authenticated against a hash compiled into reviewed source; a manifest supplied beside the archives is not an anchor | **DONE (round 10.2)** |
 | `T-SHAP-POLICY` | No publication-prohibited training projection is committed in **any** representation; the background is deterministically reconstructed and digest-checked | **DONE (round 10.2)** |
 | `T-ENFORCE-ALL` | Raw-file bytes, registry metadata digest and the complete ordered training-input digest are all *enforced*, not merely recorded | **DONE (round 10.2)** |
-| `T-CONTEXT-LOCAL` | Dispatch is context-local; 8 simultaneous replays and nested contexts dispatch correctly and restore the facade loader | **DONE (round 10.2)** |
+| `T-CONTEXT-LOCAL` | Dispatch is context-local; 8 simultaneous full 29-case replays and nested contexts dispatch correctly and restore the facade loader | **DONE (round 10.2, corrected round 10.3)** |
+| `T-LINEAGE` | Producer configuration imported from the registered producers; the five seed roles kept distinct; refit reproduces the archived estimator exactly | **DONE (round 10.3)** |
+| `T-ONE-ENTRY` | A single supported admission + replay entry point; the cold path, matrix and docs all use it; no raw-dict admission shortcut | **DONE (round 10.3)** |
+| `T-SNAPSHOT` | Admitted state is independently owned and mutation-refusing; caller edits after admission cannot change evaluation | **DONE (round 10.3)** |
+| `T-OOF` | Final-development OOF calibration partition identified separately from the outer folds | **DONE (round 10.3)** |
+| `T-NO-ANCHOR-OVERRIDE` | No caller-selectable trust anchor anywhere on the acceptance path | **DONE (round 10.3)** |
 | `T-DIGEST-BIND` | Full algorithm declaration bound into `pipeline_digest` | **DONE (round 9)** |
 | `T-CHILD-RC` | Helper rejects unknown verdicts and inconsistent child rcs | **DONE (round 9)** |
 | `T-XENV` | Requested vs resident kernel matrix, cold processes, rehydrated Lane B (5 classes → 1 group) | **PARTIAL** (3.12 / Windows NOT MEASURED) |

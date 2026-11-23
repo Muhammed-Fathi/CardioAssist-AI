@@ -174,6 +174,28 @@ generated Lane A output. Rehydration is bit-identical to a fitted estimator
 *within a process on the same host*; that measurement does not make Lane A a
 valid expected reference for Lane B, and no test uses it that way.
 
+### V2-02 — the fitted solver criterion, under two lanes
+
+The original V2-02 asks that the fitted solver criterion be demonstrably reachable
+and correctly reported. **This proposal does not credit an isolated Decimal oracle
+as the solver that generated a rehydrated scikit-learn artifact.** Under the
+two-lane design the honest statement is:
+
+* **Lane A** runs the project's real training path. Its solver criterion is
+  whatever `ai/training.py` specifies for the selected profile
+  (`lbfgs`/`max_iter=1000` for `AI1_GENERIC_V1`), and convergence is reported by
+  scikit-learn itself.
+* **Lane B** does not fit anything. It rehydrates already-fitted parameters, so it
+  makes **no** solver claim at all. Its obligation is parameter *identity*, which
+  Round 10.3 satisfies by refitting from the producer cohort and matching exactly.
+* A Decimal arithmetic oracle can support V2-03's determinism claims as a
+  *diagnostic*, but it must never be described as the optimisation that produced
+  the artifact.
+
+Consequence: V2-02 remains **not satisfied**, because the criterion-reachability
+demonstration has not been executed against the real training run. It is not
+satisfied by the rehydration work, and this proposal does not claim otherwise.
+
 ### V2-09 — *unchanged*
 
 Non-claims remain: engineering reproducibility only, no clinical validity, no

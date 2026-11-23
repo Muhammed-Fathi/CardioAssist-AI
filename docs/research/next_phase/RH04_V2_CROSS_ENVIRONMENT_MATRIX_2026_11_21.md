@@ -110,6 +110,14 @@ separately.
 | `Haswell` | `Haswell` | `Haswell` | `891d9e3b…` |
 | `Prescott` | `Prescott` | **`Katmai`** | `891d9e3b…` |
 
+**Re-measured in Round 10.3 through the unified entry point**
+(`python -m research.intake.rh04_v2_portable_archive <dir>`), after the producer
+lineage correction. Full digest, identical for every row:
+
+```
+891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8
+```
+
 **One result group across five environment classes.** Note the `Prescott` row:
 the requested kernel was *not* the resident kernel for SciPy — the earlier
 workstream observed the same `Katmai` substitution, and it is recorded here

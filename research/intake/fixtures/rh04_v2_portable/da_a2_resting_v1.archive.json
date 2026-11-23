@@ -1,7 +1,7 @@
 {
-  "archive_sha256": "db30756e5633cf6bc857955e2f2c7c6e99bc341f23d88941051c20cf0da87564",
+  "archive_sha256": "ee893f159f4f16474b216671289ca538b09a302e162d9d1a25ae34628fb930fa",
   "attestation": {
-    "hmac_sha256": "9e897fe4bb17f261269e39f4e72242a6acdf9de8e0c7b804eda0caee435ff8a3",
+    "hmac_sha256": "e18bd152890e8bddf385de96e2fa4f7e5378d72a5d1cdc3241f6596611a60939",
     "key_id": "b7d21598135c6b97",
     "key_label": "PUBLIC_TEST_FIXTURE_KEY_NOT_A_SECRET",
     "scheme": "hmac-sha256-local-producer-v1"
@@ -7000,23 +7000,27 @@
     },
     "shap_background_recipe": {
       "derivation": {
-        "background_seed_offset": 4242,
-        "cohort_builder": "resting_demo",
-        "cohort_seed": 20261025,
-        "full_cv_seed_offset": 90000,
-        "max_samples": 24,
+        "builder": "resting_demo",
+        "cohort_seed": 20261117,
+        "heldout_seed": null,
+        "inner_folds": 2,
         "n_development": 96,
-        "repeat_seed": 20261025
+        "n_heldout": null,
+        "outer_folds": 3,
+        "repeat_seed": 20261025,
+        "rf_n_estimators": 20,
+        "route_id": "da_a2_resting_v1"
       },
       "max_samples": 24,
       "method": "ShapBackgroundReference.from_training_encoded",
       "seed": 20355267,
+      "seed_derivation": "repeat_seed + 90000 + 4242",
       "stores_training_projection": false,
       "synthetic_only": true
     },
     "shap_background_sha256_raw": "6de846b5249f219001f1d5e64b4ddaa840a8d7f8a66a8b0f0b0a29565567007b",
     "split_assignments_sha256": "7994a1b65d10c0804be71af04f47b2743b1a931b4d2c0c1d6b9a092a85e9b9e0",
     "split_sha256": "addace4d1b1719322ce8428d9dffaeb7d6aa48c908808c875eb5563de001a724",
-    "training_input_sha256": "77a08f648dcf5b804096d2f08e45079e2f75fad0fd5ad2f0a72ea77ce47ca922"
+    "training_input_sha256": "ef0a304e1998e39b9147ca508f2632b7af13ca5dc3387d697e6204beba6d757e"
   }
 }
