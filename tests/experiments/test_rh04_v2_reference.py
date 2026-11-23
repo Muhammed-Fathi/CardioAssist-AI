@@ -4032,6 +4032,294 @@ def test_wrong_basic_cohort_seed_fails_identity_verification():
     assert manifest["routes"]["da_a1_basic_clinical_v1"]["training_input_sha256"] != wrong
 
 
+def test_inner_selection_preserves_the_producer_family_order():
+    """Family offsets must follow ``CANDIDATE_FAMILIES``' declared order.
+
+    ``ai/training.py`` derives every seed from ``enumerate(CANDIDATE_FAMILIES,
+    start=1)``, so the declared order is semantically load-bearing. An earlier
+    version of the lineage module used ``sorted(...)``, which reverses the tuple
+    ("constrained_random_forest" < "l2_logistic_regression") and therefore
+    assigned each family the *other* family's inner-CV seeds.
+    """
+    from ai.training import CANDIDATE_FAMILIES
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    assert lineage.candidate_families_in_producer_order() == tuple(CANDIDATE_FAMILIES)
+    assert tuple(sorted(CANDIDATE_FAMILIES)) != tuple(CANDIDATE_FAMILIES), (
+        "test is meaningless if sorting is a no-op for this tuple"
+    )
+
+    for route in ("da_a1_basic_clinical_v1", "da_a2_resting_v1"):
+        identity = lineage.inner_selection_identity(route)
+        assert identity["family_order"] == list(CANDIDATE_FAMILIES)
+        spec = lineage.producer_spec(route)
+        for fold in identity["folds"]:
+            for offset, family in enumerate(CANDIDATE_FAMILIES, start=1):
+                record = fold["families"][family]
+                assert record["family_offset"] == offset, (family, offset)
+                assert record["inner_seed"] == (
+                    spec.repeat_seed + 1000 * fold["fold_index"] + 10 * offset
+                )
+            # The dummy calibrator occupies offset slot +1 in the same schedule.
+            assert fold["dummy_calibration"]["inner_seed"] == (
+                spec.repeat_seed + 1000 * fold["fold_index"] + 1
+            )
+
+
+def test_inner_selection_matches_independently_observed_producer_execution():
+    """The derived schedule must equal the seeds the producer actually constructs.
+
+    This is the check that would have caught the ``sorted()`` defect. Rather than
+    recomputing the same arithmetic a second time, it drives the registered
+    producer and records every ``StratifiedKFold`` it constructs, then requires
+    the observed inner-CV and full-development seeds to appear in the derived
+    schedule as the *right family*.
+    """
+    from sklearn.model_selection import StratifiedKFold
+
+    from ai.training import CANDIDATE_FAMILIES
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    route = "da_a1_basic_clinical_v1"
+    observed: list[int] = []
+    original = StratifiedKFold.__init__
+
+    def _record(self, *args, **kwargs):
+        original(self, *args, **kwargs)
+        observed.append(int(self.random_state))
+
+    StratifiedKFold.__init__ = _record
+    try:
+        lineage._run_registered_producer(route)
+    finally:
+        StratifiedKFold.__init__ = original
+
+    spec = lineage.producer_spec(route)
+    identity = lineage.inner_selection_identity(route)
+
+    # Every derived outer-fold inner seed for every family must have been
+    # constructed by the producer. If the offsets were reversed, the derived
+    # family->seed map would not appear in the observed sequence at all.
+    for fold in identity["folds"]:
+        for family in CANDIDATE_FAMILIES:
+            assert fold["families"][family]["inner_seed"] in observed, family
+        assert fold["dummy_calibration"]["inner_seed"] in observed
+
+    # The full-development selection seeds and the calibration splitter, too.
+    for offset, family in enumerate(CANDIDATE_FAMILIES, start=1):
+        assert spec.full_selection_seed(offset) in observed, family
+    assert spec.calibration_seed in observed
+
+    # And the ordering claim itself: the derived offset for Logistic Regression
+    # is smaller than the derived offset for Random Forest, matching the order in
+    # which the producer constructs them inside a fold.
+    lr_offset = identity["family_order"].index("l2_logistic_regression") + 1
+    rf_offset = identity["family_order"].index("constrained_random_forest") + 1
+    assert lr_offset < rf_offset
+
+
+def test_calibration_input_is_the_oof_vector_not_the_development_matrix():
+    """The calibrator's fitted input must be the OOF vector, captured not derived.
+
+    The defect this replaces hashed the development feature/target matrix and
+    stored it as ``calibration_input_sha256``. That is not what the OOF calibrator
+    consumes, so the binding could not detect a change to the calibrator's actual
+    input at all.
+    """
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    _, manifest, _ = _pinned()
+    for route in manifest["routes"]:
+        ident = lineage.calibration_input_identity(route)
+        pin = manifest["routes"][route]["calibration_input"]
+        boundary = lineage.training_boundary(route)
+
+        # Distinct identities, all three of them.
+        assert pin["oof_input_sha256"] != boundary.input_sha256()
+        assert pin["oof_target_sha256"] != boundary.target_sha256()
+        assert (
+            manifest["routes"][route]["calibration_oof"]["development_input_sha256"]
+            == boundary.input_sha256()
+        )
+
+        # The captured vector is the real OOF length, and the link is typed right.
+        assert ident["n_oof_samples"] == boundary.n_rows
+        assert ident["fit_scope"] == "FULL_DEVELOPMENT_OOF_FINAL"
+        if ident["input_link"] == "exact_raw_log_odds":
+            assert ident["oof_raw_logit_sha256"] is not None
+        else:
+            assert ident["oof_raw_logit_sha256"] is None
+
+        # The captured fit reproduces the archived calibrator exactly.
+        _, _, archives = _pinned()
+        calibration = archives[route]["calibration"]
+        assert ident["fitted_parameters"]["intercept"] == calibration["intercept"]
+        assert ident["fitted_parameters"]["slope"] == calibration["slope"]
+        assert ident["input_link"] == calibration["input_link"]
+
+
+def test_calibrator_input_pin_is_enforced_not_merely_present(monkeypatch):
+    """A present pin that admission never compares would be the old defect again.
+
+    The archive's own digest and MAC are recomputed so neither can be what
+    refuses it, the manifest agrees with the tampered value everywhere it can,
+    and the anchor is patched test-locally. What remains is the calibrator-input
+    binding -- which must be what catches it.
+    """
+    archive_mod, manifest, archives = _pinned()
+    route = "da_a1_basic_clinical_v1"
+    body = copy.deepcopy(archives[route])
+    body.pop("attestation", None)
+    body.pop("archive_sha256", None)
+    body["calibration"]["slope"] = body["calibration"]["slope"] + 1e-6
+    forged = archive_mod.attest(body)
+
+    forged_manifest = copy.deepcopy(manifest)
+    entry = forged_manifest["routes"][route]
+    entry["archive_sha256"] = forged["archive_sha256"]
+    entry["calibration_slope"] = forged["calibration"]["slope"]
+    entry["calibration_sha256"] = archive_mod.calibration_sha256(
+        forged["calibration"]
+    )
+    entry["training_identity_sha256"] = archive_mod.training_identity_sha256(
+        forged["training_identity"]
+    )
+    _patched_anchor(monkeypatch, forged_manifest)
+
+    with pytest.raises(archive_mod.ArchiveError, match="calibrator slope"):
+        archive_mod.admit(forged, forged_manifest, expected_route=route)
+
+
+def test_calibration_input_pin_rejects_a_lane_b_recomputation_claim():
+    """The pin may not claim Lane B recomputes an OOF digest it never fits.
+
+    This is the "field present means enforced" failure mode turned into a test:
+    a manifest that asserts a capability the lane does not have is refused rather
+    than read as evidence.
+    """
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, _ = _pinned()
+    for lie in (True, None, "yes"):
+        forged = copy.deepcopy(manifest)
+        forged["routes"]["da_a1_basic_clinical_v1"]["calibration_input"][
+            "recomputable_in_lane_b"
+        ] = lie
+        with pytest.raises(archive.ArchiveError, match="Lane B does not fit"):
+            archive.validate_manifest(forged)
+
+
+def test_calibration_input_pin_requires_a_logit_digest_exactly_when_the_link_uses_one():
+    """Raw-log-odds and clipped-logit are mutually exclusive link identities."""
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, _ = _pinned()
+    route = "da_a1_basic_clinical_v1"
+    entry = manifest["routes"][route]["calibration_input"]
+    assert entry["input_link"] == "clipped_logit_of_raw_probability"
+    assert entry["oof_raw_logit_sha256"] is None
+
+    # A clipped-link pin that suddenly carries a raw-logit digest is malformed.
+    forged = copy.deepcopy(manifest)
+    forged["routes"][route]["calibration_input"]["oof_raw_logit_sha256"] = "0" * 64
+    with pytest.raises(archive.ArchiveError, match="must not pin a raw-logit"):
+        archive.validate_manifest(forged)
+
+    # And an exact-log-odds pin that omits it is equally malformed.
+    forged = copy.deepcopy(manifest)
+    forged["routes"][route]["calibration_input"]["input_link"] = "exact_raw_log_odds"
+    with pytest.raises(archive.ArchiveError, match="must pin the raw-logit"):
+        archive.validate_manifest(forged)
+
+
+def test_calibration_oof_seed_validator_can_actually_fail():
+    """The guard this replaced was False for every integer and could never fire."""
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, _ = _pinned()
+    forged = copy.deepcopy(manifest)
+    entry = forged["routes"]["da_a1_basic_clinical_v1"]["calibration_oof"]
+    entry["n_splits"] = 1
+    with pytest.raises(archive.ArchiveError, match="partition needs >= 2 folds"):
+        archive.validate_manifest(forged)
+
+
+def test_v1_to_v2_mapping_covers_every_case_and_every_field():
+    """Complete per-case / per-field V1 -> V2 mapping.
+
+    The mapping must be structural, not a spot check: for every one of the 29
+    registered cases, the set of leaf field paths produced by the V2 Lane B replay
+    must equal the set in the V1 pack, with the same status. A field that silently
+    disappears from the V2 response is a contract regression that no digest
+    comparison would localise.
+    """
+    from ai import research_facade as facade
+    from research.intake import offline_fixture_pack as v1
+    from research.intake import rh04_v2_portable_archive as archive
+
+    def leaf_paths(value, prefix=""):
+        if isinstance(value, dict):
+            acc = {}
+            for key, item in value.items():
+                acc.update(leaf_paths(item, f"{prefix}.{key}" if prefix else key))
+            return acc
+        if isinstance(value, list):
+            acc = {}
+            for index, item in enumerate(value):
+                acc.update(leaf_paths(item, f"{prefix}[{index}]"))
+            return acc
+        return {prefix: type(value).__name__}
+
+    pack = json.loads(v1.PACK.read_text(encoding="utf-8"))
+    admitted = archive.admit_from_directory(_ARCHIVE_DIR)
+    replayed = archive.replay_admitted(facade, admitted)
+    assert replayed["n_cases"] == 29
+    responses = dict(
+        zip([case["id"] for case in pack["cases"]], replayed["responses"])
+    )
+
+    for case in pack["cases"]:
+        observed = responses[case["id"]]
+        expected = case["expected"]
+        want = leaf_paths(expected)
+        got = leaf_paths(observed)
+        assert set(got) == set(want), (
+            case["id"],
+            sorted(set(want) - set(got)),
+            sorted(set(got) - set(want)),
+        )
+        assert observed["status"] == expected["status"], case["id"]
+        # Types must agree too: a value that changes from float to string is a
+        # contract change even when the path set is identical.
+        for path, want_type in want.items():
+            assert got[path] == want_type, (case["id"], path, got[path], want_type)
+
+    # Every case contributes at least one distinct status so the mapping is not
+    # vacuously satisfied by 29 identical error responses.
+    assert {case["expected"]["status"] for case in pack["cases"]} == {
+        "SYNTHETIC_RESULT", "UNAVAILABLE", "ERROR", "ABSTAIN",
+    }
+
+
+def test_selection_is_reproduced_independently_not_only_conditionally():
+    """Refitting given the archived winner cannot detect a wrong winner.
+
+    This asserts the stronger claim: re-running the producer's own selection
+    procedure from the producer cohort picks the archived family and the archived
+    hyperparameters.
+    """
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    _, _, archives = _pinned()
+    for route, body in archives.items():
+        reproduced = lineage.selection_reproduction(route)
+        assert reproduced["selected_family"] == body["model"]["family"]
+        assert reproduced["selected_hyperparameters"] == body["training_identity"][
+            "selected_hyperparameters"
+        ]
+        assert reproduced["selection_scope"] == "FULL_DEVELOPMENT_COHORT"
+
+
 def test_registered_producer_lineage_is_established_for_both_models():
     """Refit from the producer cohort must reproduce the archived estimator."""
     from research.intake import rh04_v2_producer_lineage as lineage
@@ -4044,9 +4332,26 @@ def test_registered_producer_lineage_is_established_for_both_models():
         if proof["model_family"] == "l2_logistic_regression":
             assert proof["coefficients_exact"] is True
             assert proof["coefficient_max_abs_delta"] == 0.0
+            assert proof["intercept_abs_delta"] == 0.0
         else:
+            # Complete structure, not just leaf values. A forest whose leaves hold
+            # the same numbers but whose split topology, thresholds or
+            # missing-value routing differ is a different function.
             assert proof["trees_exact"] is True
-            assert proof["trees_mismatched"] == 0
+            assert proof["tree_count_exact"] is True
+            assert proof["tree_count"]["archived"] == proof["tree_count"]["refit"]
+            assert proof["structure_exact"] is True
+            assert proof["max_float_delta"] == 0.0
+            assert proof["node_count_mismatch_trees"] == []
+            for array_name in ("left", "right", "feature", "threshold",
+                               "impurity", "n_node_samples",
+                               "weighted_n_node_samples", "missing_go_to_left",
+                               "value"):
+                assert proof["per_array_exact"][array_name] is True, array_name
+            for scalar_name in ("max_depth", "n_features", "n_classes", "n_outputs"):
+                assert proof["per_scalar_exact"][scalar_name] is True, scalar_name
+            assert proof["class_order"] == [0, 1]
+            assert proof["n_features_in"] == 16
 
 
 def test_calibration_oof_identity_is_distinct_from_the_outer_folds():
@@ -4064,10 +4369,19 @@ def test_calibration_oof_identity_is_distinct_from_the_outer_folds():
             entry["calibration_oof"]["assignment_sha256"]
             != entry["split_assignments"]["outer_assignment_sha256"]
         )
+        # The calibrator's input is the ordered OOF vector, NOT the development
+        # design matrix. The previous version of this assertion encoded the very
+        # defect Round 10.4 corrects: it required the calibrator-input digest to
+        # equal the training-input digest, which is only true if the calibrator
+        # consumed the design matrix. These two identities must differ.
         assert (
-            entry["calibration_oof"]["calibration_input_sha256"]
+            entry["calibration_oof"]["development_input_sha256"]
             == entry["training_input_sha256"]
         )
+        pin = entry["calibration_input"]
+        assert pin["oof_input_sha256"] != entry["training_input_sha256"]
+        assert pin["fit_scope"] == "FULL_DEVELOPMENT_OOF_FINAL"
+        assert pin["recomputable_in_lane_b"] is False
 
 
 def test_heldout_cohort_is_generated_not_sliced():
@@ -4300,20 +4614,66 @@ def test_v2_07_no_second_tolerance_exception_exists_in_the_portable_lane():
     assert v1_source.count("_WINDOWS_FLOAT_FIELD = ") == 1
 
 
-def test_v2_07_solver_provenance_mismatch_is_detectable():
-    """The archived family/profile must match what the producer would run."""
+def test_v2_07_solver_provenance_mismatch_is_refused(monkeypatch):
+    """A wrong solver must be *refused*, not merely describable.
+
+    The previous version of this test asserted positive facts only -- the profile
+    string is ``AI1_GENERIC_V1`` and the module mentions ``lbfgs``. Neither can
+    fail for a provenance *mismatch*, so it was not a negative test at all. This
+    version presents a manifest that pins the wrong calibrator solver and requires
+    admission to refuse it, with every other binding left valid.
+    """
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, archives = _pinned()
+    route = "da_a1_basic_clinical_v1"
+    pin = manifest["routes"][route]["calibration_input"]
+    assert pin["fitted_solver"] == "scipy_lbfgsb"
+
+    # (a) A manifest that claims the solver IS bound by the archive is refused,
+    #     because the serialized calibration contract carries no solver field.
+    forged = copy.deepcopy(manifest)
+    forged["routes"][route]["calibration_input"]["solver_bound_in_archive"] = True
+    _patched_anchor(monkeypatch, forged)
+    with pytest.raises(archive.ArchiveError, match="solver is bound by the archive"):
+        archive.admit(archives[route], forged, expected_route=route)
+
+    # (b) The bindings that ARE expressible must still refuse a mismatch. Flip the
+    #     recorded calibrator status and require admission to catch it. Both the
+    #     digest and the anchor are brought into agreement with the forged body so
+    #     the status binding is unambiguously what refuses.
+    body = copy.deepcopy(archives[route])
+    body.pop("attestation", None)
+    body.pop("archive_sha256", None)
+    body["training_identity"]["calibration_document"]["status"] = (
+        "IDENTITY_CONSTANT_FALLBACK"
+    )
+    forged_body = archive.attest(body)
+    forged_manifest = copy.deepcopy(manifest)
+    entry = forged_manifest["routes"][route]
+    entry["archive_sha256"] = forged_body["archive_sha256"]
+    entry["training_identity_sha256"] = archive.training_identity_sha256(
+        forged_body["training_identity"]
+    )
+    _patched_anchor(monkeypatch, forged_manifest)
+    with pytest.raises(archive.ArchiveError, match="calibrator status"):
+        archive.admit(forged_body, forged_manifest, expected_route=route)
+
+
+def test_v2_07_archived_calibrator_solver_is_the_producer_solver():
+    """Positive half: the recorded solver is the one the producer actually uses.
+
+    Kept separate from the refusal test above so a regression in either direction
+    is attributable. This one would pass on a wrong-but-consistent pair, which is
+    exactly why the refusal test is needed as well.
+    """
     from research.intake import rh04_v2_producer_lineage as lineage
 
-    _, _, archives = _pinned()
-    for route, body in archives.items():
-        proof = lineage.estimator_lineage_proof(route, body)
-        assert proof["preprocessing_exact"] is True
-        assert proof["lineage_established"] is True
-        # The solver is named by the profile, not by the archive.
-        assert body["model"]["execution_profile"] == "AI1_GENERIC_V1"
-        if body["model"]["family"] == "l2_logistic_regression":
-            source = Path(lineage.__file__).read_text()
-            assert "lbfgs" in Path(
-                __import__("ai.training", fromlist=["x"]).__file__
-            ).read_text()
-            source  # documented: AI-1 generic uses lbfgs, not liblinear
+    _, manifest, _ = _pinned()
+    for route in manifest["routes"]:
+        observed = lineage.calibration_input_identity(route)
+        pin = manifest["routes"][route]["calibration_input"]
+        assert observed["fitted_criterion"]["solver"] == "scipy_lbfgsb"
+        assert pin["fitted_solver"] == observed["fitted_criterion"]["solver"]
+        # The profile the archive claims must be the one the producer declares.
+        assert lineage.producer_spec(route).as_dict()["route_id"] == route

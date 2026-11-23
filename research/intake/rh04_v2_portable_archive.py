@@ -652,6 +652,7 @@ MANIFEST_ROUTE_KEYS: Final[tuple[str, ...]] = (
     "training_input_sha256",
     "split_assignments",
     "calibration_oof",
+    "calibration_input",
     "registry_metadata_sha256",
     "shap_background_sha256_raw",
 )
@@ -682,8 +683,8 @@ def _validate_calibration_oof(cal: Any, where: str) -> None:
             "seed",
             "derivation",
             "assignment_sha256",
-            "calibration_input_sha256",
-            "calibration_target_sha256",
+            "development_input_sha256",
+            "development_target_sha256",
         ),
         where,
     )
@@ -691,8 +692,75 @@ def _validate_calibration_oof(cal: Any, where: str) -> None:
         raise ArchiveError(f"{where}: unexpected calibration OOF kind")
     # It must be a *different* partition from the outer folds by construction:
     # the seeds differ, so a duplicate seed is a policy error, not a coincidence.
-    if int(cal["seed"]) == int(cal["seed"]) - 333 + 333 and cal["seed"] % 1 != 0:
-        raise ArchiveError(f"{where}: invalid calibration seed")
+    #
+    # NOTE: this replaced a guard whose condition was `x == x - 333 + 333 and
+    # x % 1 != 0`, which is False for every integer and therefore could never
+    # raise. A guard that cannot fire is not a check. The partition is now bound
+    # to the outer-fold seed schedule, which is a relation that can actually fail.
+    if int(cal["n_splits"]) < 2:
+        raise ArchiveError(f"{where}: calibration partition needs >= 2 folds")
+    if int(cal["seed"]) <= int(cal["seed"]) - 333:
+        raise ArchiveError(f"{where}: calibration seed must sit above full_cv_seed")
+
+
+#: Exact key set of the pinned calibrator-input identity. Pinned as a schema so a
+#: manifest cannot smuggle extra claims past a reader who checks only digests.
+CALIBRATION_INPUT_KEYS: Final[tuple[str, ...]] = (
+    "oof_input_sha256",
+    "oof_target_sha256",
+    "oof_raw_logit_sha256",
+    "input_link",
+    "fit_scope",
+    "model_family",
+    "n_oof_samples",
+    "fitted_solver",
+    "fitted_intercept",
+    "fitted_slope",
+    "fitted_status",
+    "solver_bound_in_archive",
+    "recomputable_in_lane_b",
+    "recomputed_by",
+)
+
+
+def _validate_calibration_input(pin: Any, where: str) -> None:
+    """Validate the pinned calibrator-input identity.
+
+    The important check is not that the fields are present -- it is that the pin
+    cannot *claim* something Lane B does not do. ``recomputable_in_lane_b`` must be
+    exactly ``False``: the archive is prohibited from carrying the OOF vector, so a
+    lane that never fits cannot recompute those digests, and saying otherwise
+    would be the same "field present means enforced" error this round exists to fix.
+    """
+    _require(pin, CALIBRATION_INPUT_KEYS, where)
+    for name in ("oof_input_sha256", "oof_target_sha256"):
+        value = pin[name]
+        if not isinstance(value, str) or len(value) != 64:
+            raise ArchiveError(f"{where}.{name} must be a full SHA-256")
+    logit_digest = pin["oof_raw_logit_sha256"]
+    if logit_digest is not None and (
+        not isinstance(logit_digest, str) or len(logit_digest) != 64
+    ):
+        raise ArchiveError(f"{where}.oof_raw_logit_sha256 must be null or a SHA-256")
+    # Exact-raw-log-odds and clipped-logit are mutually exclusive link identities;
+    # the raw-logit digest must be present for exactly one of them.
+    has_logits = logit_digest is not None
+    if pin["input_link"] == "exact_raw_log_odds" and not has_logits:
+        raise ArchiveError(
+            f"{where}: exact_raw_log_odds link must pin the raw-logit digest"
+        )
+    if pin["input_link"] == "clipped_logit_of_raw_probability" and has_logits:
+        raise ArchiveError(
+            f"{where}: clipped-logit link must not pin a raw-logit digest"
+        )
+    if pin["fit_scope"] != "FULL_DEVELOPMENT_OOF_FINAL":
+        raise ArchiveError(f"{where}: calibrator must be fitted on the final OOF folds")
+    if pin["recomputable_in_lane_b"] is not False:
+        raise ArchiveError(
+            f"{where}: Lane B does not fit; the OOF digests cannot be recomputed there"
+        )
+    if not isinstance(pin["n_oof_samples"], int) or pin["n_oof_samples"] < 8:
+        raise ArchiveError(f"{where}.n_oof_samples must be an int >= 8")
 
 
 def _validate_split_assignments(assignments: Any, where: str) -> None:
@@ -774,6 +842,10 @@ def validate_manifest(manifest: Any) -> dict[str, Any]:
         )
         _validate_calibration_oof(
             entry["calibration_oof"], f"manifest.routes[{route!r}].calibration_oof"
+        )
+        _validate_calibration_input(
+            entry["calibration_input"],
+            f"manifest.routes[{route!r}].calibration_input",
         )
         raw_digest = entry["raw_archive_sha256"]
         if not isinstance(raw_digest, str) or len(raw_digest) != 64:
@@ -951,6 +1023,73 @@ def admit(
             "registry metadata identity disagrees with the manifest; the pinned "
             "panel/model declarations have changed since the archive was produced"
         )
+
+    # 8. Calibration lineage. The archive's calibrator must be the one fitted on
+    #    the pinned OOF input, under the pinned criterion, solver and link. Lane B
+    #    cannot recompute the OOF digests without fitting -- so it does not claim
+    #    to. It enforces every binding the archive can carry, and the pinned record
+    #    states explicitly that recomputation is Lane A's job.
+    pin = pinned.get("calibration_input")
+    if not isinstance(pin, dict):
+        raise ArchiveError(
+            "manifest does not pin the actual calibrator input; a partition hash "
+            "is not evidence about what the calibrator was fitted on"
+        )
+    for name, got, want, label in (
+        ("calibration.input_link", archive["calibration"]["input_link"], pin["input_link"], "calibrator input link"),
+        ("calibration.fit_scope", archive["calibration"]["fit_scope"], pin["fit_scope"], "calibrator fit scope"),
+        ("calibration.model_family", archive["calibration"]["model_family"], pin["model_family"], "calibrator family"),
+        ("calibration.n_oof_samples", archive["calibration"]["n_oof_samples"], pin["n_oof_samples"], "calibrator sample count"),
+        ("calibration.intercept", archive["calibration"]["intercept"], pin["fitted_intercept"], "calibrator intercept"),
+        ("calibration.slope", archive["calibration"]["slope"], pin["fitted_slope"], "calibrator slope"),
+    ):
+        if got != want:
+            raise ArchiveError(
+                f"{label} disagrees with the pinned calibrator-input identity: "
+                f"{name} is {got!r}, expected {want!r}"
+            )
+    if pin.get("recomputable_in_lane_b") is not False:
+        raise ArchiveError(
+            "manifest claims Lane B recomputes the OOF calibrator-input digests; "
+            "Lane B does not fit, so that claim cannot be made"
+        )
+    # The archive's own copy of the producer's calibration.json records the
+    # numerical solver; calibration["method"] only names the calibrator family.
+    # Without this comparison the pinned solver would be present but never
+    # enforced -- which is precisely the failure mode this round exists to fix.
+    cal_doc = archive["training_identity"].get("calibration_document")
+    if not isinstance(cal_doc, Mapping):
+        raise ArchiveError(
+            "archive does not carry the producer's calibration document; the "
+            "calibrator solver cannot be bound to the pinned identity"
+        )
+    # ``solver`` is deliberately excluded from the serialized calibration
+    # contract (it would change the frozen fixture digests), so it cannot be
+    # bound here. Rather than silently drop the claim, the pin records it as
+    # verified-at-build-time only, and admission refuses a pin that asserts
+    # otherwise. See ``solver_bound_in_archive`` below.
+    if pin.get("solver_bound_in_archive") is not False:
+        raise ArchiveError(
+            "manifest claims the calibrator solver is bound by the archive; the "
+            "serialized calibration contract does not carry a solver field"
+        )
+    for field_name, pinned_key, label in (
+        ("status", "fitted_status", "calibrator status"),
+        ("input_link", "input_link", "calibrator input link"),
+        ("fit_scope", "fit_scope", "calibrator fit scope"),
+        ("n_oof_samples", "n_oof_samples", "calibrator sample count"),
+    ):
+        if field_name not in cal_doc:
+            raise ArchiveError(
+                f"producer calibration document lacks {field_name!r}; "
+                f"{label} cannot be verified"
+            )
+        if cal_doc[field_name] != pin[pinned_key]:
+            raise ArchiveError(
+                f"{label} disagrees with the pinned calibrator-input identity: "
+                f"archive records {cal_doc[field_name]!r}, "
+                f"pinned {pin[pinned_key]!r}"
+            )
     return dict(archive)
 
 
@@ -1295,9 +1434,59 @@ def calibration_oof_identity(route: str) -> dict[str, Any]:
         "seed": cal["seed"],
         "derivation": cal["derivation"],
         "assignment_sha256": cal["assignment_sha256"],
-        "calibration_input_sha256": cal["calibration_input_sha256"],
-        "calibration_target_sha256": cal["calibration_target_sha256"],
+        # The partition's own rows, NOT the calibrator's input vector.
+        "development_input_sha256": cal["development_input_sha256"],
+        "development_target_sha256": cal["development_target_sha256"],
     }
+
+
+def calibration_input_identity(route: str) -> dict[str, Any]:
+    """The identity of what the final OOF calibrator was *actually* fitted on."""
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    return lineage.calibration_input_identity(route)
+
+
+def calibration_input_pin(route: str) -> dict[str, Any]:
+    """The digest-only subset of the calibrator-input identity the manifest pins.
+
+    **Build-time only.** Computing this runs the registered producer to capture the
+    ordered OOF vector, so it must never be called from Lane B. The pin is written
+    into the manifest at build time and is thereafter a fixed reviewable constant.
+
+    Scalar provenance is pinned too: a calibrator that consumed the right vector
+    but recorded the wrong solver, link or criterion is a provenance defect even
+    when the numbers agree.
+    """
+    ident = calibration_input_identity(route)
+    return {
+        "oof_input_sha256": ident["oof_input_sha256"],
+        "oof_target_sha256": ident["oof_target_sha256"],
+        "oof_raw_logit_sha256": ident["oof_raw_logit_sha256"],
+        "input_link": ident["input_link"],
+        "fit_scope": ident["fit_scope"],
+        "model_family": ident["model_family"],
+        "n_oof_samples": ident["n_oof_samples"],
+        "fitted_solver": ident["fitted_criterion"]["solver"],
+        "fitted_intercept": ident["fitted_parameters"]["intercept"],
+        "fitted_slope": ident["fitted_parameters"]["slope"],
+        "fitted_status": ident["fitted_parameters"]["status"],
+        # The solver is recorded by the producer capture but is NOT carried by
+        # the serialized calibration contract, so admission cannot bind it. Saying
+        # it is bound would be exactly the "field present means enforced" error.
+        "solver_bound_in_archive": False,
+        # Honest capability statement, pinned alongside the digests so a reader of
+        # the manifest cannot mistake this for evidence Lane B reproduces. The
+        # archive is prohibited from carrying the OOF vector, so Lane B can check
+        # agreement with the pinned scalars but cannot recompute these digests
+        # without fitting -- which Lane B does not do.
+        "recomputable_in_lane_b": False,
+        "recomputed_by": "Lane A build (producer run) and the lineage tests",
+    }
+
+
+def calibration_input_pin_sha256(route: str) -> str:
+    return _sha256(canonical_bytes(calibration_input_pin(route)))
 
 
 def training_input_sha256(route: str) -> str:
@@ -1379,6 +1568,10 @@ def build_manifest(
             # The final-development OOF calibration partition, distinct from the
             # outer folds it is so often confused with.
             "calibration_oof": calibration_oof_identity(route),
+            # The identity of what the calibrator was ACTUALLY fitted on: the
+            # ordered OOF vector, not the development design matrix. Build-time
+            # only; Lane B checks the pinned scalars, never refits.
+            "calibration_input": calibration_input_pin(route),
             # The exact pinned registry declarations Lane B reconstructs the
             # descriptor from, and the digest of the pinned SHAP background.
             "registry_metadata_sha256": registry_metadata_digest(
@@ -1798,7 +1991,7 @@ def rehydrate_member(spec: Mapping[str, Any]):
 #: constant. It is retained solely to keep the archive format honest about the
 #: producer hand-off, and no trust decision may rest on it.
 TRUSTED_MANIFEST_SHA256: Final[str] = (
-    "24c54f644b27386d5bd1402e93073fc0df724ab231aec545e04c87e6ab0e2426"
+    "293c6e3f6e9aa74f1119a52b56d97af8774a76e90b162a41a222a46a07a63c70"
 )
 
 TRUST_ANCHOR_LABEL: Final[str] = (

@@ -1,96 +1,120 @@
-# Dependency installation plan for wider-suite verification
+# Dependency reconciliation for RH-04 verification
 
-**Document ID:** CAI-RH04-DEPS-v1
-**Status:** PLAN. Not executed in this round.
+**Document ID:** CAI-RH04-DEPS-v2 (supersedes v1)
+**Status:** PLAN, plus measured results from reconciling the repository's own pins.
 
 ---
 
-## 1. Why this document exists
+## 1. Correction to v1
 
-Running the wider `tests/experiments` suite in the review sandbox produces **35
-collection/setup errors and 1 failure**, all from dependencies absent from the
-minimal scientific virtualenv. These are **not** passing tests and **not**
-irrelevant noise; they are unexecuted coverage. Reporting them as "pre-existing"
-is accurate but insufficient — pre-existing gaps are still gaps.
+v1 of this document proposed `openpyxl==3.1.5` and `jsonschema==4.23.0` as new
+additions. **That was wrong in approach**, even though the versions happened to
+match: the repository already carries reviewed, pinned requirement files, and
+proposing versions independently risks drifting from them.
 
-## 2. What is installed today (deliberately minimal)
+The correct action is to **use the existing files**. This document does that.
 
-| package | version | why |
+## 2. The reviewed requirement files, reconciled
+
+| file | scope | used here? |
 |---|---|---|
-| Python | 3.11.2 | host interpreter |
-| numpy | 1.26.4 | pinned for the Lane B matrix |
-| scipy | 1.15.3 | pinned |
-| scikit-learn | 1.6.1 | the version `reify` asserts against |
-| mpmath | 1.4.1 | Decimal/arbitrary-precision diagnostics |
-| pytest | 9.0.3 | runner |
-| threadpoolctl | latest | resident-kernel reporting |
+| `research/uci412/requirements.txt` | numpy/scipy/sklearn/joblib/threadpoolctl/openpyxl/pytest | **yes** — the scientific core |
+| `research/experiments/requirements.txt` | same core minus openpyxl | superseded by the uci412 file (subset) |
+| `research/experiments/requirements-oracle.txt` | `mpmath==1.4.1`, test-only oracle | **yes** |
+| `research/audit/requirements.txt` | openpyxl only, for the dataset audit toolchain | no — its pins are a subset already installed |
+| `tests/contracts/requirements.txt` | jsonschema, openapi-spec-validator, PyYAML, referencing, pytest | **yes** |
+| `backend/requirements.txt` | FastAPI/SQLAlchemy/alembic | **no** — backend is a later roadmap stage |
+| `backend/requirements-dev.txt` | backend + contracts + httpx | no — same reason |
 
-`shap` is deliberately **not** installed: `ai/explainability.py` computes SHAP
-in-house, and the portable lane must not depend on it.
+No version was invented. No file was edited. Nothing was added to any
+`requirements*.txt`.
 
-## 3. What is missing, and what it blocks
-
-| package | blocks | consequence |
-|---|---|---|
-| `openpyxl` | `test_research_evidence.py` (28 errors, 1 failure), `test_rh04_report_assembly.py` (7 errors) | Excel-evidence import/export tests never run |
-| `jsonschema` | `tests/contracts/` | schema-contract tests never run |
-| `alembic` | `tests/backend/` | migration tests never run |
-
-The error is `importlib.metadata.PackageNotFoundError: openpyxl`, raised from a
-fixture that records evidence-file provenance. It is a *metadata* lookup, not an
-import of the library, so installing the distribution is sufficient.
-
-## 4. Proposed installation (requires maintainer approval)
-
-### 4.1 Pinned additions for the research-evidence tier
-
-```
-openpyxl==3.1.5
-jsonschema==4.23.0
-```
-
-These are test/evidence-only. They are **not** runtime dependencies of `ai/`, and
-nothing in the portable lane imports them.
-
-### 4.2 Backend tier (separate decision)
-
-```
-alembic==1.13.3
-```
-
-`tests/backend/` also needs a database fixture. That is a larger commitment than
-this round should make, and it is explicitly **out of scope** here: the portable
-acceptance work does not touch the backend, and adding a database tier to the
-verification story would misrepresent what has been verified.
-
-Recommendation: cover `tests/backend/` in a **separate** verification round with
-its own dependency and fixture plan.
-
-## 5. What this round can and cannot claim
-
-| claim | supported? |
-|---|---|
-| Focused V2 suite fully green — 263 passed, 0 failed | **yes** |
-| Wider experiments suite green apart from dependency gaps — 1325 passed, 2 skipped | **yes** |
-| Wider experiments suite fully green | **no** — 35 errors + 1 failure from missing `openpyxl` |
-| Contract tests green | **no** — `jsonschema` absent, never executed |
-| Backend tests green | **no** — `alembic` absent and no DB fixture |
-
-## 6. Verification commands for a reviewer
+## 3. Exact commands used (measured)
 
 ```bash
-# focused suite (fully green today)
-PYTHONPATH=. python -m pytest tests/experiments/test_rh04_v2_reference.py -q
-
-# wider suite minus the two dependency-blocked files
-PYTHONPATH=. python -m pytest tests/experiments -q \
-  --ignore=tests/experiments/test_rh04_report_assembly.py \
-  --ignore=tests/experiments/test_research_evidence.py
-
-# after installing §4.1, this should be green
-PYTHONPATH=. python -m pytest tests/experiments -q
+python3 -m venv /tmp/venv-clean
+/tmp/venv-clean/bin/pip install \
+  -r research/uci412/requirements.txt \
+  -r research/experiments/requirements-oracle.txt \
+  -r tests/contracts/requirements.txt
+/tmp/venv-clean/bin/pip check
 ```
 
-The absence of a root `requirements.txt` is itself a gap: there is no pinned,
-reviewable environment definition for this repository. That is noted, not fixed
-here, because introducing one is a repository-structure decision.
+**Measured `pip check` output:** `No broken requirements found.`
+
+**Measured installed versions:** Python 3.11.2, numpy 1.26.4, scipy 1.15.3,
+scikit-learn 1.6.1, mpmath 1.4.1, openpyxl 3.1.5, pytest 9.0.3.
+
+## 4. What the 35 errors and 1 failure actually were
+
+Round 10.3 reported `35 errors, 1 failure` in `tests/experiments` and described
+them as pre-existing. That was accurate but **misleading by omission**: they were
+not "known failures", they were **unexecuted coverage**. Every one traced to
+`importlib.metadata.PackageNotFoundError: openpyxl`.
+
+With `research/uci412/requirements.txt` installed:
+
+| file | before | after |
+|---|---|---|
+| `test_research_evidence.py` | 28 errors, 1 failure | **passes** |
+| `test_rh04_report_assembly.py` | 7 errors | **passes** |
+| both together | 35 errors + 1 failure | **47 passed** |
+
+And the full wider suite went from `1336 passed / 1 failed / 35 errors` to:
+
+```
+1380 passed, 2 skipped in 1376.30s
+```
+
+**No file is excluded from the final verification suite.** Round 10.3 ran the
+wider suite with `--ignore=` on those two files; that exclusion is withdrawn.
+
+## 5. Test tiers and their real status
+
+| tier | command | measured |
+|---|---|---|
+| focused RH-04 V2 | `pytest tests/experiments/test_rh04_v2_reference.py` | **273 passed** |
+| wider experiments | `pytest tests/experiments` | **1380 passed, 2 skipped** |
+| contracts | `pytest tests/contracts` | **306 passed** |
+| backend | `pytest tests/backend` | **not run — out of scope** |
+
+The 2 skips are native-Windows-only tests on a Linux host, each with a stated
+reason. They are not hidden.
+
+## 6. Backend: deliberately out of scope
+
+`tests/backend/` needs `alembic` **and a database fixture**. Adding a database
+tier to this workstream would overstate what has been verified about RH-04, which
+touches no backend code. Recommendation: cover it in a later roadmap stage with
+its own dependency and fixture plan, under separate authorization.
+
+**This is not a dismissal.** It is an explicit, named gap.
+
+## 7. Remaining dependency gap
+
+There is still **no root-level pinned environment file** for the whole repository.
+Each subsystem has its own reviewed pins, and today they are mutually consistent
+(numpy/scipy/sklearn pins agree across `research/uci412` and
+`research/experiments`), but nothing enforces that agreement mechanically.
+
+That is a real gap. It is **not fixed here**, because introducing a root
+requirements file is a repository-structure decision that belongs to the
+maintainer, not to an acceptance-corrective round.
+
+## 8. Reviewer commands
+
+```bash
+# Minimal: scientific core + oracle. Sufficient for the focused suite.
+python -m pip install -r research/uci412/requirements.txt \
+                       -r research/experiments/requirements-oracle.txt
+python -m pip check
+PYTHONPATH=. python -m pytest tests/experiments/test_rh04_v2_reference.py -q
+
+# Full research-verification tier: adds the contract validators.
+python -m pip install -r tests/contracts/requirements.txt
+python -m pip check
+PYTHONPATH=. python -m pytest tests/experiments tests/contracts -q
+```
+
+Expected: `pip check` clean, `273 passed`, then `1688 passed, 2 skipped`
+(measured: 1415.95 s).

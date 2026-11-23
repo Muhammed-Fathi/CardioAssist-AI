@@ -48,6 +48,14 @@ These are *work items*. Completing one closes nothing.
 | `T-SNAPSHOT` | Admitted state is independently owned and mutation-refusing; caller edits after admission cannot change evaluation | **DONE (round 10.3)** |
 | `T-OOF` | Final-development OOF calibration partition identified separately from the outer folds | **DONE (round 10.3)** |
 | `T-NO-ANCHOR-OVERRIDE` | No caller-selectable trust anchor anywhere on the acceptance path | **DONE (round 10.3)** |
+| `T-FAMILY-ORDER` | Inner-selection offsets follow `CANDIDATE_FAMILIES`' declared order, verified against seeds observed from a real producer run (a `sorted()` reversed them and swapped every family's inner-CV seed) | **DONE (round 10.4)** |
+| `T-CAL-INPUT` | The calibrator's actual OOF probability/logit vector is captured at the producer boundary and pinned; the development design matrix is no longer mislabelled as the calibrator input | **DONE (round 10.4)** |
+| `T-CAL-ENFORCE` | Calibrator input link, fit scope, family, sample count, intercept, slope and status are *compared* at admission, not merely recorded | **DONE (round 10.4)** |
+| `T-RF-STRUCTURE` | The forest proof compares all 9 structural arrays × 50 trees plus 4 scalars; 10 mutation classes each detected | **DONE (round 10.4)** |
+| `T-SELECTION` | Model selection is reproduced *independently* from the producer cohort, not only conditionally given the archived winner | **DONE (round 10.4)** |
+| `T-V1V2-MAP` | Complete per-case / per-field V1→V2 mapping: 29/29 cases with identical leaf-path sets, types and statuses | **DONE (round 10.4)** |
+| `T-SOLVER-REFUSE` | A solver-provenance mismatch is *refused*; the earlier test asserted positive facts only and could not fail for a mismatch | **DONE (round 10.4)** |
+| `T-DEPS` | The wider suite's 35 errors + 1 failure resolved by installing the repository's own reviewed pins; no file excluded | **DONE (round 10.4)** |
 | `T-DIGEST-BIND` | Full algorithm declaration bound into `pipeline_digest` | **DONE (round 9)** |
 | `T-CHILD-RC` | Helper rejects unknown verdicts and inconsistent child rcs | **DONE (round 9)** |
 | `T-XENV` | Requested vs resident kernel matrix, cold processes, rehydrated Lane B (5 classes → 1 group) | **PARTIAL** (3.12 / Windows NOT MEASURED) |

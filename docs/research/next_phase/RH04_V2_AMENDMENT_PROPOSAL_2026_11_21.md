@@ -257,3 +257,68 @@ weakening any existing clause.
 Unchanged and deliberately so: **zero of ten gates are closed.** V2-04 remains
 `NOT MET` under the original text, and would be replaced by V2-04a/b only on
 ratification.
+
+---
+
+## 6. Round 10.4 addendum — V2-02 stated explicitly
+
+Round 10.4 does not change this proposal's direction. It makes the V2-02 position
+exact, because V2-02 is the clause most likely to be read as satisfied by accident.
+
+### 6.1 The actual producer solver and fitted criterion
+
+| element | value |
+|---|---|
+| calibrator | `OofLogisticCalibrator`, `FULL_DEVELOPMENT_OOF_FINAL` |
+| solver | `scipy_lbfgsb` (L-BFGS-B) |
+| objective | mean log-loss + `0.5 * l2_anchor * (a² + (b-1)²)`, `l2_anchor = 1e-3` |
+| bounds | intercept `[-15, 15]`, slope `[0.01, 15]` |
+| input link (LR route) | `exact_raw_log_odds` — exact affine map, no clamping |
+| input link (tree route) | `clipped_logit_of_raw_probability` — clamp to `[1e-6, 1-1e-6]` then logit |
+| estimator (LR route) | `lbfgs`, `max_iter=1000`, `AI1_GENERIC_V1` |
+| estimator (tree route) | `RandomForestClassifier`, `max_features="sqrt"`, 50 trees, `n_jobs=1` |
+
+Both routes were measured by driving the registered producer and intercepting the
+real fit: intercepts and slopes match the archived calibrators **exactly**.
+
+### 6.2 Why an isolated Decimal oracle is not evidence
+
+A Decimal oracle can establish that a *criterion* has a computable optimum. It
+cannot establish that the archived `sklearn` parameters were produced by the code
+path that actually ran. Those are different claims, and only the first is
+mathematical. The second requires the producer itself, which is what §6.1 does.
+
+V2-02 therefore remains **NOT SATISFIED**. Lane B does not fit, so it makes no
+solver claim; and Lane B's silence is not a demonstration of criterion
+reachability.
+
+### 6.3 Guarantees retained and withdrawn under the two-lane split
+
+| guarantee | Lane A | Lane B |
+|---|---|---|
+| scientific reference produced from data | **retained** | withdrawn (Lane B fits nothing) |
+| model selection reproduced from the producer | **retained** | withdrawn |
+| exact replay across dispatch classes | withdrawn (physically impossible without a dispatch pin) | **retained** |
+| refusal of tampered artifacts | retained | **retained** |
+| registered facade behaviour for all 29 cases | retained | **retained** |
+| training reproducibility demonstrated | **retained** as per-class, not exact | withdrawn |
+| solver provenance | **retained** (§6.1) | withdrawn |
+
+The precise limit of the new acceptance claim: Lane B asserts that a **fixed,
+independently admitted artifact** evaluates identically everywhere, through the
+registered facade, with no fitting and no tolerance. It asserts nothing about how
+that artifact came to exist. That is Lane A's claim, and Lane A's claim is
+exact-only per dispatch class, never across classes.
+
+### 6.4 What is still not established
+
+Cross-environment exactness is **not** described as established for the training
+path. It is established for Lane B's replay, measured on five resident dispatch
+classes (§V2-10 of the evidence register), and it is not established at all for
+Python 3.12, native Windows or non-x86.
+
+No numerical acceptance tolerance is introduced by this addendum. Where two lanes
+produce different numbers, that difference is **evidence about the environment**,
+never a threshold that a run is allowed to pass through.
+
+**Nothing in this addendum is ratified. Zero of ten gates are closed.**
