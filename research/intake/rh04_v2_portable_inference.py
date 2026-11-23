@@ -1,4 +1,25 @@
-"""Trusted portable inference candidate for the RH-04 29-case replay.
+"""SUPERSEDED by :mod:`research.intake.rh04_v2_portable_archive`.
+
+This module was Round 9's portable lane. Review found three defects that made
+its evidence invalid as presented, all corrected in ``rh04_v2_portable_archive``:
+
+1. ``build_portable_pack`` emitted ``REFUSAL_ROUTE_DECLARED`` /
+   ``REQUEST_EDIT_OUT_OF_PORTABLE_SCOPE`` for 27 of 29 cases instead of
+   executing them. Those were placeholders, not the registered response
+   semantics, and the "39/29 exact" framing was therefore false.
+2. ``build_portable_pack`` passed ``trusted_artifact_sha256=artifact_digest(...)``
+   and derived ``expected_source`` from the artifact under test, so the
+   "external pin" was self-referential and established no independence.
+3. Evaluation used exact-rational arithmetic plus a ``1e-14`` agreement bound,
+   which is an acceptance-tolerance surface by another name.
+
+Retained unmodified below as historical evidence of the Round 9 state. Do not
+use it as a reference. The replacement evaluates every case through the real
+facade and needs no numeric tolerance at all.
+
+---
+
+Trusted portable inference candidate for the RH-04 29-case replay.
 
 **Status: UNRATIFIED CANDIDATE.** This module produces a *proposed portable
 inference reference*, never an acceptance reference. It does not replace the

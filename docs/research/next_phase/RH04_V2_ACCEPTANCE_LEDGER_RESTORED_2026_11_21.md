@@ -30,9 +30,10 @@ These are *work items*. Completing one closes nothing.
 | `T-CAL-ORDER` | Intercept/slope ordering corrected against the production contract | **DONE** |
 | `T-OBJECTIVES` | Distinct Cleveland/liblinear and generic/lbfgs objectives | **DONE** |
 | `T-SELECTION` | Actual selected family/profile/hyperparameters recorded per source | **DONE (round 9)** |
-| `T-PORTABLE` | Declarative portable evaluator over the real selected models | **DONE (round 9)** |
-| `T-ADMISSION` | External-digest + HMAC trusted admission, coordinated-tamper refusals | **DONE (round 9)** |
-| `T-REPLAY29` | 29 cases executed through both lanes | **DONE (round 9)** |
+| `T-PORTABLE` | Declarative portable archive rehydrated into the registered estimator | **DONE (round 10)** |
+| `T-ADMISSION` | Independent trusted manifest + HMAC; verifier derives nothing from the artifact | **DONE (round 10)** |
+| `T-REPLAY29` | **All 29 cases executed through the real facade**, exact type-and-value | **DONE (round 10)** |
+| `T-NOTOLERANCE` | Portability established without a numeric tolerance; `1e-14` removed | **DONE (round 10)** |
 | `T-DIGEST-BIND` | Full algorithm declaration bound into `pipeline_digest` | **DONE (round 9)** |
 | `T-CHILD-RC` | Helper rejects unknown verdicts and inconsistent child rcs | **DONE (round 9)** |
 | `T-XENV` | Requested vs resident kernel matrix, cold processes | **PARTIAL** |
@@ -67,8 +68,8 @@ states evidence, status, blocker and next action.
 
 ### V2-04 — Exact replay on the required cross-environment matrix
 - **Original meaning:** **≥3 dispatch classes × {Python 3.11, 3.12} on Linux, plus native Windows, all reporting `EXACT_REPLAY`.** "Deltas-only is not acceptable for V2."
-- **Evidence:** Round 8 measured 4 requested dispatches → **2 resolved numerical classes**; the full reference is **not** kernel-invariant. Round 9 adds the portable lane, which *is* host-independent for model+calibration by construction but is **not** bit-identical to scikit-learn (≤6.66e-15).
-- **Status:** **NOT MET.** This is the primary gap.
+- **Evidence:** Five requested dispatches resolve to **five environment classes** producing **two** Lane A result groups. The Lane B portable lane now executes **all 29 cases through the real facade** and reproduces the registered lane **exactly** on every field — because rehydration of the declarative archive into a real scikit-learn estimator is measured **bit-identical** to the original fitted estimator (linear `decision_function`/`predict_proba`, forest `predict_proba` over 500 rows). No numeric tolerance is involved.
+- **Status:** **NOT MET** under the original text, which demands `EXACT_REPLAY` from the registered path. Lane B now satisfies the *purpose*, but only a ratified amendment to V2-04a/b can convert that into gate credit.
 - **Blocker:** (a) no Python 3.12 interpreter locally; (b) no native Windows host; (c) the registered full reference is genuinely kernel-sensitive, so `EXACT_REPLAY` across ≥3 classes cannot be produced for Lane A without changing the scientific method — which is forbidden.
 - **Next action:** owner decision required (§4). Either amend V2-04 to a two-lane contract, or fund 3 classes × 2 versions + Windows against Lane A and accept that it may never be `EXACT_REPLAY`.
 
@@ -88,17 +89,17 @@ states evidence, status, blocker and next action.
 
 ### V2-07 — Required negative tests, each failing closed
 - **Original meaning:** wrong digest, >29 cases, a drifted non-calibration field, a planted second tolerance exception, a solver-provenance regression, an unreachable-criterion (fail-closed) case, and a V1 pack byte-integrity assertion.
-- **Evidence:** Round 9 adds 16 parametrised structural refusals that survive a **valid** attestation, plus recomputed-hash, external-digest, wrong-key, non-finite, unrepresentable-family, coordinated-stale-binding and training-row-calibration refusals. V1 byte-integrity assertion present.
+- **Evidence:** Round 10 adds 19 structural refusals exercised with a **valid MAC** (attacker holds the key), plus recomputed self-hash, coordinated binding change, swapped route, missing manifest entry, wrong key, non-finite/invalid parameters, tree cycle, unreachable node and hostile node count. V1 byte-integrity assertion present.
 - **Status:** **PARTIAL.**
-- **Blocker:** ">29 cases" and "planted second tolerance exception" are not yet written against the *candidate* pack; the existing V1 ones remain.
-- **Next action:** add those two negative tests against the candidate pack.
+- **Blocker:** ">29 cases" and "planted second tolerance exception" are still not written against the candidate pack.
+- **Next action:** add those two negative tests.
 
 ### V2-08 — Security parity
 - **Original meaning:** `_approved_replay_equal` type-strictness, redaction (`_describe`), no-fallback, fail-closed ordering and refusal-path tests must still pass; **no new tolerance surface**.
-- **Evidence:** the canonical comparator is untouched (byte-identical to `main`). Round 9 introduces `DECLARED_SCORE_AGREEMENT = 1e-14` **inside the portable candidate only**.
-- **Status:** **AT RISK — needs an owner ruling.**
-- **Blocker:** `DECLARED_SCORE_AGREEMENT` is arguably a *new tolerance surface*, even though no existing gate consumes it and it is declared in a candidate module.
-- **Next action:** owner rules whether a candidate-only declared agreement bound violates V2-08. If it does, the portable lane must report deltas without any pass/fail threshold.
+- **Evidence:** the canonical comparator is untouched (byte-identical to `main`). The Round 9 `DECLARED_SCORE_AGREEMENT = 1e-14` **has been removed**; the portable lane now requires exact equality on every field, so no new tolerance surface exists. The Round 9 module is retained with a superseded banner for history only.
+- **Status:** **SATISFIED IN SUBSTANCE for the new lane** — no owner ruling is now needed on the tolerance question.
+- **Blocker:** the substantive parity tests must still be demonstrated in the dual-run window (V2-05).
+- **Next action:** include the parity suite in V2-05 once a V2 gate exists.
 
 ### V2-09 — Explicit non-claims
 - **Original meaning:** engineering reproducibility only; no clinical validity, no model equivalence, no RH-07 science, no RH-08 release, no D-047/M3a metrics.
@@ -119,11 +120,11 @@ states evidence, status, blocker and next action.
 | V2-01 | OPEN — owner only |
 | V2-02 | PARTIAL |
 | V2-03 | PARTIAL |
-| V2-04 | **NOT MET — primary gap** |
+| V2-04 | **NOT MET** — amendment proposed (`RH04_V2_AMENDMENT_PROPOSAL_2026_11_21.md`) |
 | V2-05 | NOT STARTED |
 | V2-06 | PARTIAL — deliberately not actioned |
 | V2-07 | PARTIAL |
-| V2-08 | AT RISK — owner ruling |
+| V2-08 | LARGELY SATISFIED — tolerance removed |
 | V2-09 | LARGELY MET |
 | V2-10 | N/A yet |
 
@@ -156,7 +157,9 @@ Neither lane replaces the other; each answers a different question.
 | Gate | per-host report, deltas **reported not hidden** | genuine `EXACT_REPLAY` |
 | Runtime | ~117 s | ~0.06 s class |
 
-**Recommended amendments (exact clauses):**
+**Full clause-by-clause text is in
+[`RH04_V2_AMENDMENT_PROPOSAL_2026_11_21.md`](RH04_V2_AMENDMENT_PROPOSAL_2026_11_21.md).**
+Summary:
 1. **V2-04** — split into `V2-04a` (Lane A: ≥3 classes × 3.11/3.12 + Windows, each reporting its measured verdict, `EXACT_REPLAY` required only on a declared host class) and `V2-04b` (Lane B: `EXACT_REPLAY` required on every host).
 2. **V2-06** — declare Lane B's arithmetic and its ≤1e-14 agreement bound in the manifest wording.
 3. **V2-08** — state that `DECLARED_SCORE_AGREEMENT` is a *reported* bound in the candidate lane and that no existing gate consumes it; if the owner prefers, make Lane B report deltas with no pass/fail threshold at all.
