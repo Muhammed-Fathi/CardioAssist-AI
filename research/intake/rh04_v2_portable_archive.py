@@ -39,7 +39,7 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from contextvars import ContextVar
 from threading import Lock
 from pathlib import Path
@@ -2164,25 +2164,24 @@ class PortableReplay:
             # copy. A shallow ``dict(...)`` copy would share the nested lists, so a
             # caller could mutate model weights *after* admission and change the
             # evaluation without ever failing a check.
-            # Read the caller's mapping EXACTLY ONCE. The object read here is
-            # both verified and stored, so there is no window in which a second
-            # read of a caller-controlled mapping could return different content.
+            # Snapshot FIRST, then verify THAT SNAPSHOT, and execute only it.
             #
-            # The previous version evaluated ``archives[route]`` twice: once for
-            # ``admit()`` and once to build the snapshot. A mapping whose
-            # ``__getitem__`` varies per call would then have its *first* read
-            # verified and its *second* read executed -- verification and
-            # execution on different content.
+            # Reading once and then admitting the caller's object would still
+            # leave the verified object reachable by the caller: any mutable
+            # container it shares would remain live between verification and
+            # execution. The snapshot is therefore detached before verification,
+            # and the object handed to ``admit()`` is the detached one, so
+            # verifying it verifies exactly what will be executed.
+            #
+            # The caller's mapping is read exactly once, so a mapping whose
+            # ``__getitem__`` varies per call cannot be verified on one read and
+            # executed on another.
             supplied_document = archives[route]
-            verified = admit(
-                supplied_document, manifest, key=key, expected_route=route
+            snapshot = _freeze_snapshot(
+                json.loads(canonical_bytes(supplied_document).decode("utf-8"))
             )
-            # The snapshot is built from the admitted result, serialised
-            # immediately, so it is derived from the verified content rather than
-            # from a fresh read of anything the caller can influence.
-            admitted[route] = _freeze_snapshot(
-                json.loads(canonical_bytes(verified).decode("utf-8"))
-            )
+            verified = admit(snapshot, manifest, key=key, expected_route=route)
+            admitted[route] = snapshot
         # Only now, after every route admitted, are the archives retained.
         self._facade = facade
         self._admitted = admitted
@@ -2527,9 +2526,11 @@ class AdmissionResult:
     case_ids: tuple[str, ...]
     archives: Mapping[str, Any]
     raw_digests: Mapping[str, str]
-    #: SHA-256 of the frozen V1 pack bytes verified during admission. Replay
-    #: re-reads the pack; this binds that second read to the first.
+    #: Digest of the verified frozen V1 pack snapshot.
     fixture_sha256: str = ""
+    #: The verified, independently owned fixture snapshot. Replay materialises
+    #: every request from THIS object, never from a fresh disk read.
+    fixture_pack: Mapping[str, Any] = field(default_factory=dict)
 
 
 def admit_from_directory(directory: Any, *, key: bytes = FIXTURE_SIGNING_KEY) -> AdmissionResult:
@@ -2556,18 +2557,43 @@ def admit_from_directory(directory: Any, *, key: bytes = FIXTURE_SIGNING_KEY) ->
     manifest = validate_manifest(manifest)
     _assert_case_set(manifest)
 
-    # The frozen V1 fixture is read ONCE here, verified, and its identity is
-    # carried on the admission result so replay cannot silently use other bytes.
+    # The frozen V1 fixture is read ONCE here, verified against its OWN
+    # independently approved identity, and that verified snapshot is what replay
+    # materialises requests from.
+    #
+    # Binding read-to-read only proves the file did not change between two reads.
+    # It does not prove the file is the approved fixture. The approved identity is
+    # ``v1.PACK_SHA256``, which binds the pack's bindings, its requests and the
+    # canonical digest of its 29 expected responses. A pack whose requests were
+    # edited before admission would keep the case ids and edits but change the
+    # materialised cases, and only the approved-identity check catches that.
     from research.intake import offline_fixture_pack as v1
 
     fixture_bytes = v1.PACK.read_bytes()
-    fixture_sha256 = _sha256(fixture_bytes)
     fixture_pack = _strict_json_loads(fixture_bytes, where="offline_io.v1.json")
     if len(fixture_pack["cases"]) != REGISTERED_CASE_COUNT:
         raise ArchiveError(
             f"the frozen V1 fixture carries {len(fixture_pack['cases'])} cases; "
             f"expected {REGISTERED_CASE_COUNT}"
         )
+    # Verify against the independently approved identity, recomputed here rather
+    # than trusted from a copy of the constant in this module.
+    approved = v1.PACK_SHA256
+    observed = v1.canonical_response_digest(fixture_pack)
+    if not hmac.compare_digest(observed, approved):
+        raise ArchiveError(
+            "the frozen V1 fixture does not match its independently approved "
+            "identity; requests must not be materialised from an unapproved pack"
+        )
+    if fixture_pack["bindings"] != v1.bindings():
+        raise ArchiveError(
+            "the frozen V1 fixture bindings disagree with the approved bindings"
+        )
+    if fixture_pack["requests"] != v1.inputs():
+        raise ArchiveError(
+            "the frozen V1 fixture requests disagree with the approved inputs"
+        )
+    fixture_sha256 = _sha256(canonical_bytes(fixture_pack))
 
     raw_digests: dict[str, str] = {}
     archives: dict[str, Any] = {}
@@ -2597,6 +2623,7 @@ def admit_from_directory(directory: Any, *, key: bytes = FIXTURE_SIGNING_KEY) ->
         archives=archives,
         raw_digests=raw_digests,
         fixture_sha256=fixture_sha256,
+        fixture_pack=_freeze_snapshot(fixture_pack),
     )
 
 
@@ -2608,20 +2635,15 @@ def replay_admitted(facade: Any, admitted: AdmissionResult) -> dict[str, Any]:
     """
     from research.intake import offline_fixture_pack as v1
 
-    # The pack is re-read here, so bind this read to the identity verified at
-    # admission rather than trusting whatever is on disk now.
-    if not admitted.fixture_sha256:
+    # Materialise from the VERIFIED admission snapshot. The pack is not re-read
+    # from disk here at all, so the bytes that were verified against the approved
+    # identity are exactly the bytes every request is built from.
+    if not admitted.fixture_sha256 or not admitted.fixture_pack:
         raise ArchiveError(
-            "admission did not record the frozen V1 fixture identity; replay "
-            "cannot prove it is using the verified bytes"
+            "admission did not record a verified frozen V1 fixture snapshot; "
+            "replay cannot materialise requests from bytes nobody verified"
         )
-    probed = v1.PACK.read_bytes()
-    if not hmac.compare_digest(_sha256(probed), admitted.fixture_sha256):
-        raise ArchiveError(
-            "the frozen V1 fixture changed between admission and replay; refusing "
-            "to materialise requests from unverified bytes"
-        )
-    pack = _strict_json_loads(probed, where="offline_io.v1.json")
+    pack = _thaw(admitted.fixture_pack)
     cases = list(pack["cases"])
     if len(cases) != REGISTERED_CASE_COUNT:
         raise ArchiveError("the registered pack no longer carries 29 cases")

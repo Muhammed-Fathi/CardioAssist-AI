@@ -4339,81 +4339,138 @@ def test_case_bindings_are_enforced_not_only_case_ids():
         archive._assert_case_set(forged)
 
 
-def test_caller_mapping_is_read_once_so_verification_and_execution_agree():
-    """The verified document and the executed document must be the same read.
+def test_caller_mapping_is_read_once_and_the_executed_object_is_detached():
+    """A behavioural test, not a count of mapping lookups.
 
-    The previous implementation evaluated ``archives[route]`` twice -- once inside
-    ``admit()`` and once to build the snapshot -- so a caller-controlled mapping
-    whose ``__getitem__`` varies per call could have its first read verified and
-    its second read executed. This test asserts the source contains exactly one
-    read per route in the constructor.
+    Two distinct properties, each with an actual violation:
+
+    1. The caller's mapping is read **once**, so a mapping whose ``__getitem__``
+       varies per call cannot be verified on one read and executed on another.
+    2. The executed snapshot is **detached**, so mutating anything the caller
+       still holds cannot change what runs.
+
+    An AST count of ``archives[...]`` subscripts proves neither.
     """
-    import ast
-
-    from research.intake import rh04_v2_portable_archive as archive
-
-    source = Path(archive.__file__).read_text()
-    tree = ast.parse(source)
-    init = None
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == "__init__":
-            parent_classes = [
-                n.name for n in ast.walk(tree)
-                if isinstance(n, ast.ClassDef) and node in n.body
-            ]
-            if "PortableReplay" in parent_classes:
-                init = node
-                break
-    assert init is not None, "PortableReplay.__init__ not found"
-
-    reads = [
-        n for n in ast.walk(init)
-        if isinstance(n, ast.Subscript)
-        and isinstance(n.value, ast.Name)
-        and n.value.id == "archives"
-    ]
-    assert len(reads) == 1, (
-        f"PortableReplay.__init__ reads the caller mapping {len(reads)} times; "
-        "verification and snapshot must derive from one read"
-    )
-
-
-def test_replay_refuses_a_v1_pack_that_changed_after_admission():
-    """Replay re-reads the pack; that read must be bound to the verified identity."""
     from ai import research_facade as facade
     from research.intake import rh04_v2_portable_archive as archive
 
-    admitted = archive.admit_from_directory(_ARCHIVE_DIR)
-    assert len(admitted.fixture_sha256) == 64
+    _, manifest, archives = _pinned()
 
-    # A good run first, so the refusal below is attributable.
-    assert archive.replay_admitted(facade, admitted)["n_cases"] == 29
+    # --- (1) varying reads cannot split verification from execution -------- #
+    class VaryingMapping(dict):
+        """A route mapping that serves a tampered document from the second read on.
 
-    # Now claim a different fixture identity than the pack on disk.
-    forged = archive.AdmissionResult(
-        manifest=admitted.manifest,
-        manifest_identity=admitted.manifest_identity,
-        routes=admitted.routes,
-        case_ids=admitted.case_ids,
-        archives=admitted.archives,
-        raw_digests=admitted.raw_digests,
-        fixture_sha256="0" * 64,
+        This is the actual attack the single-read rule exists to stop: the
+        library reads ``archives[route]``, and if it read twice it could verify
+        the first answer and execute the second.
+        """
+
+        def __init__(self, documents):
+            super().__init__(documents)
+            self.reads = {route: 0 for route in documents}
+
+        def __getitem__(self, route):
+            self.reads[route] = self.reads.get(route, 0) + 1
+            document = super().__getitem__(route)
+            if self.reads[route] == 1:
+                return document
+            tampered = copy.deepcopy(document)
+            tampered["calibration"]["slope"] += 1.0
+            return tampered
+
+    varying = VaryingMapping(copy.deepcopy(archives))
+    replay = archive.PortableReplay(
+        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=varying
     )
-    with pytest.raises(archive.ArchiveError, match="changed between admission and replay"):
-        archive.replay_admitted(facade, forged)
-
-    # And an admission result that never recorded one cannot replay at all.
-    blank = archive.AdmissionResult(
-        manifest=admitted.manifest,
-        manifest_identity=admitted.manifest_identity,
-        routes=admitted.routes,
-        case_ids=admitted.case_ids,
-        archives=admitted.archives,
-        raw_digests=admitted.raw_digests,
-        fixture_sha256="",
+    for route, count in varying.reads.items():
+        assert count == 1, (
+            f"{route}: caller mapping read {count} times; verification and "
+            "execution must derive from one read"
+        )
+    stored = replay._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"]
+    assert stored == archives["da_a1_basic_clinical_v1"]["calibration"]["slope"], (
+        "a later read of the caller's mapping reached execution"
     )
-    with pytest.raises(archive.ArchiveError, match="did not record the frozen V1 fixture"):
-        archive.replay_admitted(facade, blank)
+
+    # --- (2) the executed snapshot is detached ----------------------------- #
+    live = copy.deepcopy(archives)
+    replay2 = archive.PortableReplay(
+        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=live
+    )
+    executed_before = replay2._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"]
+    # Mutate the caller's containers as deeply as the structure allows.
+    live["da_a1_basic_clinical_v1"]["calibration"]["slope"] = 99.0
+    # Deep-list mutation: the REST route is linear, so it carries a coef list.
+    live["da_a2_resting_v1"]["model"]["representation"]["coef"][0] = 12345.0
+    executed_after = replay2._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"]
+    assert executed_before == executed_after, (
+        "post-admission mutation of the caller's document reached the executed snapshot"
+    )
+    assert replay2._admitted["da_a2_resting_v1"]["model"]["representation"][
+        "coef"
+    ][0] != 12345.0, (
+        "a nested list was still shared with the caller after admission"
+    )
+
+    # --- (3) the snapshot itself refuses mutation -------------------------- #
+    with pytest.raises(TypeError):
+        replay2._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"] = 1.0
+
+
+def test_changed_base_request_is_refused_before_admission(monkeypatch, tmp_path):
+    """Changing a base request while preserving case ids and edits must be refused.
+
+    This is the gap the previous fixture binding left open. Binding read-to-read
+    only proves the file did not change between two reads; it says nothing about
+    whether the file is the approved one. Case ids and edits can stay identical
+    while ``requests`` is edited, which changes every materialised case.
+    """
+    from research.intake import rh04_v2_portable_archive as archive
+    from research.intake import offline_fixture_pack as v1
+
+    # Copy the artifact directory, then point the module at a tampered pack.
+    for name in ("da_a1_basic_clinical_v1.archive.json",
+                 "da_a2_resting_v1.archive.json",
+                 "trusted_manifest.json"):
+        (tmp_path / name).write_bytes((_ARCHIVE_DIR / name).read_bytes())
+
+    original_pack = json.loads(v1.PACK.read_text(encoding="utf-8"))
+
+    tampered = copy.deepcopy(original_pack)
+    # Preserve case ids, case edits and case order exactly.
+    first_route = tampered["cases"][0]["route"]
+    assert tampered["requests"][first_route] == original_pack["requests"][first_route]
+
+    # Mutate a base request in a way that leaves ids and edits untouched.
+    request = copy.deepcopy(tampered["requests"][first_route])
+    request["request_id"] = request.get("request_id", "") + "-TAMPERED"
+    tampered["requests"][first_route] = request
+
+    # Sanity: the case list itself is unchanged.
+    assert [c["id"] for c in tampered["cases"]] == [c["id"] for c in original_pack["cases"]]
+    assert [c["edits"] for c in tampered["cases"]] == [c["edits"] for c in original_pack["cases"]]
+    # And the approved-identity digest must actually differ.
+    assert v1.canonical_response_digest(tampered) != v1.PACK_SHA256
+
+    encoded = json.dumps(tampered).encode("utf-8")
+
+    class TamperedPackPath:
+        """Stands in for the module-level fixture path.
+
+        Only the two read methods the archive actually calls are provided, so the
+        test cannot accidentally exercise a third read path that real code lacks.
+        """
+
+        def read_bytes(self):
+            return encoded
+
+        def read_text(self, encoding="utf-8"):
+            return encoded.decode(encoding)
+
+    monkeypatch.setattr(v1, "PACK", TamperedPackPath())
+
+    with pytest.raises(archive.ArchiveError, match="independently approved identity"):
+        archive.admit_from_directory(tmp_path)
 
 
 def test_selection_is_reproduced_independently_not_only_conditionally():
