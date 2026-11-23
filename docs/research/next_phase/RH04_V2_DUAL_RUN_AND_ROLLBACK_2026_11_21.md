@@ -142,6 +142,17 @@ $ git revert --no-edit <squashed>
 | `rh04_v2` test files after revert | **0** |
 | V1 suite executed | **457 passed in 35.12s** |
 
+**Repeated on the final delivery head `b276f27`** after the documentation and
+negative-test changes (squash `1033329c`):
+
+| check | measured |
+|---|---|
+| reverted `HEAD^{tree}` | `3106bece1fe0e7c09ff0635d66cc883d1ecca33e` |
+| `origin/main^{tree}` | `3106bece1fe0e7c09ff0635d66cc883d1ecca33e` |
+| equality | **PASS — identical** |
+| `rh04_v2` test files after revert | **0** |
+| V1 suite executed | **457 passed in 34.86s** |
+
 The V1 checks were *executed* on the reverted tree, not inferred from absence.
 
 **An earlier attempt failed, and the failure is informative.** Reverting only the
