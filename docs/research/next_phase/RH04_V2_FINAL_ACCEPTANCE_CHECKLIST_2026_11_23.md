@@ -18,8 +18,8 @@ not add scope, tolerance or acceptance criteria.
 | A1 | Maintainer patch is byte-identical to the authorized patch | `patch -p1` output `diff` vs `579659d` file: empty | CI record §0 |
 | A2 | Commit `579659d` is workflow-only, +38 lines | `git show --name-only` | CI record §0 |
 | A3 | Synchronization was fast-forward; nothing overwritten | `merge-base --is-ancestor` YES | CI record §0 |
-| A4 | **Failure A (oracle) resolved in hosted CI** | 3.11 step 7 = `success` (0 failures) | run `45257655655` |
-| A5 | **Failure B (base ref) resolved in hosted CI** | "Fetch trusted base reference" `success` on both runners; step 7 `success` | run `45257655655` |
+| A4 | **Failure A (oracle) resolved in hosted CI** | 3.11 step 7 = `success` (0 failures) in **two** runs | `45257655655`, `45265423136` |
+| A5 | **Failure B (base ref) resolved in hosted CI** | "Fetch trusted base reference" `success` on all four runner jobs; step 7 `success` | both runs |
 | A6 | A4/A5 are causal, not coincidental | oracle absent → 1 failed; installed → 1 passed. No ref → 1 failed; after fetch → 1 passed | CI record §2 |
 | A7 | Full local suite in corrected env | `2098 passed, 2 skipped` (22m28s) | CI record §2 |
 | A8 | `pip check` clean | `No broken requirements found.` | CI record §2 |
@@ -29,26 +29,32 @@ not add scope, tolerance or acceptance criteria.
 | A12 | Admission mutation test discriminates | 1 traversal (fix) vs 4 (old) → `assert 4 == 1` | verification doc §7 |
 | A13 | Approved-identity negative test | base request edited, IDs/edits/order preserved → refused | verification doc §7 |
 | A14 | Ledger amended without reassigning IDs | 0 of 10 closed | ledger v3 |
+| A15 | **Fully green hosted run — all three jobs, including Python 3.12** | run `45265423136` at `d3c35cb`: diagnostic `success`, 3.12 `success` (15.9 min), 3.11 `success` (15.4 min) | CI record §3 |
+| A16 | All four workflows at `579659d` | `contract-validation` success, `audit-toolchain-validation` success, `mock-backend-validation` success, synthetic runner cancelled (3.12 only) | API run list |
 
 ---
 
 ## B. Blocking for final acceptance — requires a decision or an environment
 
-### B1. Raise the 3.12 job budget — **owner decision required**
+### B1. Run-time margin against the 20-minute budget — **owner decision**
 
-*Fact:* step 7 took **19.9 min** and was cancelled against `timeout-minutes: 20`;
-locally the same command needs **22m28s**.
+*Fact:* step 7 on the same code measured **15.4 / 15.4 / 15.9 / 19.9 min** across four
+runs. The 19.9 min one was cancelled at the 20.27 min point; the 15.9 min one passed.
+Local cold run: **22m28s**.
 
-*Decision needed:* increase `timeout-minutes` on `synthetic-runner-tests`, or split
-the suite into a separate job. Both are **workflow modifications** and were
-explicitly out of scope this round.
+*So the 3.12 suite is not broken and does not systematically time out* — it passed at
+`d3c35cb`. The risk is **intermittent non-measurement**: a slow runner can cancel a
+step that usually finishes with ~4 min to spare.
 
-*Consequence of doing nothing:* Python 3.12 suites remain **unmeasured** in CI, and
-every run of this workflow ends `cancelled`. That is not a green check and must not
-be reported as one.
+*Decision needed:* whether to raise `timeout-minutes` (or split the suite) to make the
+measurement reliable. That is a **workflow modification** and was out of scope here.
 
-*Evidence that closes it:* a run at ≥25 min budget where the 3.12 job reaches
-`success` with 0 failures.
+*Evidence that closes it:* either the current budget is accepted with the consequence
+that 3.12 is occasionally unmeasured and must be re-run, or a run at a larger budget
+where 3.12 succeeds repeatedly.
+
+*Note:* this is a reliability question, **not** an acceptance failure. `d3c35cb`
+demonstrates the 3.12 suite passing.
 
 ### B2. Read the 3.12 test output — **needs logs or a budget fix**
 
@@ -146,24 +152,35 @@ are untouched by design.
    overwritten.
 2. **A4–A6** — confirm both infrastructure failures are resolved and that the causal
    experiments actually demonstrate the fix.
-3. **A9–A10** — confirm the frozen scientific surface is untouched.
-4. **B1** — decide the budget question. Without it, 3.12 stays unmeasured.
-5. **B3/B4** — supply the two missing environments.
-6. **B5/B6** — the two owner decisions that no amount of evidence from me can settle.
+3. **A15** — note that `d3c35cb` is a **fully green run**: all three jobs including
+   Python 3.12. This is the strongest single piece of CI evidence in the delivery.
+4. **A9–A10** — confirm the frozen scientific surface is untouched.
+5. **B1** — decide the run-time margin question. It is reliability, not correctness.
+6. **B3/B4** — supply the two missing environments.
+7. **B5/B6** — the two owner decisions that no amount of evidence from me can settle.
 
 ---
 
 ## E. One-paragraph honest summary
 
-The maintainer applied the authorized patch, and it **worked**: both infrastructure
-failures that were reproduced and fixed locally are now resolved in hosted CI — the
-3.11 job ran the full suite to `success` with zero failures, and the base-reference
-fetch step succeeded on both runners. That is a real result and it is the first time
-this workflow has had a green full-suite job with the V2 tests present. But the run
-as a whole is `cancelled`, not green, because the Python 3.12 job exhausted a 20-minute
-budget in the suite step (19.9 min) that needs ~22.5 minutes in the corrected
-environment — so 3.12 is **unmeasured**, not passing. The diagnostic passed in 13 s,
-which must not be read as a fix, since the same command has now been observed both
-red and green on identical workflow bytes. Zero acceptance gates are closed, nothing
-is ratified, and the two decisions that remain (job budget; V2-04 scope and V2-01
-ratification) are the owner's, not mine.
+The maintainer applied the authorized patch and it **worked**. Both infrastructure
+failures are resolved in hosted CI: the full suite passed on Python 3.11 in two
+separate runs with zero failures, the base-reference fetch succeeded on every runner
+job, and each fix was additionally confirmed by a controlled experiment with the
+fault present and absent. Then a follow-up run at `d3c35cb` came back **fully green** —
+all three jobs, including **Python 3.12 at 15.9 min** — which is the strongest CI
+evidence in this delivery and the first time this workflow has passed end to end with
+the V2 tests present.
+
+One observation needs care rather than celebration: the same suite step measured
+15.4, 15.4, 15.9 and 19.9 minutes across four runs, and the 19.9 one was cancelled
+against a 20-minute budget. So 3.12 is **not** systematically broken — it passed — but
+the margin is thin enough that a slow runner can leave it unmeasured, which must be
+reported as unmeasured rather than assumed green. That is a reliability decision for
+the owner, not a defect I should paper over by editing a workflow.
+
+The 3.12 diagnostic passed in 13 s, which is still **not** a fix: the same command has
+now been observed red and green on identical workflow bytes, consistent with the
+measured kernel dependence. Zero acceptance gates are closed, nothing is ratified, and
+the two decisions that remain — the run-time margin and V2-04 scope plus V2-01
+ratification — are the owner's, not mine.

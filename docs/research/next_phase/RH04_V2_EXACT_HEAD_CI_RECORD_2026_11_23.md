@@ -68,7 +68,9 @@ exactly the file committed at `579659d` (`diff` empty). No gap or extra hunk.
 which by definition means **zero failures**. Both previously identified
 infrastructure failures were in that step, so both are resolved in hosted CI.
 
-### Python 3.12 — cancelled at the suite step
+### Python 3.12 at `579659d` — cancelled at the suite step
+*(superseded by the green 3.12 job at `d3c35cb`, §3; retained as the observation
+that motivated the budget review)*
 
 ```
  7. Run synthetic experiment-runner and dataset-audit tests   CANCELLED  19.9 min
@@ -131,25 +133,40 @@ pytest tests/experiments tests/audit -q -W error
 
 ---
 
-## 3. The new blocker is a job budget, not a dependency
+## 3. The blocker is run-time variance against a 20-minute budget
 
-`timeout-minutes: 20` on `synthetic-runner-tests`, measured locally at
-**22m28s** for the same command in the corrected environment.
+**A second run at `d3c35cb` — a documentation-only commit on top of `579659d` — passed
+all three jobs, including Python 3.12.** That corrects the first reading of this
+section, which was written from the cancelled run alone.
 
-The suite grew across this workstream (2094 → 2098 passing tests, and the V2
-reference module alone takes ~13 min). The job has less headroom than the suite
-needs, and 3.12 is slower than 3.11 — at `f78f521` the same step failed at ≈13.6 min
-on both runners; now 3.11 succeeded at 15.4 min while 3.12 hit 19.9 min.
+Measured step-7 durations for the *same* command on *the same* code:
 
-So the infrastructure failures are fixed and a **capacity** problem is now exposed.
-The honest reading: the 3.12 job did not fail, it ran out of time.
+| run | commit | interpreter | step 7 | outcome |
+|---|---|---|---|---|
+| `45257655655` | `579659d` | 3.11 | 15.4 min | success |
+| `45257655655` | `579659d` | 3.12 | **19.9 min** | **cancelled** (job ended at 20.27 min) |
+| `45265423136` | `d3c35cb` | 3.11 | 15.4 min | success |
+| `45265423136` | `d3c35cb` | 3.12 | **15.9 min** | **success** |
 
-**Not changed, and deliberately not changed this round.** Raising
-`timeout-minutes` is a workflow modification, and the instruction for this round is
-explicitly *no workflow modifications*. Recording the measurement is the correct
-action; editing the budget is a separate authorized decision, because a budget
-change alters what CI proves (a suite that needs 25 min silently "passes" a 20-min
-budget only if someone inflates the budget until it does).
+Spread across four observations of one command: **15.4 → 19.9 min, 4.5 min**.
+Local cold-run measurement in the corrected environment: **22m28s**.
+
+### What this does and does not mean
+
+- **The infrastructure failures are resolved** (§2) — that conclusion is unaffected
+  and is now supported by two independent green 3.11 jobs and one green 3.12 job.
+- **There is no systematic 3.12 defect.** The 3.12 suite passed at 15.9 min on the
+  next run. The earlier cancellation was **runner variance**, not a code or
+  dependency problem.
+- **But the margin is thin.** A 4.5 min observed spread against a 20 min budget, with
+  a local cold run at 22.5 min, means the step sits close enough to the limit that a
+  slow runner can cancel it. The consequence is not a false pass, it is an
+  **intermittently unmeasured** 3.12 job — which, under the dual-run contract, must be
+  reported as unmeasured rather than assumed green.
+
+**No workflow modification was made**, per this round's instruction. Whether to raise
+the budget is recorded as an owner decision (checklist B1) rather than a defect to fix
+here.
 
 ---
 
@@ -181,7 +198,7 @@ withdrawn.
 
 | item | status |
 |---|---|
-| 3.12 suite result | **UNMEASURED** — cancelled at 19.9 min, no assertion output |
+| 3.12 suite result at `579659d` | **UNMEASURED** — cancelled at 19.9 min; **measured green at `d3c35cb`** (15.9 min) |
 | 3.12 diagnostic | **not run** in run `45257655655` (skipped); passed separately in `137983666101` |
 | the failing assertion, if any, on 3.12 at `579659d` | **unknown** — no logs are retrievable |
 | job logs | **unreachable** — Azure blob and results-receiver both return `EOF` |
