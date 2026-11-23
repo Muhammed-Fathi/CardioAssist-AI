@@ -4923,3 +4923,304 @@ def test_v2_07_archived_calibrator_solver_is_the_producer_solver():
         assert pin["fitted_solver"] == observed["fitted_criterion"]["solver"]
         # The profile the archive claims must be the one the producer declares.
         assert lineage.producer_spec(route).as_dict()["route_id"] == route
+
+
+# --------------------------------------------------------------------------- #
+# V2-07 (round 15) — convergence-evidence negatives                            #
+# --------------------------------------------------------------------------- #
+
+
+def test_v2_07_missing_convergence_evidence_is_classified_as_failure():
+    """Evidence that is absent must be a failure, never an implicit pass.
+
+    The dangerous failure mode is a classifier that defaults to "converged" when a
+    field is missing: the gate would then pass on nothing at all. Each required key
+    is removed in turn and the result must be EVIDENCE_MISSING with is_failure.
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    complete = {
+        "solver_settings": {"max_iter": 1000, "tol": 1e-4},
+        "termination_reason": "SOLVER_DECLARED_CONVERGENCE",
+        "objective": 0.5,
+        "fitted_parameters": {"coefficients": [0.1], "intercept": 0.0},
+        "iterations": 7,
+        "residual": {"gradient_inf_norm": 1e-6},
+    }
+    assert lane_a.classify_evidence(complete)["classification"] == "CONVERGED"
+
+    for key in (
+        "solver_settings",
+        "termination_reason",
+        "objective",
+        "fitted_parameters",
+        "iterations",
+        "residual",
+    ):
+        partial = {k: v for k, v in complete.items() if k != key}
+        result = lane_a.classify_evidence(partial)
+        assert result["classification"] == "EVIDENCE_MISSING", (key, result)
+        assert result["is_failure"] is True
+        assert key in result["missing"]
+
+    # A residual present but without the value is also missing, not zero.
+    no_value = dict(complete)
+    no_value["residual"] = {}
+    assert lane_a.classify_evidence(no_value)["classification"] == "EVIDENCE_MISSING"
+
+
+def test_v2_07_non_evaluable_evidence_is_refused_before_classification():
+    """A fit that cannot be evaluated must raise, not return a residual."""
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+    from research.intake.rh04_v2_model_fit import PROFILE_GENERIC
+
+    good_features = [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5], [1.0, 1.0]]
+    good_labels = [0, 1, 0, 1]
+
+    cases = [
+        (([0.1, 0.2], float("nan")), good_features, good_labels, 1.0, "non-finite intercept"),
+        (([0.1], 0.0), good_features, good_labels, 1.0, "coefficient count mismatch"),
+        (([0.1, 0.2], 0.0), [[0.0, 1.0], [1.0]], good_labels, 1.0, "ragged matrix"),
+        (([0.1, 0.2], 0.0), good_features, [0, 0, 0, 0], 1.0, "single-class target"),
+        (([0.1, 0.2], 0.0), good_features, good_labels, 0.0, "non-positive C"),
+        (([0.1, 0.2], 0.0), [], [], 1.0, "empty matrix"),
+    ]
+    for (coefs, intercept), features, labels, c_value, label in cases:
+        with pytest.raises(lane_a.LaneAEvidenceError):
+            lane_a.projected_gradient_residual(
+                coefs,
+                intercept,
+                features,
+                labels,
+                c_value=c_value,
+                profile=PROFILE_GENERIC,
+            ), label
+
+
+def test_v2_07_failed_fit_is_a_failure_not_diagnostic_divergence():
+    """A fit that stopped at its iteration cap must fail, not be reported as noise.
+
+    This is the distinction the amendment insists on: numerical divergence is a
+    finding, but exhaustion of the iteration budget is a failed optimisation. A
+    classifier that lumped them together would let a non-converged fit through as
+    "diagnostic".
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    saturated = {
+        "solver_settings": {"max_iter": 1000, "tol": 1e-4},
+        "termination_reason": "MAX_ITERATIONS_REACHED",
+        "objective": 0.5,
+        "fitted_parameters": {"coefficients": [0.1], "intercept": 0.0},
+        "iterations": 1000,
+        "residual": {"gradient_inf_norm": 1e-6},
+    }
+    result = lane_a.classify_evidence(saturated)
+    assert result["classification"] == "TRAINING_FAILED"
+    assert result["is_failure"] is True
+
+    # Same shape, but the count reaches the cap without the explicit reason: still
+    # must fail, because the stopping rule cannot be distinguished from exhaustion.
+    ambiguous = dict(saturated)
+    ambiguous["termination_reason"] = "SOLVER_DECLARED_CONVERGENCE"
+    result = lane_a.classify_evidence(ambiguous)
+    assert result["classification"] == "TRAINING_FAILED"
+    assert result["is_failure"] is True
+
+    # A genuine divergence below the cap is reported, and is NOT a failure.
+    diverged = dict(saturated)
+    diverged["termination_reason"] = "SOLVER_DECLARED_CONVERGENCE"
+    diverged["iterations"] = 12
+    diverged["residual"] = {"gradient_inf_norm": 5.0e-3}
+    result = lane_a.classify_evidence(diverged)
+    assert result["classification"] == "DIAGNOSTIC_DIVERGENCE"
+    assert result["is_failure"] is False
+
+
+def test_v2_07_actual_registered_fits_all_satisfy_their_own_declared_rule():
+    """The real evidence must satisfy the criterion, and the criterion must be the
+    solver's own declared tolerance rather than a number picked for the evidence.
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    for route_id in ("da_a1_basic_clinical_v1", "da_a2_resting_v1"):
+        document = lane_a.produce_lane_a_evidence(route_id)
+        assert document["n_fits_observed"] > 0
+        assert document["any_failure"] is False, document["classifications"]
+        assert document["classifications"]["TRAINING_FAILED"] == 0
+        assert document["classifications"]["EVIDENCE_MISSING"] == 0
+        assert document["classifications"]["OUTPUT_INVALID"] == 0
+
+        # Every observed fit carried the solver's default tolerance, so the
+        # threshold used is the method's, not a chosen one.
+        threshold = lane_a.LANE_A_SOLVER_DEFAULT_TOLERANCE
+        assert float(threshold) == 1e-4
+        assert document["residual_summary"]["all_within_declared_tolerance"] is True
+        assert document["residual_summary"]["max"] <= float(threshold)
+        # And the criterion is not vacuous: residuals are well above zero.
+        assert document["residual_summary"]["min"] > 0.0
+
+
+def test_v2_07_lane_a_evidence_records_no_raw_design_matrix():
+    """Permitted provenance only: no matrix or target vector may leave the observer."""
+    import json as _json
+
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    document = lane_a.produce_lane_a_evidence("da_a2_resting_v1")
+    encoded = _json.dumps(document, sort_keys=True)
+    # Match the *keys and payload shapes* that would carry raw data, not the
+    # boolean flag whose name deliberately mentions the matrix.
+    for forbidden in ("X_hex", "y_vector", "raw_rows", "feature_matrix", "target_vector"):
+        assert forbidden not in encoded
+    # No key may hold a list-of-lists (a matrix) or a bare target list.
+    def _walk(node, path="$"):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                _walk(v, f"{path}.{k}")
+        elif isinstance(node, list):
+            if node and isinstance(node[0], list):
+                raise AssertionError(f"matrix-shaped value at {path}")
+            for i, v in enumerate(node):
+                _walk(v, f"{path}[{i}]")
+    _walk(document)
+    assert document["raw_design_matrix_recorded"] is False
+    assert document["training_method_changed"] is False
+
+
+# --------------------------------------------------------------------------- #
+# V2-03 (round 15) — complete per-value mapping                                #
+# --------------------------------------------------------------------------- #
+
+
+def _v1_pack():
+    """The frozen V1 pack, read once from its committed path."""
+    return json.loads(v1.PACK.read_text(encoding="utf-8"))
+
+
+def _v1_expected_by_case():
+    return {c["id"]: c["expected"] for c in _v1_pack()["cases"]}
+
+
+def _lane_b_observed_by_case():
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    pack = _v1_pack()
+    order = [c["id"] for c in pack["cases"]]
+    admitted = archive.admit_from_directory(_ARCHIVE_DIR)
+    result = archive.replay_admitted(facade, admitted)
+    return {cid: response for cid, response in zip(order, result["responses"])}
+
+
+def test_v2_03_complete_value_mapping_covers_all_29_cases():
+    """Every registered case must appear, with every leaf classified."""
+    from research.intake import rh04_v2_value_mapping as mapping
+
+    document = mapping.mapping_with_discrimination_proof(
+        _v1_expected_by_case(), _lane_b_observed_by_case()
+    )
+    assert document["n_cases"] == 29
+    assert len({c["case_id"] for c in document["cases"]}) == 29
+    # Every leaf is classified exactly once; nothing is dropped.
+    assert document["total_leaves"] == sum(document["leaf_totals"].values())
+    assert document["total_leaves"] > 400
+
+    for case in document["cases"]:
+        assert case["n_leaves_v1"] == case["n_leaves_v2"], case["case_id"]
+        for entry in case["entries"]:
+            assert entry["classification"] in {
+                mapping.IDENTICAL,
+                mapping.NUMERIC_DELTA,
+                mapping.STRUCTURAL_IDENTITY,
+                mapping.TYPE_CHANGE,
+                mapping.MISSING_IN_V2,
+                mapping.EXTRA_IN_V2,
+            }
+
+
+def test_v2_03_lane_b_reproduces_v1_with_no_numeric_delta():
+    """The measured result: exact reproduction, and it is not vacuous.
+
+    If this ever starts reporting deltas, that is a finding to investigate, not a
+    threshold to widen. The discrimination proof below is what makes a zero-delta
+    result meaningful.
+    """
+    from research.intake import rh04_v2_value_mapping as mapping
+
+    document = mapping.mapping_with_discrimination_proof(
+        _v1_expected_by_case(), _lane_b_observed_by_case()
+    )
+    assert document["leaf_totals"].get(mapping.NUMERIC_DELTA, 0) == 0
+    assert document["leaf_totals"].get(mapping.TYPE_CHANGE, 0) == 0
+    assert document["leaf_totals"].get(mapping.MISSING_IN_V2, 0) == 0
+    assert document["leaf_totals"].get(mapping.EXTRA_IN_V2, 0) == 0
+    assert document["cases_with_numeric_delta"] == 0
+    # Structural identities are recorded separately, so "identical" is not claimed
+    # for strings and booleans.
+    assert document["leaf_totals"].get(mapping.STRUCTURAL_IDENTITY, 0) > 300
+    assert document["discrimination_proof"]["detected"] is True
+
+
+def test_v2_03_mapping_detects_a_one_part_in_10_to_the_15_move():
+    """The comparison must be able to see a difference it claims not to have found."""
+    import copy as _copy
+
+    from research.intake import rh04_v2_value_mapping as mapping
+
+    expected = _v1_expected_by_case()
+    observed = _copy.deepcopy(expected)
+    # Not every registered case carries a numeric score: abstention and error
+    # cases legitimately have none. Pick the first case that does, rather than
+    # assuming case order.
+    candidates = {
+        cid: {p: v for p, v in mapping._leaves(exp).items() if isinstance(v, float)}
+        for cid, exp in expected.items()
+    }
+    candidates = {cid: leaves for cid, leaves in candidates.items() if leaves}
+    assert candidates, "no registered case carries a numeric leaf"
+    case_id = sorted(candidates)[0]
+    leaves = candidates[case_id]
+
+    path = sorted(leaves)[0]
+    cursor = observed[case_id]
+    tokens = path.replace("]", "").replace("[", ".").split(".")
+    for token in tokens[:-1]:
+        cursor = cursor[int(token)] if token.isdigit() else cursor[token]
+    last = tokens[-1]
+    cursor[last] = leaves[path] * (1.0 + 1e-15) + 1e-18
+
+    result = mapping.compare_response(case_id, expected[case_id], observed[case_id])
+    moved = [e for e in result["entries"] if e["classification"] == mapping.NUMERIC_DELTA]
+    assert len(moved) == 1
+    assert moved[0]["path"] == path
+    assert moved[0]["absolute_delta"] > 0.0
+
+
+def test_v2_03_partial_mapping_is_refused_not_presented():
+    """A mapping missing a case is not a mapping and must raise."""
+    import copy as _copy
+
+    from research.intake import rh04_v2_value_mapping as mapping
+
+    expected = _v1_expected_by_case()
+    dropped = _copy.deepcopy(expected)
+    dropped.pop(sorted(dropped)[0])
+    with pytest.raises(ValueError, match="partial mapping"):
+        mapping.build_mapping(expected, dropped)
+
+
+def test_v2_03_lane_b_digest_is_unchanged_by_mapping():
+    """The mapping is descriptive: it must not touch the acceptance digest."""
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+    from research.intake import rh04_v2_value_mapping as mapping
+
+    admitted = archive.admit_from_directory(_ARCHIVE_DIR)
+    before = archive.replay_admitted(facade, admitted)["digest"]
+    mapping.mapping_with_discrimination_proof(
+        _v1_expected_by_case(), _lane_b_observed_by_case()
+    )
+    admitted_again = archive.admit_from_directory(_ARCHIVE_DIR)
+    after = archive.replay_admitted(facade, admitted_again)["digest"]
+    assert before == after == "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"

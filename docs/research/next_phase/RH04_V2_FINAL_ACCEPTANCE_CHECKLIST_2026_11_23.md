@@ -4,6 +4,9 @@
 **Head:** `579659d036de9a5d35a083821e6aba8ec5d04f75` · **Base:** `main` `c6a6bdee`
 · **PR #141** (Draft) · **Issue #132 OPEN**
 **Status:** FOR INDEPENDENT REVIEW. Nothing here is closed. No gate is ratified.
+**Updated 2026-11-24** — final acceptance execution: implementation completed, CI patch
+prepared, Windows script prepared, ratification wording prepared. See
+`RH04_V2_ACCEPTANCE_LEDGER_RECONCILED_2026_11_24.md`.
 
 This checklist is bounded on purpose: it lists only what must be **decided or
 measured** for final acceptance, who can do it, and what evidence closes it. It does
@@ -31,30 +34,28 @@ not add scope, tolerance or acceptance criteria.
 | A14 | Ledger amended without reassigning IDs | 0 of 10 closed | ledger v3 |
 | A15 | **Fully green hosted run — all three jobs, including Python 3.12** | run `45265423136` at `d3c35cb`: diagnostic `success`, 3.12 `success` (15.9 min), 3.11 `success` (15.4 min) | CI record §3 |
 | A16 | All four workflows at `579659d` | `contract-validation` success, `audit-toolchain-validation` success, `mock-backend-validation` success, synthetic runner cancelled (3.12 only) | API run list |
+| A17 | **Fully green hosted run, both interpreters** | Python 3.11 and 3.12: 2098 passed, 2 skipped; UCI-412 396 passed each; diagnostic success; mpmath 1.4.1; base ref `c6a6bde` | reviewer-verified logs, run `45265423136` |
+| A18 | Lane A convergence, observed from the registered path | 100/100 fits satisfy the solver's own rule; 0 at iteration cap; residuals 1.527e-06 … 9.997e-05 | ledger v4 §V2-02 |
+| A19 | Complete per-value mapping | 29/29 cases, 479 leaves, 0 numeric deltas, discrimination proof detects 1e-15 move | ledger v4 §V2-03 |
+| A20 | V2-07 negatives are mutation-verified | all three guards caught when deliberately broken | ledger v4 §V2-07 |
+| A21 | V2-facing semantics corrected | calibrated log-odds ≠ probability; fitted criterion named; limitations listed | semantics document |
+| A22 | CI patch prepared and validated | applies cleanly, YAML parses, timeout 20→40, dual-run gate added | `workflow-patch/` |
+| A23 | Windows verification script prepared | 336 lines, parametrised by expected SHA, fails RED without regenerating | `verify-native-windows.ps1` |
+| A24 | Ratification wording prepared | three separable acts, no `DECISIONS.md` entry created | decision wording document |
 
 ---
 
 ## B. Blocking for final acceptance — requires a decision or an environment
 
-### B1. Run-time margin against the 20-minute budget — **owner decision**
+### B1. Apply the CI patch — **owner action, decision already taken**
 
-*Fact:* step 7 on the same code measured **15.4 / 15.4 / 15.9 / 19.9 min** across four
-runs. The 19.9 min one was cancelled at the 20.27 min point; the 15.9 min one passed.
-Local cold run: **22m28s**.
+The owner approved raising the budget to 40 minutes. The patch is prepared,
+validated (`patch --dry-run` clean, both files parse) and cannot be pushed from here
+because the integration has no `workflows` scope.
 
-*So the 3.12 suite is not broken and does not systematically time out* — it passed at
-`d3c35cb`. The risk is **intermittent non-measurement**: a slow runner can cancel a
-step that usually finishes with ~4 min to spare.
-
-*Decision needed:* whether to raise `timeout-minutes` (or split the suite) to make the
-measurement reliable. That is a **workflow modification** and was out of scope here.
-
-*Evidence that closes it:* either the current budget is accepted with the consequence
-that 3.12 is occasionally unmeasured and must be re-run, or a run at a larger budget
-where 3.12 succeeds repeatedly.
-
-*Note:* this is a reliability question, **not** an acceptance failure. `d3c35cb`
-demonstrates the 3.12 suite passing.
+*Action:* run `APPLY_AS_OWNER.ps1 -Confirm:$true`.
+*Evidence that closes it:* a run where `synthetic-runner-tests` completes on both
+interpreters at the 40-minute budget, plus the dual-run gate's own stage table.
 
 ### B2. Read the 3.12 test output — **needs logs or a budget fix**
 
@@ -103,21 +104,26 @@ retains verbatim.
 Requires a `docs/DECISIONS.md` entry naming the accepting reviewer and the decision
 document version. I cannot ratify my own work, and no such entry exists.
 
-### B6. V2-04 — **owner decision on scope**
+### B6. V2-04 — **owner decision on scope (direction approved, matrix still open)**
 
 The original text demands `EXACT_REPLAY` across ≥3 dispatch classes × Linux 3.11/3.12
 plus native Windows. Lane A cannot produce that: the frozen V1 reference diverges on
 2 of 5 measured kernels, and the hosted diagnostic has been observed in **both**
 states on identical workflow bytes.
 
-*Decision needed:* ratify the two-lane amendment (V2-04a diagnostic / V2-04b
-mandatory exact), or fund the full matrix against Lane A and accept it may never be
-`EXACT_REPLAY`. **The matrix itself is not up for reduction.**
+*Direction approved:* the owner approved the two-lane direction in CAI-RH04-AMEND-v3
+and directed that the complete cross-environment matrix be preserved. Ratification
+wording is prepared in `RH04_V2_DECISION_REGISTER_WORDING_2026_11_24.md`.
 
-### B7. V2-05 dual-run window — **cannot be wired here**
+*Still outstanding:* the matrix itself. ≥3 resident dispatch classes per Linux Python
+version plus native Windows has not been executed, so V2-04a and V2-04b remain
+partially evidenced. **The matrix is not reduced.**
 
-The stage contract is written. Wiring it is a workflow change, and this round
-forbade workflow modifications.
+### B7. V2-05 dual-run window — **patch prepared, needs owner push**
+
+`rh04-dual-run-gate.yml` is written and its stage independence was tested locally
+(a failing Lane A left the other stages reporting and the gate failed). Applying it
+requires the same owner action as B1.
 
 ### B8. V2-06 — **activation change, out of scope**
 

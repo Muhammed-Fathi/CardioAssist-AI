@@ -1,0 +1,227 @@
+name: synthetic-experiment-runner-validation
+
+# M2c/M2a/M3a tests are synthetic-only. This workflow never invokes preflight/run,
+# never accesses data/, and never consumes a real Cleveland, UCI-411 or UCI-412
+# source file. Each dry-run fits only generated in-memory fixtures on the hosted
+# CI CPU. M3a UCI-412 execution is Windows-local and human-authorized only.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic-experiment-runner-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-runner-tests:
+    name: Synthetic experiment runner (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    # 40, not 20. The suite measured 15.4 / 15.4 / 15.9 / 19.9 minutes across four
+    # hosted runs of the same command and needs 22m28s cold locally; at a 20 minute
+    # budget a slow runner cancels step 7 and Python 3.12 ends up unmeasured. This
+    # raises the budget only — it adds no tolerance, retry or skip, and a genuine
+    # test failure still fails the job.
+    timeout-minutes: 40
+
+    # RH-04 numerical reproducibility experiment: pin BLAS/OpenMP pools before
+    # Python/scikit-learn import in BOTH full suite and independent diagnosis.
+    # Source fixtures, expected binary64 values and strict replay stay frozen.
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      # Full history and the base branch are REQUIRED evidence, not convenience.
+      # ``test_child_diagnosis_does_not_modify_the_merged_classifier_surface``
+      # compares the merged classifier test against ``origin/main`` and fails
+      # closed when that reference is unavailable. A depth-1 checkout with no
+      # fetched base branch cannot supply it, so the preservation claim would be
+      # unverifiable. ``fetch-depth: 0`` and an explicit base ref make the
+      # comparison possible without changing what the test asserts.
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # Materialise the trusted base reference the preservation tests read.
+      # This only fetches; it does not modify the checkout, the base branch, or
+      # any fixture, comparator or tolerance.
+      - name: Fetch trusted base reference
+        run: |
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          echo "checkout_head=$(git rev-parse HEAD)"
+          echo "base_ref=$(git rev-parse refs/remotes/origin/main)"
+          git rev-parse refs/remotes/origin/main >/dev/null
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pinned local-runner dependencies
+        run: |
+          python -m pip install -r research/experiments/requirements.txt
+          python -m pip install -r research/audit/requirements.txt
+          python -m pip install -r research/uci412/requirements.txt
+          # The independent numerical oracle is REQUIRED acceptance evidence, not
+          # an optional extra. ``test_model_fit_matches_an_independent_mpmath_oracle``
+          # fails closed without it, and that behaviour is correct: a missing
+          # dependency must never degrade into a silent skip.
+          python -m pip install -r research/experiments/requirements-oracle.txt
+          python -m pip check
+          python - <<'PY'
+          import importlib.metadata as m
+          for name in ("numpy", "scipy", "scikit-learn", "mpmath", "pytest"):
+              print(f"{name}=={m.version(name)}")
+          PY
+
+      # Confirm *actual* linked numerical libraries before every full replay.
+      # This check does not modify the model, fixtures, scoring or tolerances.
+      - name: Verify pinned CPU numerical threadpools
+        run: |
+          python - <<'PY'
+          import numpy  # noqa: F401 (load the OpenBLAS runtime)
+          from threadpoolctl import threadpool_info
+          info = threadpool_info()
+          if not info:
+              raise SystemExit("No numerical threadpools discovered")
+          print("Numerical threadpools:", [(x.get("internal_api"), x.get("num_threads")) for x in info])
+          if any(x.get("num_threads") != 1 for x in info):
+              raise SystemExit("Numerical thread count not pinned to one")
+          PY
+
+      - name: Run synthetic experiment-runner and dataset-audit tests
+        run: |
+          python -m pytest tests/experiments tests/audit -q -W error
+
+      # Only after a failing synthetic suite: report safe field names, mismatch
+      # categories and numeric deltas, never synthetic scores, keys, or paths.
+      # The original failing pytest step remains a hard CI failure. Do not
+      # relax the golden fixture, its hash, or any numeric acceptance tolerance.
+      - name: Diagnose RH-04 fixture drift on Python 3.12 (read-only, redacted)
+        if: ${{ failure() && matrix.python-version == '3.12' }}
+        run: |
+          python -m research.intake.diagnose_fixture_replay
+
+      - name: Run synthetic UCI-412 benchmark tests
+        run: |
+          python -m pytest tests/uci412 -q -W error
+
+      - name: Execute the registered synthetic-only dry-run
+        run: |
+          python -m research.experiments dry-run
+
+      - name: Describe the proposed (unauthorized) UCI-412 protocol
+        run: |
+          python -m research.uci412 describe
+
+      - name: Execute the registered UCI-412 synthetic-only dry-run
+        run: |
+          python -m research.uci412 dry-run
+
+      - name: Verify source-material integrity
+        run: |
+          python scripts/verify_sources.py
+
+      - name: Reject real datasets or generated artifacts in the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -d data ] && find data -mindepth 1 -print -quit | grep -q .; then
+            echo "ERROR: This synthetic-only job must not contain any /data/ files." >&2
+            exit 1
+          fi
+
+          if find research/experiments research/audit research/uci412 \
+            tests/experiments tests/audit tests/uci412 -type f \
+            \( -name '*.data' -o -name '*.dat' -o -name '*.csv' -o -name '*.parquet' \
+            -o -name '*.feather' -o -name '*.pkl' -o -name '*.joblib' \
+            -o -name '*.pt' -o -name '*.pth' -o -name '*.onnx' -o -name '*.h5' \
+            -o -name '*.sqlite' -o -name '*.sqlite3' -o -name '*.db' \
+            -o -name '*.xlsx' -o -name '*.xls' \) \
+            -print -quit | grep -q .; then
+            echo "ERROR: Prohibited dataset or experiment artifact found in source/tests." >&2
+            exit 1
+          fi
+
+          echo "PASS: No real datasets or generated patient-level artifacts were present."
+
+  rh04-fixture-diagnostic:
+    name: RH-04 fixture structural drift diagnostic (Python 3.12)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+
+    # RH-04 numerical reproducibility experiment: pin BLAS/OpenMP pools before
+    # Python/scikit-learn import in BOTH full suite and independent diagnosis.
+    # Source fixtures, expected binary64 values and strict replay stay frozen.
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
+    steps:
+      - name: Check out synthetic-only source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+
+      - name: Install exactly the same pinned synthetic-runner dependencies
+        run: |
+          python -m pip install -r research/experiments/requirements.txt
+          python -m pip install -r research/audit/requirements.txt
+          python -m pip install -r research/uci412/requirements.txt
+          # The independent numerical oracle is REQUIRED acceptance evidence, not
+          # an optional extra. ``test_model_fit_matches_an_independent_mpmath_oracle``
+          # fails closed without it, and that behaviour is correct: a missing
+          # dependency must never degrade into a silent skip.
+          python -m pip install -r research/experiments/requirements-oracle.txt
+          python -m pip check
+          python - <<'PY'
+          import importlib.metadata as m
+          for name in ("numpy", "scipy", "scikit-learn", "mpmath", "pytest"):
+              print(f"{name}=={m.version(name)}")
+          PY
+
+      # Confirm *actual* linked numerical libraries before every full replay.
+      # This check does not modify the model, fixtures, scoring or tolerances.
+      - name: Verify pinned CPU numerical threadpools
+        run: |
+          python - <<'PY'
+          import numpy  # noqa: F401 (load the OpenBLAS runtime)
+          from threadpoolctl import threadpool_info
+          info = threadpool_info()
+          if not info:
+              raise SystemExit("No numerical threadpools discovered")
+          print("Numerical threadpools:", [(x.get("internal_api"), x.get("num_threads")) for x in info])
+          if any(x.get("num_threads") != 1 for x in info):
+              raise SystemExit("Numerical thread count not pinned to one")
+          PY
+
+      # Two separate Python/model-build processes: pinning must hold across replays.
+      - name: Inspect canonical 29-case synthetic replay twice (strict, metadata only)
+        run: |
+          python -m research.intake.diagnose_fixture_replay
+          python -m research.intake.diagnose_fixture_replay
