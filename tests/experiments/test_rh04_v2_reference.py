@@ -2513,3 +2513,476 @@ def test_diagnostic_helper_still_agrees_with_the_canonical_classifier():
                 assert expected == 1
             else:
                 assert expected == 2
+
+
+# ---------------------------------------------------------------------------
+# Round 10 — trusted portable archive, real 29-case facade execution
+# ---------------------------------------------------------------------------
+
+_ARCHIVE_DIR = (
+    __import__("pathlib").Path(__file__).resolve().parents[2]
+    / "research"
+    / "intake"
+    / "fixtures"
+    / "rh04_v2_portable"
+)
+
+
+def _pinned():
+    """Load the committed archives and manifest exactly as a reviewer would."""
+    import json
+
+    from research.intake import rh04_v2_portable_archive as archive
+
+    manifest = json.loads((_ARCHIVE_DIR / "trusted_manifest.json").read_text())
+    routes = json.loads(
+        (_ARCHIVE_DIR / "trusted_manifest.json").read_text()
+    )["routes"].keys()
+    archives = {
+        route: json.loads((_ARCHIVE_DIR / f"{route}.archive.json").read_text())
+        for route in routes
+    }
+    return archive, manifest, archives
+
+
+def test_pinned_archive_fixture_is_committed_and_synthetic_only():
+    """The artifact must be plain JSON, never pickle, and never patient data."""
+    files = sorted(p.name for p in _ARCHIVE_DIR.iterdir())
+    assert files == [
+        "da_a1_basic_clinical_v1.archive.json",
+        "da_a2_resting_v1.archive.json",
+        "trusted_manifest.json",
+    ]
+    for path in _ARCHIVE_DIR.iterdir():
+        assert path.suffix == ".json"
+        text = path.read_text()
+        # No executable serialisation and no probe strings.
+        assert "joblib" not in text and "pickle" not in text
+        assert "synthetic" in text.lower() or "UNRATIFIED" in text
+
+
+def test_pinned_archive_admits_against_the_independent_manifest():
+    archive, manifest, archives = _pinned()
+    for route, candidate in archives.items():
+        admitted = archive.admit(candidate, manifest, expected_route=route)
+        assert admitted["source"]["route_id"] == route
+
+
+def test_pinned_archive_digest_matches_the_manifest_pin():
+    archive, manifest, archives = _pinned()
+    for route, candidate in archives.items():
+        assert archive.archive_digest(candidate) == manifest["routes"][route][
+            "archive_sha256"
+        ]
+
+
+def test_admission_refuses_a_swapped_route():
+    archive, manifest, archives = _pinned()
+    with pytest.raises(archive.ArchiveError, match="swapped route"):
+        archive.admit(
+            archives["da_a2_resting_v1"], manifest, expected_route="da_a1_basic_clinical_v1"
+        )
+
+
+def test_admission_refuses_a_route_missing_from_the_manifest():
+    archive, manifest, archives = _pinned()
+    trimmed = dict(manifest)
+    trimmed["routes"] = {"da_a2_resting_v1": manifest["routes"]["da_a2_resting_v1"]}
+    with pytest.raises(archive.ArchiveError, match="no entry for route"):
+        archive.admit(archives["da_a1_basic_clinical_v1"], trimmed,
+                      expected_route="da_a1_basic_clinical_v1")
+
+
+def test_admission_refuses_a_modified_archive_with_a_recomputed_self_hash():
+    """The archive's own digest is not an identity."""
+    import copy
+
+    archive, manifest, archives = _pinned()
+    body = copy.deepcopy(archives["da_a2_resting_v1"])
+    body.pop("attestation", None)
+    body.pop("archive_sha256", None)
+    body["calibration"]["slope"] = body["calibration"]["slope"] + 0.25  # attacker
+    forged = archive.attest(body)  # self-hash and MAC both recomputed
+    assert forged["archive_sha256"] == archive.archive_digest(forged)
+    with pytest.raises(archive.ArchiveError, match="independently trusted digest"):
+        archive.admit(forged, manifest, expected_route="da_a2_resting_v1")
+
+
+def test_admission_refuses_coordinated_binding_changes():
+    """A self-consistent forgery still fails the external pin."""
+    import copy
+
+    archive, manifest, archives = _pinned()
+    forged_body = copy.deepcopy(archives["da_a2_resting_v1"])
+    forged_body.pop("attestation", None)
+    forged_body.pop("archive_sha256", None)
+    forged_body["training_identity"]["n_training_rows"] = 1
+    forged_body["preprocessing"]["n_training_rows"] = 1
+    forged = archive.attest(forged_body)
+    with pytest.raises(archive.ArchiveError, match="independently trusted digest"):
+        archive.admit(forged, manifest, expected_route="da_a2_resting_v1")
+
+
+def test_admission_refuses_a_wrong_key():
+    archive, manifest, archives = _pinned()
+    with pytest.raises(archive.ArchiveError, match="key id"):
+        archive.admit(archives["da_a2_resting_v1"], manifest,
+                      expected_route="da_a2_resting_v1", key=b"\x00" * 32)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "pattern"),
+    [
+        (lambda a: a["model"].__setitem__("family", "prevalence_dummy"), "no portable representation"),
+        (lambda a: a["model"].__setitem__("family", "gradient_boosting"), "unsupported model family"),
+        (lambda a: a["model"].__setitem__("classes", [1, 0]), "classes must be exactly"),
+        (lambda a: a["calibration"].__setitem__("slope", 0.0), "admissible range"),
+        (lambda a: a["calibration"].__setitem__("slope", -0.5), "admissible range"),
+        (lambda a: a["calibration"].__setitem__("intercept", "x"), "must be a number"),
+        (lambda a: a["calibration"].__setitem__("fitted_strictly_out_of_fold", False), "strictly out of fold"),
+        (lambda a: a["calibration"].__setitem__("fit_scope", "TRAINING_ROWS"), "registered OOF scope"),
+        (lambda a: a["calibration"].__setitem__("model_family", "constrained_random_forest"), "does not match"),
+        (lambda a: a.pop("fold_ensemble"), "is missing"),
+        (lambda a: a["fold_ensemble"][0].__setitem__("model_family", "bad"), "unsupported family"),
+        (lambda a: a["fold_ensemble"][0]["calibrator"].__setitem__("model_family", "bad"), "does not match its estimator"),
+        (lambda a: a.__setitem__("injected", 1), "unknown fields"),
+        (lambda a: a.__setitem__("sentinel", "ACCEPTED"), "not labelled an unratified candidate"),
+        (lambda a: a["source"].__setitem__("ordered_feature_names", []), "disagree on feature order"),
+        (lambda a: a["preprocessing"]["field_transforms"][0].__setitem__("slice_indices", [99]), "out of range"),
+    ],
+)
+def test_archive_structural_refusals_survive_a_valid_attestation(mutate, pattern):
+    """The attacker holds the key, so only structure can refuse."""
+    import copy
+
+    archive, manifest, archives = _pinned()
+    body = copy.deepcopy(archives["da_a2_resting_v1"])
+    body.pop("attestation", None)
+    body.pop("archive_sha256", None)
+    mutate(body)
+    forged = archive.attest(body)
+    with pytest.raises(archive.ArchiveError, match=pattern):
+        archive.admit(forged, manifest, expected_route="da_a2_resting_v1")
+
+
+def test_archive_refuses_non_finite_and_malformed_parameters():
+    import copy
+    import math
+
+    archive, manifest, archives = _pinned()
+    for value in (math.nan, math.inf, -math.inf):
+        body = copy.deepcopy(archives["da_basic" if False else "da_a1_basic_clinical_v1"])
+        body.pop("attestation", None)
+        body.pop("archive_sha256", None)
+        body["model"]["representation"]["trees"][0]["threshold"][0] = value
+        with pytest.raises(archive.ArchiveError):
+            archive.attest(body)
+
+
+def test_archive_tree_validator_rejects_cycles_and_unreachable_nodes():
+    import copy
+
+    archive, manifest, archives = _pinned()
+    # A self-cycle: node 0 becomes its own child.
+    body = copy.deepcopy(archives["da_a1_basic_clinical_v1"])
+    tree = body["model"]["representation"]["trees"][0]
+    if tree["left"][0] != -1:
+        tree["left"][0] = 0
+        body.pop("attestation", None)
+        body.pop("archive_sha256", None)
+        forged = archive.attest(body)
+        with pytest.raises(archive.ArchiveError, match="own child|not a tree"):
+            archive.admit(forged, manifest, expected_route="da_a1_basic_clinical_v1")
+    # An unreachable node: detach the right subtree of the root.
+    body = copy.deepcopy(archives["da_a1_basic_clinical_v1"])
+    tree = body["model"]["representation"]["trees"][0]
+    if tree["right"][0] != -1:
+        tree["right"][0] = -1
+        tree["feature"][0] = -2
+        tree["left"][0] = -1
+        body.pop("attestation", None)
+        body.pop("archive_sha256", None)
+        forged = archive.attest(body)
+        with pytest.raises(archive.ArchiveError, match="unreachable"):
+            archive.admit(forged, manifest, expected_route="da_a1_basic_clinical_v1")
+
+
+def test_archive_rejects_a_hostile_node_count():
+    import copy
+
+    archive, manifest, archives = _pinned()
+    body = copy.deepcopy(archives["da_a1_basic_clinical_v1"])
+    body.pop("attestation", None)
+    body.pop("archive_sha256", None)
+    body["model"]["representation"]["trees"][0]["n_node_samples"] = [1] * (
+        archive.MAX_NODES_PER_TREE + 1
+    )
+    forged = archive.attest(body)
+    with pytest.raises(archive.ArchiveError):
+        archive.admit(forged, manifest, expected_route="da_a1_basic_clinical_v1")
+
+
+def _facade_replay():
+    """Execute all 29 registered cases twice: registered lane and portable lane.
+
+    Both are produced by executing the facade. The reference is the registered
+    lane with the real bundles; the candidate is the portable lane using the
+    committed archives. Nothing is copied from a fixture.
+    """
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from ai import research_facade as facade
+    from ai.filesystem_security import ensure_private_directory
+    from research.intake import offline_fixture_pack as v1
+
+    cache = getattr(_facade_replay, "_cache", None)
+    if cache is not None:
+        return cache
+
+    archive, manifest, archives = _pinned()
+    tmp = tempfile.mkdtemp(prefix="rh04-replay-")
+    local = v1.sources(ensure_private_directory(Path(tmp)))
+    source_doc = json.loads(v1.PACK.read_text())
+    replay = archive.PortableReplay(facade, archives)
+
+    reference: dict[str, Any] = {}
+    candidate: dict[str, Any] = {}
+    for case in source_doc["cases"]:
+        request = v1.materialize(source_doc["requests"][case["route"]], case["edits"])
+        bundle = local.get(case["route"], local["blocked"])
+        model_source = facade.LocalSyntheticBundleSource(
+            bundle.bundle_dir, bundle.trusted_local_root, bundle.signing_key
+        )
+        reference[case["id"]] = v1.example(request, bundle)
+        candidate[case["id"]] = archive.execute_case(
+            facade, request, replay, model_source=model_source
+        )
+    cache = {
+        "archive": archive,
+        "manifest": manifest,
+        "archives": archives,
+        "reference": reference,
+        "candidate": candidate,
+        "source": source_doc,
+    }
+    _facade_replay._cache = cache
+    return cache
+
+
+def test_portable_lane_executes_all_29_cases_through_the_facade():
+    """No placeholder statuses: every case is a real facade execution."""
+    pack = _facade_replay()
+    candidate = pack["candidate"]
+    assert len(candidate) == 29
+    assert set(candidate) == {c["id"] for c in pack["source"]["cases"]}
+    for case_id, response in candidate.items():
+        # The placeholder statuses that Round 9 emitted must be gone entirely.
+        assert response["status"] != "REFUSAL_ROUTE_DECLARED", case_id
+        assert response["status"] != "REQUEST_EDIT_OUT_OF_PORTABLE_SCOPE", case_id
+        # Every response must be a real facade status.
+        assert response["status"] in (
+            "SYNTHETIC_RESULT",
+            "ABSTAIN",
+            "UNAVAILABLE",
+            "ERROR",
+        ), case_id
+
+
+def test_portable_lane_matches_the_registered_lane_exactly_on_all_29_cases():
+    """Exact type-and-value replay. No numeric exception surface exists."""
+    pack = _facade_replay()
+    mismatches = []
+    for case_id, expected in pack["reference"].items():
+        observed = pack["candidate"][case_id]
+        if not __import__(
+            "research.intake.offline_fixture_pack", fromlist=["_strict_equal"]
+        )._strict_equal(expected, observed):
+            mismatches.append(case_id)
+    assert mismatches == [], f"non-exact cases: {mismatches}"
+
+
+def test_portable_lane_preserves_full_response_shape_including_nulls():
+    """Null fields, error codes and types must survive, not be dropped."""
+    pack = _facade_replay()
+    for case_id, response in pack["candidate"].items():
+        assert set(response) == {
+            "status",
+            "panel_id",
+            "route_id",
+            "dataset_id",
+            "evidence_level",
+            "error",
+            "outcomes",
+        }, case_id
+        for outcome in response["outcomes"]:
+            assert set(outcome) == {
+                "status",
+                "score",
+                "abstention_reason",
+                "unavailable_reason",
+                "present_fields",
+                "missing_fields_with_reason",
+                "error",
+            }, case_id
+        if response["status"] == "ERROR" and response["error"] is not None:
+            # A request-level refusal carries a registered code and stage.
+            assert response["error"]["code"]
+            assert response["error"]["stage"] in (
+                "request",
+                "registry",
+                "artifact",
+                "acquisition",
+                "record",
+                "prediction",
+            )
+            assert response["outcomes"] == []
+        elif response["status"] == "ERROR":
+            # A record-level refusal carries its error on the outcome instead.
+            assert response["outcomes"], case_id
+            assert response["outcomes"][0]["error"]["code"]
+
+
+def test_portable_lane_reproduces_both_scored_cases_bit_identically():
+    """The two scored cases must agree exactly, not within a tolerance."""
+    pack = _facade_replay()
+    scored = [
+        cid
+        for cid, response in pack["candidate"].items()
+        if response["status"] == "SYNTHETIC_RESULT"
+    ]
+    assert sorted(scored) == ["da_a1_basic_clinical_v1", "da_a2_resting_v1"]
+    for case_id in scored:
+        expected = pack["reference"][case_id]["outcomes"][0]["score"]
+        observed = pack["candidate"][case_id]["outcomes"][0]["score"]
+        for field in (
+            "raw_model_score",
+            "raw_model_log_odds",
+            "calibrated_research_score",
+            "calibrated_log_odds",
+        ):
+            assert observed[field] == expected[field], (case_id, field)
+        assert type(observed["raw_model_score"]) is type(expected["raw_model_score"])
+
+
+def test_portable_lane_preserves_abstention_semantics():
+    """ABSTAIN must remain ABSTAIN with its registered reason, not a refusal."""
+    pack = _facade_replay()
+    abstained = {
+        cid: response["outcomes"][0]["abstention_reason"]
+        for cid, response in pack["candidate"].items()
+        if response["status"] == "ABSTAIN"
+    }
+    assert len(abstained) == 2
+    for reason in abstained.values():
+        assert reason == "registry_abstain_policy_optional_field_missing"
+
+
+def test_portable_lane_preserves_unavailable_semantics():
+    pack = _facade_replay()
+    unavailable = [
+        cid for cid, r in pack["candidate"].items() if r["status"] == "UNAVAILABLE"
+    ]
+    assert len(unavailable) == 3
+
+
+def test_validation_behaviour_cannot_hide_behind_a_placeholder(monkeypatch):
+    """Disturbing real validation must change the portable lane too.
+
+    If the portable lane emitted fixed placeholder statuses, breaking the
+    facade's registry resolution would leave it unchanged. This pins that the
+    portable lane is genuinely downstream of the facade's validation.
+    """
+    from ai import research_facade as facade
+
+    pack = _facade_replay()
+    archive = pack["archive"]
+    original = facade.resolve_registered_model
+
+    def refuse_all(**kwargs):
+        from ai.research_registry import ResearchRegistryError
+
+        # A plain registry refusal: the facade's registered error path, with no
+        # entry provided, so it surfaces as an ERROR rather than UNAVAILABLE.
+        raise ResearchRegistryError(
+            "route_id_mismatch",
+            "forced registry refusal for this negative test",
+            field="route_id",
+        )
+
+    monkeypatch.setattr(facade, "resolve_registered_model", refuse_all)
+    replay = archive.PortableReplay(facade, pack["archives"])
+    case = next(
+        c for c in pack["source"]["cases"] if c["id"] == "da_a2_resting_v1"
+    )
+    request = __import__("research.intake.offline_fixture_pack", fromlist=["x"]).materialize(
+        pack["source"]["requests"][case["route"]], case["edits"]
+    )
+    import research.intake.offline_fixture_pack as fixtures
+    from ai.filesystem_security import ensure_private_directory
+    import tempfile
+    from pathlib import Path
+
+    tmp = tempfile.mkdtemp(prefix="rh04-negative-")
+    local = fixtures.sources(ensure_private_directory(Path(tmp)))
+    bundle = local[case["route"]]
+    source = facade.LocalSyntheticBundleSource(
+        bundle.bundle_dir, bundle.trusted_local_root, bundle.signing_key
+    )
+    response = archive.execute_case(facade, request, replay, model_source=source)
+    assert response["status"] == "ERROR"
+    assert response["error"]["code"] == "route_id_mismatch"
+    assert response["error"]["stage"] == "registry"
+    monkeypatch.undo()
+    original  # keep the reference alive for clarity
+
+
+def test_portable_evaluation_never_deserializes(monkeypatch):
+    """The *evaluation* path must not touch pickle at all.
+
+    ``export_archive`` legitimately uses the project's authenticated loader to
+    read the producer bundle once, at export time. Evaluation is the property
+    that matters for a portable consumer, so it is the one pinned here.
+    """
+    import joblib
+
+    from ai import research_facade as facade
+    from ai.filesystem_security import ensure_private_directory
+    import research.intake.offline_fixture_pack as fixtures
+    import tempfile
+    from pathlib import Path
+
+    pack = _facade_replay()
+    archive = pack["archive"]
+    case = next(c for c in pack["source"]["cases"] if c["id"] == "da_a2_resting_v1")
+    request = fixtures.materialize(
+        pack["source"]["requests"][case["route"]], case["edits"]
+    )
+    tmp = tempfile.mkdtemp(prefix="rh04-nojoblib-")
+    local = fixtures.sources(ensure_private_directory(Path(tmp)))
+    bundle = local[case["route"]]
+    source = facade.LocalSyntheticBundleSource(
+        bundle.bundle_dir, bundle.trusted_local_root, bundle.signing_key
+    )
+    replay = archive.PortableReplay(facade, pack["archives"])
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("portable evaluation must never call joblib.load")
+
+    monkeypatch.setattr(joblib, "load", forbidden)
+    response = archive.execute_case(facade, request, replay, model_source=source)
+    monkeypatch.undo()
+    assert response["status"] == "SYNTHETIC_RESULT"
+    # And the value is the registered one, so the model really was evaluated.
+    expected = pack["reference"][case["id"]]["outcomes"][0]["score"]
+    assert (
+        response["outcomes"][0]["score"]["calibrated_log_odds"]
+        == expected["calibrated_log_odds"]
+    )
+
+
+def facade_module():
+    from ai import research_facade as module
+
+    return module
