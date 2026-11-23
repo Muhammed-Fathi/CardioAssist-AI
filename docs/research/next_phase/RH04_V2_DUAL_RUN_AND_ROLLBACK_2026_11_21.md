@@ -155,6 +155,30 @@ negative-test changes (squash `1033329c`):
 
 The V1 checks were *executed* on the reverted tree, not inferred from absence.
 
+### 2.4b Re-executed on the final delivery SHA `8849207`
+
+Required because a rollback shown on an earlier tree does not cover a later one, and
+because V2-10 is not satisfied by a rollback that predates the dual-run gate.
+
+Squashed delivery `66ad0600`, single `git revert`:
+
+| check | measured |
+|---|---|
+| reverted `HEAD^{tree}` | `3106bece1fe0e7c09ff0635d66cc883d1ecca33e` |
+| `origin/main^{tree}` | `3106bece1fe0e7c09ff0635d66cc883d1ecca33e` |
+| equality | **PASS — identical** |
+| `rh04_v2` test files after revert | **0** |
+| `rh04_v2_lane_a_convergence.py` present | **no** |
+| `rh04_v2_value_mapping.py` present | **no** |
+| `docs/research/next_phase/workflow-patch/` present | **no** (the prepared CI gate is removed with the unit) |
+| `.github/workflows/` vs `main` | **identical** — the dual-run gate is gone |
+| V1 suite **executed** | **457 passed in 35.57s** |
+
+The gate check is the one that distinguishes this demonstration from the earlier
+ones: the prepared dual-run workflow is part of the delivered unit and is removed by
+the same single revert, so the rollback covers the V2 gate as well as the pack and
+comparator.
+
 **An earlier attempt failed, and the failure is informative.** Reverting only the
 tip commit left the tree at `389d467…`, not `main`. That is the correct result for
 a six-commit delivery and shows why V2-10 must be demonstrated against a delivery

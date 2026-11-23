@@ -23,7 +23,7 @@ Acceptance ID meanings remain the original `docs/rh04-issue132-acceptance-decisi
 | V2-07 | PARTIAL | **EVIDENCED** | missing/non-evaluable/failed-fit negatives added and mutation-verified |
 | V2-08 | SATISFIED | **SATISFIED** | unchanged; no tolerance added |
 | V2-09 | LARGELY MET | **LARGELY MET** | semantics document adds non-claims |
-| V2-10 | DEMONSTRATED | **DEMONSTRATED** | re-run required on the final frozen SHA |
+| V2-10 | DEMONSTRATED | **DEMONSTRATED** | re-executed on final SHA `8849207`, gate included |
 
 **Closed: 0 of 10.** "EVIDENCED" means the evidence exists and is measured. It does
 not mean the gate is satisfied, because satisfaction is the owner's determination.
@@ -123,10 +123,12 @@ The semantics document adds: synthetic-only, in-sample development calibration, 
 clinical validity, no model equivalence, no SHAP/LIME reproducibility, Platt scaling
 is a choice not a finding, threshold exploratory and unvalidated.
 
-### V2-10 — Single-revert rollback — **DEMONSTRATED on the prior SHA**
-Previously demonstrated on `b276f27` (tree `3106bece…`, 0 V2 files, 457 V1 passed). It
-**must be re-run on the final frozen SHA**, and it is not complete from a rollback
-that predates the dual-run gate.
+### V2-10 — Single-revert rollback — **DEMONSTRATED on the final SHA**
+Re-executed on `8849207` after the V2 pack, comparator, admission corrections **and**
+the prepared dual-run gate were all present. Squash `66ad0600`, single `git revert`:
+reverted tree `3106bece…` == `main` tree, all V2 modules and the workflow-patch
+directory gone, `.github/workflows/` identical to `main`, and the V1 suite
+**executed** at **457 passed in 35.57s**.
 
 ---
 
@@ -143,7 +145,7 @@ that predates the dual-run gate.
 | V2-07 | EVIDENCED |
 | V2-08 | SATISFIED IN SUBSTANCE |
 | V2-09 | LARGELY MET |
-| V2-10 | DEMONSTRATED — re-run required on final SHA |
+| V2-10 | DEMONSTRATED on final SHA `8849207` |
 
 **Closed: 0 of 10.**
 
