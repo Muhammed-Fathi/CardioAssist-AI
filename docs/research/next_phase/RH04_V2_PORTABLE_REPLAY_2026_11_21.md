@@ -289,17 +289,24 @@ report it; never regenerate the expectation from your own run.**
 Requested dispatch, resident kernels, environment class and output digest are
 recorded separately; an output-digest group is **not** an environment class.
 
-| requested | resident NumPy | resident SciPy | environment class | Lane A digest | Lane B digest |
-|---|---|---|---|---|---|
-| *(unset)* | SkylakeX 0.3.23.dev | SkylakeX 0.3.28 | `22f82ac8bd04` | `aea7d617…` | pinned `cef38b8a…` |
-| `Sandybridge` | Sandybridge 0.3.23.dev | Sandybridge 0.3.28 | `467f524dc72f` | `3366be81…` | pinned `cef38b8a…` |
-| `Prescott` | Prescott 0.3.23.dev | **Katmai** 0.3.28 | `b57a27c32d19` | `3366be81…` | pinned `cef38b8a…` |
-| `Nehalem` | Nehalem 0.3.23.dev | Nehalem 0.3.28 | `78aa4d92b29b` | `aea7d617…` | pinned `cef38b8a…` |
-| `Haswell` | Haswell 0.3.23.dev | Haswell 0.3.28 | `89277cdf5d45` | `aea7d617…` | pinned `cef38b8a…` |
+| requested | resident NumPy | resident SciPy | Lane A digest | Lane B digest (rehydrated) |
+|---|---|---|---|---|
+| *(unset)* | SkylakeX 0.3.23.dev | SkylakeX 0.3.28 | `aea7d617…` | `891d9e3b…` |
+| `Sandybridge` | Sandybridge 0.3.23.dev | Sandybridge 0.3.28 | `3366be81…` | `891d9e3b…` |
+| `Prescott` | Prescott 0.3.23.dev | **Katmai** 0.3.28 | `3366be81…` | `891d9e3b…` |
+| `Nehalem` | Nehalem 0.3.23.dev | Nehalem 0.3.28 | `aea7d617…` | `891d9e3b…` |
+| `Haswell` | Haswell 0.3.23.dev | Haswell 0.3.28 | `aea7d617…` | `891d9e3b…` |
 
 Five environment classes, two Lane A result groups, one Lane B result group. The
 `Prescott` row is the proof that a request is not a fact: NumPy resolved to
 Prescott and SciPy to Katmai.
+
+> **SUPERSEDED.** Earlier revisions of this table showed Lane B as
+> `cef38b8a12efcd9c` and listed environment-class digests (`22f82ac8bd04`,
+> `467f524dc72f`, `b57a27c32d19`, `78aa4d92b29b`, `89277cdf5d45`). Those values
+> belong to the deleted Round 9 exact-rational evaluator and to a Round 9
+> environment-class scheme. They do not describe the shipped implementation and
+> are retained here only so a reader comparing revisions is not misled.
 
 **Not measured:** Python 3.12 (no interpreter), native Windows (no host),
 non-x86 wheels.

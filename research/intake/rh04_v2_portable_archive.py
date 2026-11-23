@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from contextvars import ContextVar
+from threading import Lock
 from pathlib import Path
 import hmac
 import json
@@ -563,7 +565,8 @@ def validate_archive(archive: Any) -> dict[str, Any]:
             "selected_hyperparameters",
             "split_sha256",
             "split_assignments_sha256",
-            "shap_background_document",
+            "training_input_sha256",
+            "shap_background_recipe",
             "shap_background_sha256_raw",
             "calibration_sha256_raw",
             "calibration_document",
@@ -644,6 +647,7 @@ MANIFEST_ROUTE_KEYS: Final[tuple[str, ...]] = (
     "representation_version",
     "fold_ensemble_sha256",
     "raw_archive_sha256",
+    "training_input_sha256",
     "split_assignments",
     "registry_metadata_sha256",
     "shap_background_sha256_raw",
@@ -870,12 +874,38 @@ def admit(
             "split assignment does not recompute from the pinned seed schedule"
         )
 
-    # 5. The SHAP background the archive pins must be the digest the manifest pins.
+    # 5. The SHAP background the archive pins must be the digest the manifest pins,
+    #    and the archive must not carry the publication-prohibited document itself.
     if (
         archive["training_identity"]["shap_background_sha256_raw"]
         != pinned["shap_background_sha256_raw"]
     ):
         raise ArchiveError("pinned SHAP background disagrees with the manifest")
+    if "shap_background_document" in archive["training_identity"]:
+        raise ArchiveError(
+            "archive stores the publication-prohibited SHAP training projection"
+        )
+
+    # 6. The complete ordered training input, recomputed from the pinned seed.
+    if training_input_sha256(expected_route) != pinned["training_input_sha256"]:
+        raise ArchiveError("training-input identity disagrees with the manifest")
+    if (
+        archive["training_identity"]["training_input_sha256"]
+        != pinned["training_input_sha256"]
+    ):
+        raise ArchiveError("archive training-input identity disagrees with the manifest")
+
+    # 7. The registry declarations actually loaded must be the pinned ones.
+    actual_registry = registry_metadata_digest(
+        archive["source"]["panel_id"],
+        archive["source"]["model_id"],
+        archive["source"]["model_version"],
+    )
+    if actual_registry != pinned["registry_metadata_sha256"]:
+        raise ArchiveError(
+            "registry metadata identity disagrees with the manifest; the pinned "
+            "panel/model declarations have changed since the archive was produced"
+        )
     return dict(archive)
 
 
@@ -1123,19 +1153,22 @@ def export_archive(bundle_dir: Any, *, signing_key: bytes | None = None) -> dict
                     }
                 )
             ),
-            # The SHAP background is a required inference dependency. The producer
-            # bundle forbids committing the document itself (it is declared as
-            # encoded training projections), so it is pinned here as canonical
-            # base64 and its raw SHA-256 is pinned separately in the manifest.
-            "shap_background_document": base64.b64encode(
-                (root / "shap_background.json").read_bytes()
-            ).decode("ascii"),
+            # The SHAP background is a required inference dependency, but the
+            # producer document declares itself commit-prohibited and is an encoded
+            # training projection. It is therefore NOT stored in any form. Only a
+            # reconstruction recipe and the expected digest are recorded, so the
+            # document is regenerated deterministically at load time and checked
+            # against the digest pinned in the independently trusted manifest.
+            "shap_background_recipe": shap_background_recipe(
+                panel_block["panel_id"]
+            ),
             "shap_background_sha256_raw": _sha256(
                 (root / "shap_background.json").read_bytes()
             ),
             "split_assignments_sha256": split_assignments(panel_block["panel_id"])[
                 "outer_assignment_sha256"
             ],
+            "training_input_sha256": training_input_sha256(panel_block["panel_id"]),
             "calibration_sha256_raw": _sha256((root / "calibration.json").read_bytes()),
             # The full producer calibration document, required verbatim by the
             # reviewed parser (the summary block above is a projection of it).
@@ -1172,20 +1205,56 @@ SPLIT_DERIVATIONS: Final[dict[str, dict[str, Any]]] = {
 }
 
 
-def _ordered_cohort_labels(route: str) -> list[int]:
-    """Rebuild the exact ordered label vector the registered training run used."""
+def _ordered_cohort(route: str) -> tuple[list[Any], list[int]]:
+    """Rebuild the exact ordered cohort (records, labels) the training run used."""
     spec = SPLIT_DERIVATIONS[route]
     if spec["cohort_builder"] == "resting_demo":
         from ai.research_demo import _cohort
 
-        _, labels = _cohort()
-        return [int(v) for v in labels]
+        records, labels = _cohort()
+        return list(records), [int(v) for v in labels]
     from ai.uci412_research import build_synthetic_uci412_basic_clinical_cohort
 
-    _, labels = build_synthetic_uci412_basic_clinical_cohort(
+    records, labels = build_synthetic_uci412_basic_clinical_cohort(
         int(spec["n_development"]), seed=int(spec["seed"])
     )
-    return [int(v) for v in labels]
+    return list(records), [int(v) for v in labels]
+
+
+def _ordered_cohort_labels(route: str) -> list[int]:
+    """Rebuild the exact ordered label vector the registered training run used."""
+    return _ordered_cohort(route)[1]
+
+
+def training_input_sha256(route: str) -> str:
+    """Digest of the **complete ordered synthetic feature and target input**.
+
+    This is not a digest of descriptive metadata and not a label-only digest: it
+    covers every encoded predictor value and every target value, in the exact
+    order the training run consumed them. An auditor can recompute it from the
+    pinned cohort builder and seed.
+    """
+    import numpy as np
+
+    from ai.panels import REGISTERED_PANELS
+    from ai.training import validate_cohort_records
+
+    spec = SPLIT_DERIVATIONS[route]
+    panel = REGISTERED_PANELS[route]
+    records, labels = _ordered_cohort(route)
+    X, y, _ = validate_cohort_records(records, labels, panel)
+    # Round-trip through repr so the digest is over exact binary64 values rather
+    # than a platform-dependent textual rendering.
+    payload = {
+        "ordered_feature_names": list(panel.feature_names),
+        "n_rows": int(X.shape[0]),
+        "n_features": int(X.shape[1]),
+        "X_hex": [float(v).hex() for v in np.asarray(X, dtype=np.float64).ravel()],
+        "y": [int(v) for v in np.asarray(y, dtype=np.int64).ravel()],
+        "cohort_builder": spec["cohort_builder"],
+        "seed": int(spec["seed"]),
+    }
+    return _sha256(canonical_bytes(payload))
 
 
 def split_assignments(route: str) -> dict[str, Any]:
@@ -1306,6 +1375,9 @@ def build_manifest(
             # Raw on-disk archive digests: the identity of the committed file
             # itself, independent of the semantic body digest above.
             "raw_archive_sha256": raw_archive_sha256,
+            # A digest over the COMPLETE ordered synthetic feature/target input,
+            # distinct from the split assignment and from any metadata hash.
+            "training_input_sha256": training_input_sha256(route),
             # The actual ordered split/fold assignments, not a hash of metadata.
             "split_assignments": split_assignments(route),
             # The exact pinned registry declarations Lane B reconstructs the
@@ -1458,28 +1530,110 @@ def _build_descriptor(
     )
 
 
-def _shap_background_from_pinned(training: Mapping[str, Any]) -> dict[str, Any]:
-    """Decode the SHAP background from its pinned canonical bytes.
+#: Deterministic SHAP-background reconstruction parameters, per registered panel.
+#:
+#: The producer builds the background with ``ShapBackgroundReference.from_training_encoded``
+#: over the *development cohort's encoded training matrix*, using
+#: ``seed = repeat_seed + 90000 + 4242`` and ``max_samples = 24``. Reproducing that
+#: call from the pinned synthetic cohort, the pinned seed schedule and the pinned
+#: preprocessor yields the identical document byte-for-byte (verified for both
+#: panels), so the prohibited training projection never has to be stored.
+SHAP_RECONSTRUCTION: Final[dict[str, dict[str, Any]]] = {
+    "da_a2_resting_v1": {
+        "cohort_builder": "resting_demo",
+        "cohort_seed": 20261025,
+        "n_development": 96,
+        "repeat_seed": 20261025,
+        "full_cv_seed_offset": 90000,
+        "background_seed_offset": 4242,
+        "max_samples": 24,
+    },
+    "da_a1_basic_clinical_v1": {
+        "cohort_builder": "uci412_basic_clinical",
+        "cohort_seed": 20261028,
+        "n_development": 120,
+        "repeat_seed": 20261025,
+        "full_cv_seed_offset": 90000,
+        "background_seed_offset": 4242,
+        "max_samples": 24,
+    },
+}
 
-    The producer bundle marks this document ``commit_or_public_upload_prohibited``
-    and declares it encoded training projections, so it is **not** committed.
-    It is pinned as base64 in the archive and its SHA-256 must match the value
-    the independently trusted manifest carries before it is used.
+
+def shap_background_recipe(panel_id: str) -> dict[str, Any]:
+    """The recorded recipe that regenerates the pinned SHAP background document."""
+    if panel_id not in SHAP_RECONSTRUCTION:
+        raise ArchiveError(f"no SHAP reconstruction recipe for panel {panel_id!r}")
+    spec = dict(SHAP_RECONSTRUCTION[panel_id])
+    return {
+        "method": "ShapBackgroundReference.from_training_encoded",
+        "stores_training_projection": False,
+        "derivation": spec,
+        "seed": int(spec["repeat_seed"]) + int(spec["full_cv_seed_offset"]) + int(
+            spec["background_seed_offset"]
+        ),
+        "max_samples": int(spec["max_samples"]),
+        "synthetic_only": True,
+    }
+
+
+def _development_cohort(panel_id: str) -> tuple[list[Any], list[int]]:
+    """Rebuild the exact ordered synthetic development cohort for a panel."""
+    spec = SHAP_RECONSTRUCTION[panel_id]
+    if spec["cohort_builder"] == "resting_demo":
+        from ai.research_demo import _cohort
+
+        records, labels = _cohort()
+        return list(records), [int(v) for v in labels]
+    from ai.uci412_research import build_synthetic_uci412_basic_clinical_cohort
+
+    records, labels = build_synthetic_uci412_basic_clinical_cohort(
+        int(spec["n_development"]), seed=int(spec["cohort_seed"])
+    )
+    return list(records), [int(v) for v in labels]
+
+
+def reconstruct_shap_background(
+    training: Mapping[str, Any], panel: Any
+) -> dict[str, Any]:
+    """Regenerate the SHAP background from the recipe; never from stored rows.
+
+    The result is checked against the expected SHA-256 that the independently
+    trusted manifest pins, so a drifted reconstruction is a refusal rather than a
+    silently different explanation baseline.
     """
-    encoded = training["shap_background_document"]
-    if not isinstance(encoded, str):
-        raise ArchiveError("shap background must be pinned as canonical base64")
-    try:
-        raw = base64.b64decode(encoded.encode("ascii"), validate=True)
-    except Exception as exc:  # noqa: BLE001
-        raise ArchiveError("shap background is not valid base64") from exc
+    from ai.explainability import ShapBackgroundReference
+    from ai.preprocessing import FoldSafeClinicalPreprocessor
+    from ai.training import validate_cohort_records
+
+    recipe = training["shap_background_recipe"]
+    if recipe.get("stores_training_projection") is not False:
+        raise ArchiveError(
+            "archive claims to store the SHAP training projection; that is "
+            "publication-prohibited and is refused rather than read"
+        )
+    records, labels = _development_cohort(panel.panel_id)
+    X, y, _ = validate_cohort_records(records, labels, panel)
+    preprocessor = FoldSafeClinicalPreprocessor.from_json_dict(
+        dict(training["_preprocessing"]), expected_panel=panel
+    )
+    Z = preprocessor.transform(X)
+    reference = ShapBackgroundReference.from_training_encoded(
+        Z,
+        y,
+        preprocessor,
+        max_samples=int(recipe["max_samples"]),
+        seed=int(recipe["seed"]),
+        synthetic_only=True,
+    )
+    raw = reference.to_canonical_json_bytes()
     if _sha256(raw) != training["shap_background_sha256_raw"]:
         raise ArchiveError(
-            "shap background digest does not match the independently pinned value"
+            "reconstructed SHAP background does not match the pinned digest"
         )
     document = json.loads(raw.decode("utf-8"))
     if not isinstance(document, Mapping):
-        raise ArchiveError("shap background must decode to an object")
+        raise ArchiveError("reconstructed SHAP background is not an object")
     return dict(document)
 
 
@@ -1555,7 +1709,10 @@ def load_artifact_from_archive(
         )
         calibration_doc = dict(admitted["training_identity"]["calibration_document"])
         calibrator = OofLogisticCalibrator.from_json_dict(calibration_doc)
-        background_doc = _shap_background_from_pinned(admitted["training_identity"])
+        background_doc = reconstruct_shap_background(
+            {**admitted["training_identity"], "_preprocessing": admitted["preprocessing"]},
+            descriptor.panel,
+        )
         capabilities = derive_artifact_capabilities(
             descriptor.manifest,
             entry=entry,
@@ -1637,6 +1794,71 @@ def rehydrate_member(spec: Mapping[str, Any]):
     )
 
 
+# ---------------------------------------------------------------------------
+# Independently pinned trust anchor for the trusted manifest
+# ---------------------------------------------------------------------------
+
+#: The one manifest document this implementation is authorised to admit against.
+#:
+#: This constant is the *trust anchor*. It is a hash of the manifest's canonical
+#: bytes, and it is compiled into this module -- it is not read from the manifest,
+#: from the archives, or from anything the caller supplies. An attacker who
+#: rewrites a manifest to re-pin a forged archive must also change this constant
+#: in reviewed source, which is a different and visible act.
+#:
+#: The fixture HMAC key is **public test material** and confers no authenticity
+#: whatsoever. It proves only that whoever assembled an archive knew the published
+#: constant. It is retained solely to keep the archive format honest about the
+#: producer hand-off, and no trust decision may rest on it.
+TRUSTED_MANIFEST_SHA256: Final[str] = (
+    "c280108c80ec48fc8a6386218b1cb011cc9954a6f09588dfe51f3cb841252667"
+)
+
+TRUST_ANCHOR_LABEL: Final[str] = (
+    "rh04-portable-fixture-trust-anchor-v1"
+)
+
+
+def trusted_manifest_sha256(manifest: Mapping[str, Any]) -> str:
+    """Canonical digest of a manifest document, independent of file formatting."""
+    return _sha256(canonical_bytes(manifest))
+
+
+def assert_trusted_manifest(
+    manifest: Mapping[str, Any], *, anchor: str | None = None
+) -> str:
+    """Fail closed unless ``manifest`` is the independently anchored document.
+
+    The comparison is against a compiled-in constant. Nothing in the archive, the
+    manifest, or any caller-supplied value can satisfy it.
+    """
+    expected = TRUSTED_MANIFEST_SHA256 if anchor is None else anchor
+    if not isinstance(expected, str) or len(expected) != 64:
+        raise ArchiveError(
+            "trust anchor is unset; refusing to admit against an unpinned manifest"
+        )
+    actual = trusted_manifest_sha256(manifest)
+    if not hmac.compare_digest(actual, expected):
+        raise ArchiveError(
+            "trusted manifest does not match the independently anchored identity; "
+            "a manifest supplied alongside the archives is not a trust anchor"
+        )
+    return actual
+
+
+#: Context-local dispatch stack. Using a ``ContextVar`` means two replays can be
+#: active in the same process, and in the same thread nest, without either one
+#: observing the other's route table.
+_REPLAY_STACK: "ContextVar[tuple[Any, ...]]" = ContextVar(
+    "rh04_portable_replay_stack", default=()
+)
+
+
+def _active_dispatch() -> Any:
+    stack = _REPLAY_STACK.get()
+    return stack[-1] if stack else None
+
+
 class PortableReplay:
     """Run the registered facade against **admitted** portable archives.
 
@@ -1659,8 +1881,15 @@ class PortableReplay:
         manifest: Mapping[str, Any],
         key: bytes,
         archives: Mapping[str, Mapping[str, Any]],
+        anchor: str | None = None,
     ) -> None:
         manifest = validate_manifest(manifest)
+        # Re-entrancy: ``execute_case`` enters the replay again, so tokens are
+        # kept as a stack rather than a single slot.
+        self._tokens: list[Any] = []
+        # The trust anchor is checked FIRST: a forged manifest that re-pins a
+        # forged archive must be rejected before its route table is believed.
+        self._manifest_identity = assert_trusted_manifest(manifest, anchor=anchor)
         expected = set(manifest["routes"])
         supplied = set(archives)
         missing = sorted(expected - supplied)
@@ -1682,34 +1911,99 @@ class PortableReplay:
         self._admitted = admitted
         self._manifest = manifest
         self._key = bytes(key)
-        self._original = None
 
     @property
     def admitted_routes(self) -> tuple[str, ...]:
         return tuple(sorted(self._admitted))
 
-    def __enter__(self) -> "PortableReplay":
-        self._original = getattr(self._facade, SEAM_NAME)
-        facade = self._facade
-        admitted = self._admitted
+    # -- context-local activation ------------------------------------------- #
 
-        def dispatch(request, binding, request_panel):
-            route = request.route_id
-            if route not in admitted:
-                raise facade._Refusal(
-                    "portable_archive_absent_for_route",
-                    stage="artifact",
-                    panel=request_panel,
-                )
-            return load_artifact_from_archive(
-                facade, admitted[route], entry=binding.entry, panel=request_panel
+    def _dispatch(self, request: Any, binding: Any, request_panel: Any) -> Any:
+        route = request.route_id
+        if route not in self._admitted:
+            raise self._facade._Refusal(
+                "portable_archive_absent_for_route",
+                stage="artifact",
+                panel=request_panel,
             )
+        return load_artifact_from_archive(
+            self._facade,
+            self._admitted[route],
+            entry=binding.entry,
+            panel=request_panel,
+        )
 
-        setattr(self._facade, SEAM_NAME, dispatch)
+    def __enter__(self) -> "PortableReplay":
+        """Push this replay onto the context-local dispatch stack.
+
+        Nested replays nest correctly: the innermost active one wins, and leaving
+        it restores the previous one. Nothing is written to the facade.
+        """
+        _activate_seam(self._facade)
+        self._tokens.append(_REPLAY_STACK.set(_REPLAY_STACK.get() + (self,)))
         return self
 
     def __exit__(self, *exc: object) -> None:
-        setattr(self._facade, SEAM_NAME, self._original)
+        if self._tokens:
+            _REPLAY_STACK.reset(self._tokens.pop())
+            _deactivate_seam(self._facade)
+
+
+#: The module-level seam shared by every replay. It is installed once, while at
+#: least one replay is active, and removed again when the last one exits -- so the
+#: facade's own loader is genuinely restored and the facade keeps working for real
+#: bundles outside a replay. Because dispatch reads a ``ContextVar``, simultaneous
+#: and nested replays never observe one another's route table.
+_ACTIVE_REPLAYS: Final[list[int]] = [0]
+_SEAM_LOCK: "Lock" = Lock()
+
+
+def _shared_seam(request: Any, binding: Any, panel: Any) -> Any:
+    replay = _active_dispatch()
+    if replay is None:
+        raise RuntimeError(
+            "no active PortableReplay in this context; the facade seam was "
+            "reached outside a replay context"
+        )
+    return replay._dispatch(request, binding, panel)
+
+
+def _activate_seam(facade: Any) -> None:
+    """Install the shared seam on the first active replay."""
+    with _SEAM_LOCK:
+        _ACTIVE_REPLAYS[0] += 1
+        if _ACTIVE_REPLAYS[0] == 1:
+            setattr(facade, SEAM_NAME, _shared_seam)
+
+
+def _deactivate_seam(facade: Any) -> None:
+    """Restore the facade's own loader when the last active replay exits."""
+    with _SEAM_LOCK:
+        _ACTIVE_REPLAYS[0] = max(0, _ACTIVE_REPLAYS[0] - 1)
+        if _ACTIVE_REPLAYS[0] == 0:
+            setattr(facade, SEAM_NAME, _ORIGINAL_SEAM)
+
+
+def restore_facade_seam(facade: Any) -> None:
+    """Force the facade's own loader back and clear the active count.
+
+    Only for test teardown and process shutdown; normal replay exit already
+    restores the loader.
+    """
+    with _SEAM_LOCK:
+        _ACTIVE_REPLAYS[0] = 0
+        setattr(facade, SEAM_NAME, _ORIGINAL_SEAM)
+
+
+#: The facade's own ``_load_artifact``, captured at import time so restoration can
+#: never depend on whatever happens to be installed later.
+def _capture_original_seam() -> Any:
+    from ai import research_facade as _facade_module
+
+    return getattr(_facade_module, SEAM_NAME)
+
+
+_ORIGINAL_SEAM: Any = _capture_original_seam()
 
 
 #: The consumer allowlist used by the registered fixture export. Reproduced here
@@ -1792,3 +2086,42 @@ def response_identity(facade: Any, requests: Sequence[Mapping[str, Any]],
         for request in requests
     ]
     return _sha256("".join(digests).encode("ascii"))
+
+
+# ---------------------------------------------------------------------------
+# Raw-file identity: enforced against bytes, before any JSON parsing
+# ---------------------------------------------------------------------------
+
+
+def load_admitted_archives(
+    directory: Any,
+    manifest: Mapping[str, Any],
+    *,
+    key: bytes = FIXTURE_SIGNING_KEY,
+    anchor: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Read, digest-check and admit every archive file named by the manifest.
+
+    Raw file identity is verified **against the bytes on disk, before parsing**,
+    so the manifest's ``raw_archive_sha256`` is an enforced identity rather than a
+    recorded value. Parsing happens only for a file whose bytes already match.
+    """
+    directory = Path(directory)
+    manifest = validate_manifest(manifest)
+    assert_trusted_manifest(manifest, anchor=anchor)
+
+    loaded: dict[str, dict[str, Any]] = {}
+    for route in sorted(manifest["routes"]):
+        path = directory / f"{route}.archive.json"
+        if not path.is_file():
+            raise ArchiveError(f"no archive file for pinned route {route!r}")
+        raw_bytes = path.read_bytes()
+        expected_raw = manifest["routes"][route]["raw_archive_sha256"]
+        actual_raw = _sha256(raw_bytes)
+        if not hmac.compare_digest(actual_raw, expected_raw):
+            raise ArchiveError(
+                f"raw archive bytes for {route!r} do not match the manifest; the "
+                "file identity is enforced before parsing"
+            )
+        loaded[route] = json.loads(raw_bytes.decode("utf-8"))
+    return loaded

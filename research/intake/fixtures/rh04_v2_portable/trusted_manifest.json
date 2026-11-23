@@ -212,7 +212,7 @@
   "reference_id": "rh04-portable-synthetic-fixture-v1",
   "routes": {
     "da_a1_basic_clinical_v1": {
-      "archive_sha256": "dc213b22b428bcc737650fee4b8cedf8c432c0634af7d2feb9d87090babd8bb7",
+      "archive_sha256": "5ecdeeb33b0a071750b83f971db9cd5591137540bccf1058ecb6b07df3c79c65",
       "bundle_protocol_id": "CAI-AI8-SYNTHETIC-UCI412-DA-A1-BASIC-CLINICAL-V1",
       "calibration_fit_scope": "FULL_DEVELOPMENT_OOF_FINAL",
       "calibration_fitted_strictly_out_of_fold": true,
@@ -269,7 +269,7 @@
       "panel_id": "da_a1_basic_clinical_v1",
       "panel_version": "1.1.0",
       "preprocessing_sha256": "fcf6142bfbad24e23a7af7bb574a601205fe23f302d3c36827b1287581b5186d",
-      "raw_archive_sha256": "c5aae785abca67bd83e3b2b523081c73b504c3c667a762312662b681f0ff04d3",
+      "raw_archive_sha256": "5be79675750bcc27a107fadc616f0f4447b7c4cf178d6665f2a7f497b8c1889d",
       "registry_metadata_sha256": "c9cbf1ca33bb8695e57b8cbbe6b73ffa3548dc1660231fb1155afce4e0d7b792",
       "representation_version": "rh04.v2.portable-reference-archive/v1",
       "route_id": "da_a1_basic_clinical_v1",
@@ -740,10 +740,11 @@
         ]
       },
       "split_sha256": "56dfc34cd88dbbe5d02ec483ee4b47da182cb042660f840df942af1faade7396",
-      "training_identity_sha256": "6204a482dc61ed690de9593ffdd63196d1f66d3a74d2f7eac50fa19138ab8f0b"
+      "training_identity_sha256": "18ba115cac1a3246aee6e2b14dc2e5b8410615d8ea989d6ef987cba765f9fec3",
+      "training_input_sha256": "763755c3392e62d71139f95d78589b8cd1f38bebcf2e7a630b8b9e15cbcbf346"
     },
     "da_a2_resting_v1": {
-      "archive_sha256": "894d60485bb022bc9e8f3866c6f61340ae6eb9f1f3c50514d4428db780b25c2e",
+      "archive_sha256": "db30756e5633cf6bc857955e2f2c7c6e99bc341f23d88941051c20cf0da87564",
       "bundle_protocol_id": "CAI-AI7-SYNTHETIC-DA_A2_RESTING_V1-V1",
       "calibration_fit_scope": "FULL_DEVELOPMENT_OOF_FINAL",
       "calibration_fitted_strictly_out_of_fold": true,
@@ -783,7 +784,7 @@
       "panel_id": "da_a2_resting_v1",
       "panel_version": "1.0.0",
       "preprocessing_sha256": "2fb008d88b684a6452ec90098c760b0761949e03bf5620516beb858c1839b58d",
-      "raw_archive_sha256": "7cedb2b6d0bee0403ba2938a1469023e7c4091d7b08abe65e39af521af37a38c",
+      "raw_archive_sha256": "ca48b65e025a9b234a608fb2f4d651b82014dd496ada8ea6f0b0ff8b887d0c78",
       "registry_metadata_sha256": "d9279ec5a45e4e17cac6c351272aeaabbe668c29c4db2b10b7324229d43d3fc4",
       "representation_version": "rh04.v2.portable-reference-archive/v1",
       "route_id": "da_a2_resting_v1",
@@ -1120,7 +1121,8 @@
         ]
       },
       "split_sha256": "addace4d1b1719322ce8428d9dffaeb7d6aa48c908808c875eb5563de001a724",
-      "training_identity_sha256": "7bd85c03370183c63b1a06b8c40774d2fe6726d560eafedad63afe9278b736df"
+      "training_identity_sha256": "a07776642455d1851bf0c15726f271d1b8ecf3e2102576c056a7a1f89036ebdc",
+      "training_input_sha256": "77a08f648dcf5b804096d2f08e45079e2f75fad0fd5ad2f0a72ea77ce47ca922"
     }
   }
 }

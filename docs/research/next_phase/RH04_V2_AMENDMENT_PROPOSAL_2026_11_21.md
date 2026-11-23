@@ -138,6 +138,15 @@ implemented evidence:
 - non-finite, wrongly typed and out-of-range parameters;
 - tree cycle, unreachable node, hostile node count;
 - evaluation attempted on an archive with no manifest entry;
+- a **self-consistent forgery** for a valid Logistic Regression model: one finite
+  coefficient changed, internal digest recomputed, fixture MAC re-signed with the
+  published key, forged manifest re-pinned. Refused because the manifest is not
+  the trust anchor (Round 10.2);
+- a manifest whose pinned registry-metadata digest or complete ordered
+  training-input digest does not match what is actually loaded or recomputable
+  (Round 10.2);
+- an archive that stores the publication-prohibited SHAP training projection in
+  any form, including base64 (Round 10.2);
 - **construction** of a replay without a trusted manifest and key (Round 10.1:
   admission is in the constructor, not an optional helper);
 - an archive whose split assignment or SHAP background digest disagrees with the

@@ -39,6 +39,10 @@ These are *work items*. Completing one closes nothing.
 | `T-LANEB-FIXEDREF` | Lane B has its own fixed reference identity from the pinned artifact (`891d9e3b…`), never a freshly trained Lane A result | **DONE (round 10.1)** |
 | `T-MANIFEST-COMPLETE` | Raw archive-file SHA-256, semantic digest, actual ordered split/fold assignments, calibration OOF provenance, SHAP background digest, registry metadata digest; `build_manifest()` emits the real 29 case IDs | **DONE (round 10.1)** |
 | `T-CONCURRENCY` | No mutable request/binding/panel state; 8 concurrent executions leak nothing | **DONE (round 10.1)** |
+| `T-MANIFEST-ANCHOR` | The trusted manifest is authenticated against a hash compiled into reviewed source; a manifest supplied beside the archives is not an anchor | **DONE (round 10.2)** |
+| `T-SHAP-POLICY` | No publication-prohibited training projection is committed in **any** representation; the background is deterministically reconstructed and digest-checked | **DONE (round 10.2)** |
+| `T-ENFORCE-ALL` | Raw-file bytes, registry metadata digest and the complete ordered training-input digest are all *enforced*, not merely recorded | **DONE (round 10.2)** |
+| `T-CONTEXT-LOCAL` | Dispatch is context-local; 8 simultaneous replays and nested contexts dispatch correctly and restore the facade loader | **DONE (round 10.2)** |
 | `T-DIGEST-BIND` | Full algorithm declaration bound into `pipeline_digest` | **DONE (round 9)** |
 | `T-CHILD-RC` | Helper rejects unknown verdicts and inconsistent child rcs | **DONE (round 9)** |
 | `T-XENV` | Requested vs resident kernel matrix, cold processes, rehydrated Lane B (5 classes → 1 group) | **PARTIAL** (3.12 / Windows NOT MEASURED) |

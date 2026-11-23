@@ -2534,6 +2534,13 @@ _ARCHIVE_DIR = (
 )
 
 
+def _anchor():
+    """The independently pinned trust anchor, read from the module under test."""
+    from research.intake import rh04_v2_portable_archive as archive
+
+    return archive.TRUSTED_MANIFEST_SHA256
+
+
 def _pinned():
     """Load the committed archives and manifest exactly as a reviewer would."""
     import json
@@ -2754,7 +2761,8 @@ def _facade_replay():
     # Lane B admits the committed archives against the independently trusted
     # manifest before any facade call is possible.
     portable = archive.PortableReplay(
-        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives
+        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives,
+        anchor=_anchor(),
     )
 
     reference: dict[str, Any] = {}
@@ -3014,8 +3022,8 @@ def _replay_with(archives, manifest=None):
         facade,
         manifest=manifest if manifest is not None else committed_manifest,
         key=archive.FIXTURE_SIGNING_KEY,
-        archives=archives,
-    )
+        archives=archives, anchor=_anchor()
+        )
     return archive, replay
 
 
@@ -3049,7 +3057,8 @@ def test_admission_runs_for_every_route_before_any_execution(monkeypatch):
 
     monkeypatch.setattr(archive, "admit", counting)
     replay = archive.PortableReplay(
-        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives
+        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives,
+        anchor=_anchor(),
     )
     assert sorted(seen) == sorted(manifest["routes"])
     assert replay.admitted_routes == tuple(sorted(manifest["routes"]))
@@ -3066,20 +3075,20 @@ def test_admission_refuses_missing_unexpected_and_swapped_routes():
     missing = {routes[0]: archives[routes[0]]}
     with pytest.raises(archive.ArchiveError, match="missing"):
         archive.PortableReplay(
-            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=missing
+            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=missing, anchor=_anchor()
         )
 
     unexpected = dict(archives)
     unexpected["da_a9_unpinned_route"] = archives[routes[0]]
     with pytest.raises(archive.ArchiveError, match="unpinned"):
         archive.PortableReplay(
-            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=unexpected
+            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=unexpected, anchor=_anchor()
         )
 
     swapped = {routes[0]: archives[routes[1]], routes[1]: archives[routes[0]]}
     with pytest.raises(archive.ArchiveError):
         archive.PortableReplay(
-            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=swapped
+            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=swapped, anchor=_anchor()
         )
 
 
@@ -3097,73 +3106,124 @@ def test_admission_refuses_an_archive_signed_with_a_different_key():
     attack[route] = forged
     with pytest.raises(archive.ArchiveError, match="attestation key id"):
         archive.PortableReplay(
-            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=attack
+            facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=attack, anchor=_anchor()
         )
 
 
 def test_tampered_archive_cannot_reach_model_evaluation(monkeypatch):
-    """End-to-end adversarial test: a fully re-forged archive is still refused.
+    """Mandatory end-to-end attack: a *valid* semantic forgery is still refused.
 
     The attacker is granted everything a naive verifier checks:
 
-    * the modification is semantic (a model coefficient), not bookkeeping;
+    * the tampered model is **structurally valid** -- a single finite coefficient
+      of the Logistic Regression in ``da_a2_resting_v1`` is changed and nothing
+      else, so no shape, finiteness or class-proportion validator can object;
     * the archive's internal ``archive_sha256`` is recomputed;
     * the fixture MAC is recomputed with the committed key;
-    * the trusted manifest's per-route ``archive_sha256`` is regenerated.
+    * the forged manifest's per-route ``archive_sha256`` pin is replaced.
 
-    The replay must still refuse, and it must refuse *before* any estimator is
-    constructed or any record is scored.
+    Only the independently pinned manifest identity can catch this, which is the
+    point: the manifest supplied alongside the archives is not a trust anchor.
     """
     from ai import research_facade as facade
 
     archive, manifest, archives = _pinned()
-    route = sorted(archives)[0]
+    route = "da_a2_resting_v1"
+    assert archives[route]["model"]["family"] == "l2_logistic_regression"
     tampered = copy.deepcopy(archives[route])
 
-    representation = tampered["model"]["representation"]
-    weights_key = next(
-        key for key in ("coef", "coefficients", "trees") if key in representation
-    )
-    if weights_key == "trees":
-        node_value = tampered["model"]["representation"]["trees"][0]["value"][0]
-        node_value[0] = float(node_value[0]) + 0.25
-    else:
-        weights = representation[weights_key]
-        first = weights[0]
-        if isinstance(first, list):
-            first[0] = float(first[0]) + 0.25
-        else:
-            weights[0] = float(first) + 0.25
+    coef = tampered["model"]["representation"]["coef"]
+    original = float(coef[0])
+    coef[0] = original + 0.25
+    assert coef[0] != original
+    # The forgery is structurally valid: same width, all finite.
+    assert len(coef) == len(tampered["preprocessing"]["encoded_feature_names"])
+    assert all(math.isfinite(float(v)) for v in coef)
 
     # 1. Recompute the internal body digest.
     recomputed = archive.archive_digest(archive.body_of(tampered))
     tampered["archive_sha256"] = recomputed
-    # 2. Recompute the fixture MAC with the committed key (which the attacker has).
+    # 2. Re-sign with the published fixture key, which the attacker has.
     tampered = archive.attest(tampered)
-    # 3. Regenerate the manifest pin for this body.
+    # 3. Re-pin the forged manifest for this body.
     forged_manifest = copy.deepcopy(manifest)
     forged_manifest["routes"][route]["archive_sha256"] = recomputed
 
     constructed: list[str] = []
 
     def forbidden(*args, **kwargs):  # pragma: no cover - must never run
-        constructed.append("evaluated")
-        raise AssertionError("no estimator may be constructed before admission")
+        constructed.append("constructed")
+        raise AssertionError("no estimator may be constructed before trust is established")
 
-    account = "da_a2_resting_v1" if route == "da_a2_resting_v1" else route
     monkeypatch.setattr(archive, "rehydrate", forbidden)
     monkeypatch.setattr(archive, "rehydrate_member", forbidden)
     attack = dict(archives)
     attack[route] = tampered
-    with pytest.raises(archive.ArchiveError):
+
+    with pytest.raises(archive.ArchiveError, match="trusted manifest"):
         archive.PortableReplay(
             facade,
             manifest=forged_manifest,
             key=archive.FIXTURE_SIGNING_KEY,
             archives=attack,
+            anchor=_anchor(),
         )
     assert constructed == []
-    account  # keep the route name meaningful in the failure message
+
+
+def test_forged_manifest_refusal_precedes_every_other_check(monkeypatch):
+    """The anchor is checked before admission, so nothing else is even attempted."""
+    from ai import research_facade as facade
+
+    archive, manifest, archives = _pinned()
+    forged_manifest = copy.deepcopy(manifest)
+    forged_manifest["reference_id"] = "attacker-forged-reference"
+
+    calls: list[str] = []
+    original_admit = archive.admit
+
+    def traced(*args, **kwargs):
+        calls.append("admit")
+        return original_admit(*args, **kwargs)
+
+    monkeypatch.setattr(archive, "admit", traced)
+    with pytest.raises(archive.ArchiveError, match="trusted manifest"):
+        archive.PortableReplay(
+            facade,
+            manifest=forged_manifest,
+            key=archive.FIXTURE_SIGNING_KEY,
+            archives=archives,
+            anchor=_anchor(),
+        )
+    assert calls == []
+
+
+def test_unset_trust_anchor_fails_closed():
+    """An empty anchor must refuse rather than admit anything."""
+    from ai import research_facade as facade
+
+    archive, manifest, archives = _pinned()
+    for anchor in ("", "0" * 64, None):
+        if anchor is None:
+            # ``None`` selects the compiled-in constant, which is legitimate.
+            continue
+        with pytest.raises(archive.ArchiveError):
+            archive.PortableReplay(
+                facade,
+                manifest=manifest,
+                key=archive.FIXTURE_SIGNING_KEY,
+                archives=archives,
+                anchor=anchor,
+            )
+
+
+def test_fixture_key_is_declared_test_only():
+    """The HMAC key must be documented as public test material, not a credential."""
+    from research.intake import rh04_v2_portable_archive as archive
+
+    assert archive.FIXTURE_KEY_LABEL == "PUBLIC_TEST_FIXTURE_KEY_NOT_A_SECRET"
+    doc = (archive.__doc__ or "") + archive.assert_trusted_manifest.__doc__
+    assert "anchor" in doc.lower()
 
 
 def test_tampered_split_assignment_is_refused_even_when_repinned():
@@ -3184,7 +3244,11 @@ def test_tampered_split_assignment_is_refused_even_when_repinned():
     )
     with pytest.raises(archive.ArchiveError):
         archive.PortableReplay(
-            facade, manifest=forged_manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives
+            facade,
+            manifest=forged_manifest,
+            key=archive.FIXTURE_SIGNING_KEY,
+            archives=archives,
+            anchor=_anchor(),
         )
 
 
@@ -3225,6 +3289,7 @@ def test_cold_process_replay_needs_no_producer_bundle(tmp_path):
                 "pack = json.loads(v1.PACK.read_text())",
                 "replay = pa.PortableReplay(facade, manifest=manifest,",
                 "                           key=pa.FIXTURE_SIGNING_KEY, archives=archives)",
+                "assert replay._manifest_identity == pa.TRUSTED_MANIFEST_SHA256",
                 "digests = []",
                 "statuses = {}",
                 "for case in pack['cases']:",
@@ -3286,7 +3351,8 @@ def test_lane_b_never_reads_the_producer_bundle(monkeypatch):
     monkeypatch.setattr(Path, "read_bytes", trap("Path.read_bytes"), raising=False)
 
     replay = archive.PortableReplay(
-        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives
+        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=archives,
+        anchor=_anchor(),
     )
     case = next(c for c in pack["source"]["cases"] if c["id"] == "da_a2_resting_v1")
     request = v1.materialize(pack["source"]["requests"][case["route"]], case["edits"])
@@ -3302,23 +3368,35 @@ def test_lane_b_never_reads_the_producer_bundle(monkeypatch):
 
 
 def test_shap_background_is_pinned_and_never_taken_from_a_bundle():
-    """The SHAP background is a required dependency carried by the archive."""
-    import base64
+    """The SHAP background is a required dependency *derived* from pinned data.
 
-    archive, manifest, archives = _pinned()
+    Round 10.1 embedded the producer document as base64. Round 10.2 removed it:
+    the document declares ``commit_or_public_upload_prohibited`` and is an encoded
+    training projection, and base64 is encoding, not a change in classification.
+    The archive now carries only a reconstruction recipe plus the expected digest,
+    and the digest is pinned independently in the trusted manifest.
+    """
+    from research.intake import rh04_v2_portable_archive as archive
+    from ai.panels import REGISTERED_PANELS
+
+    _, manifest, archives = _pinned()
     for route, body in archives.items():
         training = body["training_identity"]
-        raw = base64.b64decode(training["shap_background_document"])
-        assert archive._sha256(raw) == training["shap_background_sha256_raw"]
+        # 1. No stored projection, in a form that says so explicitly.
+        assert "shap_background_document" not in training
+        assert training["shap_background_recipe"]["stores_training_projection"] is False
+        # 2. The expected digest is pinned in the trusted manifest.
         assert (
             manifest["routes"][route]["shap_background_sha256_raw"]
             == training["shap_background_sha256_raw"]
         )
-        document = json.loads(raw)
-        # The producer forbids committing the document; it travels only as
-        # pinned bytes inside the archive, and its own privacy block says so.
-        assert document["privacy"]["commit_or_public_upload_prohibited"] is True
+        # 3. The reconstruction reproduces that digest exactly.
+        panel = REGISTERED_PANELS[body["source"]["panel_id"]]
+        document = archive.reconstruct_shap_background(
+            {**training, "_preprocessing": body["preprocessing"]}, panel
+        )
         assert document["privacy"]["synthetic_only"] is True
+        assert document["n_background_rows"] == 24
 
 
 def test_manifest_pins_raw_file_digests_and_real_assignments():
@@ -3386,3 +3464,272 @@ def test_sklearn_private_tree_reconstruction_is_compatible():
         assert tree.max_depth == spec["max_depth"]
         # And the reconstruction is an exact round-trip of the archive arrays.
         assert np.array_equal(tree.value[:, 0, 1], np.asarray(spec["value"])[:, 1])
+
+
+# --------------------------------------------------------------------------- #
+# Round 10.2 P0-02: no publication-prohibited training projection is committed #
+# --------------------------------------------------------------------------- #
+
+
+def test_no_shap_training_projection_is_committed_in_any_representation():
+    """The prohibited document must not appear as base64, hex, or raw rows.
+
+    Base64 is encoding, not a change in classification: a re-encoded copy would be
+    just as prohibited. This scans every committed fixture file for the document's
+    distinguishing content in the encodings an author might plausibly choose.
+    """
+    import base64
+
+    archive, manifest, archives = _pinned()
+    forbidden_markers = (
+        b"background_matrix",
+        b"shap_background_document",
+        b"contains_encoded_training_projections",
+    )
+    for path in sorted(_ARCHIVE_DIR.iterdir()):
+        raw = path.read_bytes()
+        for marker in forbidden_markers:
+            assert marker not in raw, f"{path.name} embeds {marker!r}"
+        decoded = raw.decode("utf-8")
+        for token in (
+            base64.b64encode(b"background_matrix").decode(),
+            base64.b64encode(b"contains_encoded_training_projections").decode(),
+            b"background_matrix".hex(),
+        ):
+            assert token not in decoded, f"{path.name} embeds a re-encoded projection"
+
+    # And the archive *declares* that it stores no projection at all.
+    for route, body in archives.items():
+        recipe = body["training_identity"]["shap_background_recipe"]
+        assert recipe["stores_training_projection"] is False
+        assert "shap_background_document" not in body["training_identity"]
+
+
+def test_shap_background_reconstruction_matches_the_pinned_digest():
+    """Reconstruction is exact, so the digest the manifest pins is reproducible."""
+    import hashlib
+
+    from research.intake import rh04_v2_portable_archive as archive
+    from ai.panels import REGISTERED_PANELS
+
+    _, manifest, archives = _pinned()
+    for route, body in archives.items():
+        panel = REGISTERED_PANELS[body["source"]["panel_id"]]
+        document = archive.reconstruct_shap_background(
+            {**body["training_identity"], "_preprocessing": body["preprocessing"]}, panel
+        )
+        raw = (
+            json.dumps(document, indent=2, sort_keys=True, ensure_ascii=True, allow_nan=False)
+            + "\n"
+        ).encode("utf-8")
+        assert (
+            hashlib.sha256(raw).hexdigest()
+            == manifest["routes"][route]["shap_background_sha256_raw"]
+        )
+        # Panel binding and feature order survive reconstruction.
+        assert document["panel_id"] == body["source"]["panel_id"]
+        assert (
+            document["panel_contract_sha256"] == body["source"]["panel_contract_sha256"]
+        )
+        assert document["encoded_feature_names"] == list(
+            body["preprocessing"]["encoded_feature_names"]
+        )
+        rows = document["background_matrix"]
+        assert len(rows) == document["n_background_rows"] == 24
+        assert all(math.isfinite(float(v)) for row in rows for v in row)
+
+
+def test_archive_claiming_to_store_a_projection_is_refused():
+    """An archive that re-introduces the document is refused, not read."""
+    from research.intake import rh04_v2_portable_archive as archive
+    from ai.panels import REGISTERED_PANELS
+
+    _, _, archives = _pinned()
+    body = copy.deepcopy(archives["da_a2_resting_v1"])
+    body["training_identity"]["shap_background_recipe"][
+        "stores_training_projection"
+    ] = True
+    panel = REGISTERED_PANELS[body["source"]["panel_id"]]
+    with pytest.raises(archive.ArchiveError, match="publication-prohibited"):
+        archive.reconstruct_shap_background(
+            {**body["training_identity"], "_preprocessing": body["preprocessing"]}, panel
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Round 10.2 P1-03: every recorded manifest identity is actually enforced      #
+# --------------------------------------------------------------------------- #
+
+
+def test_raw_archive_bytes_identity_is_enforced(tmp_path):
+    """A single-byte change forces a raw-file refusal *before* JSON parsing."""
+    import shutil
+
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, _ = _pinned()
+    for path in _ARCHIVE_DIR.iterdir():
+        shutil.copy(path, tmp_path / path.name)
+    route = "da_a2_resting_v1"
+    target = tmp_path / f"{route}.archive.json"
+    # Semantically harmless whitespace: parses identically, different bytes.
+    target.write_bytes(target.read_bytes() + b"\n")
+    with pytest.raises(archive.ArchiveError, match="raw archive bytes"):
+        archive.load_admitted_archives(
+            tmp_path, manifest, key=archive.FIXTURE_SIGNING_KEY, anchor=_anchor()
+        )
+    # Deleting a file is also a raw-identity failure.
+    target.unlink()
+    with pytest.raises(archive.ArchiveError, match="no archive file"):
+        archive.load_admitted_archives(
+            tmp_path, manifest, key=archive.FIXTURE_SIGNING_KEY, anchor=_anchor()
+        )
+
+
+def test_registry_metadata_identity_is_enforced(monkeypatch):
+    """The pinned registry declarations must be the ones actually loaded."""
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, archives = _pinned()
+    forged_manifest = copy.deepcopy(manifest)
+    forged_manifest["routes"]["da_a2_resting_v1"]["registry_metadata_sha256"] = "0" * 64
+    # Re-anchor so the manifest itself is considered trusted; the registry
+    # comparison is then the only thing left to catch the mismatch.
+    anchor = archive.trusted_manifest_sha256(forged_manifest)
+    with pytest.raises(archive.ArchiveError, match="registry metadata identity"):
+        archive.PortableReplay(
+            facade,
+            manifest=forged_manifest,
+            key=archive.FIXTURE_SIGNING_KEY,
+            archives=archives,
+            anchor=anchor,
+        )
+
+
+def test_training_input_identity_is_enforced(monkeypatch):
+    """The complete ordered feature/target digest must be enforced."""
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, archives = _pinned()
+    forged_manifest = copy.deepcopy(manifest)
+    forged_manifest["routes"]["da_a2_resting_v1"]["training_input_sha256"] = "1" * 64
+    anchor = archive.trusted_manifest_sha256(forged_manifest)
+    with pytest.raises(archive.ArchiveError, match="training-input identity"):
+        archive.PortableReplay(
+            facade,
+            manifest=forged_manifest,
+            key=archive.FIXTURE_SIGNING_KEY,
+            archives=archives,
+            anchor=anchor,
+        )
+
+
+def test_training_input_digest_covers_features_not_just_labels():
+    """It must be a feature+target digest, distinct from the split metadata hash."""
+    from research.intake import rh04_v2_portable_archive as archive
+
+    _, manifest, _ = _pinned()
+    for route in manifest["routes"]:
+        full = archive.training_input_sha256(route)
+        labels_only = archive._sha256(archive.canonical_bytes(
+            archive._ordered_cohort_labels(route)
+        ))
+        assert full != labels_only
+        # And distinct from the metadata-derived split identity.
+        assert full != manifest["routes"][route]["split_sha256"]
+        assert (
+            full
+            == manifest["routes"][route]["training_input_sha256"]
+            == archive.training_input_sha256(route)
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Round 10.2 P1-04: replay concurrency is reproducible evidence                #
+# --------------------------------------------------------------------------- #
+
+
+def test_eight_concurrent_replays_are_isolated_and_restore_the_seam():
+    """Eight simultaneous replays must dispatch correctly and restore the loader."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    pack = _facade_replay()
+    manifest, archives = pack["manifest"], pack["archives"]
+    original = facade._load_artifact
+    assert original is archive._ORIGINAL_SEAM
+
+    case = next(c for c in pack["source"]["cases"] if c["id"] == "da_a2_resting_v1")
+    request = v1.materialize(pack["source"]["requests"][case["route"]], case["edits"])
+    expected = pack["reference"][case["id"]]["outcomes"][0]["score"]["calibrated_log_odds"]
+
+    def one(_index):
+        replay = archive.PortableReplay(
+            facade,
+            manifest=manifest,
+            key=archive.FIXTURE_SIGNING_KEY,
+            archives=archives,
+            anchor=_anchor(),
+        )
+        response = archive.execute_case(facade, request, replay)
+        return (
+            response["status"],
+            response["outcomes"][0]["score"]["calibrated_log_odds"],
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(one, range(8)))
+
+    assert len(results) == 8
+    assert {status for status, _ in results} == {"SYNTHETIC_RESULT"}
+    assert {value for _, value in results} == {expected}
+    # Every replay has exited, so the facade's own loader is genuinely restored
+    # and the shared dispatcher is no longer installed at all.
+    assert facade._load_artifact is original
+    assert facade._load_artifact is archive._ORIGINAL_SEAM
+
+
+def test_nested_replay_contexts_dispatch_the_innermost_replay():
+    """Nested contexts must not leak: the innermost active replay wins."""
+    from ai import research_facade as facade
+    from research.intake import rh04_v2_portable_archive as archive
+
+    pack = _facade_replay()
+    manifest, archives = pack["manifest"], pack["archives"]
+    original = facade._load_artifact
+
+    outer = archive.PortableReplay(
+        facade,
+        manifest=manifest,
+        key=archive.FIXTURE_SIGNING_KEY,
+        archives=archives,
+        anchor=_anchor(),
+    )
+    # A second full replay, so route dispatch is exercised from both levels.
+    second = archive.PortableReplay(
+        facade,
+        manifest=manifest,
+        key=archive.FIXTURE_SIGNING_KEY,
+        archives=archives,
+        anchor=_anchor(),
+    )
+    case = next(c for c in pack["source"]["cases"] if c["id"] == "da_a2_resting_v1")
+    request = v1.materialize(pack["source"]["requests"][case["route"]], case["edits"])
+
+    with outer:
+        assert archive._active_dispatch() is outer
+        with second:
+            assert archive._active_dispatch() is second
+            response = archive.execute_case(facade, request, second)
+            assert response["status"] == "SYNTHETIC_RESULT"
+        assert archive._active_dispatch() is outer
+        response = archive.execute_case(facade, request, outer)
+        assert response["status"] == "SYNTHETIC_RESULT"
+
+    assert archive._active_dispatch() is None
+    archive.restore_facade_seam(facade)
+    assert facade._load_artifact is original

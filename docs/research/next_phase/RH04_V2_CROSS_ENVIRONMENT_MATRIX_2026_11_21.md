@@ -219,7 +219,8 @@ pack = FR.generate_full_reference()
 print('laneA:', FR.semantic_digest(pack))
 PY
 
-# Lane B -- pinned-artifact inference. Expect cef38b8a12efcd9c on ANY host.
+# Lane B -- pinned-artifact inference, rehydrated implementation.
+# Expect 891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8 on ANY host.
 pytest tests/experiments/test_rh04_v2_reference.py -q -W error -k portable
 ```
 
