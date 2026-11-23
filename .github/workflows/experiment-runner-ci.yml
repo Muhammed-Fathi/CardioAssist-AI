@@ -40,10 +40,28 @@ jobs:
         python-version: ['3.11', '3.12']
 
     steps:
+      # Full history and the base branch are REQUIRED evidence, not convenience.
+      # ``test_child_diagnosis_does_not_modify_the_merged_classifier_surface``
+      # compares the merged classifier test against ``origin/main`` and fails
+      # closed when that reference is unavailable. A depth-1 checkout with no
+      # fetched base branch cannot supply it, so the preservation claim would be
+      # unverifiable. ``fetch-depth: 0`` and an explicit base ref make the
+      # comparison possible without changing what the test asserts.
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      # Materialise the trusted base reference the preservation tests read.
+      # This only fetches; it does not modify the checkout, the base branch, or
+      # any fixture, comparator or tolerance.
+      - name: Fetch trusted base reference
+        run: |
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          echo "checkout_head=$(git rev-parse HEAD)"
+          echo "base_ref=$(git rev-parse refs/remotes/origin/main)"
+          git rev-parse refs/remotes/origin/main >/dev/null
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -55,7 +73,17 @@ jobs:
           python -m pip install -r research/experiments/requirements.txt
           python -m pip install -r research/audit/requirements.txt
           python -m pip install -r research/uci412/requirements.txt
+          # The independent numerical oracle is REQUIRED acceptance evidence, not
+          # an optional extra. ``test_model_fit_matches_an_independent_mpmath_oracle``
+          # fails closed without it, and that behaviour is correct: a missing
+          # dependency must never degrade into a silent skip.
+          python -m pip install -r research/experiments/requirements-oracle.txt
           python -m pip check
+          python - <<'PY'
+          import importlib.metadata as m
+          for name in ("numpy", "scipy", "scikit-learn", "mpmath", "pytest"):
+              print(f"{name}=={m.version(name)}")
+          PY
 
       # Confirm *actual* linked numerical libraries before every full replay.
       # This check does not modify the model, fixtures, scoring or tolerances.
@@ -160,7 +188,17 @@ jobs:
           python -m pip install -r research/experiments/requirements.txt
           python -m pip install -r research/audit/requirements.txt
           python -m pip install -r research/uci412/requirements.txt
+          # The independent numerical oracle is REQUIRED acceptance evidence, not
+          # an optional extra. ``test_model_fit_matches_an_independent_mpmath_oracle``
+          # fails closed without it, and that behaviour is correct: a missing
+          # dependency must never degrade into a silent skip.
+          python -m pip install -r research/experiments/requirements-oracle.txt
           python -m pip check
+          python - <<'PY'
+          import importlib.metadata as m
+          for name in ("numpy", "scipy", "scikit-learn", "mpmath", "pytest"):
+              print(f"{name}=={m.version(name)}")
+          PY
 
       # Confirm *actual* linked numerical libraries before every full replay.
       # This check does not modify the model, fixtures, scoring or tolerances.
