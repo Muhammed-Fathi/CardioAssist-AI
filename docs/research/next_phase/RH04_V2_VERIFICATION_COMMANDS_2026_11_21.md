@@ -232,3 +232,57 @@ PYTHONPATH=. python -m pytest tests/experiments/test_rh04_v2_reference.py -q \
 None of these is reported as passing. A reviewer who can measure them should
 replace the `NOT MEASURED` entries with the actual output rather than
 extrapolating from this table.
+
+---
+
+## CI finding — exact-head run 45214587956
+
+The `synthetic-experiment-runner-validation` workflow **fails on Python 3.11 at this
+head**, and the cause is established rather than guessed:
+
+```
+FAILED tests/experiments/test_rh04_v2_reference.py::test_model_fit_matches_an_independent_mpmath_oracle
+ModuleNotFoundError: No module named 'mpmath'
+1 failed, 2095 passed, 2 skipped
+```
+
+**Attribution.** The affected test does not exist on `main` (main carries no
+`rh04_v2` file at all), so this workflow has never passed with the V2 suite
+present. The failure is *introduced by adding the V2 tests*, but it is **not a
+defect in the V2 code**:
+
+- `test_model_fit_matches_an_independent_mpmath_oracle` **fails closed by design**
+  when `mpmath` is absent. That is correct behaviour — the independent oracle is
+  required evidence, not an optional extra, and the test refuses to skip silently.
+- `.github/workflows/experiment-runner-ci.yml` installs
+  `research/experiments/requirements.txt`, `research/audit/requirements.txt` and
+  `research/uci412/requirements.txt` but **never** installs
+  `research/experiments/requirements-oracle.txt`, which is the only file that
+  declares `mpmath`.
+- No workflow in the repository installs `requirements-oracle.txt`.
+
+Verified by constructing a CI-exact environment (venv from exactly those three
+files, threadpools pinned to one, `-W error`): **1 failed, 2095 passed, 2 skipped**,
+with the single failure being that test and that import.
+
+**Reproduced CI-exactly**, single-threaded:
+
+| environment | command | result |
+|---|---|---|
+| CI-exact (3 files, no oracle) | `pytest tests/experiments tests/audit -q -W error` | **1 failed, 2095 passed, 2 skipped** |
+| with oracle installed | same | **2096 passed, 2 skipped** |
+| single-threaded + oracle | same | **276 passed** (focused) |
+
+**Not fixed here, deliberately.** The repair is a one-line addition to
+`.github/workflows/experiment-runner-ci.yml`, and this round is explicitly barred
+from modifying protected workflows without separate authorization. The two ways to
+force green without authorization — deleting the test, or making it skip when
+`mpmath` is missing — are exactly the hidden-skip and rerun-to-green behaviours the
+governing instructions forbid.
+
+**Required owner decision:** authorize the workflow dependency addition, or accept
+a documented red check for this head.
+
+The other three workflows at this head are green: `contract-validation`,
+`audit-toolchain-validation`, `mock-backend-validation`, plus the Python 3.12
+RH-04 structural drift diagnostic.
