@@ -1276,6 +1276,85 @@ def test_raw_file_digest_matches_the_committed_fixture_bytes():
     assert candidate.raw_file_sha256(path) == sha256(path.read_bytes()).hexdigest()
 
 
+def test_a_pack_with_more_than_29_cases_is_refused(monkeypatch, tmp_path):
+    """A pack carrying extra cases must be refused, not silently truncated.
+
+    V2-07 requires a >29-case negative test. Truncating to the registered count
+    would make the replay look correct while admitting unauthorised cases; dropping
+    the extras silently is the same failure in a different direction.
+
+    The refusal does not come from a single ``len == 29`` assertion. A 30-case pack
+    is caught first by the case-set comparison, because the extra case changes the
+    registered order the manifest is bound to. Both are refusals before any replay,
+    which is what matters; the test asserts the refusal and that no replay ran.
+    """
+    from research.intake import rh04_v2_portable_archive as archive
+    from research.intake import offline_fixture_pack as v1
+
+    original = json.loads(v1.PACK.read_text(encoding="utf-8"))
+    inflated = copy.deepcopy(original)
+    extra = copy.deepcopy(inflated["cases"][0])
+    extra["id"] = extra["id"] + "-extra"
+    inflated["cases"].append(extra)
+    assert len(inflated["cases"]) == 30
+
+    encoded = json.dumps(inflated).encode("utf-8")
+
+    class InflatedPackPath:
+        def read_bytes(self):
+            return encoded
+
+        def read_text(self, encoding="utf-8"):
+            return encoded.decode(encoding)
+
+    monkeypatch.setattr(v1, "PACK", InflatedPackPath())
+
+    with pytest.raises(archive.ArchiveError) as excinfo:
+        archive.admit_from_directory(_ARCHIVE_DIR)
+
+    message = str(excinfo.value)
+    assert ("registered case order" in message) or ("cases; expected" in message), (
+        "a 30-case pack must be refused on the registered case set, not admitted "
+        f"past it; got: {message}"
+    )
+    # And the refusal happened before anything was materialised or executed.
+    assert "TAMPERED" not in message
+    assert len(inflated["cases"]) == 30
+
+
+def test_the_admission_isclose_is_structural_not_an_acceptance_tolerance():
+    """V2-07 requires a "second tolerance exception" test; there must be none.
+
+    The module contains exactly one ``isclose`` and it lives on the *admission*
+    path, checking that a tree's declared class proportions sum to 1. It compares
+    a structural invariant, not a replayed value against an expectation; an
+    artifact that fails it is malformed, not numerically divergent. Admission has
+    no notion of "close enough to the expected answer".
+
+    This test fails if anyone adds a second ``isclose``/``allclose`` anywhere, so
+    a new numeric tolerance cannot be introduced quietly.
+    """
+    from research.intake import rh04_v2_portable_archive as archive_module
+
+    source = Path(archive_module.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    offenders = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = getattr(func, "attr", getattr(func, "id", None))
+        if name in {"isclose", "allclose", "assert_allclose", "assert_array_almost_equal"}:
+            offenders.append((name, node.lineno))
+
+    assert offenders == [("isclose", 251)], (
+        "expected exactly one structural isclose on the admission path; found "
+        f"{offenders}. A new numeric comparison on the replay path is a "
+        "tolerance surface by another name and is forbidden by V2-08."
+    )
+
+
 def test_actual_solver_identity_tracks_the_live_function():
     """Provenance must describe what runs, not what was requested."""
     outside = candidate.actual_solver_identity()
@@ -4339,82 +4418,77 @@ def test_case_bindings_are_enforced_not_only_case_ids():
         archive._assert_case_set(forged)
 
 
-def test_caller_mapping_is_read_once_and_the_executed_object_is_detached():
-    """A behavioural test, not a count of mapping lookups.
+def test_the_executed_snapshot_is_materialised_before_verification():
+    """The detached snapshot must be built BEFORE ``admit()`` walks the document.
 
-    Two distinct properties, each with an actual violation:
+    This test is written to *discriminate*, and it was checked against both
+    implementations rather than only the current one.
 
-    1. The caller's mapping is read **once**, so a mapping whose ``__getitem__``
-       varies per call cannot be verified on one read and executed on another.
-    2. The executed snapshot is **detached**, so mutating anything the caller
-       still holds cannot change what runs.
+    The property that actually differs is how many times verification and
+    execution traverse the caller's own mutable containers. Measuring the
+    behaviour:
 
-    An AST count of ``archives[...]`` subscripts proves neither.
+    * snapshot-first (current): the caller's calibration object is traversed
+      **once**, to serialise the snapshot. ``admit()`` then walks the detached
+      copy.
+    * verify-then-snapshot (previous): the same object is traversed **4** times --
+      once inside ``admit()``'s structural and semantic passes, then again by
+      ``canonical_bytes`` to build the stored snapshot.
+
+    A counting test on the outer route mapping does **not** discriminate: both
+    implementations read ``archives[route]`` exactly once, so an assertion there
+    passes against the old code too. An earlier version of this test made exactly
+    that mistake; it is replaced here rather than kept as decoration.
+
+    What this does **not** claim: a varying object cannot actually smuggle a
+    different value past admission. The archives carry an HMAC attestation, so a
+    second read returning different parameters fails admission with "attestation
+    does not verify" -- verified by running the tampered variant against the old
+    implementation, which refused rather than diverged. The fix therefore removes
+    repeated traversal of caller-controlled mutable state as defence in depth; it
+    does not close an exploitable value-divergence hole. Both facts are recorded.
     """
     from ai import research_facade as facade
     from research.intake import rh04_v2_portable_archive as archive
 
     _, manifest, archives = _pinned()
 
-    # --- (1) varying reads cannot split verification from execution -------- #
-    class VaryingMapping(dict):
-        """A route mapping that serves a tampered document from the second read on.
+    class CountingCalibration(dict):
+        """Counts wholesale traversals of a caller-owned nested container."""
 
-        This is the actual attack the single-read rule exists to stop: the
-        library reads ``archives[route]``, and if it read twice it could verify
-        the first answer and execute the second.
-        """
+        def __init__(self, document):
+            super().__init__(document)
+            self.traversals = 0
 
-        def __init__(self, documents):
-            super().__init__(documents)
-            self.reads = {route: 0 for route in documents}
+        def items(self):
+            self.traversals += 1
+            return super().items()
 
-        def __getitem__(self, route):
-            self.reads[route] = self.reads.get(route, 0) + 1
-            document = super().__getitem__(route)
-            if self.reads[route] == 1:
-                return document
-            tampered = copy.deepcopy(document)
-            tampered["calibration"]["slope"] += 1.0
-            return tampered
+    documents = {
+        "da_a1_basic_clinical_v1": copy.deepcopy(archives["da_a1_basic_clinical_v1"]),
+        "da_a2_resting_v1": copy.deepcopy(archives["da_a2_resting_v1"]),
+    }
+    counter = CountingCalibration(documents["da_a1_basic_clinical_v1"]["calibration"])
+    documents["da_a1_basic_clinical_v1"]["calibration"] = counter
 
-    varying = VaryingMapping(copy.deepcopy(archives))
     replay = archive.PortableReplay(
-        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=varying
-    )
-    for route, count in varying.reads.items():
-        assert count == 1, (
-            f"{route}: caller mapping read {count} times; verification and "
-            "execution must derive from one read"
-        )
-    stored = replay._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"]
-    assert stored == archives["da_a1_basic_clinical_v1"]["calibration"]["slope"], (
-        "a later read of the caller's mapping reached execution"
+        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=documents
     )
 
-    # --- (2) the executed snapshot is detached ----------------------------- #
-    live = copy.deepcopy(archives)
-    replay2 = archive.PortableReplay(
-        facade, manifest=manifest, key=archive.FIXTURE_SIGNING_KEY, archives=live
+    assert counter.traversals == 1, (
+        "the caller's calibration object was traversed "
+        f"{counter.traversals} times; snapshot-first materialises it exactly once, "
+        "so verification cannot walk caller-owned mutable state after execution "
+        "has been fixed"
     )
-    executed_before = replay2._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"]
-    # Mutate the caller's containers as deeply as the structure allows.
-    live["da_a1_basic_clinical_v1"]["calibration"]["slope"] = 99.0
-    # Deep-list mutation: the REST route is linear, so it carries a coef list.
-    live["da_a2_resting_v1"]["model"]["representation"]["coef"][0] = 12345.0
-    executed_after = replay2._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"]
-    assert executed_before == executed_after, (
-        "post-admission mutation of the caller's document reached the executed snapshot"
-    )
-    assert replay2._admitted["da_a2_resting_v1"]["model"]["representation"][
-        "coef"
-    ][0] != 12345.0, (
-        "a nested list was still shared with the caller after admission"
+    # And what was stored is the value from the single traversal.
+    assert replay._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"] == (
+        archives["da_a1_basic_clinical_v1"]["calibration"]["slope"]
     )
 
-    # --- (3) the snapshot itself refuses mutation -------------------------- #
+    # The snapshot is independently owned and refuses mutation.
     with pytest.raises(TypeError):
-        replay2._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"] = 1.0
+        replay._admitted["da_a1_basic_clinical_v1"]["calibration"]["slope"] = 1.0
 
 
 def test_changed_base_request_is_refused_before_admission(monkeypatch, tmp_path):

@@ -225,7 +225,8 @@ PYTHONPATH=. python -m pytest tests/experiments/test_rh04_v2_reference.py -q \
 | Python 3.12 | NOT MEASURED — no interpreter |
 | native Windows | NOT MEASURED — no host |
 | non-x86 | NOT MEASURED — no host |
-| hosted CI | NOT RUN — requires separate owner authorization |
+| hosted CI, pre-correction run | **FAILED** — run `45231724257`, 3/3 jobs | 
+| hosted CI, post-correction run | NOT YET RUN — logs must be read before claiming resolution |
 | `tests/contracts` | **306 passed** — measured |
 | `tests/backend` | OUT OF SCOPE — later roadmap stage |
 
@@ -235,62 +236,228 @@ extrapolating from this table.
 
 ---
 
-## CI finding — exact-head run 45214587956
+## CI finding — corrected, run 45231724257 at head f78f521
 
-The `synthetic-experiment-runner-validation` workflow **fails on Python 3.11 at this
-head**, and the cause is established rather than guessed:
+An earlier version of this section named a **single** cause (missing `mpmath`) and
+reported the Python 3.12 structural diagnostic as passing. Both statements were
+wrong. They are corrected here from the hosted run record.
+
+**Run `45231724257`, head `f78f521`, conclusion `failure`.** All three jobs failed,
+each at **step 6**:
+
+| job | id | interpreter | step 6 name |
+|---|---|---|---|
+| `synthetic-runner-tests` | `137892736936` | 3.11 | suite |
+| `rh04-fixture-diagnostic` | `137892737443` | 3.12 | Inspect canonical 29-case synthetic replay twice (strict, metadata only) |
+| `synthetic-runner-tests` | `137892737724` | 3.12 | suite |
+
+### Failure 1 — missing `mpmath` (3.11 and 3.12 job)
 
 ```
 FAILED tests/experiments/test_rh04_v2_reference.py::test_model_fit_matches_an_independent_mpmath_oracle
 ModuleNotFoundError: No module named 'mpmath'
-1 failed, 2095 passed, 2 skipped
 ```
 
-**Attribution.** The affected test does not exist on `main` (main carries no
-`rh04_v2` file at all), so this workflow has never passed with the V2 suite
-present. The failure is *introduced by adding the V2 tests*, but it is **not a
-defect in the V2 code**:
+The test fails closed when the oracle is absent — correct behaviour. No workflow
+installs `research/experiments/requirements-oracle.txt`, the only file declaring
+`mpmath`.
 
-- `test_model_fit_matches_an_independent_mpmath_oracle` **fails closed by design**
-  when `mpmath` is absent. That is correct behaviour — the independent oracle is
-  required evidence, not an optional extra, and the test refuses to skip silently.
-- `.github/workflows/experiment-runner-ci.yml` installs
-  `research/experiments/requirements.txt`, `research/audit/requirements.txt` and
-  `research/uci412/requirements.txt` but **never** installs
-  `research/experiments/requirements-oracle.txt`, which is the only file that
-  declares `mpmath`.
-- No workflow in the repository installs `requirements-oracle.txt`.
+### Failure 2 — missing base reference (3.11 job)
 
-Verified by constructing a CI-exact environment (venv from exactly those three
-files, threadpools pinned to one, `-W error`): **1 failed, 2095 passed, 2 skipped**,
-with the single failure being that test and that import.
+```
+FAILED tests/experiments/test_rh04_v2_reference.py::test_child_diagnosis_does_not_modify_the_merged_classifier_surface
+```
 
-**Reproduced CI-exactly**, single-threaded:
+That test compares the working tree against `origin/main`. A default Actions
+checkout is **shallow and single-branch**, so no `origin/main` ref exists and the
+test fails closed rather than asserting against nothing. This is a **checkout
+provisioning** fault, not a test defect. Deleting the comparison or skipping it
+when the ref is absent would destroy exactly the preservation guarantee it exists
+to provide.
+
+Stated 3.11 counts: **2 failed, 2094 passed, 2 skipped**.
+
+### Failure 3 — genuine V1 divergence in the 3.12 diagnostic
+
+`137892737443` **failed**, with `MISMATCH_FOUND` and **2 differing cases**, exit 1.
+It is not a missing-dependency error.
+
+This is reproducible and is **real behaviour of the frozen V1 replay**, not a
+defect introduced by the V2 work. Running the diagnostic under different resident
+kernels locally:
+
+| resident kernel (`OPENBLAS_CORETYPE`) | result | differing cases |
+|---|---|---|
+| unset | `EXACT_REPLAY` | 0 |
+| Prescott | `MISMATCH_FOUND` | **2** |
+| Haswell | `MISMATCH_FOUND` | **2** |
+| Nehalem | MISMATCH (1) | 1 |
+| Sandybridge | MISMATCH (1) | 1 |
+
+The CI runner's 2 differing cases are reproduced exactly under Prescott and
+Haswell. This is a **host-dependence finding about V1**, and it is reported rather
+than masked. It is also independent evidence for the amendment: Lane B is a fixed
+reference replay, not a host-independent claim, and the absence of training in
+Lane B says nothing about bitwise reproducibility across hosts.
+
+Note: `OPENBLAS_CORETYPE` is only a *request*; the effective kernel must be read
+from `threadpoolctl` at runtime, which the diagnostics do.
+
+### What was corrected, and what was not
+
+Authorized corrections only:
+
+1. `fetch-depth: 0` plus an explicit fetch of the base branch — gives the
+   preservation test its trusted reference.
+2. Install the existing pinned `research/experiments/requirements-oracle.txt`.
+3. Report resolved dependency versions and run `pip check`.
+
+Not changed: the V1 comparator, fixtures, tolerances, numerical thread settings,
+diagnostic verdicts, voting policy. No skip, xfail, `continue-on-error`,
+rerun-to-green, or any mechanism that would conceal the V1 failure above.
+
+### Verification status of this section
+
+The workflow edits have **not yet run in hosted CI**. This section therefore
+records the **pre-correction** run only. The post-correction 3.12 logs must be
+read from the new run before infrastructure failures can be called resolved —
+in particular the diagnostic is *expected* to still report `MISMATCH_FOUND`,
+because that is a V1 finding this work does not paper over.
+
+---
+
+## 6. Local reproduction of each CI failure, and the fix verified against it
+
+Every claim below was executed, not inferred.
+
+### Failure 1 — missing oracle
 
 | environment | command | result |
 |---|---|---|
-| CI-exact (3 files, no oracle) | `pytest tests/experiments tests/audit -q -W error` | **1 failed, 2095 passed, 2 skipped** |
-| with oracle installed | same | **2096 passed, 2 skipped** |
-| single-threaded + oracle | same | **276 passed** (focused) |
+| CI-exact (3 requirement files, no `mpmath`) | `pytest tests/experiments tests/audit -q -W error` | **1 failed, 2095 passed, 2 skipped** |
+| same, oracle test alone | — | `AssertionError: the independent oracle is required evidence, not an optional extra.` |
+| with `requirements-oracle.txt` installed | oracle test alone | **1 passed** |
 
-**Not fixed here, deliberately.** The repair is a one-line addition to
-`.github/workflows/experiment-runner-ci.yml`, and this round is explicitly barred
-from modifying protected workflows without separate authorization. The two ways to
-force green without authorization — deleting the test, or making it skip when
-`mpmath` is missing — are exactly the hidden-skip and rerun-to-green behaviours the
-governing instructions forbid.
+The failing test is `test_model_fit_matches_an_independent_mpmath_oracle`. It fails
+closed with an actionable message. It does not skip.
 
-**Required owner decision:** authorize the workflow dependency addition, or accept
-a documented red check for this head.
+### Failure 2 — missing base reference
 
-The other three workflows at this head are green: `contract-validation`,
-`audit-toolchain-validation`, `mock-backend-validation`, plus the Python 3.12
-RH-04 structural drift diagnostic.
+Simulated with a real shallow single-branch clone
+(`git clone --depth 1 --single-branch`), which reproduces the Actions default:
 
-**Confirmed on both interpreters.** A later run of the same workflow failed on
-**Python 3.11 and Python 3.12**, both at step 6, with the same single test. The
-cause is interpreter-independent: the workflow does not install the oracle file.
+```
+$ git rev-parse --verify origin/main
+fatal: Needed a single revision
 
-**One gap closed.** The Python 3.12 RH-04 structural drift diagnostic job
-**passes**, so Python 3.12 is no longer wholly unmeasured for the structural path.
-It remains unmeasured for the full suite.
+$ pytest tests/experiments/test_rh04_v2_reference.py -k child_diagnosis_does_not_modify
+FAILED  AssertionError: required preservation evidence is unavailable: the canonical
+merged test could not be compared against origin/main. This is a hard failure, not a
+skip -- acceptance evidence must never vanish silently.
+```
+
+Then, in **the same clone**, the exact command the new workflow step runs:
+
+```
+$ git fetch origin main:refs/remotes/origin/main
+$ git rev-parse --verify origin/main
+c6a6bdee46a552a2b0d705a723c862ff8a95be4d
+
+$ pytest ... -k child_diagnosis_does_not_modify
+1 passed, 275 deselected in 0.76s
+```
+
+So failure 2 is a **checkout provisioning** fault, and the workflow step that fixes
+it is verified against a reproduction of the fault. The test's assertion was not
+touched.
+
+### Failure 3 — the 3.12 diagnostic, still expected to fail
+
+This one is **not** fixable by provisioning, and the workflow does not try to fix
+it. `rh04-fixture-diagnostic` step 5 runs:
+
+```bash
+python -m research.intake.diagnose_fixture_replay
+python -m research.intake.diagnose_fixture_replay
+```
+
+The diagnostic compares the frozen V1 replay against its recorded expectation. As
+measured in §"CI finding", that comparison is kernel-sensitive: 2 differing cases
+under Prescott and Haswell, 1 under Nehalem and Sandybridge, 0 unset. If the CI
+runner resolves to a divergent kernel — which the observed 2 differing cases
+indicate — the diagnostic exits 1 and **the job will fail again**.
+
+That is the correct outcome. The divergence is a real property of the frozen V1
+reference, and making this job green would require exactly the tolerance, skip or
+expectation-regeneration moves that are forbidden.
+
+**A second defect found while checking this, and deliberately not fixed:** the two
+invocations share one `run:` block, which executes under `bash -e` semantics. A
+non-zero exit from the *first* invocation aborts the step before the *second* one
+runs. The step is named "Inspect ... **twice**", but when the replay diverges only
+the first observation is ever produced. Fixing that would mean changing the
+diagnostic step — a verdict-bearing step — which the narrow authorization for this
+round does not cover. It is recorded here as an open defect for a separate decision
+rather than silently altered.
+
+### Summary of what the workflow change can and cannot achieve
+
+| failure | fixed by the authorized change? | evidence |
+|---|---|---|
+| missing `mpmath` | **yes** | reproduces as 1 failed; passes with the oracle installed |
+| missing `origin/main` | **yes** | reproduces as 1 failed in a shallow clone; passes after the fetch |
+| 3.12 diagnostic `MISMATCH_FOUND` | **no — correctly not attempted** | genuine V1 host-dependence; masking it is forbidden |
+
+Therefore the expected post-correction hosted result is: the two `synthetic-runner-tests`
+jobs pass, and `rh04-fixture-diagnostic` **still fails** on a divergent runner. A
+red diagnostic job after the fix is evidence that nothing was hidden, not evidence
+that the fix failed.
+
+**This section is a prediction only for the parts it has not executed in CI.** The
+hosted run must be read before any resolution claim is made.
+
+---
+
+## 7. The admission test was verified by mutation, and the first version was wrong
+
+The round required "a meaningful mutation test, not an AST count". Writing one is
+not the same as proving it means anything, so the replacement test was run against
+**both** implementations. It did not survive that check on the first attempt.
+
+| version | assertion | new impl | old impl | discriminates? |
+|---|---|---|---|---|
+| first replacement | outer route mapping read once | pass | **pass** | **no** |
+| second attempt | varying `__getitem__` returns tampered value | refuses | refuses | **no** |
+| delivered | caller-owned nested container traversed once | **1** | **4** → fails | **yes** |
+
+The first two attempts passed against the code they were supposed to indict. Both
+read `archives[route]` exactly once — the bug was never about that outer read — and
+in the second case the archive's HMAC attestation refused the tampered value before
+any divergence could occur. Keeping either would have been exactly the decoration
+the reviewer objected to.
+
+The delivered test counts traversals of a *caller-owned nested* container, which is
+where verification-then-snapshot and snapshot-then-verify actually differ:
+
+```
+new implementation: caller object traversals = 1
+old implementation: caller object traversals = 4
+old implementation, pytest:  FAILED  assert 4 == 1
+```
+
+### What this test does and does not establish
+
+**Establishes:** verification no longer walks caller-owned mutable state after the
+executed content has been fixed. The value executed comes from a single traversal.
+
+**Does not establish:** that a value-divergence attack was previously possible. It
+was not — measured, not assumed. Serving a different slope on the second read is
+caught by the archive's HMAC with
+`ArchiveError: attestation does not verify; parameters were modified or were not
+produced by the trusted producer`. The fix removes repeated traversal as **defence
+in depth**; the attestation was, and remains, the actual gate. Claiming this change
+closed an exploitable hole would have been false, and is not claimed.
+
+This distinction is recorded because the honest version is weaker than the
+convenient one, and because a reader comparing traversal counts 4 → 1 could
+otherwise reasonably infer an exploit was fixed.

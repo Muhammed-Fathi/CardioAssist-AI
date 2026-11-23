@@ -106,12 +106,33 @@ PYTHONPATH=. python -m pytest \
 | V2 pack/comparator/gate removed | implied by tree equality |
 | no history rewrite | revert adds a commit |
 
-### 2.4 Measured result
+### 2.4 Measured result — executed on the final delivery version
 
-Recorded in §2.5 of the delivery PR body and in
-`RH04_V2_VERIFICATION_COMMANDS_2026_11_21.md`. The demonstration is executed
-against the final delivery head, after the workflow gate and the admission
-corrections are present.
+The delivery spans more than one commit, so "single revert" is only meaningful
+against a single squashed delivery commit. The method above was therefore executed
+as: squash the whole delivery into one commit on a scratch branch taken from
+`origin/main`, then revert that one commit.
+
+```
+$ git switch -c scratch/v2-10-squash origin/main
+$ git merge --squash delivery/rh04-v2-final && git commit
+$ git revert --no-edit <squashed>
+```
+
+| check | measured |
+|---|---|
+| reverted `HEAD^{tree}` | `3106bece1fe0e7c09ff0635d66cc883d1ecca33e` |
+| `origin/main^{tree}` | `3106bece1fe0e7c09ff0635d66cc883d1ecca33e` |
+| equality | **PASS — identical** |
+| `rh04_v2` test files after revert | **0** |
+| V1 suite executed | **457 passed in 35.12s** |
+
+The V1 checks were *executed* on the reverted tree, not inferred from absence.
+
+**An earlier attempt failed, and the failure is informative.** Reverting only the
+tip commit left the tree at `389d467…`, not `main`. That is the correct result for
+a six-commit delivery and shows why V2-10 must be demonstrated against a delivery
+that is a single revertible unit — a point the earlier proposal glossed over.
 
 ### 2.5 What rollback does not do
 
