@@ -1,0 +1,669 @@
+"""RH-04 V2 — candidate synthetic-only reference pack generator and validator.
+
+Status: **candidate**. This module is *not* imported by production code, does
+not touch the frozen V1 pack, and is not wired into any workflow, gate or
+scoring path. It exists to make a V2 reference *provable* before any maintainer
+decision is taken to adopt one.
+
+What a "V2 reference" is here
+-----------------------------
+The V1 pack records the output of the pipeline with SciPy L-BFGS-B running on
+whatever OpenBLAS kernel the host happened to dispatch. That reference is
+therefore host-dependent (see ``docs/rh04-issue132-acceptance-decision.md``).
+A V2 reference must instead be a function of a **declared algorithm**, so this
+module replays the *identical* production pipeline with exactly one numerical
+seam replaced:
+
+    ``ai.calibration.deterministic_logistic_fit``  ->  ``rh04_v2_reference_fit.decimal_logistic_fit``
+
+and selects the existing opt-in solver flag so the production code path routes
+through that seam. Everything else — cohort generation, the random forest, the
+preprocessor, SHAP/LIME, the facade, the response projection, the digest and the
+strict comparator — is the production code, unchanged.
+
+Consequences that must be stated plainly:
+
+* A V2 expected value is the **KKT optimum** of the declared objective, whereas
+  a V1 expected value is an **L-BFGS-B stopping artifact** (default
+  ``pgtol=1e-5``). They are different numbers by construction, and the
+  difference is a property of the algorithm, not of a host. The per-field
+  mapping is emitted by :func:`build_mapping`.
+* Adopting V2 therefore *re-certifies* every calibrated numeric field. That is
+  a maintainer decision (``V2-01``), not something this module may do.
+* V2 tolerance is **zero**: :func:`validate` uses strict type-and-value
+  equality with no approved-exception branch. There is no analogue of the V1
+  Cleveland exception.
+
+Portability scope
+-----------------
+The claim tested by the harness is: *on the tested hosts and dispatch classes,
+the V2 pack is reproduced bit-identically*. It is not a claim about untested
+platforms, other decimal implementations, or the behaviour of ``expit`` on
+untested libm builds.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import platform
+import sys
+from contextlib import contextmanager
+from copy import deepcopy
+from pathlib import Path
+from typing import Any, Final, Iterator, Mapping
+
+import numpy as np
+
+from ai.calibration import (
+    CALIBRATION_LOWER_BOUNDS,
+    CALIBRATION_UPPER_BOUNDS,
+    DETERMINISTIC_CALIBRATION_SOLVER,
+)
+from research.intake import rh04_v2_reference_fit as reference_fit
+
+V2_SCHEMA_VERSION: Final[str] = "cardioassist.rh04.offline_io/v2"
+V2_FIXTURE_PATH: Final[Path] = (
+    Path(__file__).with_name("fixtures") / "offline_io.v2.json"
+)
+# Filled in only after a reviewed generation run; an empty string means
+# "candidate, not yet pinned". Never invent this value.
+V2_SEMANTIC_SHA256: Final[str] = (
+    "UNPINNED_CANDIDATE_PACK_DO_NOT_USE_AS_A_GATE"
+)
+# Reference identity is versioned so historical evidence stays interpretable.
+V2_IDENTITY_VERSION: Final[str] = "rh04.v2.reference-identity/v2"
+# Observed *semantic* digests, per measured numerical class. Deliberately a
+# separate, non-gating registry: it answers "have I seen this reference before?"
+# and never "may this host pass?". A gate on a host-specific hash list is the
+# failed approach; see RH04_V2_P0_RECONSTRUCTION_2026_11_21.md.
+#   class-a: every measured kernel this host can dispatch except the three below
+#   class-b: Sandybridge / Prescott / Katmai
+V2_OBSERVED_SEMANTIC_DIGESTS: Final[dict[str, str]] = {
+    "042612c492ff5735cf4e3ab07e09f0f6eb93bd90b8a12e1c67be7bc40b2978b4": "class-a",
+    "72b180718b1177e79ef22ed906012e4d7c7d8642a4f944f3a7e7af0f50dd0c28": "class-b",
+}
+# The case inventory is part of the contract. Pinning it makes a *removed* case
+# fail closed even though a shorter pack is still internally consistent — the
+# failure mode that a pure digest cannot catch when the digest is unpinned.
+# 29 cases: 5 route cases plus refusal/edit probes. Pinning the exact list makes
+# a *removed* case fail closed even though a shorter pack is internally
+# consistent — the failure mode a digest alone cannot catch when unpinned.
+V2_EXPECTED_CASE_IDS: Final[tuple[str, ...]] = (
+    "da_a2_resting_v1",
+    "da_a1_basic_clinical_v1",
+    "da_a2_resting_labs_v1",
+    "da_a1_clinical_core_labs_v1",
+    "da_a2_hungary_locked_transportability_v1",
+    "wrong-panel",
+    "wrong-dataset",
+    "stale-hash",
+    "wrong-unit",
+    "bad-category",
+    "bad-generator",
+    "patient_wearable",
+    "uploaded_image_or_ocr",
+    "track_b",
+    "ca",
+    "Cath",
+    "LAD",
+    "required",
+    "optional",
+    "da_a1_clinical_core_labs_v1-wrong-dataset",
+    "da_a1_clinical_core_labs_v1-stale-hash",
+    "da_a2_hungary_locked_transportability_v1-wrong-dataset",
+    "da_a2_hungary_locked_transportability_v1-stale-hash",
+    "da_a2_resting_labs_v1-wrong-dataset",
+    "da_a2_resting_labs_v1-stale-hash",
+    "optional-null",
+    "optional-null-structural-reason",
+    "optional-null-no-reason",
+    "required-null",
+)
+V2_EXPECTED_CASE_COUNT: Final[int] = len(V2_EXPECTED_CASE_IDS)
+
+
+# --------------------------------------------------------------------------- #
+# Reference identity — five separated concerns, five distinct digests
+# --------------------------------------------------------------------------- #
+#
+# A single digest over the whole document conflates five concerns that have
+# genuinely different lifetimes. That conflation is a measured defect, not a
+# style preference: on the hosted Python 3.12 runner every one of the 29 expected
+# cases was bit-identical to this host (proven by an exact digest match after
+# changing *only* the metadata fields), yet the suite failed, because
+# ``platform.python_version()`` sat inside the digested document.
+#
+# So identity is split. Only V2_SEMANTIC_DIGEST is allowed to fail a test for a
+# numerical or contractual reason; the others are recorded and never gate.
+
+#: Content that defines the *semantic* reference. Changing any of these changes
+#: what the reference claims, so it must change the canonical digest.
+V2_SEMANTIC_SECTIONS: Final[tuple[str, ...]] = (
+    "schema_version",
+    "protocol",
+    "bindings",
+    "requests",
+    "cases",
+)
+
+#: Sections that carry provenance only. They are hashed separately and are
+#: *never* a failure cause, because they legitimately differ between hosts,
+#: interpreters and points in time.
+V2_PROVENANCE_SECTIONS: Final[tuple[str, ...]] = ("generation",)
+
+
+def canonical_json_bytes(document: Mapping[str, Any]) -> bytes:
+    """Canonical encoding used for every V2 digest (stable across hosts)."""
+    return json.dumps(
+        document,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _digest_subset(pack: Mapping[str, Any], sections: tuple[str, ...]) -> str:
+    subset = {name: pack[name] for name in sections if name in pack}
+    return hashlib.sha256(canonical_json_bytes(subset)).hexdigest()
+
+
+def canonical_document_digest(pack: Mapping[str, Any]) -> str:
+    """Digest of the **canonical re-encoding**, not of the file on disk.
+
+    This is what ``pack_digest`` used to be called. The name was wrong: this
+    value ignores whitespace, key order and trailing newlines, so it cannot
+    detect a byte-level change to a file. Use ``raw_file_sha256`` for that.
+    """
+    return hashlib.sha256(canonical_json_bytes(pack)).hexdigest()
+
+
+def raw_file_sha256(path: Path) -> str:
+    """True byte-level SHA-256 of a file exactly as stored.
+
+    Separate from every content digest on purpose: this answers "were these the
+    bytes on disk?", which is a different question from "is this the same
+    reference?". A trailing newline changes this and nothing else.
+    """
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+#: Backwards-compatible alias. Still the canonical-document digest, NOT the raw
+#: file bytes — the misleading name is kept only so older evidence parses.
+pack_digest = canonical_document_digest
+
+
+def semantic_digest(pack: Mapping[str, Any]) -> str:
+    """Canonical semantic reference: protocol, bindings, requests, cases.
+
+    This is the **only** digest permitted to fail a test. It is invariant across
+    interpreters, operating systems, BLAS kernels and generation timestamps, and
+    it changes the moment any contractual or numerical content changes.
+    """
+    return _digest_subset(pack, V2_SEMANTIC_SECTIONS)
+
+
+def provenance_digest(pack: Mapping[str, Any]) -> str:
+    """Bound generation provenance. Recorded for audit, never gated on."""
+    return _digest_subset(pack, V2_PROVENANCE_SECTIONS)
+
+
+def environment_metadata(pack: Mapping[str, Any]) -> dict[str, Any]:
+    """The environment fields that must never influence identity.
+
+    Returned as plain data so tests can assert, structurally, that none of them
+    reaches ``semantic_digest``.
+    """
+    generation = pack.get("generation", {})
+    if not isinstance(generation, Mapping):
+        return {}
+    return {
+        key: generation[key]
+        for key in ("python_version", "python_implementation")
+        if key in generation
+    }
+
+
+def describe_identity(pack: Mapping[str, Any]) -> dict[str, Any]:
+    """All five tiers at once, for reports and negative tests."""
+    return {
+        "semantic_digest": semantic_digest(pack),
+        "provenance_digest": provenance_digest(pack),
+        "artifact_digest": pack_digest(pack),
+        "environment": environment_metadata(pack),
+        "identity_version": V2_IDENTITY_VERSION,
+    }
+
+
+@contextmanager
+def decimal_reference_seam() -> Iterator[dict[str, Any]]:
+    """Route the production calibrator through the decimal reference solver.
+
+    The seam is exactly one function: ``ai.calibration.deterministic_logistic_fit``.
+    The production class, its validation, its serialisation and its
+    ``solver`` provenance string are all untouched; the restored function is
+    the original object, so nothing leaks into an importing process.
+    """
+    from ai import calibration as module
+
+    original = module.deterministic_logistic_fit
+    recorded: dict[str, Any] = {"fits": 0, "parameter_sha256": None, "converged": True}
+
+    def seam(y: np.ndarray, logits: np.ndarray, **kwargs: Any) -> tuple[float, float]:
+        # The seam is a boundary between binary64 production code and the
+        # declared decimal algorithm. The declared constants are DECIMAL
+        # LITERALS (``Decimal("1e-3")``), never ``as_decimal(1e-3)``: the latter
+        # converts the binary64 approximation of 1e-3 and would silently make the
+        # reference depend on a float literal rather than on the declaration.
+        recorded["fits"] += 1
+        declared = {
+            "l2_anchor": 1e-3,
+            "lower": CALIBRATION_LOWER_BOUNDS,
+            "upper": CALIBRATION_UPPER_BOUNDS,
+        }
+        for name, expected in declared.items():
+            if name not in kwargs:
+                continue
+            supplied = kwargs[name]
+            if name == "l2_anchor":
+                if supplied != expected:
+                    raise ValueError(f"V2 seam refuses a non-declared {name}")
+            elif tuple(supplied) != tuple(expected):
+                raise ValueError(f"V2 seam refuses a non-declared {name}")
+        return reference_fit.decimal_logistic_fit(
+            y,
+            logits,
+            l2_anchor=reference_fit.V2_FIT_L2_ANCHOR,
+            lower=reference_fit.V2_FIT_LOWER,
+            upper=reference_fit.V2_FIT_UPPER,
+            max_iterations=reference_fit.V2_FIT_MAX_ITERATIONS,
+        )
+
+    module.deterministic_logistic_fit = seam
+    try:
+        yield recorded
+    finally:
+        module.deterministic_logistic_fit = original
+
+
+@contextmanager
+def _deterministic_solver_default() -> Iterator[None]:
+    """Make the production calibrator default to the (seamed) deterministic solver.
+
+    Implemented as a class-method swap on the *same* class object, so every
+    alias (``ai.training`` re-imports the class, it does not copy it) observes
+    the change. Restored on exit.
+    """
+    from ai.calibration import OofLogisticCalibrator
+
+    original = OofLogisticCalibrator.__dict__["fit_from_oof"]
+
+    def fit_with_declared_solver(cls, *args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("solver", DETERMINISTIC_CALIBRATION_SOLVER)
+        return original.__get__(cls, OofLogisticCalibrator)(*args, **kwargs)
+
+    OofLogisticCalibrator.fit_from_oof = classmethod(fit_with_declared_solver)
+    try:
+        yield
+    finally:
+        OofLogisticCalibrator.fit_from_oof = original
+
+
+def _v1_pack() -> dict[str, Any]:
+    from research.intake import offline_fixture_pack as v1
+
+    return json.loads(v1.PACK.read_text())
+
+
+def generate_candidate_pack() -> dict[str, Any]:
+    """Regenerate the full 29-case reference under the declared V2 algorithm.
+
+    Reuses the V1 *request* definitions and edit scripts verbatim: V2 changes
+    the reference arithmetic, never the synthetic inputs, the routes, the edits
+    or the case inventory.
+    """
+    from ai.filesystem_security import ensure_private_directory
+    from tempfile import TemporaryDirectory
+
+    from research.intake import offline_fixture_pack as v1
+
+    source = _v1_pack()
+    cases: list[dict[str, Any]] = []
+    with TemporaryDirectory() as tmp:
+        with decimal_reference_seam() as recorded, _deterministic_solver_default():
+            local = v1.sources(ensure_private_directory(Path(tmp)))
+            for case in source["cases"]:
+                request = v1.materialize(
+                    source["requests"][case["route"]], case["edits"]
+                )
+                actual = v1.example(
+                    request, local.get(case["route"], local["blocked"])
+                )
+                cases.append(
+                    {
+                        "id": case["id"],
+                        "route": case["route"],
+                        "edits": deepcopy(case["edits"]),
+                        "expected": actual,
+                    }
+                )
+            fits = recorded["fits"]
+
+    pack = {
+        "schema_version": V2_SCHEMA_VERSION,
+        "protocol": reference_fit.declared_protocol(),
+        "bindings": source["bindings"],
+        "requests": source["requests"],
+        "cases": cases,
+        "generation": {
+            "python_version": platform.python_version(),
+            "python_implementation": platform.python_implementation(),
+            "fit_invocations": fits,
+            "seam": "ai.calibration.deterministic_logistic_fit",
+            "solver_selector": DETERMINISTIC_CALIBRATION_SOLVER,
+            "generator": "research.intake.rh04_v2_candidate",
+            "note": (
+                "No host identity is recorded on purpose: the reference must be "
+                "a function of the declared algorithm, not of the machine that "
+                "first produced it."
+            ),
+        },
+    }
+    return pack
+
+
+#: Top-level keys a V2 pack may contain. Anything else is rejected rather than
+#: ignored, so a stray or misspelled section cannot ride along unnoticed.
+V2_ALLOWED_TOP_LEVEL: Final[frozenset[str]] = frozenset(
+    {
+        "schema_version",
+        "protocol",
+        "bindings",
+        "requests",
+        "cases",
+        "generation",
+    }
+)
+
+#: Keys a case may contain.
+V2_ALLOWED_CASE_KEYS: Final[frozenset[str]] = frozenset(
+    {"id", "route", "edits", "expected"}
+)
+
+
+def _reject_unknown_keys(pack: Mapping[str, Any]) -> None:
+    """Fail closed on unknown top-level or per-case fields."""
+    unknown = set(pack) - V2_ALLOWED_TOP_LEVEL
+    if unknown:
+        raise ValueError(f"unknown pack field(s): {sorted(unknown)}")
+    for case in pack["cases"]:
+        extra = set(case) - V2_ALLOWED_CASE_KEYS
+        if extra:
+            raise ValueError(f"unknown case field(s) in {case.get('id')}: {sorted(extra)}")
+
+
+def _validate_routes_and_edits(pack: Mapping[str, Any]) -> None:
+    """Bind each case's route and edit script to the frozen V1 definitions.
+
+    V1 is the authority: the V2 reference may never invent a route or an edit
+    script. This is checked structurally, so it holds even with an unpinned digest.
+    """
+    from research.intake import offline_fixture_pack as v1
+
+    source = _v1_pack()
+    known_routes = set(source["requests"]) | {"blocked"}
+    v1_cases = {case["id"]: case for case in source["cases"]}
+    for case in pack["cases"]:
+        route = case.get("route")
+        if route not in known_routes:
+            raise ValueError(f"unknown route {route!r} in case {case.get('id')}")
+        original = v1_cases.get(case.get("id"))
+        if original is None:
+            raise ValueError(f"case {case.get('id')} is not a V1 case")
+        if case.get("edits") != original.get("edits"):
+            raise ValueError(f"edit script drift in case {case.get('id')}")
+        if case.get("route") != original.get("route"):
+            raise ValueError(f"route drift in case {case.get('id')}")
+
+
+def validate(
+    pack: Mapping[str, Any],
+    *,
+    expected_digest: str | None = None,
+    replay: bool = True,
+) -> int:
+    """Strict V2 validation. No tolerances and no approved-exception branch.
+
+    ``replay=False`` performs the structural checks only (schema, declared
+    protocol, case inventory, bindings, integrity). ``replay=True`` additionally
+    rebuilds every synthetic artifact and compares each case with exact
+    type-and-value equality. Exact replay costs ~90 s, so the structural half is
+    separated for use in fast negative tests; the full replay is exercised by
+    the cold-process end-to-end test and by ``--check``.
+
+    Returns the number of cases verified. Raises ``ValueError`` on any
+    deviation — including a mismatch in a single binary64 bit.
+    """
+    from research.intake import offline_fixture_pack as v1
+
+    if pack.get("schema_version") != V2_SCHEMA_VERSION:
+        raise ValueError("unexpected v2 schema version")
+    if pack.get("protocol") != reference_fit.declared_protocol():
+        raise ValueError("declared protocol drift")
+    cases = pack.get("cases")
+    if not isinstance(cases, list) or len(cases) != V2_EXPECTED_CASE_COUNT:
+        raise ValueError(
+            f"v2 case inventory changed: expected {V2_EXPECTED_CASE_COUNT} cases"
+        )
+    if tuple(case.get("id") for case in cases) != V2_EXPECTED_CASE_IDS:
+        raise ValueError("v2 case inventory changed: ids or order differ")
+    if pack.get("bindings") != v1.bindings():
+        raise ValueError("stale binding")
+    if pack.get("requests") != v1.inputs():
+        raise ValueError("non-fixture request")
+    # Route and edit inventory are validated against the *frozen V1 definitions*,
+    # independently of any digest sentinel. A pack whose route names or edit
+    # scripts drifted would otherwise pass whenever the digest is unpinned.
+    _validate_routes_and_edits(pack)
+    _reject_unknown_keys(pack)
+    # Identity is checked at the *semantic* tier. The artifact digest is a
+    # different question (was this file corrupted in transit?) and is available
+    # as ``pack_digest``; gating on it would make the reference depend on the
+    # interpreter that happened to generate the file, which is exactly the defect
+    # measured on hosted Python 3.12.
+    digest = semantic_digest(pack)
+    if expected_digest is not None and digest != expected_digest:
+        raise ValueError("reference identity mismatch: semantic content changed")
+    if not V2_SEMANTIC_SHA256.startswith("UNPINNED") and digest != V2_SEMANTIC_SHA256:
+        raise ValueError("reference identity mismatch: semantic content changed")
+
+    from tempfile import TemporaryDirectory
+
+    from ai.filesystem_security import ensure_private_directory
+
+    if not replay:
+        return len(cases)
+    with TemporaryDirectory() as tmp:
+        with decimal_reference_seam(), _deterministic_solver_default():
+            local = v1.sources(ensure_private_directory(Path(tmp)))
+            for case in cases:
+                request = v1.materialize(
+                    pack["requests"][case["route"]], case["edits"]
+                )
+                actual = v1.example(
+                    request, local.get(case["route"], local["blocked"])
+                )
+                if not v1._strict_equal(case["expected"], actual):
+                    from research.intake.diagnose_fixture_replay import _describe
+
+                    raise ValueError(
+                        "response mismatch: "
+                        + case["id"]
+                        + "; redacted_field_diff="
+                        + json.dumps(_describe(case["expected"], actual), sort_keys=True)
+                    )
+    return len(cases)
+
+
+def build_mapping(v1_pack: Mapping[str, Any], v2_pack: Mapping[str, Any]) -> dict[str, Any]:
+    """Field-by-field V1 -> V2 numeric mapping (V2-03 evidence).
+
+    Records, for every case, which paths differ and by how much. Values are
+    included because this document is a *review artifact*, not a gate; it is
+    generated locally and never printed by CI.
+    """
+    entries: list[dict[str, Any]] = []
+    by_id = {case["id"]: case for case in v2_pack["cases"]}
+    for case in v1_pack["cases"]:
+        other = by_id[case["id"]]
+        changes: list[dict[str, Any]] = []
+
+        def walk(left: Any, right: Any, path: str) -> None:
+            if type(left) is not type(right):
+                changes.append({"path": path, "kind": "type"})
+                return
+            if isinstance(left, dict):
+                for key in sorted(set(left) | set(right)):
+                    if key not in left or key not in right:
+                        changes.append({"path": f"{path}.{key}", "kind": "present"})
+                        continue
+                    walk(left[key], right[key], f"{path}.{key}")
+                return
+            if isinstance(left, list):
+                for index in range(min(len(left), len(right))):
+                    walk(left[index], right[index], f"{path}[{index}]")
+                if len(left) != len(right):
+                    changes.append({"path": path, "kind": "length"})
+                return
+            if left != right:
+                entry: dict[str, Any] = {"path": path, "kind": "value"}
+                if isinstance(left, float) and isinstance(right, float):
+                    entry["v1"] = repr(left)
+                    entry["v2"] = repr(right)
+                    entry["delta"] = right - left
+                    spacing = abs(np.spacing(left)) or abs(np.spacing(right))
+                    entry["delta_ulps"] = (right - left) / spacing if spacing else None
+                changes.append(entry)
+
+        walk(case["expected"], other["expected"], case["id"])
+        entries.append({"id": case["id"], "changes": changes})
+    return {
+        "schema_version": "cardioassist.rh04.v1_to_v2_mapping/v1",
+        "v1_pack_sha256": _v1_digest(),
+        "v2_identity": describe_identity(v2_pack),
+        "total_changed_paths": sum(len(entry["changes"]) for entry in entries),
+        "cases": entries,
+    }
+
+
+def _v1_digest() -> str:
+    from research.intake import offline_fixture_pack as v1
+
+    return v1.PACK_SHA256
+
+
+def actual_solver_identity() -> dict[str, Any]:
+    """The solver actually installed on ``ai.calibration`` right now.
+
+    The old record stored only ``DETERMINISTIC_CALIBRATION_SOLVER``, which is the
+    *selector string the monkeypatch requests*, not the function that will run.
+    Those differ whenever the seam is active, so recording the selector alone can
+    misreport provenance.
+    """
+    from ai.calibration import DETERMINISTIC_CALIBRATION_SOLVER
+    import ai.calibration as calibration
+
+    live = calibration.deterministic_logistic_fit
+    return {
+        # The seam replaces the function object, so identity is the honest test.
+        "seam_active": getattr(live, "__name__", "") == "seam",
+        "live_callable": f"{getattr(live, '__module__', '?')}."
+        f"{getattr(live, '__qualname__', getattr(live, '__name__', '?'))}",
+        "selector_string": DETERMINISTIC_CALIBRATION_SOLVER,
+        "declared_protocol_id": getattr(
+            reference_fit, "V2_FIT_PROTOCOL_ID", "(absent)"
+        ),
+    }
+
+
+def resident_numerical_kernels() -> dict[str, Any]:
+    """The kernels actually loaded, as reported by threadpoolctl.
+
+    ``OPENBLAS_CORETYPE`` is a *request*. It can be ignored, unsupported, or
+    silently clamped, so it must never be recorded as if it were the kernel.
+    """
+    record: dict[str, Any] = {"requested_coretype": None, "libraries": []}
+    import os
+
+    record["requested_coretype"] = os.environ.get("OPENBLAS_CORETYPE", "(unset)")
+    try:
+        from threadpoolctl import threadpool_info
+    except Exception:  # pragma: no cover - threadpoolctl is pinned present
+        record["error"] = "threadpoolctl unavailable"
+        return record
+    for item in threadpool_info() or []:
+        record["libraries"].append(
+            {
+                "internal_api": item.get("internal_api"),
+                "architecture": item.get("architecture"),
+                "version": item.get("version"),
+                "threading_layer": item.get("threading_layer"),
+                "num_threads": item.get("num_threads"),
+            }
+        )
+    return record
+
+
+def environment_record() -> dict[str, Any]:
+    """Host record emitted for *evidence*, never folded into the reference."""
+    import numpy
+    import scipy
+    import sklearn
+
+    return {
+        "python_version": platform.python_version(),
+        "implementation": platform.python_implementation(),
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "numpy": numpy.__version__,
+        "scipy": scipy.__version__,
+        "scikit_learn": sklearn.__version__,
+        "resident_kernels": resident_numerical_kernels(),
+        "solver": actual_solver_identity(),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    """``--check`` validates a committed candidate; ``--write`` regenerates it."""
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args[:1] == ["--check"]:
+        pack = json.loads(V2_FIXTURE_PATH.read_text())
+        count = validate(pack)
+        print(
+            json.dumps(
+                {
+                    "status": "EXACT_REPLAY",
+                    "cases": count,
+                    "identity": describe_identity(pack),
+                    "environment": environment_record(),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    if args[:1] == ["--write"]:
+        pack = generate_candidate_pack()
+        V2_FIXTURE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        V2_FIXTURE_PATH.write_text(
+            json.dumps(pack, indent=2, sort_keys=True, allow_nan=False) + "\n"
+        )
+        print(json.dumps(describe_identity(pack), indent=2, sort_keys=True))
+        return 0
+    print("usage: python -m research.intake.rh04_v2_candidate --check|--write")
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
