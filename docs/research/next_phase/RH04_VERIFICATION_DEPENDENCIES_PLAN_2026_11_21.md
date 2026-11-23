@@ -73,9 +73,9 @@ wider suite with `--ignore=` on those two files; that exclusion is withdrawn.
 
 | tier | command | measured |
 |---|---|---|
-| focused RH-04 V2 | `pytest tests/experiments/test_rh04_v2_reference.py` | **273 passed** |
-| wider experiments | `pytest tests/experiments` | **1380 passed, 2 skipped** |
-| contracts | `pytest tests/contracts` | **306 passed** |
+| focused RH-04 V2 | `pytest tests/experiments/test_rh04_v2_reference.py` | **276 passed** (delivery tree) |
+| experiments + contracts | `pytest tests/experiments tests/contracts` | **1691 passed, 2 skipped** (delivery tree) |
+| contracts alone | `pytest tests/contracts` | **306 passed** |
 | backend | `pytest tests/backend` | **not run — out of scope** |
 
 The 2 skips are native-Windows-only tests on a Linux host, each with a stated
@@ -116,5 +116,5 @@ python -m pip check
 PYTHONPATH=. python -m pytest tests/experiments tests/contracts -q
 ```
 
-Expected: `pip check` clean, `273 passed`, then `1688 passed, 2 skipped`
-(measured: 1415.95 s).
+Expected on the delivery tree: `pip check` clean, `276 passed`, then
+`1691 passed, 2 skipped`.

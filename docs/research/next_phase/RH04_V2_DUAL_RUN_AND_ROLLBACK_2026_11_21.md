@@ -1,136 +1,150 @@
-# Dual-run workflow and single-revert rollback — proposals
+# Dual-run workflow and rollback — proposals
 
-**Document ID:** CAI-RH04-DUALROLLBACK-v1
-**Status:** PROPOSAL. Nothing implemented. Two V2-09/§7 planning deliverables.
-
----
-
-## Part 1 — Dual-run workflow (V2-05)
-
-### 1.1 What V2-05 asks for
-
-An acceptance decision that rests on two independent runs, not one, so that a
-single green run cannot be mistaken for reproducibility.
-
-### 1.2 Existing repository policy this reuses
-
-No new policy is introduced. The workflow composes mechanisms that already exist:
-
-| mechanism | existing location | role here |
-|---|---|---|
-| compiled-in trust anchor | `TRUSTED_MANIFEST_SHA256` | both runs must hit the same anchor |
-| fixed reference digest | `LANE_B_REFERENCE_DIGEST` | both runs must equal it |
-| raw-byte pre-parse gate | `admit_from_directory` | both runs verify file identity |
-| CLI non-zero exit | `main()` | machine-checkable pass/fail per run |
-| sanitised JSON evidence | CLI stdout | comparable without leaking content |
-
-### 1.3 Proposed workflow
-
-**Run 1 — resident default environment.** No dispatch override.
-
-**Run 2 — a *different* resident dispatch class**, recorded as measured, not as
-requested.
-
-```
-R1 = python -m research.intake.rh04_v2_portable_archive <dir>
-R2 = OPENBLAS_CORETYPE=<class> python -m ... <dir>
-```
-
-**Acceptance rule (all four must hold):**
-
-1. `R1.exit == 0` and `R2.exit == 0`
-2. `R1.digest == R2.digest == LANE_B_REFERENCE_DIGEST`
-3. `R1.matches_reference is True` and `R2.matches_reference is True`
-4. `R1.statuses == R2.statuses` (exact, not per-key)
-
-**Failure rule.** Any of 1–4 failing is a **finding to investigate**, never a
-threshold to relax. There is no agreement tolerance anywhere in this workflow, and
-`R1.digest != R2.digest` is not permitted to pass as "close enough".
-
-### 1.4 Why this is stronger than a single run
-
-The two runs differ in exactly one variable that has historically produced
-different results on the registered training path: BLAS dispatch. Lane B is
-claimed to be invariant to it. If that claim is false, dual-run is the cheapest
-place to find out.
-
-### 1.5 What dual-run does not establish
-
-It is not a substitute for a different OS, a different Python minor version, or
-non-x86 hardware. Those are separate gaps, named in the evidence register.
+**Document ID:** CAI-RH04-DUALROLLBACK-v2 (supersedes v1)
+**Status:** PROPOSAL for V2-05, DEMONSTRATION for V2-10.
 
 ---
 
-## Part 2 — Single-revert rollback plan
+## Part 1 — V2-05 dual-run window
 
-### 2.1 The design constraint
+### 1.1 A correction to v1
 
-Rollback must be **executable by one person who did not write the code**, using one
-command, and must leave `main` in a state that still passes the tests `main`
-already had.
+v1 of this document proposed "two Lane B runs on different BLAS kernels" as the
+dual-run window. **That does not satisfy V2-05.** V2-05 requires *both V1 and V2 to
+run in CI* during the transition, until the owner retires V1. Two runs of the same
+lane under different kernels are a portability check, not a dual-run window.
 
-Because the V2 work is additive relative to `main` (§3.1 of the SHAP remediation
-document: main contains **no** `rh04_v2_*` module and **no** `rh04_v2_portable/`
-fixture directory), the rollback is a plain revert with no dependency untangling.
+### 1.2 What V2-05 actually requires
 
-### 2.2 Recommended rollback: revert the delivery commit
+> `V2-05` **Dual-run window.** Both V1 (scoped, §6) and V2 gates run in CI until
+> the owner retires V1. No silent substitution.
+
+Three properties follow directly from that text:
+
+1. **Both gates execute.** A run in which V2 passes because V1 was skipped is not a
+   dual-run window.
+2. **V1 failures stay visible.** If V1 fails, the window fails. There is no
+   "V2 is the new gate, so V1 is advisory" reading.
+3. **Retirement is an owner act.** The window ends when the owner says so, not when
+   V2 is green.
+
+### 1.3 Proposed workflow content
+
+A single job with four visible stages, in this order:
+
+| # | stage | gate character | failure behaviour |
+|---|---|---|---|
+| 1 | **V1 scoped verification** | mandatory | fails the job |
+| 2 | **Lane A diagnostic evidence** | **non-voting** | recorded, never fails the job |
+| 3 | **Lane B fixed-reference exact verification** | mandatory | fails the job |
+| 4 | **Security and regression checks** | mandatory | fails the job |
+
+**Stage 2 is deliberately non-voting and this must be stated in the workflow.**
+Lane A is the scientific regeneration path; its per-class numeric differences are
+*findings about the environment*, not gate failures. Marking it mandatory would
+either force a tolerance (forbidden) or make the gate permanently red. Marking it
+silent would hide it. Non-voting-with-published-output is the only honest option,
+and it must be visible in the workflow definition rather than implied.
+
+### 1.4 Exact-head provenance
+
+The workflow records, in its own output:
+
+- the exact head SHA it ran against;
+- the **resident** NumPy/SciPy dispatch, read from `threadpoolctl` — not the
+  requested `OPENBLAS_CORETYPE`, which is a request that can be ignored;
+- every exit code, and pass/fail/error/skip counts per stage.
+
+### 1.5 What this proposal does not do
+
+- It does **not** modify any protected workflow. That needs separate authorization.
+- It does **not** retire V1.
+- It introduces **no** tolerance, retry or rerun-to-green behaviour; V2-08 forbids
+  new tolerance surface and V1 failures remain visible.
+
+---
+
+## Part 2 — V2-10 rollback: executed demonstration
+
+### 2.1 Requirement
+
+> `V2-10` **Rollback plan:** V2 revert must be a single revert of the pack +
+> comparator + gate, leaving V1 intact and green.
+
+### 2.2 A correction to v1
+
+v1's plan grepped commit messages for a delivery commit and asserted
+`test ! -e <path>`. Neither is evidence:
+
+- a message search is not a stable identifier, and
+- *observing that a file disappeared* says nothing about whether the revert left
+  the repository in a working state.
+
+The demonstration below uses the **exact delivery commit SHA**, executes the
+revert, and then **runs the V1 checks**.
+
+### 2.3 Demonstration (executed on a scratch branch)
+
+Because this delivery is additive relative to `main`, reverting its single commit
+must restore `main` exactly. The demonstration asserts that byte-for-byte rather
+than asserting the absence of one file.
 
 ```bash
-# 1. Identify the delivery commit on main.
-DELIVERY=$(git log --format=%H --grep="rh04(v2): portable Lane B acceptance" -n 1 main)
-test -n "$DELIVERY" || { echo "delivery commit not found"; exit 1; }
+# 0. From the delivery commit.
+DELIVERY=$(git rev-parse HEAD)
+BASE=$(git rev-parse origin/main)
 
-# 2. Revert it as a single commit.
-git switch -c rollback/rh04-v2 main
+# 1. Scratch branch at the delivery commit, then revert it.
+git switch -c scratch/v2-10-rollback "$DELIVERY"
 git revert --no-edit "$DELIVERY"
 
-# 3. Prove main's prior state is restored.
-git diff --stat main HEAD          # MUST show only the reverted paths
-PYTHONPATH=. python -m pytest tests/experiments/test_rh04_v2_reference.py -q \
-  && echo "FAIL: V2 tests still present after revert"
+# 2. The tree must now be IDENTICAL to main — not merely missing a file.
+test "$(git rev-parse HEAD^{tree})" = "$(git rev-parse "$BASE^{tree}")"
+
+# 3. V1 must be intact and green on the reverted tree.
+PYTHONPATH=. python -m pytest tests/experiments/test_offline_fixture_pack.py \
+                             tests/contracts -q
 ```
 
-### 2.3 Acceptance criteria for a successful rollback
+### 2.4 Measured result
+
+Executed on `scratch/v2-10-rollback`, then the scratch branch was deleted.
+
+```
+delivery commit : 6349738d7b45322164a5ba4e18203d51e1e3e073
+main            : c6a6bdee46a552a2b0d705a723c862ff8a95be4d
+revert          : single `git revert --no-edit`, 41 files deleted
+
+reverted tree   : 3106bece1fe0e7c09ff0635d66cc883d1ecca33e
+main tree       : 3106bece1fe0e7c09ff0635d66cc883d1ecca33e
+tree identical  : PASS
+
+V1 checks on the reverted tree:
+  pytest test_offline_fixture_pack.py test_research_facade.py tests/contracts
+  -> 457 passed in 34.65s, exit 0
+```
+
+The tree equality is the substantive result: the revert does not merely remove V2
+files, it restores `main` exactly. V1 was then executed rather than assumed green.
+
+### 2.5 Acceptance criteria
 
 | criterion | check |
 |---|---|
-| no V2 module remains | `test ! -e research/intake/rh04_v2_portable_archive.py` |
-| no V2 fixture remains | `test ! -d research/intake/fixtures/rh04_v2_portable` |
-| main's own tests still pass | focused run on a non-V2 file |
-| V1 untouched | V1 pack/comparator digests unchanged |
-| no production file changed | the 12 protected files still byte-identical |
+| one command | a single `git revert --no-edit` |
+| tree restored to main exactly | `HEAD^{tree} == main^{tree}` |
+| no V2 module remains | implied by the tree equality, not asserted separately |
+| V1 intact and green | V1 fixture + contract suites pass on the reverted tree |
+| no history rewrite | revert adds a commit; it deletes nothing |
 
-### 2.4 Why not a force-push rollback
+### 2.6 Why not force-push
 
-Force-pushing `main` back to `c6a6bde` would rewrite published history, break
-every clone and open PR, and destroy the evidence that a defect existed. A revert
-commit preserves the record and is reversible itself. Standing instruction forbids
-history rewrite without explicit authorization, and it is not needed here.
+Force-pushing `main` back to the pre-delivery commit would rewrite published
+history, invalidate every clone and open PR, and destroy the record that the
+delivery existed. A revert is reversible itself. Standing instruction forbids
+history rewrite without authorization, and it is not needed.
 
-### 2.5 Partial rollback (Lane B only)
+### 2.7 What rollback does not do
 
-If only the portable lane must be withdrawn while Lane A stays:
-
-```bash
-git revert --no-edit <lane-b-commit>   # the commit adding rh04_v2_portable_archive.py
-```
-
-This is safe **because Lane B has no inbound dependents outside the V2 work
-itself**. Measured by inspecting imports at the delivery SHA:
-
-```
-importers of rh04_v2_portable_archive:
-  research/intake/rh04_v2_portable_inference.py   (branch-only V2 code)
-  tests/experiments/test_rh04_v2_reference.py     (branch-only V2 tests)
-
-references under ai/ or backend/:  none
-```
-
-Both importers are themselves part of the V2 delivery, so a partial rollback must
-revert them together. Nothing in the production package depends on Lane B.
-
-### 2.6 What rollback does not do
-
-It does not close Issue #132, does not retract the review findings, and does not
-alter the acceptance ledger. It returns `main` to its pre-delivery state and
-leaves the analysis intact in the PR record.
+It does not close Issue #132, retract findings, or alter the acceptance ledger. It
+restores `main` to its pre-delivery state and leaves the analysis in the PR record.

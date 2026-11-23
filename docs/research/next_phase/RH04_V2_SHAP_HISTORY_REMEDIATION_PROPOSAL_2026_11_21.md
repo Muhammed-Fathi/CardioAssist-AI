@@ -43,104 +43,66 @@ branch prevents the affected ancestry from entering main. It does **not** erase
 existing copies, forks, caches or GitHub's PR object history, and this proposal
 makes no such claim.
 
-## 3. Recommended approach — Option A: clean replacement line
+## 3. Approach taken — clean delivery line from current main
 
-**Chosen because it never rewrites, never force-pushes and never deletes.**
+### 3.1 Why the earlier `commit-tree` plan was wrong
 
-The observation that makes this cheap: the V2 work is 100% additive relative to
-`main`. `main` has no `rh04_v2_*` module and no `rh04_v2_portable/` fixture
-directory. There is therefore nothing to *merge* with main — the replacement line
-can simply be main plus the final tree.
+The v2 plan proposed `git commit-tree "$FINAL_TREE" -p origin/main`, which would
+have made the delivery tree **equal to the old candidate tree**. That tree predates
+current main and is missing `docs/GRADUATION_DELIVERY_ROADMAP.md`; its `README.md`
+also differs. Adopting it wholesale would have **deleted the permanent roadmap**
+and reverted the README link.
 
-### 3.1 Exact proposed Git operations
+The independent reviewer caught this. **The plan was not executed as written.**
+
+### 3.2 What was done instead
+
+Start from current main and add only the reviewed changes:
 
 ```bash
-# 0. Preconditions (verify, do not assume)
-cd /home/user/CardioAssist-AI
-git fetch origin
-test "$(git rev-parse origin/main)" = "c6a6bdee46a552a2b0d705a723c862ff8a95be4d" \
-  || { echo "main moved; re-review this plan"; exit 1; }
-# The affected blob must exist ONLY on the review branch.
-git grep -l shap_background_document origin/main -- research/intake/fixtures/ \
-  && { echo "main contaminated; this plan is insufficient"; exit 1; } || true
-
-# 1. Capture the FINAL tree of the review branch as a tree object.
-#    This is the verified corrected tree: no blob, lineage corrected, anchor pinned.
-FINAL_TREE=$(git rev-parse HEAD^{tree})
-
-# 2. Create the replacement commit whose parent is main and whose tree is FINAL.
-#    No history from the review branch is inherited.
-REPLACEMENT=$(git commit-tree "$FINAL_TREE" \
-  -p origin/main \
-  -m "rh04(v2): portable Lane B acceptance, corrected producer lineage, unified verification
-
-Replacement delivery line. Parent is main; the tree is the complete verified
-RH-04 V2 state. This line deliberately does not inherit the review branch's
-history, which carried a publication-prohibited SHAP training projection at
-b67ed4e.
-
-Tree identical to the reviewed candidate tree: $(git rev-parse HEAD^{tree})
-")
-echo "$REPLACEMENT"
-
-# 3. Point a NEW branch at it. The review branch is neither moved nor deleted.
-git branch review/rh04-v2-final-candidate "$REPLACEMENT"
-
-# 4. Verify before any push: identical tree, no inherited ancestry.
-git diff --stat "$REPLACEMENT" HEAD          # MUST be empty
-git merge-base --is-ancestor b67ed4e "$REPLACEMENT" && echo "FAIL: ancestry leaked"
-git log --oneline -2 "$REPLACEMENT"
-
-# 5. Push the new branch (not the review branch).
-git push origin review/rh04-v2-final-candidate
+git checkout -B delivery/rh04-v2-final origin/main   # c6a6bde
+# apply the 41 reviewed paths (40 additions, 1 modification) from the review tree
+# leave README.md and docs/GRADUATION_DELIVERY_ROADMAP.md untouched
 ```
 
-### 3.2 Expected verification results
+The reviewed work is **additive relative to main**: measured as 40 `A` and 1 `M`
+against the branch's own base, and six of the reviewed files are byte-identical to
+files main already had (they arrived via the merged PR #135), so they needed no
+migration at all.
 
-| check | expected |
+### 3.3 Verified results
+
+| check | result |
 |---|---|
-| `git diff --stat $REPLACEMENT HEAD` | empty output |
-| `git rev-parse $REPLACEMENT^{tree}` | equals `HEAD^{tree}` |
-| `git merge-base --is-ancestor b67ed4e $REPLACEMENT` | exits **1** (not an ancestor) |
-| `git rev-list --count $REPLACEMENT` | `git rev-list --count origin/main` + 1 (in a full clone) |
-| `git grep shap_background_document $REPLACEMENT` | no match |
-| fixture SHA-256s | unchanged from §5 |
+| `README.md` vs main | **identical** |
+| `docs/GRADUATION_DELIVERY_ROADMAP.md` vs main | **identical** |
+| files deleted relative to main | **0** |
+| files of main's modified | **0** |
+| prohibited projection in tree | **absent** |
+| long base64 literals in fixtures | **absent** |
 
-The commit message embeds the tree SHA so the equivalence claim is auditable
-after the fact without trusting this document.
+### 3.4 Ancestry evidence — complete, not assumed
 
-**Measured caveat.** The review sandbox clone is **shallow**
-(`.git/shallow` present, `origin/main` depth 1), so `--count` reported
-`main=1, probe=2` there. That is a property of the checkout, not of the
-replacement line. A reviewer running the plan in a full clone should expect the
-true main depth plus one. The dry-run probe performed in this sandbox produced:
+The review sandbox was a **shallow clone**, which would have made an ancestry
+claim unsafe: `git rev-list --count HEAD` returned `2`. It was unshallowed first
+(`git fetch --unshallow`), giving 495 reachable commits, and the check was then run
+over the complete history:
 
 ```
-HEAD tree:   d426178add19da32b2a278ed4d4639637c362055
-probe commit: c46b63666da3ea1a1163b060aa0812962ccc1365
-git diff --stat probe HEAD      -> (empty)
-is b67ed4e an ancestor?         -> NO
+reachable commits from delivery HEAD : 495
+b67ed4e an ancestor of HEAD          : NO
+b67ed4e an ancestor of origin/main   : NO
+commits reachable from HEAD carrying shap_background_document : NONE
 ```
 
-so the tree-equivalence and ancestry properties are verified, and the count
-expectation is the only item that depends on clone depth.
+The third line is the substantive one: it is not enough that `b67ed4e` is absent
+from the ancestry graph — no reachable commit reintroduces the projection.
 
-### 3.3 PR disposition
+### 3.5 PR disposition
 
-1. Open a **new Draft PR** from `review/rh04-v2-final-candidate` into `main`.
-2. Cross-link it from #139 and label #139
-   `superseded-by-clean-delivery-line` — **do not close #139**, and do not delete
-   the branch; both are the evidence record.
-3. Issue **#132 stays OPEN**. Nothing in this remediation closes a gate.
-
-### 3.4 Evidence preservation
-
-Required before the new PR is opened, so that the reviewed history is not lost:
-
-- `git bundle create rh04-review-line.bundle review/rh04-v2-p0-corrections-20261121`
-  archived **outside** the repository (not committed);
-- the existing PR #139 comments and review thread remain untouched;
-- this document records `b67ed4e` by SHA so the finding is reproducible.
+A new **Draft** PR from `delivery/rh04-v2-final`. PR #139 stays open and unmerged
+as the historical review line, cross-linked. **No force-push, no history rewrite,
+no branch deletion.**
 
 ## 4. Options considered and rejected
 

@@ -121,7 +121,7 @@ exit `1`.
 PYTHONPATH=. python -m pytest tests/experiments/test_rh04_v2_reference.py -q
 ```
 
-**Measured:** `273 passed` in 809.36 s.
+**Measured on the delivery tree:** `276 passed` in 775.93 s.
 
 ### 3.2 Wider experiments suite
 
@@ -129,7 +129,7 @@ PYTHONPATH=. python -m pytest tests/experiments/test_rh04_v2_reference.py -q
 PYTHONPATH=. python -m pytest tests/experiments -q
 ```
 
-**Measured:** `1380 passed, 2 skipped` in 1376.30 s. Zero failures, zero errors.
+**Measured**: see the delivery PR body for the exact command and result on the delivery SHA.
 
 The two skips are genuinely platform-bound and are listed explicitly:
 
@@ -174,7 +174,10 @@ for cls in "" SkylakeX Sandybridge Nehalem Haswell Prescott; do
 done
 ```
 
-**Measured — requested vs *resident* kernel** (resident read from
+**Measured on the delivery tree** — 6 requested classes → 5 distinct resident
+classes → **1** digest, all `matches_reference: true`, all exit 0.
+
+**Requested vs *resident* kernel** (resident read from
 `threadpoolctl`, which reports the library the process actually loaded):
 
 | requested | resident | digest | match |

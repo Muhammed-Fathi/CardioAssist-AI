@@ -17,10 +17,20 @@ environment classes produce **two** different result groups (`aea7d617…` and
 `3366be81…`), and the grouping does not even follow the environment class
 (`Sandybridge` and `Prescott` share a result despite differing classes).
 
-So V2-04 cannot be met by Lane A for a reason that is *physical*, not a defect
-to be fixed: the registered path trains scikit-learn models whose numerics depend
-on the BLAS dispatch. Meeting it would require changing the scientific method
-(a dispatch pin), which every standing instruction forbids.
+On the evidence available, V2-04 cannot be met by Lane A **under the present
+implementation**: the registered path trains scikit-learn models whose numerics
+depend on the BLAS dispatch actually loaded.
+
+**This is an observed property of this implementation and these numerical
+libraries. It is not a claim of mathematical impossibility.** Nothing here
+establishes that no training procedure could be host-independent, and this
+document does not assert that. What is established is narrower and sufficient for
+the decision: with the registered producer as it is, across five measured resident
+dispatch classes, the results differ.
+
+Meeting V2-04 on the registered path would therefore require changing the
+scientific method (a dispatch pin) or changing the producer, both of which are
+outside this bounded round and were not attempted.
 
 Meanwhile a genuinely portable inference path **does** exist and does achieve
 exact replay — not by tolerance, but because rehydration from declarative arrays
@@ -322,3 +332,77 @@ produce different numbers, that difference is **evidence about the environment**
 never a threshold that a run is allowed to pass through.
 
 **Nothing in this addendum is ratified. Zero of ten gates are closed.**
+
+
+---
+
+## 7. Ratification packet — explicit original / proposed text
+
+**Status: PROPOSAL. Not ratified by the agent.** `docs/rh04-issue132-acceptance-decision.md`
+§7 remains controlling until the owner acts. Each clause below quotes the original
+verbatim and proposes replacement text.
+
+### V2-02 — Solver and criterion declaration
+
+**Original (§7):**
+> `V2-02` **Solver + criterion declaration.** Either the hardened
+> `deterministic_portable_newton` (whose P0 issues ... must be *closed*, not merely
+> patched ...) or a documented alternative whose convergence test is explicitly
+> *not* host-dependent. **The criterion is part of the contract.**
+
+**Proposed:**
+> `V2-02` **Solver + criterion declaration, per lane.**
+>
+> **Lane A (registered regeneration).** The producer's fitted objective, bounds,
+> input link and solver are declared and recorded: mean log-loss plus an L2 anchor
+> of 1e-3 around slope 1, intercept bounds [-15, 15], slope bounds [0.01, 15],
+> solver `scipy_lbfgsb` (L-BFGS-B), input link `exact_raw_log_odds` for the linear
+> route and `clipped_logit_of_raw_probability` for the tree route, fit scope
+> `FULL_DEVELOPMENT_OOF_FINAL`, fit status `FITTED_OOF_MONOTONE_LOGISTIC`. These
+> are **observed properties of the present implementation**, recorded so a reviewer
+> can see what ran. They are **not** a guarantee of host independence, and this
+> clause does not assert one.
+>
+> **Lane B (fixed-artifact replay).** **No fitting or optimization takes place.**
+> Lane B rehydrates declared arrays into real scikit-learn objects and executes the
+> registered facade. It therefore makes **no fitted-solver claim**, and its
+> host-independence follows from performing no arithmetic that depends on the
+> fitted solution.
+>
+> **Provenance.** An isolated arbitrary-precision oracle is **not** accepted as
+> evidence of producer provenance. Provenance requires the registered producer,
+> captured at its own boundary.
+
+### V2-04 — cross-environment replay (consequential)
+
+**Original:** as quoted in §2 above.
+
+**Proposed:** replace with two separately-labelled criteria:
+
+> `V2-04a` **Lane A cross-environment evidence — diagnostic.** Lane A is executed
+> across ≥3 resident dispatch classes and the per-class result groups are reported.
+> Differences are recorded as findings. **No exactness is required or claimed.**
+>
+> `V2-04b` **Lane B cross-environment exact replay — mandatory.** For a fixed,
+> independently admitted artifact set, every measured resident dispatch class must
+> report the identical reference digest, with no numeric tolerance.
+
+The clause is **split, not weakened**: the original exactness requirement is
+retained in full and moved to the lane that can satisfy it, and the lane that
+cannot satisfy it is required to report its differences instead of hiding them.
+
+### Clauses not proposed for change
+
+V2-01, V2-03, V2-05 … V2-10 keep their original text. V2-05's dual-run window and
+V2-10's rollback are clarified in `RH04_V2_DUAL_RUN_AND_ROLLBACK_2026_11_21.md`
+without altering the clauses.
+
+### What ratification would and would not do
+
+**Would:** move the exactness requirement to Lane B and permit Lane A to report
+per-class results.
+**Would not:** close any gate; authorize production use; establish clinical
+validity; or make RH-04 accepted.
+
+**Owner action required, in `docs/DECISIONS.md`, naming the reviewer and this
+document's version.**
