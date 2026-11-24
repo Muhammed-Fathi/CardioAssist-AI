@@ -219,3 +219,31 @@ installed-and-verified gate, not an untested patch file.
 returned to its exact prior state. It does not claim the gate has ever *run* in CI —
 Arena cannot push workflow files, so the gate remains unexecuted on GitHub until the
 owner applies it.
+
+
+---
+
+## Round 17 — correction of this document's rollback scope
+
+The round-16 section above states that rollback was demonstrated "including the
+installed CI gate". That is true of the demonstration, but the demonstration was
+performed **inside the working tree of the delivery branch and then reverted**, and
+it was **never pushed**. The precise scope is:
+
+| claim | true? |
+|---|---|
+| a gate installed in `.github/workflows` was parsed and verified in a working tree | **yes** |
+| one revert restored the exact pre-demo tree hash (`438445e1…`) | **yes** |
+| the installed gate was ever committed to `delivery/rh04-v2-final` | **no** |
+| the gate has ever run in CI | **no** |
+| a *pushed* install can be rolled back the same way | **not demonstrated** |
+
+So the demonstration establishes that the working tree can be returned to its
+exact prior state, and that the reverted state was a real installed-and-parsed
+gate rather than an untested patch file. It does **not** establish anything about
+reverting a pushed install, because no such push happened: Arena cannot push
+workflow files, and the delivery branch carries no gate.
+
+Rollback of a *pushed* install is straightforward — revert the commit the owner
+creates in step 4 of the execution checklist — but it has not been executed here and
+is not claimed.

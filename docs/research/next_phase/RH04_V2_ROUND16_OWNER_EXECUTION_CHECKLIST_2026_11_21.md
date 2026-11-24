@@ -1,5 +1,11 @@
 # RH-04 V2 — round 16 owner execution checklist
 
+> **SUPERSEDED by `RH04_V2_EXECUTION_READINESS_CHECKLIST_2026_11_24.md`.**
+>
+> This file is kept as a historical record only. It contains a `git reset --hard`
+> step and the round-16 SHA `ba3121b`; both are wrong for the current candidate.
+> **Do not execute the commands below.** Use the round-17 checklist instead.
+
 **Candidate SHA:** `ba3121bbbe5f0db572c90c366aac2b8f1da5e141`
 **Status:** review-ready. No gate is closed (0/10). Nothing here has been ratified.
 

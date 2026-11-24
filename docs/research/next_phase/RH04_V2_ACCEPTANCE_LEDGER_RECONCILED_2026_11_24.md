@@ -123,6 +123,34 @@ machine and one dispatch class, not on Windows and not across the matrix. The sc
 claim remains logistic regression plus its calibration map; the random forest is a
 different estimator with no gradient-based convergence test and is not covered.
 
+### 1b. Correction to the round-16 evidence wording: independence was overstated
+
+Round 16 described the calibration residual as "independently evaluated". That was
+not accurate. The residual was computed by re-evaluating **the calibrator's own
+analytic Jacobian** at the fitted point. Re-evaluating a solver's own gradient
+functions confirms only that the function returns what it returns: it inherits the
+same algebra, the same binary64 rounding and the same sign conventions, so an error
+shared with the solver would be invisible.
+
+The disagreement was one of **claim**, not of classification. The classification in
+§1a stands, and so do the measured termination statuses, iteration counts and
+projected residuals.
+
+The evidence now records two distinguishable forms:
+
+| form | what it is | independent |
+|---|---|---|
+| `solver_jacobian` | the calibrator's analytic gradient at the fitted point — what the solver's stationarity test actually used | **no**, and the record says so with the reason |
+| `independent_decimal_finite_difference` | the same objective re-derived from source and differentiated by symmetric central differences in 50-digit decimal arithmetic, over the **full** in-memory OOF vector | **yes** — different algebra, different arithmetic, different code path |
+
+Both forms are reported for all 14 observed fits and agree to machine precision.
+A negative test perturbs a label and requires the independent form to move, so the
+cross-check can fail rather than merely accompany the analytic value.
+
+**Deliberately not claimed:** this is not a second solver, not an independent model
+fit and not evidence about the random forest. It is a second *evaluation* of one
+already-fitted objective.
+
 ### V2-02 — Solver and criterion declaration — **CORRECTED; EVIDENCE COMPLETE FOR THE REGISTERED LINUX PATH**
 The registered path was **observed**, not declared from documentation:
 

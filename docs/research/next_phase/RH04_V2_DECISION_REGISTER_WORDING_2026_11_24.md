@@ -76,7 +76,11 @@ wording for all three and recommends performing them in order.
 >    iteration cap. The bounded out-of-fold calibration optimisation: 14 of 14
 >    observed SciPy L-BFGS-B fits terminate by a recognised convergence test
 >    (`status = 0`) with a box-projected gradient norm at or below the solver's own
->    declared tolerance, and none reaches its iteration cap.
+>    declared tolerance, and none reaches its iteration cap. That gradient is
+>    reported in two distinguishable forms — the calibrator's own analytic Jacobian,
+>    which is **not** independent and is labelled as such, and a re-derivation of
+>    the same objective by symmetric central differences in 50-digit decimal
+>    arithmetic over the full in-memory OOF vector, which is.
 > 4. Hosted CI has produced a fully green run of the synthetic-runner workflow at
 >    PR #141 HEAD `2aee5ed`: **2108 passed, 2 skipped, 0 failed** on Python 3.11 and
 >    the same on Python 3.12, with 396 UCI-412 tests passing and the structural
@@ -101,7 +105,12 @@ wording for all three and recommends performing them in order.
 >   been applied, and Arena cannot push workflow files;
 > * that V2-02 or V2-07 are satisfied. Evidence is complete for V2-02 on the
 >   registered Linux path and corrected for V2-07; satisfaction is the owner's
->   determination.
+>   determination;
+> * that the calibration residual is an independent *fit*. It is an independent
+>   *evaluation* of one already-fitted objective, and only for the calibration map —
+>   the random forest has no gradient-based convergence test and is not covered;
+> * that a pushed install of the gate has ever been rolled back. Rollback was
+>   demonstrated on a working-tree install that was reverted before any push.
 
 ---
 
