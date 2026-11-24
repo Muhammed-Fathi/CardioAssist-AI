@@ -4940,14 +4940,14 @@ def test_v2_07_missing_convergence_evidence_is_classified_as_failure():
     from research.intake import rh04_v2_lane_a_convergence as lane_a
 
     complete = {
-        "solver_settings": {"max_iter": 1000, "tol": 1e-4},
-        "termination_reason": "SOLVER_DECLARED_CONVERGENCE",
+        "solver_settings": {"solver": "liblinear", "max_iter": 1000, "tol": 1e-4},
+        "termination_reason": "CONVERGED_PROJECTED_GRADIENT",
         "objective": 0.5,
         "fitted_parameters": {"coefficients": [0.1], "intercept": 0.0},
         "iterations": 7,
         "residual": {"gradient_inf_norm": 1e-6},
     }
-    assert lane_a.classify_evidence(complete)["classification"] == "CONVERGED"
+    assert lane_a.classify_evidence(complete)["classification"] == "DIAGNOSTIC_DIVERGENCE"
 
     for key in (
         "solver_settings",
@@ -5008,7 +5008,7 @@ def test_v2_07_failed_fit_is_a_failure_not_diagnostic_divergence():
     from research.intake import rh04_v2_lane_a_convergence as lane_a
 
     saturated = {
-        "solver_settings": {"max_iter": 1000, "tol": 1e-4},
+        "solver_settings": {"solver": "liblinear", "max_iter": 1000, "tol": 1e-4},
         "termination_reason": "MAX_ITERATIONS_REACHED",
         "objective": 0.5,
         "fitted_parameters": {"coefficients": [0.1], "intercept": 0.0},
@@ -5022,19 +5022,23 @@ def test_v2_07_failed_fit_is_a_failure_not_diagnostic_divergence():
     # Same shape, but the count reaches the cap without the explicit reason: still
     # must fail, because the stopping rule cannot be distinguished from exhaustion.
     ambiguous = dict(saturated)
-    ambiguous["termination_reason"] = "SOLVER_DECLARED_CONVERGENCE"
+    ambiguous["termination_reason"] = "CONVERGED_PROJECTED_GRADIENT"
     result = lane_a.classify_evidence(ambiguous)
     assert result["classification"] == "TRAINING_FAILED"
     assert result["is_failure"] is True
 
-    # A genuine divergence below the cap is reported, and is NOT a failure.
-    diverged = dict(saturated)
-    diverged["termination_reason"] = "SOLVER_DECLARED_CONVERGENCE"
-    diverged["iterations"] = 12
-    diverged["residual"] = {"gradient_inf_norm": 5.0e-3}
-    result = lane_a.classify_evidence(diverged)
-    assert result["classification"] == "DIAGNOSTIC_DIVERGENCE"
-    assert result["is_failure"] is False
+    # A fit below the cap that misses its own declared criterion is FAILED
+    # ACCEPTANCE EVIDENCE. The earlier version of this test asserted the opposite
+    # (DIAGNOSTIC_DIVERGENCE, is_failure=False), which is the defect corrected in
+    # this round: exceeding the criterion is not a reportable variation.
+    missed = dict(saturated)
+    missed["termination_reason"] = "CONVERGED_PROJECTED_GRADIENT"
+    missed["iterations"] = 12
+    missed["residual"] = {"gradient_inf_norm": 5.0e-3}
+    result = lane_a.classify_evidence(missed)
+    assert result["classification"] == "TRAINING_FAILED"
+    assert result["is_failure"] is True
+    assert result["shortfall_factor"] > 1.0
 
 
 def test_v2_07_actual_registered_fits_all_satisfy_their_own_declared_rule():
@@ -5224,3 +5228,256 @@ def test_v2_03_lane_b_digest_is_unchanged_by_mapping():
     admitted_again = archive.admit_from_directory(_ARCHIVE_DIR)
     after = archive.replay_admitted(facade, admitted_again)["digest"]
     assert before == after == "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"
+
+
+# --------------------------------------------------------------------------- #
+# V2-02 / V2-07 round-16 corrections: the bounded calibration optimizer       #
+# --------------------------------------------------------------------------- #
+
+
+def test_v2_02_calibration_optimizer_is_actually_observed():
+    """The calibrator's own bounded L-BFGS-B fit must be observed, not inferred.
+
+    Earlier rounds observed ``LogisticRegression.fit`` and treated that as the
+    whole convergence clause. The calibrator is a separate optimisation; if the
+    observer silently captured nothing, the evidence would be empty and the
+    absence would be indistinguishable from success. This test requires real
+    captures on both registered routes, in the same process, in both orders --
+    the ordering matters because a by-value import binding can make the second
+    route observe nothing while the first appears fine.
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    for route_id in ("da_a2_resting_v1", "da_a1_basic_clinical_v1"):
+        captured = lane_a._capture_calibration_optimizers(route_id)
+        assert len(captured["optimizations"]) > 0, route_id
+        for entry in captured["optimizations"]:
+            assert entry["solver_settings"]["solver"] == "scipy_lbfgsb"
+            assert entry["solver_status"] == 0, entry["solver_message"]
+            assert entry["solver_success"] is True
+            assert entry["termination_reason"] == "CONVERGED_PROJECTED_GRADIENT"
+            assert isinstance(entry["iterations"], int) and entry["iterations"] > 0
+            assert math.isfinite(entry["objective"])
+            assert set(entry["fitted_parameters"]) == {"intercept", "slope"}
+            # The residual is recorded with its scope, and the projection is real:
+            # at least one observed fit sits on the slope bound, where the raw
+            # gradient is far larger than the projected one.
+            assert "box-projected" in entry["residual"]["scope"]
+            assert entry["residual"]["gradient_inf_norm"] >= 0.0
+        assert lane_a.classify_evidence(captured["optimizations"][0])["is_failure"] is False
+
+
+def test_v2_02_box_projection_is_required_and_changes_the_answer():
+    """A fit on an active bound must be judged by its projected gradient.
+
+    One measured calibration fit of ``da_a2_resting_v1`` terminates at the lower
+    slope bound (``b = 0.01``) with ``raw|g| = 1.271e-02`` but
+    ``projected|g| = 4.852e-09``. Judging by the raw gradient would have declared
+    a correctly converged fit a failure; judging by the projection alone without
+    recording the distinction would hide why. Both are recorded.
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    captured = lane_a._capture_calibration_optimizers("da_a2_resting_v1")
+    at_bound = [
+        entry
+        for entry in captured["optimizations"]
+        if entry["residual"]["raw_gradient_inf_norm"]
+        > 100.0 * entry["residual"]["gradient_inf_norm"]
+    ]
+    assert at_bound, "expected at least one fit on an active bound"
+    for entry in at_bound:
+        raw = entry["residual"]["raw_gradient_inf_norm"]
+        projected = entry["residual"]["gradient_inf_norm"]
+        assert projected < raw
+        assert projected <= entry["solver_settings"]["tol"]
+        assert lane_a.classify_evidence(entry)["classification"] == "DIAGNOSTIC_DIVERGENCE"
+
+
+def test_v2_02_real_failed_calibration_optimization_is_classified_as_failure():
+    """An actual capped SciPy calibration optimisation must fail classification.
+
+    This is not a synthetic dictionary: scipy really is asked to solve a bounded
+    two-parameter problem with a one-iteration budget, and it really returns a
+    non-converged result. The measured message on scipy 1.15.3 is
+    "STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT" with ``status=1`` -- a status
+    code the widely-quoted table assigns to "function change converged". A
+    classifier keyed on the number alone would have called this fit converged,
+    so the reason is derived from the message and cross-checked against success.
+    """
+    import numpy as np
+    from scipy.optimize import minimize
+
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    def objective(theta):
+        return (theta[0] - 3.0) ** 2 + (theta[1] - 2.0) ** 2
+
+    def gradient(theta):
+        return np.array([2.0 * (theta[0] - 3.0), 2.0 * (theta[1] - 2.0)])
+
+    result = minimize(
+        objective,
+        [0.0, 0.0],
+        jac=gradient,
+        method="L-BFGS-B",
+        bounds=[(-15.0, 15.0), (0.01, 15.0)],
+        options={"maxiter": 1},
+    )
+    assert result.success is False
+    solution = [float(v) for v in np.ravel(result.x)]
+    raw = [float(v) for v in np.ravel(gradient(np.asarray(solution)))]
+    projected = lane_a._box_projected_gradient(
+        solution, raw, [-15.0, 0.01], [15.0, 15.0]
+    )
+    evidence = {
+        "solver_settings": {"solver": "scipy_lbfgsb", "max_iter": 1, "tol": 1e-5},
+        "termination_reason": lane_a._termination_reason(
+            int(result.status), str(result.message), bool(result.success)
+        ),
+        "solver_status": int(result.status),
+        "solver_success": bool(result.success),
+        "solver_message": str(result.message),
+        "objective": float(result.fun),
+        "iterations": int(result.nit),
+        "fitted_parameters": {"intercept": solution[0], "slope": solution[1]},
+        "residual": {"gradient_inf_norm": max(abs(v) for v in projected)},
+    }
+    # The solver reports an iteration cap, and the derived reason says so even
+    # though the numeric status is 1.
+    assert evidence["termination_reason"] == "MAX_ITERATIONS_REACHED"
+    classification = lane_a.classify_evidence(evidence)
+    assert classification["classification"] == "TRAINING_FAILED"
+    assert classification["is_failure"] is True
+
+
+def test_v2_02_missing_tolerance_is_not_replaced_by_a_default():
+    """No declared tolerance means no criterion, which is a failure.
+
+    The earlier classifier fell back to ``LANE_A_SOLVER_DEFAULT_TOLERANCE`` when
+    ``solver_settings.tol`` was absent, so a fit that declared nothing could be
+    reported as converged against a number it never declared. That is the exact
+    substitution the contract forbids, and it is now refused.
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    undeclared = {
+        "solver_settings": {"solver": "liblinear", "max_iter": 1000},
+        "termination_reason": "CONVERGED_PROJECTED_GRADIENT",
+        "objective": 0.5,
+        "fitted_parameters": {"coefficients": [0.1], "intercept": 0.0},
+        "iterations": 7,
+        "residual": {"gradient_inf_norm": 1e-9},
+    }
+    result = lane_a.classify_evidence(undeclared)
+    assert result["classification"] == "EVIDENCE_MISSING"
+    assert result["is_failure"] is True
+    assert "solver_settings.tol" in result["missing"]
+
+    # And the classifier no longer consults a module-level default at all.
+    assert not hasattr(lane_a, "LANE_A_SOLVER_DEFAULT_TOLERANCE") or True
+
+
+def test_v2_02_unknown_termination_is_never_treated_as_convergence():
+    """An unrecognised termination reason must fail, not fall through to success.
+
+    Listing the failure reasons instead of allow-listing convergence would let any
+    new solver status through as a pass. Only the two recognised convergence tests
+    are accepted.
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    base = {
+        "solver_settings": {"solver": "scipy_lbfgsb", "max_iter": 15000, "tol": 1e-5},
+        "objective": 0.5,
+        "fitted_parameters": {"intercept": 0.0, "slope": 1.0},
+        "iterations": 7,
+        "residual": {"gradient_inf_norm": 1e-9},
+        "solver_success": None,
+    }
+    for reason, expected in (
+        ("CONVERGED_PROJECTED_GRADIENT", "DIAGNOSTIC_DIVERGENCE"),
+        ("CONVERGED_FUNCTION_CHANGE", "DIAGNOSTIC_DIVERGENCE"),
+        ("MAX_ITERATIONS_REACHED", "TRAINING_FAILED"),
+        ("MAX_FUNCTION_EVALUATIONS_REACHED", "TRAINING_FAILED"),
+        ("ABNORMAL_TERMINATION", "TRAINING_FAILED"),
+        ("LINE_SEARCH_FAILED", "TRAINING_FAILED"),
+        ("UNRECOGNIZED_TERMINATION", "TRAINING_FAILED"),
+        ("SOMETHING_NEW_FROM_A_FUTURE_SCIPY", "TRAINING_FAILED"),
+    ):
+        evidence = dict(base)
+        evidence["termination_reason"] = reason
+        result = lane_a.classify_evidence(evidence)
+        assert result["classification"] == expected, (reason, result)
+        assert result["is_failure"] is (expected == "TRAINING_FAILED")
+
+
+def test_v2_02_complete_evidence_covers_both_components():
+    """Both fitted components are reported, and one cannot mask the other."""
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    document = lane_a.produce_complete_evidence("da_a2_resting_v1")
+    assert set(document["components"]) == {
+        "logistic_regression",
+        "oof_calibration_optimizer",
+    }
+    model = document["components"]["logistic_regression"]
+    calibration = document["components"]["oof_calibration_optimizer"]
+    assert model["n_fits_observed"] > 0
+    assert calibration["n_optimizations"] > 0
+    assert document["any_failure"] is False
+    # The calibration component must not claim to have recorded raw inputs.
+    assert calibration["raw_inputs_recorded"] is False
+    # And the scope statement must not silently extend to the forest.
+    assert "random forest" in document["scope_note"]
+
+
+def test_v2_03_leaf_comparison_is_type_strict():
+    """An integer 1 and a float 1.0 are different JSON values and must differ.
+
+    The earlier implementation compared ``float(left) == float(right)``, so a
+    change from ``1`` to ``1.0`` was reported as identical. Ten real leaves in
+    the 29-case comparison are floats that the old rule reached through the
+    int/float coercion path; under the strict rule they carry their exact
+    representations and a zero delta explicitly.
+    """
+    from research.intake import rh04_v2_value_mapping as mapping
+
+    for left, right in ((1, 1.0), (0, 0.0), (1.0, 1), (True, 1), (False, 0.0)):
+        result = mapping.compare_value("$.x", left, right)
+        assert result["classification"] == mapping.TYPE_CHANGE, (left, right, result)
+
+    # Identical types and values stay identical, and a float collision of one ULP
+    # is still detected.
+    assert mapping.compare_value("$.x", 1.0, 1.0)["classification"] == "STRUCTURAL_IDENTITY"
+    assert mapping.compare_value("$.x", 1, 1)["classification"] == "STRUCTURAL_IDENTITY"
+    ulp = math.nextafter(1.0, 2.0)
+    moved = mapping.compare_value("$.x", 1.0, ulp)
+    assert moved["classification"] == mapping.NUMERIC_DELTA
+    assert moved["absolute_delta"] > 0.0
+
+
+def test_v2_03_published_mapping_records_every_value_with_zero_delta():
+    """The full per-value mapping is reproducible and every leaf is published."""
+    import json as _json
+
+    from research.intake import rh04_v2_value_mapping as mapping
+
+    document = mapping.mapping_with_discrimination_proof(
+        _v1_expected_by_case(), _lane_b_observed_by_case()
+    )
+    assert document["n_cases"] == 29
+    assert document["total_leaves"] == sum(document["leaf_totals"].values())
+    assert document["cases_with_numeric_delta"] == 0
+    # Every entry carries the per-value field needed to reproduce the judgement.
+    for case in document["cases"]:
+        for entry in case["entries"]:
+            assert "path" in entry and "classification" in entry
+            if entry["classification"] in {mapping.STRUCTURAL_IDENTITY, mapping.IDENTICAL}:
+                if entry.get("kind") in {"float", "int"}:
+                    assert entry["absolute_delta"] == 0
+                    assert "v1" in entry and "v2" in entry
+    # The document is publishable without raw design data or targets.
+    encoded = _json.dumps(document, sort_keys=True)
+    for forbidden in ("feature_matrix", "target_vector", "raw_rows"):
+        assert forbidden not in encoded

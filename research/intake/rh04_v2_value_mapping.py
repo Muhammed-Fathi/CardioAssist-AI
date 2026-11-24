@@ -103,17 +103,32 @@ def _leaves(node: Any, prefix: str = "") -> dict[str, Any]:
     return leaves
 
 
-def _both_numeric(left: Any, right: Any) -> bool:
-    return (
-        isinstance(left, (int, float))
-        and isinstance(right, (int, float))
-        and not isinstance(left, bool)
-        and not isinstance(right, bool)
-    )
+def _numeric_type(value: Any) -> str | None:
+    """The exact JSON numeric type, or ``None`` for a non-number.
+
+    ``bool`` is excluded deliberately: in Python ``True == 1``, so a boolean
+    reaching the numeric path would compare equal to the integer 1.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return "int"
+    if isinstance(value, float):
+        return "float"
+    return None
 
 
 def compare_value(path: str, left: Any, right: Any) -> dict[str, Any]:
-    """Classify one leaf pair. Never coerces, never applies a threshold."""
+    """Classify one leaf pair. Never coerces, never applies a threshold.
+
+    Type strictness matters here. The previous version compared
+    ``float(left) == float(right)`` and therefore reported an integer ``1`` and a
+    float ``1.0`` as ``IDENTICAL``. They are different JSON values with different
+    IEEE-754 representations, and a consumer that reads the artifact strictly may
+    legitimately reject the change. The strict rule is: numeric leaves must match
+    both in value **and** in type to count as identical; any int/float mismatch is
+    a ``TYPE_CHANGE`` even when the numbers are equal.
+    """
     left_kind, right_kind = _kind(left), _kind(right)
     if left_kind != right_kind:
         return {
@@ -122,29 +137,96 @@ def compare_value(path: str, left: Any, right: Any) -> dict[str, Any]:
             "v1_kind": left_kind,
             "v2_kind": right_kind,
         }
-    if _both_numeric(left, right):
-        both_float = float(left) == float(right)
-        if both_float and (left == right or float(left).is_integer()):
-            return {"path": path, "classification": IDENTICAL, "kind": "number"}
+
+    left_numeric, right_numeric = _numeric_type(left), _numeric_type(right)
+    if left_numeric is not None or right_numeric is not None:
+        if left_numeric != right_numeric:
+            # One side is a number of a different representation.
+            return {
+                "path": path,
+                "classification": TYPE_CHANGE,
+                "v1_kind": left_numeric,
+                "v2_kind": right_numeric,
+                "reason": "numeric type mismatch, no int/float coercion applied",
+                "v1": left,
+                "v2": right,
+                "numerically_equal": left == right,
+            }
+        if left_numeric == "int":
+            if left == right:
+                return {
+                    "path": path,
+                    "classification": STRUCTURAL_IDENTITY,
+                    "kind": "int",
+                    "v1": left,
+                    "v2": right,
+                    "absolute_delta": 0,
+                }
+            return {
+                "path": path,
+                "classification": NUMERIC_DELTA,
+                "kind": "int",
+                "v1": left,
+                "v2": right,
+                "absolute_delta": abs(right - left),
+                "relative_delta": (
+                    None
+                    if max(abs(left), abs(right)) == 0
+                    else abs(right - left) / max(abs(left), abs(right))
+                ),
+                "bitwise_equal": False,
+            }
+        # float leaves: compare the exact IEEE-754 values, with no rounding.
         if left == right:
-            return {"path": path, "classification": IDENTICAL, "kind": "number"}
-        absolute = abs(float(right) - float(left))
-        scale = max(abs(float(left)), abs(float(right)))
+            return {
+                "path": path,
+                "classification": STRUCTURAL_IDENTITY,
+                "kind": "float",
+                "v1": left,
+                "v2": right,
+                "v1_repr": repr(left),
+                "v2_repr": repr(right),
+                "absolute_delta": 0.0,
+            }
+        absolute = abs(right - left)
+        scale = max(abs(left), abs(right))
         return {
             "path": path,
             "classification": NUMERIC_DELTA,
-            "v1": float(left),
-            "v2": float(right),
+            "kind": "float",
+            "v1": left,
+            "v2": right,
+            "v1_repr": repr(left),
+            "v2_repr": repr(right),
             "absolute_delta": absolute,
             "relative_delta": (None if scale == 0 else absolute / scale),
-            "bitwise_equal": float(left) == float(right),
+            "bitwise_equal": left == right,
         }
+
     if left_kind in {"string", "bool", "null"}:
+        if left_kind == "bool":
+            if left is right:
+                return {
+                    "path": path,
+                    "classification": STRUCTURAL_IDENTITY,
+                    "kind": "bool",
+                    "v1": left,
+                    "v2": right,
+                }
+            return {
+                "path": path,
+                "classification": TYPE_CHANGE,
+                "v1": left,
+                "v2": right,
+                "reason": "same kind, different value",
+            }
         if left == right:
             return {
                 "path": path,
                 "classification": STRUCTURAL_IDENTITY,
                 "kind": left_kind,
+                "v1": left,
+                "v2": right,
             }
         return {
             "path": path,

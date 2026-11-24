@@ -24,7 +24,7 @@ jobs:
     # 40, not 20. The suite measured 15.4 / 15.4 / 15.9 / 19.9 minutes across four
     # hosted runs of the same command and needs 22m28s cold locally; at a 20 minute
     # budget a slow runner cancels step 7 and Python 3.12 ends up unmeasured. This
-    # raises the budget only — it adds no tolerance, retry or skip, and a genuine
+    # raises the budget only -- it adds no tolerance, retry or skip, and a genuine
     # test failure still fails the job.
     timeout-minutes: 40
 

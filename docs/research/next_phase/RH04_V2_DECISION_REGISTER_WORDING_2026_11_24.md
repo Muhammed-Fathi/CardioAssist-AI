@@ -69,18 +69,39 @@ wording for all three and recommends performing them in order.
 >    10^15.
 > 2. The complete per-expected-value mapping exists: 29 of 29 cases, every leaf
 >    classified, no leaf dropped or coerced.
-> 3. Lane A convergence is observed from the registered path, not asserted:
->    100 of 100 observed logistic fits satisfy the solver's own declared stopping
->    rule, evaluated independently in decimal arithmetic, with no fit reaching its
->    iteration cap.
-> 4. Hosted CI has produced a fully green run of the synthetic-runner workflow with
->    the V2 tests present: 2098 passed and 2 skipped on both Python 3.11 and 3.12,
->    and 396 UCI-412 tests passing.
-> 5. The frozen V1 artifacts are byte-identical to the base commit.
+> 3. Lane A convergence is observed from the registered path, not asserted, for
+>    **both** fitted components the clause names. The logistic-regression fit:
+>    100 of 100 observed fits satisfy the solver's own declared stopping rule,
+>    evaluated independently in decimal arithmetic, with no fit reaching its
+>    iteration cap. The bounded out-of-fold calibration optimisation: 14 of 14
+>    observed SciPy L-BFGS-B fits terminate by a recognised convergence test
+>    (`status = 0`) with a box-projected gradient norm at or below the solver's own
+>    declared tolerance, and none reaches its iteration cap.
+> 4. Hosted CI has produced a fully green run of the synthetic-runner workflow at
+>    PR #141 HEAD `2aee5ed`: **2108 passed, 2 skipped, 0 failed** on Python 3.11 and
+>    the same on Python 3.12, with 396 UCI-412 tests passing and the structural
+>    diagnostic succeeding (run `45274282551`, tested merge checkout
+>    `a7d3d56561773d8d8648a0f3d314e17477e2ac52`).
+> 5. A leaf is never coerced: an integer `1` and a float `1.0` are classified as a
+>    type change, and every published leaf carries its value and its delta.
+> 6. The frozen V1 artifacts are byte-identical to the base commit.
 >
-> **Not established, and not claimed:** clinical validity, model equivalence with
-> scikit-learn, host-independence of Lane A, native Windows evidence (not yet
-> executed), or Linux Python 3.12 Lane B replay measured outside hosted CI.
+> **Not established, and not claimed:**
+>
+> * clinical validity, or any statement about real patients or real data;
+> * model equivalence with, or bit-identity to, scikit-learn;
+> * host-independence of Lane A;
+> * **native Windows execution** — no Windows host has been used, and no run of the
+>   Windows verification script is reported as evidence here;
+> * a **completed cross-environment matrix** in this round's local measurements: the
+>   four dispatch classes were measured on Linux Python 3.11 only. Linux Python 3.12
+>   and Windows rows come from hosted CI and the owner's Windows run respectively,
+>   and are not claimed until recorded;
+> * that the dual-run gate has ever run in CI: the workflow is a patch, it has not
+>   been applied, and Arena cannot push workflow files;
+> * that V2-02 or V2-07 are satisfied. Evidence is complete for V2-02 on the
+>   registered Linux path and corrected for V2-07; satisfaction is the owner's
+>   determination.
 
 ---
 

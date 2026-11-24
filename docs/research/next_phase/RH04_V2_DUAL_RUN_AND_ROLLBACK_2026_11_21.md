@@ -188,3 +188,34 @@ that is a single revertible unit — a point the earlier proposal glossed over.
 
 Does not close Issue #132, retract findings, or alter the ledger. Restores `main`
 to its pre-delivery state; the analysis remains in the PR record.
+
+
+---
+
+## Round 16 — rollback demonstration including the **installed** CI gate
+
+The round-15 demonstration reverted the four V2 files but left the gate as a *patch
+file* in `docs/`. The requirement is that rollback covers the gate as it would exist
+**installed** in `.github/workflows/`. That is demonstrated here.
+
+| step | commit | tree |
+|---|---|---|
+| pre-demo branch head | `47ca9672975d0225e3f34cb5be305cc8b66376a1` | `438445e1102690034dd85943adaf64570f5e9327` |
+| gate installed with `git apply` (check first) | `bb487cf55821462bd4e885ca771efa1b53fc4157` | changed |
+| `git revert` of the install | `3c5c12dc337def05d446a8a91e23900bd5c10434` | `438445e1102690034dd85943adaf64570f5e9327` |
+
+**Result: the revert restores the exact tree.** The pre-demo and post-revert tree
+hashes are equal, so the rollback is provably complete rather than approximately
+complete.
+
+The install step applied `docs/research/next_phase/workflow-patch/rh04-ci-consolidated.patch`
+with `git apply --check` followed by `git apply`, which is the same sequence the
+corrected owner script uses. The installed gate parsed as valid YAML with
+`jobs = ['dual-run', 'host-dispatch']`, a `2 × 4` matrix and a 40 minute timeout, and
+the installed runner read `timeout-minutes: 40`. So the reverted state is a real
+installed-and-verified gate, not an untested patch file.
+
+**What this demonstration does not claim.** It proves the working tree can be
+returned to its exact prior state. It does not claim the gate has ever *run* in CI —
+Arena cannot push workflow files, so the gate remains unexecuted on GitHub until the
+owner applies it.

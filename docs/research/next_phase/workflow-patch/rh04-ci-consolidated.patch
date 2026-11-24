@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/experiment-runner-ci.yml b/.github/workflows/experiment-runner-ci.yml
-index 5118c42..9e7aa8f 100644
+index 5118c42..e032a5e 100644
 --- a/.github/workflows/experiment-runner-ci.yml
 +++ b/.github/workflows/experiment-runner-ci.yml
 @@ -21,7 +21,12 @@ jobs:
@@ -10,7 +10,7 @@ index 5118c42..9e7aa8f 100644
 +    # 40, not 20. The suite measured 15.4 / 15.4 / 15.9 / 19.9 minutes across four
 +    # hosted runs of the same command and needs 22m28s cold locally; at a 20 minute
 +    # budget a slow runner cancels step 7 and Python 3.12 ends up unmeasured. This
-+    # raises the budget only — it adds no tolerance, retry or skip, and a genuine
++    # raises the budget only -- it adds no tolerance, retry or skip, and a genuine
 +    # test failure still fails the job.
 +    timeout-minutes: 40
  
@@ -18,10 +18,10 @@ index 5118c42..9e7aa8f 100644
      # Python/scikit-learn import in BOTH full suite and independent diagnosis.
 diff --git a/.github/workflows/rh04-dual-run-gate.yml b/.github/workflows/rh04-dual-run-gate.yml
 new file mode 100644
-index 0000000..7f5098e
+index 0000000..0b441d3
 --- /dev/null
 +++ b/.github/workflows/rh04-dual-run-gate.yml
-@@ -0,0 +1,273 @@
+@@ -0,0 +1,472 @@
 +name: rh04-dual-run-gate
 +
 +# RH-04 V2 dual-run window (CAI-RH04-DUALROLLBACK-v3, V2-05).
@@ -35,6 +35,15 @@ index 0000000..7f5098e
 +# Lane A divergence is a *classified finding*, not a pass: training failure,
 +# missing evidence and invalid output are failures. Lane B is exact, with no
 +# numeric tolerance.
++#
++# ROUND 16: the previous version of this file ran one default execution per Python
++# version. That is a single dispatch class, so "cross-environment" was not tested.
++# The matrix is now 4 dispatch classes x 2 Python versions = 8 independent runs:
++#   prescott, nehalem, sandybridge, haswell (forced, and verified resident)
++#   plus `host` (unforced) in a separate job for the two Python versions.
++# OPENBLAS_CORETYPE is only a *request*; each run reads threadpoolctl after the
++# numerical libraries are loaded and fails if the resident class is not the class
++# it will be recorded under.
 +
 +on:
 +  pull_request:
@@ -50,7 +59,7 @@ index 0000000..7f5098e
 +
 +jobs:
 +  dual-run:
-+    name: RH-04 dual-run (Python ${{ matrix.python-version }})
++    name: RH-04 dual-run (${{ matrix.dispatch-class }} / Python ${{ matrix.python-version }})
 +    runs-on: ubuntu-24.04
 +    timeout-minutes: 40
 +
@@ -61,11 +70,13 @@ index 0000000..7f5098e
 +      BLIS_NUM_THREADS: '1'
 +      NUMEXPR_NUM_THREADS: '1'
 +      VECLIB_MAXIMUM_THREADS: '1'
++      OPENBLAS_CORETYPE: ${{ matrix.dispatch-class }}
 +
 +    strategy:
 +      fail-fast: false
 +      matrix:
 +        python-version: ['3.11', '3.12']
++        dispatch-class: ['prescott', 'nehalem', 'sandybridge', 'haswell']
 +
 +    steps:
 +      - name: Check out repository
@@ -98,11 +109,17 @@ index 0000000..7f5098e
 +          python -m pip install -r research/experiments/requirements-oracle.txt
 +          python -m pip check
 +
-+      - name: Record environment identity
++      - name: Record resident environment identity
 +        run: |
 +          python - <<'PY'
 +          import importlib.metadata as m, json, subprocess
-+          names = ("numpy","scipy","scikit-learn","mpmath","pytest","openpyxl")
++          import numpy as np
++          # Resolve dispatch before reading it: threadpool_info() before the first
++          # BLAS call reports the library but not the kernel actually in use.
++          matrix = np.random.default_rng(0).normal(size=(256, 256))
++          matrix @ matrix.T
++          from threadpoolctl import threadpool_info
++          names = ("numpy","scipy","scikit-learn","mpmath","pytest","openpyxl","threadpoolctl")
 +          payload = {}
 +          for n in names:
 +              try: payload[n] = m.version(n)
@@ -115,22 +132,30 @@ index 0000000..7f5098e
 +              payload["base_ref"] = None
 +          # Resident, not requested: OPENBLAS_CORETYPE is a request that may be
 +          # silently ignored, so the linked kernels are read at runtime.
-+          try:
-+              from threadpoolctl import threadpool_info
-+              payload["resident_libraries"] = [
-+                  {k: v for k, v in e.items() if k in
-+                   ("internal_api","user_api","version","prefix","filepath","architecture")}
-+                  for e in threadpool_info()
-+              ]
-+          except Exception as exc:
-+              payload["resident_libraries_error"] = type(exc).__name__
++          payload["resident_libraries"] = [
++              {k: v for k, v in e.items() if k in
++               ("internal_api","user_api","version","prefix","filepath","architecture","num_threads")}
++              for e in threadpool_info()
++          ]
 +          print(json.dumps(payload, indent=2, sort_keys=True))
++          # Fail closed if the request was not honoured.
++          requested = "${{ matrix.dispatch-class }}".lower()
++          resident = [e.get("architecture") for e in threadpool_info() if e.get("architecture")]
++          observed = resident[0].lower() if resident else "unknown"
++          print(f"requested_dispatch_class={requested}")
++          print(f"resident_dispatch_class={observed}")
++          if observed != requested:
++              raise SystemExit(
++                  f"dispatch request not honoured: requested {requested!r}, "
++                  f"resident {observed!r}. A run recorded under the wrong class "
++                  "is false evidence, so it is refused."
++              )
 +          PY
 +
 +      # ------------------------------------------------------------------ #
 +      # Stage 1 — V1 scoped verification (MANDATORY)
 +      # ------------------------------------------------------------------ #
-+      - name: "Stage 1 — V1 scoped verification (mandatory)"
++      - name: "Stage 1 - V1 scoped verification (mandatory)"
 +        id: v1
 +        if: always()
 +        run: |
@@ -144,154 +169,328 @@ index 0000000..7f5098e
 +          exit 0
 +
 +      # ------------------------------------------------------------------ #
-+      # Stage 2 — Lane A classified regeneration evidence (CLASSIFIED)
++      # Stage 2 — Lane A regeneration and replay identity (MANDATORY)
 +      # ------------------------------------------------------------------ #
-+      - name: "Stage 2 — Lane A regeneration evidence (classified)"
++      - name: "Stage 2 - Lane A regeneration and replay identity (mandatory)"
 +        id: lane_a
 +        if: always()
 +        run: |
 +          set +e
++          mkdir -p lane-a
++          # Two independent regenerations in this process. Repeated fits in one
++          # process are the strictest same-environment identity test available,
++          # and they are recorded rather than asserted silently.
++          for run in 1 2; do
++            python -m research.intake.rh04_v2_lane_a_report "${{ matrix.dispatch-class }}" \
++              > "lane-a/run${run}.json"
++            echo "lane_a_run${run}_exit=$?"
++          done
 +          python - <<'PY'
-+          import json, sys
-+          from research.intake import rh04_v2_lane_a_convergence as lane_a
-+
-+          exit_code = 0
-+          report = {"lane": "A", "routes": {}}
-+          for route_id in ("da_a1_basic_clinical_v1", "da_a2_resting_v1"):
-+              try:
-+                  document = lane_a.produce_lane_a_evidence(route_id)
-+              except Exception as exc:
-+                  report["routes"][route_id] = {
-+                      "classification": "EVIDENCE_MISSING",
-+                      "error": type(exc).__name__,
-+                      "is_failure": True,
-+                  }
-+                  exit_code = 1
-+                  continue
-+              report["routes"][route_id] = {
-+                  "execution_profile": document["execution_profile"],
-+                  "n_fits_observed": document["n_fits_observed"],
-+                  "residual_min": document["residual_summary"]["min"],
-+                  "residual_max": document["residual_summary"]["max"],
-+                  "classifications": document["classifications"],
-+                  "any_failure": document["any_failure"],
-+                  "evidence_sha256": document["evidence_sha256"],
-+              }
-+              # Trained failure / missing evidence / invalid output are failures.
-+              # Diagnostic divergence is reported and does NOT fail the stage.
-+              if document["any_failure"]:
-+                  exit_code = 1
++          import json, pathlib
++          first = json.loads(pathlib.Path("lane-a/run1.json").read_text())
++          second = json.loads(pathlib.Path("lane-a/run2.json").read_text())
++          report = {
++              "protocol_id": first["protocol_id"],
++              "requested_dispatch_class": first["requested_dispatch_class"],
++              "observed_dispatch_class": first["observed_dispatch_class"],
++              "python": first["identity"]["python"],
++              "libraries": first["identity"]["libraries"],
++              "regeneration_identical": (
++                  first["routes"] == second["routes"]
++              ),
++              "run1_digests": {r: v["evidence_sha256"] for r, v in first["routes"].items()},
++              "run2_digests": {r: v["evidence_sha256"] for r, v in second["routes"].items()},
++              "any_failure": first["any_failure"] or second["any_failure"],
++          }
++          pathlib.Path("lane-a/identity.json").write_text(json.dumps(report, indent=2, sort_keys=True))
 +          print(json.dumps(report, indent=2, sort_keys=True))
-+          sys.exit(exit_code)
++          # Same-environment regeneration must be bit-identical. This is not a
++          # tolerance: it is the property that makes the replay claim meaningful.
++          if not report["regeneration_identical"]:
++              raise SystemExit("Lane A did not regenerate identically within one environment")
++          if report["any_failure"]:
++              raise SystemExit("Lane A reported a convergence failure")
 +          PY
 +          code=$?
 +          echo "stage2_exit=$code" >> "$GITHUB_OUTPUT"
 +          exit 0
 +
 +      # ------------------------------------------------------------------ #
-+      # Stage 3 — Lane B mandatory exact replay (MANDATORY)
++      # Stage 3 — Lane B exact replay against the fixed reference (MANDATORY)
 +      # ------------------------------------------------------------------ #
-+      - name: "Stage 3 — Lane B exact reference replay (mandatory)"
++      - name: "Stage 3 - Lane B exact replay vs fixed reference (mandatory)"
 +        id: lane_b
 +        if: always()
 +        run: |
 +          set +e
++          mkdir -p lane-b
++          # Unified Lane B acceptance entry point. This is the only supported
++          # verification command; it admits the committed archives, replays all 29
++          # registered cases and compares the aggregate digest exactly.
++          python -m research.intake.rh04_v2_portable_archive \
++            research/intake/fixtures/rh04_v2_portable > lane-b/observed.json
++          echo "lane_b_exit=$?"
 +          python - <<'PY'
-+          import json, sys
-+          from ai import research_facade as facade
-+          from research.intake import offline_fixture_pack as v1
-+          from research.intake import rh04_v2_portable_archive as archive
-+          from research.intake import rh04_v2_value_mapping as mapping
-+
++          import json, pathlib
++          observed = json.loads(pathlib.Path("lane-b/observed.json").read_text())
 +          expected_digest = "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"
-+          admitted = archive.admit_from_directory("research/intake/fixtures/rh04_v2_portable")
-+          result = archive.replay_admitted(facade, admitted)
-+          pack = json.loads(v1.PACK.read_text(encoding="utf-8"))
-+          order = [c["id"] for c in pack["cases"]]
-+          expected = {c["id"]: c["expected"] for c in pack["cases"]}
-+          observed = {cid: r for cid, r in zip(order, result["responses"])}
-+          document = mapping.mapping_with_discrimination_proof(expected, observed)
-+
-+          verdict = {
-+              "lane": "B",
-+              "n_cases": result["n_cases"],
-+              "digest": result["digest"],
++          record = {
++              "observed_digest": observed["digest"],
++              "reference_digest": observed["reference_digest"],
 +              "expected_digest": expected_digest,
-+              "matches_reference": result["digest"] == expected_digest,
-+              "numeric_tolerance": "none",
-+              "leaf_totals": document["leaf_totals"],
-+              "total_leaves": document["total_leaves"],
-+              "discrimination_proof_detected": document["discrimination_proof"]["detected"],
++              "matches_reference": observed["matches_reference"],
++              "n_cases": observed["n_cases"],
++              "statuses": observed["statuses"],
++              "verdict": (
++                  "ACCEPTED"
++                  if observed["matches_reference"] and observed["digest"] == expected_digest
++                  else "REFUSED"
++              ),
 +          }
-+          print(json.dumps(verdict, indent=2, sort_keys=True))
-+          # Exact equality only. No tolerance, no near-match, no regeneration.
-+          ok = (
-+              result["digest"] == expected_digest
-+              and result["n_cases"] == 29
-+              and document["leaf_totals"].get("NUMERIC_DELTA", 0) == 0
-+              and document["discrimination_proof"]["detected"] is True
-+          )
-+          sys.exit(0 if ok else 1)
++          pathlib.Path("lane-b/identity.json").write_text(json.dumps(record, indent=2, sort_keys=True))
++          print(json.dumps(record, indent=2, sort_keys=True))
++          # The digest is compared exactly. It is never regenerated to fit, and the
++          # observed value is what gets recorded -- not merely "the expected digest
++          # appeared somewhere in the output".
++          if observed["digest"] != expected_digest:
++              raise SystemExit(
++                  f"Lane B digest mismatch: observed {observed['digest']}, "
++                  f"expected {expected_digest}"
++              )
++          if observed["reference_digest"] != expected_digest:
++              raise SystemExit("the pinned reference digest is not the agreed digest")
++          if observed["n_cases"] != 29:
++              raise SystemExit(f"expected 29 registered cases, replayed {observed['n_cases']}")
++          if record["verdict"] != "ACCEPTED":
++              raise SystemExit("Lane B verdict is not ACCEPTED")
 +          PY
 +          code=$?
 +          echo "stage3_exit=$code" >> "$GITHUB_OUTPUT"
 +          exit 0
 +
 +      # ------------------------------------------------------------------ #
-+      # Stage 4 — security and regression checks (MANDATORY)
++      # Stage 4 — targeted regression incl. negative tests (MANDATORY)
 +      # ------------------------------------------------------------------ #
-+      - name: "Stage 4 — security and regression checks (mandatory)"
-+        id: security
++      - name: "Stage 4 - targeted regression and negative tests (mandatory)"
++        id: regression
 +        if: always()
 +        run: |
 +          set +e
-+          python -m pytest tests/experiments tests/audit -q -W error
++          python -m pytest \
++            tests/experiments/test_rh04_v2_reference.py \
++            -q -W error -k "v2_02 or v2_03 or v2_07 or lane_a or convergence"
 +          code=$?
 +          echo "stage4_exit=$code" >> "$GITHUB_OUTPUT"
 +          exit 0
 +
 +      # ------------------------------------------------------------------ #
-+      # Stage 5 — publish every stage result, then enforce the gate
++      # Stage 5 — security checks (MANDATORY)
 +      # ------------------------------------------------------------------ #
-+      - name: "Stage 5 — publish stage results (always)"
++      - name: "Stage 5 - security checks (mandatory)"
++        id: security
++        if: always()
++        run: |
++          set +e
++          # No raw artefact data may reach the repository from this gate.
++          leaked=$(git status --porcelain | grep -Ev '^\?\? (lane-a|lane-b)/' | wc -l)
++          echo "unexpected_worktree_changes=$leaked"
++          # The gate must not modify the frozen V1 surface.
++          git diff --exit-code --stat -- ai/training.py ai/calibration.py
++          frozen=$?
++          # No credentials or absolute host paths in the produced evidence.
++          if grep -RIlE '/(home|Users)/[A-Za-z0-9._-]+|BEGIN [A-Z ]*PRIVATE KEY' lane-a lane-b 2>/dev/null; then
++            paths=1
++          else
++            paths=0
++          fi
++          if [ "$leaked" -ne 0 ] || [ "$frozen" -ne 0 ] || [ "$paths" -ne 0 ]; then
++            code=1
++          else
++            code=0
++          fi
++          echo "stage5_exit=$code" >> "$GITHUB_OUTPUT"
++          exit 0
++
++      # ------------------------------------------------------------------ #
++      # Stage 6 — classified Lane A differences (REPORTING, NOT A PASS GATE)
++      # ------------------------------------------------------------------ #
++      - name: "Stage 6 - classified Lane A differences (reporting)"
++        id: classify
++        if: always()
++        run: |
++          set +e
++          python - <<'PY'
++          import json, pathlib
++          report = json.loads(pathlib.Path("lane-a/identity.json").read_text())
++          record = {
++              "dispatch_class": report["observed_dispatch_class"],
++              "python": report["python"],
++              "digests": report["run1_digests"],
++              "regeneration_identical": report["regeneration_identical"],
++              "note": (
++                  "a Lane A digest differing between two dispatch classes is a "
++                  "classified numerical variation, reported here; it is not a "
++                  "failure and it is not acceptance. A digest differing between two "
++                  "regenerations inside one class would be a failure, and is caught "
++                  "in Stage 2."
++              ),
++          }
++          pathlib.Path("lane-a/classified.json").write_text(json.dumps(record, indent=2, sort_keys=True))
++          print(json.dumps(record, indent=2, sort_keys=True))
++          PY
++          code=$?
++          echo "stage6_exit=$code" >> "$GITHUB_OUTPUT"
++          exit 0
++
++      # ------------------------------------------------------------------ #
++      # Aggregate — fails if ANY mandatory stage failed
++      # ------------------------------------------------------------------ #
++      - name: "Aggregate - fail if any mandatory stage failed"
++        if: always()
++        run: |
++          python - <<'PY'
++          import json, os, pathlib
++          stages = {
++              "v1": "${{ steps.v1.outputs.stage1_exit }}",
++              "lane_a": "${{ steps.lane_a.outputs.stage2_exit }}",
++              "lane_b": "${{ steps.lane_b.outputs.stage3_exit }}",
++              "regression": "${{ steps.regression.outputs.stage4_exit }}",
++              "security": "${{ steps.security.outputs.stage5_exit }}",
++              "classify": "${{ steps.classify.outputs.stage6_exit }}",
++          }
++          mandatory = ("v1", "lane_a", "lane_b", "regression", "security")
++          failures = []
++          for name, value in stages.items():
++              if name not in mandatory:
++                  continue
++              # An empty value means the step never recorded a result. That is a
++              # failure, not a skip: a stage that did not run produced no evidence.
++              if value is None or value.strip() == "":
++                  failures.append(f"{name}: NO_RESULT_RECORDED")
++              elif value.strip() != "0":
++                  failures.append(f"{name}: exit {value}")
++          summary = {
++              "python": "${{ matrix.python-version }}",
++              "dispatch_class": "${{ matrix.dispatch-class }}",
++              "stages": stages,
++              "mandatory_failures": failures,
++              "verdict": "PASS" if not failures else "FAIL",
++          }
++          print(json.dumps(summary, indent=2, sort_keys=True))
++          pathlib.Path("gate-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
++          if failures:
++              raise SystemExit("mandatory stages failed: " + "; ".join(failures))
++          PY
++
++      - name: Publish per-class summary
 +        if: always()
 +        run: |
 +          {
-+            echo "## RH-04 dual-run — Python ${{ matrix.python-version }}"
-+            echo ""
-+            echo "| stage | character | exit |"
-+            echo "|---|---|---|"
-+            echo "| 1. V1 scoped verification | mandatory | ${{ steps.v1.outputs.stage1_exit }} |"
-+            echo "| 2. Lane A regeneration evidence | classified | ${{ steps.lane_a.outputs.stage2_exit }} |"
-+            echo "| 3. Lane B exact replay | mandatory | ${{ steps.lane_b.outputs.stage3_exit }} |"
-+            echo "| 4. Security and regression | mandatory | ${{ steps.security.outputs.stage4_exit }} |"
++            echo "## RH-04 dual-run - ${{ matrix.dispatch-class }} / Python ${{ matrix.python-version }}"
++            echo
++            echo "| Stage | Exit |"
++            echo "| --- | --- |"
++            echo "| V1 scoped verification | ${{ steps.v1.outputs.stage1_exit }} |"
++            echo "| Lane A regeneration identity | ${{ steps.lane_a.outputs.stage2_exit }} |"
++            echo "| Lane B exact replay | ${{ steps.lane_b.outputs.stage3_exit }} |"
++            echo "| Targeted regression | ${{ steps.regression.outputs.stage4_exit }} |"
++            echo "| Security checks | ${{ steps.security.outputs.stage5_exit }} |"
++            echo "| Classified differences (reporting) | ${{ steps.classify.outputs.stage6_exit }} |"
++            echo
++            echo '```json'
++            cat lane-b/identity.json 2>/dev/null || echo '{"lane_b": "no evidence produced"}'
++            echo '```'
 +          } >> "$GITHUB_STEP_SUMMARY"
 +
-+      - name: "Stage 5 — enforce gate (mandatory failures are preserved)"
++      - name: Upload evidence
 +        if: always()
++        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
++        with:
++          name: rh04-gate-${{ matrix.dispatch-class }}-py${{ matrix.python-version }}
++          path: |
++            lane-a/
++            lane-b/
++            gate-summary.json
++          if-no-files-found: warn
++          retention-days: 14
++
++  # ---------------------------------------------------------------------- #
++  # Unforced host dispatch: what this runner does with no coretype request.  #
++  # Kept separate so the forced classes above cannot be mistaken for it.     #
++  # ---------------------------------------------------------------------- #
++  host-dispatch:
++    name: RH-04 host dispatch (Python ${{ matrix.python-version }})
++    runs-on: ubuntu-24.04
++    timeout-minutes: 40
++
++    env:
++      OPENBLAS_NUM_THREADS: '1'
++      OMP_NUM_THREADS: '1'
++      MKL_NUM_THREADS: '1'
++      BLIS_NUM_THREADS: '1'
++      NUMEXPR_NUM_THREADS: '1'
++      VECLIB_MAXIMUM_THREADS: '1'
++
++    strategy:
++      fail-fast: false
++      matrix:
++        python-version: ['3.11', '3.12']
++
++    steps:
++      - name: Check out repository
++        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
++        with:
++          persist-credentials: false
++          fetch-depth: 0
++
++      - name: Set up Python
++        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
++        with:
++          python-version: ${{ matrix.python-version }}
++
++      - name: Install pinned dependencies
 +        run: |
-+          set -euo pipefail
-+          s1="${{ steps.v1.outputs.stage1_exit }}"
-+          s2="${{ steps.lane_a.outputs.stage2_exit }}"
-+          s3="${{ steps.lane_b.outputs.stage3_exit }}"
-+          s4="${{ steps.security.outputs.stage4_exit }}"
-+          failed=0
-+          for pair in "V1 scoped verification:$s1" "Lane A evidence:$s2" "Lane B exact replay:$s3" "Security and regression:$s4"; do
-+            name="${pair%%:*}"; code="${pair##*:}"
-+            if [ -z "$code" ]; then
-+              echo "MANDATORY STAGE DID NOT REPORT: $name" >&2
-+              failed=1
-+            elif [ "$code" != "0" ]; then
-+              echo "STAGE FAILED: $name (exit $code)" >&2
-+              failed=1
-+            else
-+              echo "stage passed: $name"
-+            fi
-+          done
-+          if [ "$failed" -ne 0 ]; then
-+            echo ""
-+            echo "This job is RED. A red result here is evidence, not noise: every" >&2
-+            echo "stage above still published its own outcome." >&2
-+            exit 1
-+          fi
-+          echo "all stages passed on Python ${{ matrix.python-version }}"
++          python -m pip install --upgrade pip
++          python -m pip install \
++            -r research/experiments/requirements.txt \
++            -r research/audit/requirements.txt \
++            -r research/uci412/requirements.txt \
++            -r tests/contracts/requirements.txt \
++            -r research/experiments/requirements-oracle.txt
++          python -m pip check
++
++      - name: Lane A under host dispatch
++        run: |
++          # env -u so the job-level env cannot leak a request in.
++          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host \
++            | tee lane-a-host.json
++          python -c "
++          import json
++          doc = json.load(open('lane-a-host.json'))
++          print('host resident class:', doc['observed_dispatch_class'])
++          assert doc['any_failure'] is False, doc
++          "
++
++      - name: Lane B under host dispatch
++        run: |
++          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_portable_archive \
++            research/intake/fixtures/rh04_v2_portable | tee lane-b-host.json
++          python -c "
++          import json
++          doc = json.load(open('lane-b-host.json'))
++          expected = '891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8'
++          assert doc['digest'] == expected, doc['digest']
++          assert doc['matches_reference'] is True
++          print('host Lane B digest matches the fixed reference')
++          "
++
++      - name: Upload host evidence
++        if: always()
++        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
++        with:
++          name: rh04-gate-host-py${{ matrix.python-version }}
++          path: |
++            lane-a-host.json
++            lane-b-host.json
++          if-no-files-found: warn
++          retention-days: 14

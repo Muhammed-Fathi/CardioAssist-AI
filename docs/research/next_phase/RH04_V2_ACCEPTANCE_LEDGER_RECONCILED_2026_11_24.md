@@ -15,12 +15,12 @@ Acceptance ID meanings remain the original `docs/rh04-issue132-acceptance-decisi
 | gate | v3 | v4 | what changed |
 |---|---|---|---|
 | V2-01 | OPEN | **OPEN** | ratification wording prepared (§ owner packet); still owner-only |
-| V2-02 | PARTIAL | **EVIDENCED** | 100 of 100 registered-path fits measured against the solver's own criterion |
+| V2-02 | PARTIAL | **CORRECTED IN v5 — see §1a** | the earlier v4 row claimed the clause was evidenced from 100 logistic-regression fits alone; that omitted the bounded OOF calibration optimizer, which the clause explicitly includes. Corrected below. |
 | V2-03 | PARTIAL | **EVIDENCED** | complete 29-case leaf-level mapping, 479 leaves, 0 numeric deltas, discrimination-proofed |
 | V2-04 | NOT MET | **PARTIALLY EVIDENCED** | hosted green on 3.11 and 3.12; matrix (3 classes × 2 versions + Windows) still incomplete |
 | V2-05 | PROPOSED | **PATCH PREPARED** | dual-run gate written and stage-independence tested; cannot be pushed |
 | V2-06 | PARTIAL | **V2 HALF DONE** | V2-facing semantics complete; production wording still out of scope |
-| V2-07 | PARTIAL | **EVIDENCED** | missing/non-evaluable/failed-fit negatives added and mutation-verified |
+| V2-07 | PARTIAL | **CORRECTED IN v5 — see §1a** | the earlier v4 claim rested on a test that asserted the wrong behaviour (over-criterion residual = non-failure). Corrected below and re-mutation-verified. |
 | V2-08 | SATISFIED | **SATISFIED** | unchanged; no tolerance added |
 | V2-09 | LARGELY MET | **LARGELY MET** | semantics document adds non-claims |
 | V2-10 | DEMONSTRATED | **DEMONSTRATED** | re-executed on final SHA `8849207`, gate included |
@@ -38,7 +38,92 @@ including a proposed `docs/DECISIONS.md` entry. **That entry does not exist and 
 work did not create one.** Three separable acts are proposed (architecture,
 evidence acceptance, register entry), in that order.
 
-### V2-02 — Solver and criterion declaration — **EVIDENCED**
+### 1a. Correction to v4: V2-02 and V2-07 were over-claimed
+
+**This is a correction of this ledger's own previous claim, not a new finding about
+the code.** The v4 rows above stated that V2-02 and V2-07 were EVIDENCED. Both claims
+were wrong, for different reasons, and both are retracted here.
+
+**V2-02 was overstated.** The clause covers *both* fitted components: the logistic
+regression **and** the bounded out-of-fold calibration optimizer. v4 measured 100
+logistic-regression fits and reported the clause evidenced. The calibration optimizer
+is a separate SciPy L-BFGS-B problem with its own bounds `[(-15, 15), (0.01, 15)]`,
+its own stopping rules, and its own `OptimizeResult` — none of which was observed.
+Observing one component cannot evidence a clause that names two.
+
+Round 16 observes the calibration optimizer at the seam it is actually called
+through (the `minimize` binding inside `ai/calibration.py`, not `scipy.optimize`,
+because the import is by value):
+
+| quantity | measured |
+|---|---|
+| calibration optimizations observed | **14** (7 on `da_a1_basic_clinical_v1`, 7 on `da_a2_resting_v1`) |
+| solver | `scipy_lbfgsb`, bounded |
+| termination | 14 of 14 `CONVERGED_PROJECTED_GRADIENT`, scipy `status = 0` |
+| criterion | box-projected gradient norm ≤ the solver's declared `tol` (`1e-5`) |
+| projected residual | min `4.852e-09`, max `7.996e-06` |
+| iterations | 5 to 11; **0** at the iteration cap |
+| independent evaluation | the calibrator's own objective re-derived from source and evaluated outside scipy |
+
+**Two defects were found while doing this, and both are the kind that produce
+plausible-looking evidence:**
+
+1. *The observer could not see the second route.* `ai/calibration.py` does
+   `from scipy.optimize import minimize`, so patching `scipy.optimize.minimize`
+   works only for a module that resolves the attribute at call time. The first route
+   in a process appeared to be observed and the second silently captured nothing. The
+   observer now patches the binding the calibrator actually calls.
+2. *The status-code table was wrong.* An iteration-capped L-BFGS-B fit returns
+   `status = 1` with `"STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT"` on scipy
+   1.15.3, while the widely-quoted table assigns 1 to "function change converged". A
+   classifier keyed on the number alone would have **passed a capped fit as
+   converged**. The termination reason is now derived from the solver's own message
+   and cross-checked against `success`; only the two recognised convergence tests are
+   accepted and everything else is a failure.
+
+**Box projection is load-bearing, not cosmetic.** One real `da_a2_resting_v1` fit
+terminates on the lower slope bound `b = 0.01` with `raw |g| = 1.271e-02` but
+`projected |g| = 4.852e-09`. Judging by the raw gradient would have failed a fit that
+converged correctly in every feasible direction.
+
+**V2-07 was overstated, and one of its tests asserted the wrong thing.** The
+round-15 test `test_v2_07_failed_fit_is_a_failure_not_diagnostic_divergence` contained
+this assertion:
+
+```
+# A genuine divergence below the cap is reported, and is NOT a failure.
+assert result["classification"] == "DIAGNOSTIC_DIVERGENCE"
+assert result["is_failure"] is False
+```
+
+for a fit whose residual exceeded its declared criterion. That encodes "failing your
+own acceptance criterion is a reportable variation", which is the opposite of the
+contract. A test that asserts the defect cannot detect it, so the mutation evidence
+quoted in v4 was validating the wrong behaviour. The classification is corrected, the
+test is corrected to assert `TRAINING_FAILED` / `is_failure=True`, and the corrected
+test was re-verified against the reintroduced defect.
+
+**The classification now distinguishes three cases**, which the earlier version
+conflated:
+
+| case | classification | failure |
+|---|---|---|
+| met its own declared criterion; differs numerically from another environment | `DIAGNOSTIC_DIVERGENCE` | no |
+| did not meet its own declared criterion | `TRAINING_FAILED` | **yes** |
+| required solver evidence missing, non-finite or malformed | `EVIDENCE_MISSING` / `OUTPUT_INVALID` | **yes** |
+
+A missing tolerance is **never** replaced by a default. v4's classifier fell back to
+a module-level `LANE_A_SOLVER_DEFAULT_TOLERANCE` when `solver_settings.tol` was
+absent, so a fit that declared no criterion could be reported as converged against a
+number it never declared. That fallback is removed and its absence is a failure.
+
+**What V2-02 still is not.** Evidence is not satisfaction. Nothing here closes the
+gate, and the calibration evidence is still Linux-local: it was measured on one
+machine and one dispatch class, not on Windows and not across the matrix. The scope
+claim remains logistic regression plus its calibration map; the random forest is a
+different estimator with no gradient-based convergence test and is not covered.
+
+### V2-02 — Solver and criterion declaration — **CORRECTED; EVIDENCE COMPLETE FOR THE REGISTERED LINUX PATH**
 The registered path was **observed**, not declared from documentation:
 
 | quantity | measured |
@@ -137,12 +222,12 @@ directory gone, `.github/workflows/` identical to `main`, and the V1 suite
 | Gate | Status |
 |---|---|
 | V2-01 | OPEN — owner only |
-| V2-02 | EVIDENCED |
+| V2-02 | EVIDENCE COMPLETE for the registered Linux path — not the full matrix |
 | V2-03 | EVIDENCED |
 | V2-04 | PARTIALLY EVIDENCED — matrix incomplete |
-| V2-05 | PATCH PREPARED — not applied |
+| V2-05 | PATCH PREPARED (round 16 rebuild) — not applied |
 | V2-06 | V2 HALF DONE — production half out of scope |
-| V2-07 | EVIDENCED |
+| V2-07 | EVIDENCE CORRECTED and re-mutation-verified — not yet reviewed |
 | V2-08 | SATISFIED IN SUBSTANCE |
 | V2-09 | LARGELY MET |
 | V2-10 | DEMONSTRATED on final SHA `8849207` |

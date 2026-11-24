@@ -1,0 +1,3730 @@
+{
+ "cases": [
+  {
+   "case_id": "Cath",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A1",
+     "v2": "DA-A1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "prohibited_leakage_or_wearable_field",
+     "v2": "prohibited_leakage_or_wearable_field"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].error.field",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field.",
+     "v2": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "LAD",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A1",
+     "v2": "DA-A1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "prohibited_leakage_or_wearable_field",
+     "v2": "prohibited_leakage_or_wearable_field"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].error.field",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field.",
+     "v2": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "bad-category",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "unknown_categorical_code",
+     "v2": "unknown_categorical_code"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "cp",
+     "v2": "cp"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "A supplied categorical code is outside the registered vocabulary.",
+     "v2": "A supplied categorical code is outside the registered vocabulary."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "bad-generator",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A1",
+     "v2": "DA-A1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "synthetic_provenance_generator_not_admissible",
+     "v2": "synthetic_provenance_generator_not_admissible"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "synthetic_provenance.generator_id",
+     "v2": "synthetic_provenance.generator_id"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "The declared fixture generator is not on this entry's pinned generator allowlist.",
+     "v2": "The declared fixture generator is not on this entry's pinned generator allowlist."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "ca",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "prohibited_leakage_or_wearable_field",
+     "v2": "prohibited_leakage_or_wearable_field"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].error.field",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field.",
+     "v2": "The record supplies a prohibited outcome, angiography, echocardiography, or wearable field."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "da_a1_basic_clinical_v1",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 38
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A1",
+     "v2": "DA-A1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[0]",
+     "v1": "Age",
+     "v2": "Age"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[10]",
+     "v1": "PR",
+     "v2": "PR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[11]",
+     "v1": "Typical Chest Pain",
+     "v2": "Typical Chest Pain"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[12]",
+     "v1": "Atypical",
+     "v2": "Atypical"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[13]",
+     "v1": "Nonanginal",
+     "v2": "Nonanginal"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[14]",
+     "v1": "Exertional CP",
+     "v2": "Exertional CP"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[15]",
+     "v1": "Dyspnea",
+     "v2": "Dyspnea"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[1]",
+     "v1": "Sex",
+     "v2": "Sex"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[2]",
+     "v1": "BMI",
+     "v2": "BMI"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[3]",
+     "v1": "DM",
+     "v2": "DM"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[4]",
+     "v1": "HTN",
+     "v2": "HTN"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[5]",
+     "v1": "Current Smoker",
+     "v2": "Current Smoker"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[6]",
+     "v1": "EX-Smoker",
+     "v2": "EX-Smoker"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[7]",
+     "v1": "FH",
+     "v2": "FH"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[8]",
+     "v1": "DLP",
+     "v2": "DLP"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[9]",
+     "v1": "BP",
+     "v2": "BP"
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.calibrated_log_odds",
+     "v1": 2.6971396718292335,
+     "v1_repr": "2.6971396718292335",
+     "v2": 2.6971396718292335,
+     "v2_repr": "2.6971396718292335"
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.calibrated_research_score",
+     "v1": 0.9368576513885218,
+     "v1_repr": "0.9368576513885218",
+     "v2": 0.9368576513885218,
+     "v2_repr": "0.9368576513885218"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score.calibration_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].score.clinical_probability_claim",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].score.exploratory_above_threshold_flag",
+     "v1": true,
+     "v2": true
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.exploratory_threshold",
+     "v1": 0.5,
+     "v1_repr": "0.5",
+     "v2": 0.5,
+     "v2_repr": "0.5"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].score.exploratory_threshold_clinically_validated",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.raw_model_log_odds",
+     "v1": 2.1293412528962987,
+     "v1_repr": "2.1293412528962987",
+     "v2": 2.1293412528962987,
+     "v2_repr": "2.1293412528962987"
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.raw_model_score",
+     "v1": 0.8937224550197632,
+     "v1_repr": "0.8937224550197632",
+     "v2": 0.8937224550197632,
+     "v2_repr": "0.8937224550197632"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].score.scale_declaration",
+     "v1": "calibrated_research_score = expit(intercept + slope * raw_log_odds) on the calibrated log-odds scale fitted on development out-of-fold predictions; raw_model_score is the uncalibrated model probability.",
+     "v2": "calibrated_research_score = expit(intercept + slope * raw_log_odds) on the calibrated log-odds scale fitted on development out-of-fold predictions; raw_model_score is the uncalibrated model probability."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].score.score_interpretation",
+     "v1": "RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK",
+     "v2": "RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].score.score_kind",
+     "v1": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC",
+     "v2": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "SYNTHETIC_RESULT",
+     "v2": "SYNTHETIC_RESULT"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "SYNTHETIC_RESULT",
+     "v2": "SYNTHETIC_RESULT"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 39,
+   "n_leaves_v2": 39
+  },
+  {
+   "case_id": "da_a1_clinical_core_labs_v1",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A1",
+     "v2": "DA-A1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "model_entry_blocked_source_timing_unverified",
+     "v2": "model_entry_blocked_source_timing_unverified"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "entry_state",
+     "v2": "entry_state"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request was refused by a registered fail-closed check.",
+     "v2": "The request was refused by a registered fail-closed check."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a1_clinical_core_labs_v1",
+     "v2": "da_a1_clinical_core_labs_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a1_clinical_core_labs_v1",
+     "v2": "da_a1_clinical_core_labs_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "UNAVAILABLE",
+     "v2": "UNAVAILABLE"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "da_a1_clinical_core_labs_v1-stale-hash",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "dataset_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "panel_contract_hash_mismatch",
+     "v2": "panel_contract_hash_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "panel_contract_sha256",
+     "v2": "panel_contract_sha256"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request panel contract hash does not match the pinned panel contract.",
+     "v2": "The request panel contract hash does not match the pinned panel contract."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "panel_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "route_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "da_a1_clinical_core_labs_v1-wrong-dataset",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "dataset_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "dataset_id_mismatch",
+     "v2": "dataset_id_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "dataset_id",
+     "v2": "dataset_id"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request dataset id does not match the registry binding.",
+     "v2": "The request dataset id does not match the registry binding."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "panel_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "route_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "da_a2_hungary_locked_transportability_v1",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "model_entry_locked_external_target",
+     "v2": "model_entry_locked_external_target"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "entry_state",
+     "v2": "entry_state"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request was refused by a registered fail-closed check.",
+     "v2": "The request was refused by a registered fail-closed check."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_hungary_locked_transportability_v1",
+     "v2": "da_a2_hungary_locked_transportability_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "UNAVAILABLE",
+     "v2": "UNAVAILABLE"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "da_a2_hungary_locked_transportability_v1-stale-hash",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "dataset_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "panel_contract_hash_mismatch",
+     "v2": "panel_contract_hash_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "panel_contract_sha256",
+     "v2": "panel_contract_sha256"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request panel contract hash does not match the pinned panel contract.",
+     "v2": "The request panel contract hash does not match the pinned panel contract."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "panel_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "route_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "da_a2_hungary_locked_transportability_v1-wrong-dataset",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "dataset_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "dataset_id_mismatch",
+     "v2": "dataset_id_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "dataset_id",
+     "v2": "dataset_id"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request dataset id does not match the registry binding.",
+     "v2": "The request dataset id does not match the registry binding."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "panel_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "route_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "da_a2_resting_labs_v1",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "model_entry_blocked_pending_authorization",
+     "v2": "model_entry_blocked_pending_authorization"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "entry_state",
+     "v2": "entry_state"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request was refused by a registered fail-closed check.",
+     "v2": "The request was refused by a registered fail-closed check."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_labs_v1",
+     "v2": "da_a2_resting_labs_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_labs_v1",
+     "v2": "da_a2_resting_labs_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "UNAVAILABLE",
+     "v2": "UNAVAILABLE"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "da_a2_resting_labs_v1-stale-hash",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "dataset_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "panel_contract_hash_mismatch",
+     "v2": "panel_contract_hash_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "panel_contract_sha256",
+     "v2": "panel_contract_sha256"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request panel contract hash does not match the pinned panel contract.",
+     "v2": "The request panel contract hash does not match the pinned panel contract."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "panel_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "route_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "da_a2_resting_labs_v1-wrong-dataset",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "dataset_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "dataset_id_mismatch",
+     "v2": "dataset_id_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "dataset_id",
+     "v2": "dataset_id"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request dataset id does not match the registry binding.",
+     "v2": "The request dataset id does not match the registry binding."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "panel_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "route_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "da_a2_resting_v1",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 27
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[0]",
+     "v1": "age",
+     "v2": "age"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[1]",
+     "v1": "sex",
+     "v2": "sex"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[2]",
+     "v1": "cp",
+     "v2": "cp"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[3]",
+     "v1": "trestbps",
+     "v2": "trestbps"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[4]",
+     "v1": "restecg",
+     "v2": "restecg"
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.calibrated_log_odds",
+     "v1": 1.1439672594951131,
+     "v1_repr": "1.1439672594951131",
+     "v2": 1.1439672594951131,
+     "v2_repr": "1.1439672594951131"
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.calibrated_research_score",
+     "v1": 0.7584072878055222,
+     "v1_repr": "0.7584072878055222",
+     "v2": 0.7584072878055222,
+     "v2_repr": "0.7584072878055222"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score.calibration_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].score.clinical_probability_claim",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].score.exploratory_above_threshold_flag",
+     "v1": true,
+     "v2": true
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.exploratory_threshold",
+     "v1": 0.5,
+     "v1_repr": "0.5",
+     "v2": 0.5,
+     "v2_repr": "0.5"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].score.exploratory_threshold_clinically_validated",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.raw_model_log_odds",
+     "v1": 1.144313724957358,
+     "v1_repr": "1.144313724957358",
+     "v2": 1.144313724957358,
+     "v2_repr": "1.144313724957358"
+    },
+    {
+     "absolute_delta": 0.0,
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "float",
+     "path": "outcomes[0].score.raw_model_score",
+     "v1": 0.7584707634896621,
+     "v1_repr": "0.7584707634896621",
+     "v2": 0.7584707634896621,
+     "v2_repr": "0.7584707634896621"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].score.scale_declaration",
+     "v1": "calibrated_research_score = expit(intercept + slope * raw_log_odds) on the calibrated log-odds scale fitted on development out-of-fold predictions; raw_model_score is the uncalibrated model probability.",
+     "v2": "calibrated_research_score = expit(intercept + slope * raw_log_odds) on the calibrated log-odds scale fitted on development out-of-fold predictions; raw_model_score is the uncalibrated model probability."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].score.score_interpretation",
+     "v1": "RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK",
+     "v2": "RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].score.score_kind",
+     "v1": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC",
+     "v2": "CALIBRATED_RESEARCH_SCORE_SYNTHETIC"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "SYNTHETIC_RESULT",
+     "v2": "SYNTHETIC_RESULT"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "SYNTHETIC_RESULT",
+     "v2": "SYNTHETIC_RESULT"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 28,
+   "n_leaves_v2": 28
+  },
+  {
+   "case_id": "optional",
+   "classification_counts": {
+    "STRUCTURAL_IDENTITY": 17
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].abstention_reason",
+     "v1": "registry_abstain_policy_optional_field_missing",
+     "v2": "registry_abstain_policy_optional_field_missing"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].missing_fields_with_reason[0][0]",
+     "v1": "trestbps",
+     "v2": "trestbps"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].missing_fields_with_reason[0][1]",
+     "v1": "not_provided",
+     "v2": "not_provided"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[0]",
+     "v1": "age",
+     "v2": "age"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[1]",
+     "v1": "sex",
+     "v2": "sex"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[2]",
+     "v1": "cp",
+     "v2": "cp"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[3]",
+     "v1": "restecg",
+     "v2": "restecg"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ABSTAIN",
+     "v2": "ABSTAIN"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ABSTAIN",
+     "v2": "ABSTAIN"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 17,
+   "n_leaves_v2": 17
+  },
+  {
+   "case_id": "optional-null",
+   "classification_counts": {
+    "STRUCTURAL_IDENTITY": 17
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].abstention_reason",
+     "v1": "registry_abstain_policy_optional_field_missing",
+     "v2": "registry_abstain_policy_optional_field_missing"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].missing_fields_with_reason[0][0]",
+     "v1": "trestbps",
+     "v2": "trestbps"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].missing_fields_with_reason[0][1]",
+     "v1": "not_measured",
+     "v2": "not_measured"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[0]",
+     "v1": "age",
+     "v2": "age"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[1]",
+     "v1": "sex",
+     "v2": "sex"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[2]",
+     "v1": "cp",
+     "v2": "cp"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].present_fields[3]",
+     "v1": "restecg",
+     "v2": "restecg"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ABSTAIN",
+     "v2": "ABSTAIN"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ABSTAIN",
+     "v2": "ABSTAIN"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 17,
+   "n_leaves_v2": 17
+  },
+  {
+   "case_id": "optional-null-no-reason",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "missing_reason_mismatch",
+     "v2": "missing_reason_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "missing_reasons",
+     "v2": "missing_reasons"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "Every omitted or null optional field requires exactly one registered missing reason.",
+     "v2": "Every omitted or null optional field requires exactly one registered missing reason."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "optional-null-structural-reason",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "invalid_missing_reason",
+     "v2": "invalid_missing_reason"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "trestbps",
+     "v2": "trestbps"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "The supplied missing reason is not a registered missing reason.",
+     "v2": "The supplied missing reason is not a registered missing reason."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "patient_wearable",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "unsupported_input_source",
+     "v2": "unsupported_input_source"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "declared_input_context",
+     "v2": "declared_input_context"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "The declared input source is not a registered synthetic research source.",
+     "v2": "The declared input source is not a registered synthetic research source."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "route",
+     "v2": "route"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "required",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "missing_required_field",
+     "v2": "missing_required_field"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "age",
+     "v2": "age"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "A required panel field is omitted or null.",
+     "v2": "A required panel field is omitted or null."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "required-null",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "missing_required_field",
+     "v2": "missing_required_field"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "age",
+     "v2": "age"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "A required panel field is omitted or null.",
+     "v2": "A required panel field is omitted or null."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "stale-hash",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "dataset_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "panel_contract_hash_mismatch",
+     "v2": "panel_contract_hash_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "panel_contract_sha256",
+     "v2": "panel_contract_sha256"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request panel contract hash does not match the pinned panel contract.",
+     "v2": "The request panel contract hash does not match the pinned panel contract."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "panel_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "route_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "track_b",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "unsupported_input_source",
+     "v2": "unsupported_input_source"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "declared_input_context",
+     "v2": "declared_input_context"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "The declared input source is not a registered synthetic research source.",
+     "v2": "The declared input source is not a registered synthetic research source."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "route",
+     "v2": "route"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "uploaded_image_or_ocr",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A1",
+     "v2": "DA-A1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "unsupported_input_source",
+     "v2": "unsupported_input_source"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "declared_input_context",
+     "v2": "declared_input_context"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "The declared input source is not a registered synthetic research source.",
+     "v2": "The declared input source is not a registered synthetic research source."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "route",
+     "v2": "route"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a1_basic_clinical_v1",
+     "v2": "da_a1_basic_clinical_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  },
+  {
+   "case_id": "wrong-dataset",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "dataset_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "dataset_id_mismatch",
+     "v2": "dataset_id_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "dataset_id",
+     "v2": "dataset_id"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request dataset id does not match the registry binding.",
+     "v2": "The request dataset id does not match the registry binding."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "panel_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "route_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "wrong-panel",
+   "classification_counts": {
+    "IDENTICAL": 1,
+    "STRUCTURAL_IDENTITY": 11
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "dataset_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.code",
+     "v1": "panel_id_mismatch",
+     "v2": "panel_id_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.field",
+     "v1": "panel_id",
+     "v2": "panel_id"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.message",
+     "v1": "The request panel id does not match the registry binding.",
+     "v2": "The request panel id does not match the registry binding."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "error.stage",
+     "v1": "registry",
+     "v2": "registry"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE",
+     "v2": "NOT_EVALUATED_NO_SYNTHETIC_EXERCISE"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "panel_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "route_id",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 12,
+   "n_leaves_v2": 12
+  },
+  {
+   "case_id": "wrong-unit",
+   "classification_counts": {
+    "IDENTICAL": 2,
+    "STRUCTURAL_IDENTITY": 16
+   },
+   "entries": [
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "dataset_id",
+     "v1": "DA-A2",
+     "v2": "DA-A2"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "error",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "evidence_level",
+     "v1": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE",
+     "v2": "SYNTHETIC_TEST_NOT_CLINICAL_EVIDENCE"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].abstention_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.code",
+     "v1": "unit_mismatch",
+     "v2": "unit_mismatch"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.field",
+     "v1": "trestbps",
+     "v2": "trestbps"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.input_values_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "bool",
+     "path": "outcomes[0].error.local_paths_echoed",
+     "v1": false,
+     "v2": false
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.message",
+     "v1": "A supplied unit token does not match the registered unit for that field.",
+     "v2": "A supplied unit token does not match the registered unit for that field."
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].error.stage",
+     "v1": "record",
+     "v2": "record"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].missing_fields_with_reason"
+    },
+    {
+     "classification": "IDENTICAL",
+     "kind": "list",
+     "path": "outcomes[0].present_fields"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].score",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "outcomes[0].status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "null",
+     "path": "outcomes[0].unavailable_reason",
+     "v1": null,
+     "v2": null
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "panel_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "route_id",
+     "v1": "da_a2_resting_v1",
+     "v2": "da_a2_resting_v1"
+    },
+    {
+     "classification": "STRUCTURAL_IDENTITY",
+     "kind": "string",
+     "path": "status",
+     "v1": "ERROR",
+     "v2": "ERROR"
+    }
+   ],
+   "max_absolute_delta": null,
+   "max_absolute_delta_path": null,
+   "moved_value_count": 0,
+   "n_leaves_v1": 18,
+   "n_leaves_v2": 18
+  }
+ ],
+ "cases_with_no_numeric_delta": 29,
+ "cases_with_numeric_delta": 0,
+ "discrimination_proof": {
+  "detected": true,
+  "detected_absolute_delta": 2.6645352591003757e-15,
+  "meaning": "the mapping detects a one-part-in-10^15 move, so its zero-delta result for the real comparison is a measurement rather than an artefact of a comparison that cannot see differences",
+  "perturbation_relative": 1e-15,
+  "perturbed_case": "da_a1_basic_clinical_v1",
+  "perturbed_path": "outcomes[0].score.calibrated_log_odds"
+ },
+ "leaf_totals": {
+  "IDENTICAL": 40,
+  "STRUCTURAL_IDENTITY": 439
+ },
+ "mapping_sha256": "950eec860556190e7e0127147a1f4f3dc74736223e0d15fc6fa6c24bf683d09a",
+ "n_cases": 29,
+ "note": "descriptive only; Lane B acceptance remains exact equality against the fixed reference digest, and no delta here grants acceptance",
+ "protocol_id": "rh04.v2.value-mapping/v1",
+ "total_leaves": 479
+}

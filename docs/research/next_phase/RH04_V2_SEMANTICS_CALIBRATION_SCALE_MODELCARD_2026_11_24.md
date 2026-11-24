@@ -98,6 +98,48 @@ Observed from the registered path, not declared from a datasheet:
 The criterion is therefore **the solver's own declared stopping rule, verified by an
 independent implementation**. It is not a threshold invented for the evidence.
 
+#### 2.1a Three estimators, three different kinds of evidence — kept separate
+
+The earlier version of this section described Lane A as if the logistic regression
+were the whole of it. It is not, and the distinction matters for what any evidence
+can support.
+
+| component | what it is | convergence evidence available |
+|---|---|---|
+| **REST logistic estimator** | `LogisticRegression(penalty="l2", solver="lbfgs")` fitted on the route's features | a gradient-based stopping rule (`tol`), so a stationarity residual is meaningful; this is the 100-fit table above |
+| **BASIC random forest** | `RandomForestClassifier`; bootstrap-averaged trees, no iterative optimiser | **none of this kind.** There is no gradient, no `n_iter_` and no tolerance. It is not "converged" or "not converged", and no residual is reported for it |
+| **common OOF calibration optimisation** | bounded SciPy L-BFGS-B fit of `eta_cal = intercept + slope * eta_raw` on out-of-fold logits, `bounds=[(-15,15),(0.01,15)]`, `tol=1e-5` | its own `status`, `message`, iteration count, objective and box-projected gradient; 14 fits observed, all `status = 0` |
+
+The calibration optimisation is **shared** by the routes: it is not part of the
+model's own fit and it is not specific to either estimator. Reporting it under "the
+logistic regression converged" would misattribute it; reporting the logistic
+regression's residual as evidence for it would be an outright substitution.
+
+**The random forest is not evidenced here at all.** No claim is made that it
+converged, that it is reproducible across environments, or that its outputs are
+bit-identical. Its outputs are covered only where a case actually passes through it,
+and only by the leaf comparison, which is a value comparison and not a convergence
+test.
+
+#### 2.1b What the calibration residual measures
+
+`L-BFGS-B` stops on several conditions, and only some of them mean "a stationarity
+test was satisfied":
+
+| reported message | meaning | accepted as convergence |
+|---|---|---|
+| `CONVERGENCE: NORM OF PROJECTED GRADIENT <= PGTOL` | projected gradient test | **yes** |
+| `CONVERGENCE: REL_REDUCTION_OF_F ...` | function-change test | **yes** |
+| `STOP: TOTAL NO. OF ITERATIONS REACHED LIMIT` | iteration cap | **no** |
+| `STOP: TOTAL NO. OF F,G EVALUATIONS EXCEEDS LIMIT` | evaluation cap | **no** |
+| anything else / unrecognised | unknown | **no** |
+
+The residual is the **box-projected** gradient norm: at an active bound, the outward
+component cannot be reduced and is not a stationarity violation. This is not a
+technicality — one measured fit sits on the lower slope bound with a raw norm of
+`1.271e-02` and a projected norm of `4.852e-09`. The raw norm and the projected norm
+are both recorded, so the distinction can be checked rather than trusted.
+
 **A correction recorded rather than hidden.** This round initially proposed `1e-10`
 for Lane A, on the reasoning that a converged fit "should" sit far below the solver's
 tolerance. Measurement disproved it: no observed fit reached `1e-10`, because
