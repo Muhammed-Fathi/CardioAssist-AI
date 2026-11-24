@@ -153,11 +153,12 @@ jobs:
         run: |
           set +e
           mkdir -p lane-a
-          # Two independent regenerations in this process. Repeated fits in one
-          # process are the strictest same-environment identity test available,
-          # and they are recorded rather than asserted silently.
+          # Two independent regenerations. Each run drives the registered
+          # regeneration path and records the model, calibration and replay
+          # identities, not just a convergence summary. Repeated fits in one
+          # environment are the strictest same-environment identity test available.
           for run in 1 2; do
-            python -m research.intake.rh04_v2_lane_a_report "${{ matrix.dispatch-class }}" \
+            python -m research.intake.rh04_v2_lane_a_report "${{ matrix.dispatch-class }}" lane-a \
               > "lane-a/run${run}.json"
             echo "lane_a_run${run}_exit=$?"
           done
@@ -165,23 +166,48 @@ jobs:
           import json, pathlib
           first = json.loads(pathlib.Path("lane-a/run1.json").read_text())
           second = json.loads(pathlib.Path("lane-a/run2.json").read_text())
+
+          def identities(document):
+              # Every regenerated identity, per route, so the comparison is over
+              # real model/calibration/replay identities rather than over a
+              # convergence hash.
+              out = {}
+              for route, value in document["routes"].items():
+                  regen = value["regeneration"]
+                  out[route] = {
+                      "model": regen["model_identity_sha256"],
+                      "calibration": regen["calibration_identity_sha256"],
+                      "replay": regen["replay_identity_sha256"],
+                      "selected_family": regen["model_identity"]["selected_family"],
+                      "selected_hyperparameters": regen["model_identity"]["selected_hyperparameters"],
+                      "intercept": regen["calibration_identity"]["intercept"],
+                      "slope": regen["calibration_identity"]["slope"],
+                      "convergence": value["convergence_evidence_sha256"],
+                  }
+              return out
+
+          first_ids = identities(first)
+          second_ids = identities(second)
           report = {
               "protocol_id": first["protocol_id"],
               "requested_dispatch_class": first["requested_dispatch_class"],
               "observed_dispatch_class": first["observed_dispatch_class"],
+              "resident_dispatch": first["resident_dispatch"],
               "python": first["identity"]["python"],
               "libraries": first["identity"]["libraries"],
-              "regeneration_identical": (
-                  first["routes"] == second["routes"]
-              ),
-              "run1_digests": {r: v["evidence_sha256"] for r, v in first["routes"].items()},
-              "run2_digests": {r: v["evidence_sha256"] for r, v in second["routes"].items()},
+              "n_library_entries": first["identity"]["n_entries"],
+              "regeneration_identical": first_ids == second_ids,
+              "identities_run1": first_ids,
+              "identities_run2": second_ids,
               "any_failure": first["any_failure"] or second["any_failure"],
           }
           pathlib.Path("lane-a/identity.json").write_text(json.dumps(report, indent=2, sort_keys=True))
           print(json.dumps(report, indent=2, sort_keys=True))
+          # An empty resident list is not evidence.
+          if not report["libraries"]:
+              raise SystemExit("no resident numerical libraries were recorded")
           # Same-environment regeneration must be bit-identical. This is not a
-          # tolerance: it is the property that makes the replay claim meaningful.
+          # tolerance: it is the property that makes the identity claim meaningful.
           if not report["regeneration_identical"]:
               raise SystemExit("Lane A did not regenerate identically within one environment")
           if report["any_failure"]:
@@ -200,10 +226,12 @@ jobs:
         run: |
           set +e
           mkdir -p lane-b
-          # Unified Lane B acceptance entry point. This is the only supported
-          # verification command; it admits the committed archives, replays all 29
-          # registered cases and compares the aggregate digest exactly.
-          python -m research.intake.rh04_v2_portable_archive \
+          # Done in its own process through the unified verification path. Lane B
+          # records its OWN resident library identity here: the replay process
+          # loads its libraries independently of Lane A's process, so one cannot
+          # evidence the other.
+          python -m research.intake.rh04_v2_lane_a_report \
+            "${{ matrix.dispatch-class }}" lane-b \
             research/intake/fixtures/rh04_v2_portable > lane-b/observed.json
           echo "lane_b_exit=$?"
           python - <<'PY'
@@ -211,34 +239,36 @@ jobs:
           observed = json.loads(pathlib.Path("lane-b/observed.json").read_text())
           expected_digest = "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"
           record = {
-              "observed_digest": observed["digest"],
+              "observed_digest": observed["observed_digest"],
               "reference_digest": observed["reference_digest"],
               "expected_digest": expected_digest,
               "matches_reference": observed["matches_reference"],
               "n_cases": observed["n_cases"],
               "statuses": observed["statuses"],
-              "verdict": (
-                  "ACCEPTED"
-                  if observed["matches_reference"] and observed["digest"] == expected_digest
-                  else "REFUSED"
-              ),
+              "statuses_sha256": observed["statuses_sha256"],
+              "observed_dispatch_class": observed["observed_dispatch_class"],
+              "resident_dispatch": observed["resident_dispatch"],
+              "n_library_entries": observed["identity"]["n_entries"],
+              "verdict": observed["verdict"],
           }
           pathlib.Path("lane-b/identity.json").write_text(json.dumps(record, indent=2, sort_keys=True))
           print(json.dumps(record, indent=2, sort_keys=True))
           # The digest is compared exactly. It is never regenerated to fit, and the
           # observed value is what gets recorded -- not merely "the expected digest
           # appeared somewhere in the output".
-          if observed["digest"] != expected_digest:
+          if observed["observed_digest"] != expected_digest:
               raise SystemExit(
-                  f"Lane B digest mismatch: observed {observed['digest']}, "
+                  f"Lane B digest mismatch: observed {observed['observed_digest']}, "
                   f"expected {expected_digest}"
               )
           if observed["reference_digest"] != expected_digest:
               raise SystemExit("the pinned reference digest is not the agreed digest")
           if observed["n_cases"] != 29:
               raise SystemExit(f"expected 29 registered cases, replayed {observed['n_cases']}")
-          if record["verdict"] != "ACCEPTED":
+          if observed["verdict"] != "ACCEPTED":
               raise SystemExit("Lane B verdict is not ACCEPTED")
+          if not observed["identity"]["libraries"]:
+              raise SystemExit("Lane B recorded no resident library identity")
           PY
           code=$?
           echo "stage3_exit=$code" >> "$GITHUB_OUTPUT"
@@ -437,27 +467,33 @@ jobs:
 
       - name: Lane A under host dispatch
         run: |
-          # env -u so the job-level env cannot leak a request in.
-          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host \
+          # env -u so the job-level env cannot leak a coretype request in.
+          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host lane-a \
             | tee lane-a-host.json
           python -c "
           import json
           doc = json.load(open('lane-a-host.json'))
-          print('host resident class:', doc['observed_dispatch_class'])
+          print('host resident classes:', doc['resident_dispatch']['blas_architectures'])
+          assert doc['identity']['libraries'], 'no resident library identity recorded'
           assert doc['any_failure'] is False, doc
+          for route, value in doc['routes'].items():
+              regen = value['regeneration']
+              print(route, regen['model_identity']['selected_family'], regen['model_identity_sha256'][:12])
           "
 
       - name: Lane B under host dispatch
         run: |
-          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_portable_archive \
+          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host lane-b \
             research/intake/fixtures/rh04_v2_portable | tee lane-b-host.json
           python -c "
           import json
           doc = json.load(open('lane-b-host.json'))
           expected = '891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8'
-          assert doc['digest'] == expected, doc['digest']
-          assert doc['matches_reference'] is True
-          print('host Lane B digest matches the fixed reference')
+          print('host Lane B observed:', doc['observed_digest'], doc['verdict'])
+          print('host Lane B resident classes:', doc['resident_dispatch']['blas_architectures'])
+          assert doc['observed_digest'] == expected, doc['observed_digest']
+          assert doc['verdict'] == 'ACCEPTED'
+          assert doc['identity']['libraries'], 'no resident library identity recorded'
           "
 
       - name: Upload host evidence

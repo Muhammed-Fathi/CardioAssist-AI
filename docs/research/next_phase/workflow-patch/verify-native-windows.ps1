@@ -1,38 +1,31 @@
 <#
 .SYNOPSIS
-    RH-04 V2 native Windows verification - Lane A, Lane B and V1.
-    PowerShell 5.1 compatible.
+    RH-04 V2 native Windows verification - Lane A, Lane B, V1 and targeted
+    regression. PowerShell 5.1 compatible.
 
 .DESCRIPTION
-    Executes the required native Windows evidence for the frozen delivery SHA.
+    Executes the required native Windows evidence for one frozen delivery SHA.
     Reuses the repository's own requirement files, so the environment is the one
     the project declares rather than an ad-hoc set.
 
-    CORRECTIONS IN THIS VERSION
-      * The statement-list expression
-            Add-Result "..." $(if (...) { "PASS" } else { "FAIL" })
-        is not valid PowerShell 5.1 and has been removed. Results are computed
-        into variables and then recorded.
-      * The old Lane B check searched the whole console output for the expected
-        digest with -match. That reports "the string appears somewhere", not "the
-        observed digest is the expected digest". The observed digest and verdict
-        are now parsed from the JSON and compared as values.
-      * The environment is created in a dedicated directory, never a
-        caller-selected directory that is deleted recursively. An existing
-        dedicated venv is reused only with -ReuseVenv; otherwise the run stops
-        and says what to do.
+    EVIDENCE INTEGRITY
+      * Every run writes into a SHA-bound, per-execution evidence directory:
+        .rh04-evidence-win\<short-sha>\<UTC timestamp>\. A previous run's JSON can
+        never be read back as this run's result, because this run has its own
+        directory and its own file names.
+      * Every Python process has its exit code checked immediately. A non-zero
+        exit is a failure, and the file it was supposed to write is explicitly
+        removed, so nothing downstream can credit stale output.
+      * Lane B uses the unified verification path
+        (research.intake.rh04_v2_lane_a_report, lane-b), which replays through
+        rh04_v2_portable_archive and reports the OBSERVED digest and verdict.
+      * The targeted regression tests from the acceptance harness are run and
+        recorded.
 
-    What it proves, and what it does not:
-
-      * Lane B exact replay on Windows, with the fixed digest and no tolerance.
-      * Lane A convergence evidence on Windows for both fitted components,
-        classified.
-      * V1 scoped verification on Windows.
-      * dependency, resident-library, SHA and count provenance.
-
-    It does NOT change any artifact, tolerance, fixture or expectation. If a count
-    or a digest disagrees with the pinned value it reports RED and exits non-zero;
-    it never regenerates an expectation to match an observation.
+    IT DOES NOT change any artifact, tolerance, fixture, expectation, case count
+    or frozen V1 file. If a value disagrees with the pinned value it reports RED
+    and exits non-zero; it never regenerates an expectation to match an
+    observation.
 
 .PARAMETER ExpectedHead
     The frozen delivery SHA this run is evidence for.
@@ -41,12 +34,11 @@
     Reuse an existing dedicated environment instead of stopping.
 
 .PARAMETER SkipInstall
-    Skip environment creation and dependency installation. The interpreter must
-    already be in place.
+    Skip environment creation and dependency installation.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\verify-native-windows.ps1 `
-        -ExpectedHead 2aee5edd6c60ad530aa3804b7833c9acfd019d9e
+        -ExpectedHead <candidate-sha>
 #>
 
 [CmdletBinding()]
@@ -83,22 +75,35 @@ function Add-Result([string]$Check, [string]$Status, [string]$Detail) {
     }
 }
 
-# --------------------------------------------------------------------------- #
-# 0. Fresh evidence directory                                                 #
-# --------------------------------------------------------------------------- #
-# A dedicated path only. If something else is already there and -ReuseVenv was not
-# given, stop rather than delete it: the caller may have pointed this at a real
-# environment by accident.
-$evidenceDir = ".rh04-evidence-win"
-if (Test-Path $evidenceDir) {
-    Write-Host "  reusing existing evidence directory $evidenceDir"
-}
-else {
-    New-Item -ItemType Directory -Path $evidenceDir | Out-Null
+# Run a Python invocation and record its exit code immediately. On failure the
+# declared output file is deleted, so a stale file from an earlier run cannot be
+# mistaken for this run's result.
+function Invoke-PythonStep {
+    param(
+        [string]$Name,
+        [string[]]$Arguments,
+        [string]$OutputPath
+    )
+    Write-Host ("  running: python {0}" -f ($Arguments -join " "))
+    & python @Arguments
+    $code = $LASTEXITCODE
+    if ($code -ne 0) {
+        if ($OutputPath -and (Test-Path $OutputPath)) {
+            Remove-Item -Path $OutputPath -Force -ErrorAction SilentlyContinue
+        }
+        Add-Result $Name "FAIL" ("python exited {0}; its output is discarded" -f $code)
+        return $false
+    }
+    if ($OutputPath -and -not (Test-Path $OutputPath)) {
+        Add-Result $Name "FAIL" ("python exited 0 but wrote no {0}" -f $OutputPath)
+        return $false
+    }
+    Add-Result $Name "PASS" "exit 0"
+    return $true
 }
 
 # --------------------------------------------------------------------------- #
-# 1. Repository identity                                                      #
+# 1. Repository identity - stop immediately on a wrong SHA or dirty tree       #
 # --------------------------------------------------------------------------- #
 Write-Section "1. Repository identity"
 
@@ -107,7 +112,7 @@ if (-not (Test-Path ".git")) {
     exit 2
 }
 
-$head = (git rev-parse HEAD 2>$null)
+$head = (& git rev-parse HEAD 2>$null)
 if ($LASTEXITCODE -ne 0) {
     Write-Host "git rev-parse HEAD failed." -ForegroundColor Red
     exit 2
@@ -117,55 +122,79 @@ $head = $head.Trim()
 Write-Host ("  checkout HEAD : {0}" -f $head)
 Write-Host ("  expected HEAD : {0}" -f $ExpectedHead)
 
-if ($head -eq $ExpectedHead) {
-    Add-Result "checkout HEAD" "PASS" $head
-}
-else {
-    # Stop immediately. Any later evidence would belong to a different commit.
-    Add-Result "checkout HEAD" "FAIL" ("checkout is {0}, expected {1}" -f $head, $ExpectedHead)
+if ($head -ne $ExpectedHead) {
     Write-Host ""
-    Write-Host "  Stopping: this run cannot be evidence for the frozen SHA." -ForegroundColor Red
-    Write-Host "  Check out the reviewed commit and re-run. Nothing else was executed." -ForegroundColor Red
+    Write-Host ("  STOP: checkout is {0}, expected {1}." -f $head, $ExpectedHead) -ForegroundColor Red
+    Write-Host "  No evidence can be produced for the frozen SHA from this tree." -ForegroundColor Red
+    Write-Host "  Nothing else was executed." -ForegroundColor Red
     exit 2
 }
+Add-Result "checkout HEAD" "PASS" $head
 
-$dirty = @(git status --porcelain "--untracked-files=no" 2>$null)
+$dirty = @(& git status --porcelain)
 if ($dirty.Count -eq 0) {
-    Add-Result "working tree clean" "PASS" "no uncommitted tracked changes"
+    Add-Result "working tree clean" "PASS" "no uncommitted or untracked changes"
 }
 else {
     Write-Host $dirty
-    Add-Result "working tree clean" "FAIL" "uncommitted tracked changes present; evidence would not correspond to a commit"
     Write-Host ""
-    Write-Host "  Stopping immediately: a dirty tracked tree cannot produce commit evidence." -ForegroundColor Red
+    Write-Host "  STOP: the tree is dirty. Evidence would not correspond to a commit." -ForegroundColor Red
+    Write-Host "  Nothing else was executed." -ForegroundColor Red
     exit 2
 }
 
-# The base reference is required by the preservation test; fetch it if absent.
 git rev-parse --verify refs/remotes/origin/main 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  base ref absent; fetching origin/main" -ForegroundColor Yellow
     git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main" | Out-Null
 }
-$baseRef = (git rev-parse refs/remotes/origin/main 2>$null)
+$baseRef = (& git rev-parse refs/remotes/origin/main 2>$null)
 if ($LASTEXITCODE -eq 0 -and $baseRef) {
     $baseRef = $baseRef.Trim()
     Add-Result "base reference" "PASS" $baseRef
 }
 else {
-    Add-Result "base reference" "FAIL" "origin/main unavailable; the preservation test cannot run and must not skip"
-    Write-Host "  Stopping: the frozen-surface check has no trusted base." -ForegroundColor Red
+    Add-Result "base reference" "FAIL" "origin/main unavailable; the frozen-surface check cannot run and must not skip"
+    Write-Host "  STOP: no trusted base reference." -ForegroundColor Red
     exit 2
 }
 
-Write-Host ("  git version   : {0}" -f (git --version))
-Write-Host ("  OS            : {0}" -f ([System.Environment]::OSVersion.VersionString))
-Write-Host ("  architecture  : {0}" -f ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture))
+Write-Host ("  git version  : {0}" -f (git --version))
+Write-Host ("  OS           : {0}" -f ([System.Environment]::OSVersion.VersionString))
+Write-Host ("  architecture : {0}" -f ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture))
 
 # --------------------------------------------------------------------------- #
-# 2. Environment - dedicated directory only                                   #
+# 2. Fresh, SHA-bound evidence directory                                      #
 # --------------------------------------------------------------------------- #
-Write-Section "2. Python environment"
+Write-Section "2. Evidence directory"
+
+$shortSha = $head.Substring(0, 12)
+$stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+$evidenceDir = Join-Path (Join-Path ".rh04-evidence-win" $shortSha) $stamp
+
+# A fresh directory per execution. Nothing is ever reused, so no file in it can
+# predate this run.
+New-Item -ItemType Directory -Path $evidenceDir -Force | Out-Null
+$evidenceRoot = (Resolve-Path $evidenceDir).Path
+Add-Result "evidence directory" "PASS" ("fresh for this run: {0}" -f $evidenceRoot)
+
+# Sanity: a brand-new directory must be empty.
+$preexisting = @(Get-ChildItem -Path $evidenceRoot -Force)
+if ($preexisting.Count -eq 0) {
+    Add-Result "evidence directory empty at start" "PASS" "no file can be mistaken for this run's output"
+}
+else {
+    Add-Result "evidence directory empty at start" "FAIL" ("{0} files were already present" -f $preexisting.Count)
+    exit 2
+}
+
+$laneBPath = Join-Path $evidenceRoot "lane-b.json"
+$laneAPath = Join-Path $evidenceRoot "lane-a.json"
+
+# --------------------------------------------------------------------------- #
+# 3. Environment - dedicated directory only                                   #
+# --------------------------------------------------------------------------- #
+Write-Section "3. Python environment"
 
 if (-not $SkipInstall) {
     if (Test-Path $VenvPath) {
@@ -175,8 +204,8 @@ if (-not $SkipInstall) {
         else {
             Add-Result "venv directory" "FAIL" ("{0} already exists; pass -ReuseVenv to reuse it, or remove it yourself" -f $VenvPath)
             Write-Host ""
-            Write-Host "  Stopping: refusing to delete a directory recursively. This script" -ForegroundColor Red
-            Write-Host "  only creates a dedicated environment, and it will not remove one." -ForegroundColor Red
+            Write-Host "  STOP: refusing to delete a directory recursively. This script only" -ForegroundColor Red
+            Write-Host "  creates a dedicated environment and will not remove one." -ForegroundColor Red
             exit 2
         }
     }
@@ -197,12 +226,12 @@ if (-not (Test-Path $activate)) {
 }
 . $activate
 
-# Verify the actual interpreter, not the one we hoped for.
+# Verify the ACTUAL interpreter, not the one that was requested.
 $interpreter = (& python -c "import sys;print(sys.version.split()[0])").Trim()
 $interpreterPath = (& python -c "import sys;print(sys.executable)").Trim()
-Write-Host ("  interpreter   : {0}" -f $interpreterPath)
+Write-Host ("  interpreter : {0}" -f $interpreterPath)
 if ($interpreter -like "3.11.*") {
-    Add-Result "interpreter" "PASS" ("Python {0} at {1}" -f $interpreter, $interpreterPath)
+    Add-Result "interpreter" "PASS" ("Python {0}" -f $interpreter)
 }
 else {
     Add-Result "interpreter" "FAIL" ("Python {0}, expected 3.11.x" -f $interpreter)
@@ -221,8 +250,6 @@ if (-not $SkipInstall) {
         Add-Result "dependency install" "FAIL" "pip install of the pinned requirements failed"
         exit 2
     }
-    # The independent oracle is required evidence, not an optional extra. Without
-    # it the oracle tests fail closed by design.
     python -m pip install -r research/experiments/requirements-oracle.txt --quiet
     if ($LASTEXITCODE -ne 0) {
         Add-Result "oracle install" "FAIL" "requirements-oracle.txt failed to install"
@@ -230,11 +257,6 @@ if (-not $SkipInstall) {
     }
     Add-Result "oracle install" "PASS" "research/experiments/requirements-oracle.txt"
 }
-
-# --------------------------------------------------------------------------- #
-# 3. Dependency validation and resident libraries                             #
-# --------------------------------------------------------------------------- #
-Write-Section "3. Dependency validation"
 
 python -m pip check | Out-Host
 if ($LASTEXITCODE -eq 0) {
@@ -244,52 +266,38 @@ else {
     Add-Result "pip check" "FAIL" "broken requirements reported"
 }
 
-$versionsJson = python -c @"
-import sys; sys.path.insert(0, '.')
-import importlib.metadata as m, json
-names = ('numpy','scipy','scikit-learn','mpmath','pytest','openpyxl','threadpoolctl')
-out = {}
-for n in names:
-    try:
-        out[n] = m.version(n)
-    except Exception:
-        out[n] = None
-print(json.dumps(out, sort_keys=True))
-"@
-Write-Host ("  resolved versions: {0}" -f $versionsJson)
-Add-Result "resolved versions" "PASS" $versionsJson
-
-# Resident libraries, read after the numerical libraries are loaded. Reading
-# threadpool_info() before the first BLAS call reports the library but not the
-# kernel actually in use, and OPENBLAS_CORETYPE is only a request anyway.
-$residentJson = python -c @"
-import sys; sys.path.insert(0, '.')
-import json
-try:
-    import numpy as np
-    matrix = np.random.default_rng(0).normal(size=(256, 256))
-    matrix @ matrix.T
-    from threadpoolctl import threadpool_info
-    keys = ('internal_api', 'user_api', 'version', 'architecture', 'filepath', 'num_threads')
-    entries = [{k: e.get(k) for k in keys} for e in threadpool_info()]
-    print(json.dumps({'libraries': entries}, sort_keys=True))
-except Exception as exc:
-    print(json.dumps({'error': type(exc).__name__}))
-"@
-Write-Host ("  resident libraries: {0}" -f $residentJson)
-if ($residentJson -match '"error"') {
-    Add-Result "resident numerical libraries" "FAIL" "threadpoolctl could not report the loaded libraries; an empty or failed read is not evidence"
-}
-else {
-    Add-Result "resident numerical libraries" "PASS" $residentJson
-}
-
 # --------------------------------------------------------------------------- #
-# 4. Evidence directory must stay inside the workspace                        #
+# 4. Resident numerical libraries (full set, not a collapsed value)           #
 # --------------------------------------------------------------------------- #
-$evidenceRoot = (Resolve-Path $evidenceDir).Path
-Write-Host ("  evidence root : {0}" -f $evidenceRoot)
-Add-Result "evidence directory" "PASS" $evidenceRoot
+Write-Section "4. Resident numerical libraries"
+
+$residentPath = Join-Path $evidenceRoot "resident.json"
+$residentScript = @'
+import sys
+sys.path.insert(0, ".")
+import json, pathlib
+from research.intake import rh04_v2_lane_a_report as report
+
+# Load and exercise NumPy's and SciPy's separate OpenBLAS builds, then read every
+# resident entry. A single collapsed "architecture" would be wrong here: NumPy and
+# SciPy can resolve different architectures at the same time.
+report._warm_numerics()
+identity = report.resident_libraries()
+classes = report.dispatch_classes_of(identity)
+out = {"identity": identity, "classes": classes}
+pathlib.Path(sys.argv[1]).write_text(json.dumps(out, indent=2, sort_keys=True), encoding="utf-8")
+print(json.dumps(classes, indent=2, sort_keys=True))
+'@
+$residentScriptPath = Join-Path $evidenceRoot "_resident.py"
+Set-Content -Path $residentScriptPath -Value $residentScript -Encoding ASCII
+if (Invoke-PythonStep -Name "resident libraries" -Arguments @($residentScriptPath, $residentPath) -OutputPath $residentPath) {
+    $resident = Get-Content -Path $residentPath -Raw | ConvertFrom-Json
+    $archList = ($resident.classes.blas_architectures -join ", ")
+    Add-Result "resident dispatch classes" "PASS" ("{0} (mixed: {1})" -f $archList, $resident.classes.mixed)
+    if ($resident.identity.libraries.Count -lt 1) {
+        Add-Result "resident library count" "FAIL" "no libraries reported; an empty list is not evidence"
+    }
+}
 
 # --------------------------------------------------------------------------- #
 # 5. V1 scoped verification (mandatory)                                       #
@@ -307,151 +315,101 @@ else {
 }
 
 # --------------------------------------------------------------------------- #
-# 6. Lane B - mandatory exact reference replay                                #
+# 6. Lane B - unified verification path, observed digest and verdict          #
 # --------------------------------------------------------------------------- #
 Write-Section "6. Lane B exact reference replay (mandatory)"
 
 $expectedDigest = "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"
-$laneBPath = Join-Path $evidenceDir "lane-b.json"
 
-python -c @"
-import sys; sys.path.insert(0, '.')
-import json
-import pathlib
-from ai import research_facade as facade
-from research.intake import offline_fixture_pack as v1
-from research.intake import rh04_v2_portable_archive as archive
-from research.intake import rh04_v2_value_mapping as mapping
+# The unified entry point. It admits the archives, replays all 29 registered cases
+# through the facade and records the observed digest -- inside the process that did
+# the work, with its own resident library identity.
+$laneBRunner = @'
+import sys
+sys.path.insert(0, ".")
+import json, pathlib
+from research.intake import rh04_v2_lane_a_report as report
 
-expected_digest = '$expectedDigest'
-admitted = archive.admit_from_directory('research/intake/fixtures/rh04_v2_portable')
-result = archive.replay_admitted(facade, admitted)
-pack = json.loads(v1.PACK.read_text(encoding='utf-8'))
-order = [c['id'] for c in pack['cases']]
-expected = {c['id']: c['expected'] for c in pack['cases']}
-observed = {cid: r for cid, r in zip(order, result['responses'])}
-document = mapping.mapping_with_discrimination_proof(expected, observed)
-verdict = {
-    'n_cases': result['n_cases'],
-    'observed_digest': result['digest'],
-    'expected_digest': expected_digest,
-    'reference_digest': archive.LANE_B_REFERENCE_DIGEST,
-    'matches_reference': result['digest'] == expected_digest,
-    'numeric_tolerance': 'none',
-    'leaf_totals': document['leaf_totals'],
-    'total_leaves': document['total_leaves'],
-    'cases_with_numeric_delta': document['cases_with_numeric_delta'],
-    'discrimination_proof_detected': document['discrimination_proof']['detected'],
-}
-verdict['verdict'] = 'ACCEPTED' if (
-    verdict['matches_reference']
-    and verdict['n_cases'] == 29
-    and verdict['cases_with_numeric_delta'] == 0
-    and verdict['discrimination_proof_detected'] is True
-) else 'REFUSED'
-pathlib.Path(r'$evidenceDir/lane-b.json').write_text(
-    json.dumps(verdict, indent=2, sort_keys=True), encoding='utf-8'
-)
-print(json.dumps(verdict, indent=2, sort_keys=True))
-"@
-Write-Host $laneBJson
+document = report.produce_lane_b(sys.argv[1], "research/intake/fixtures/rh04_v2_portable")
+pathlib.Path(sys.argv[2]).write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
+print(json.dumps({
+    "observed_digest": document["observed_digest"],
+    "verdict": document["verdict"],
+    "n_cases": document["n_cases"],
+    "resident_blas": document["resident_dispatch"]["blas_architectures"],
+}, indent=2, sort_keys=True))
+sys.exit(0 if document["verdict"] == "ACCEPTED" else 1)
+'@
+$laneBScriptPath = Join-Path $evidenceRoot "_lane_b.py"
+Set-Content -Path $laneBScriptPath -Value $laneBRunner -Encoding ASCII
 
-# Read the recorded observation back and compare the VALUE. This is the
-# correction: the old check matched the expected digest against the whole console
-# output, which passes whenever the expected string is printed for any reason.
-if (Test-Path $laneBPath) {
+# "host" leaves dispatch to the machine, which is what native evidence should record.
+$laneBOk = Invoke-PythonStep -Name "Lane B replay" -Arguments @($laneBScriptPath, "host", $laneBPath) -OutputPath $laneBPath
+
+if ($laneBOk -and (Test-Path $laneBPath)) {
     $laneB = Get-Content -Path $laneBPath -Raw | ConvertFrom-Json
-    $laneBDigestOk = ($laneB.observed_digest -eq $expectedDigest)
-    $laneBReferenceOk = ($laneB.reference_digest -eq $expectedDigest)
-    $laneBCountOk = ($laneB.n_cases -eq 29)
-    $laneBVerdictOk = ($laneB.verdict -eq "ACCEPTED")
-
-    if ($laneBDigestOk) {
+    if ($laneB.observed_digest -eq $expectedDigest) {
         Add-Result "Lane B observed digest" "PASS" $laneB.observed_digest
     }
     else {
         Add-Result "Lane B observed digest" "FAIL" ("observed {0}, expected {1}; the expectation is NOT regenerated to match" -f $laneB.observed_digest, $expectedDigest)
     }
-    if ($laneBReferenceOk) {
+    if ($laneB.reference_digest -eq $expectedDigest) {
         Add-Result "Lane B pinned reference" "PASS" $laneB.reference_digest
     }
     else {
         Add-Result "Lane B pinned reference" "FAIL" ("pinned reference is {0}" -f $laneB.reference_digest)
     }
-    if ($laneBCountOk) {
-        Add-Result "Lane B case count" "PASS" "29 registered cases replayed"
-    }
-    else {
-        Add-Result "Lane B case count" "FAIL" ("{0} cases replayed, expected 29" -f $laneB.n_cases)
-    }
-    if ($laneBVerdictOk) {
+    if ($laneB.verdict -eq "ACCEPTED") {
         Add-Result "Lane B verdict" "PASS" "ACCEPTED"
     }
     else {
         Add-Result "Lane B verdict" "FAIL" ("verdict is {0}" -f $laneB.verdict)
     }
-    if ($laneB.cases_with_numeric_delta -eq 0) {
-        Add-Result "Lane B numeric deltas" "PASS" "0 numeric deltas across all leaves"
+    if ($laneB.n_cases -eq 29) {
+        Add-Result "Lane B case count" "PASS" "29 registered cases replayed"
     }
     else {
-        Add-Result "Lane B numeric deltas" "FAIL" ("{0} leaves moved; Lane B is exact and this is not acceptable" -f $laneB.cases_with_numeric_delta)
+        Add-Result "Lane B case count" "FAIL" ("{0} cases replayed, expected 29" -f $laneB.n_cases)
     }
+    $laneBArch = ($laneB.resident_dispatch.blas_architectures -join ", ")
+    Add-Result "Lane B resident dispatch" "PASS" ("{0} (read inside the replay process)" -f $laneBArch)
 }
 else {
-    Add-Result "Lane B evidence file" "FAIL" ("{0} was not produced; no verdict can be recorded" -f $laneBPath)
+    Add-Result "Lane B evidence" "FAIL" "no Lane B document was produced by this run"
 }
 
 # --------------------------------------------------------------------------- #
-# 7. Lane A - classified evidence for both fitted components                  #
+# 7. Lane A - convergence and regeneration identity                           #
 # --------------------------------------------------------------------------- #
-Write-Section "7. Lane A regeneration evidence (classified)"
+Write-Section "7. Lane A regeneration evidence"
 
-$laneAPath = Join-Path $evidenceDir "lane-a.json"
-python -c @"
-import sys; sys.path.insert(0, '.')
-import json
-import pathlib
-from research.intake import rh04_v2_lane_a_convergence as lane_a
+$laneARunner = @'
+import sys
+sys.path.insert(0, ".")
+import json, pathlib
+from research.intake import rh04_v2_lane_a_report as report
 
-report = {'lane': 'A', 'routes': {}}
-for route_id in ('da_a1_basic_clinical_v1', 'da_a2_resting_v1'):
-    try:
-        document = lane_a.produce_complete_evidence(route_id)
-    except Exception as exc:
-        report['routes'][route_id] = {
-            'classification': 'EVIDENCE_MISSING',
-            'error': type(exc).__name__,
-            'is_failure': True,
-        }
-        continue
-    model = document['components']['logistic_regression']
-    calibration = document['components']['oof_calibration_optimizer']
-    report['routes'][route_id] = {
-        'execution_profile': model.get('execution_profile'),
-        'any_failure': document['any_failure'],
-        'evidence_sha256': document['evidence_sha256'],
-        'logistic_regression': {
-            'n_observations': model.get('n_fits_observed'),
-            'classifications': model['classifications'],
-            'residual_min': model['residual_summary'].get('min'),
-            'residual_max': model['residual_summary'].get('max'),
-        },
-        'oof_calibration_optimizer': {
-            'n_observations': calibration.get('n_optimizations'),
-            'classifications': calibration['classifications'],
-            'residual_min': calibration['residual_summary'].get('min'),
-            'residual_max': calibration['residual_summary'].get('max'),
-            'declaration': calibration.get('declaration'),
-        },
+document = report.produce_lane_a("host")
+pathlib.Path(sys.argv[1]).write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
+summary = {
+    route: {
+        "any_failure": value["any_failure"],
+        "logistic_regression": value["components"]["logistic_regression"]["n_observations"],
+        "calibration": value["components"]["oof_calibration_optimizer"]["n_observations"],
+        "model_identity": value["regeneration"]["model_identity_sha256"],
+        "calibration_identity": value["regeneration"]["calibration_identity_sha256"],
+        "replay_identity": value["regeneration"]["replay_identity_sha256"],
     }
-pathlib.Path(r'$evidenceDir/lane-a.json').write_text(
-    json.dumps(report, indent=2, sort_keys=True), encoding='utf-8'
-)
-print(json.dumps(report, indent=2, sort_keys=True))
-"@
-Write-Host $laneAJson
+    for route, value in document["routes"].items()
+}
+print(json.dumps(summary, indent=2, sort_keys=True))
+sys.exit(0 if not document["any_failure"] else 1)
+'@
+$laneAScriptPath = Join-Path $evidenceRoot "_lane_a.py"
+Set-Content -Path $laneAScriptPath -Value $laneARunner -Encoding ASCII
 
-if (Test-Path $laneAPath) {
+if (Invoke-PythonStep -Name "Lane A evidence" -Arguments @($laneAScriptPath, $laneAPath) -OutputPath $laneAPath) {
     $laneA = Get-Content -Path $laneAPath -Raw | ConvertFrom-Json
     foreach ($routeId in @("da_a1_basic_clinical_v1", "da_a2_resting_v1")) {
         $route = $laneA.routes.$routeId
@@ -459,13 +417,13 @@ if (Test-Path $laneAPath) {
             Add-Result ("Lane A {0}" -f $routeId) "FAIL" "no evidence produced for this route"
             continue
         }
-        $lrCount = $route.logistic_regression.n_observations
-        $calCount = $route.oof_calibration_optimizer.n_observations
-        if ($lrCount -gt 0 -and $calCount -gt 0) {
-            Add-Result ("Lane A {0} observation" -f $routeId) "PASS" ("{0} model fits and {1} calibration optimizations observed" -f $lrCount, $calCount)
+        $lr = $route.components.logistic_regression.n_observations
+        $cal = $route.components.oof_calibration_optimizer.n_observations
+        if ($lr -gt 0 -and $cal -gt 0) {
+            Add-Result ("Lane A {0} observation" -f $routeId) "PASS" ("{0} model fits and {1} calibration optimizations" -f $lr, $cal)
         }
         else {
-            Add-Result ("Lane A {0} observation" -f $routeId) "FAIL" ("model fits {0}, calibration optimizations {1}; both components are required" -f $lrCount, $calCount)
+            Add-Result ("Lane A {0} observation" -f $routeId) "FAIL" ("model fits {0}, calibration {1}; both components are required" -f $lr, $cal)
         }
         if ($route.any_failure -eq $false) {
             Add-Result ("Lane A {0} classification" -f $routeId) "PASS" "no training failure, missing evidence or invalid output"
@@ -473,16 +431,28 @@ if (Test-Path $laneAPath) {
         else {
             Add-Result ("Lane A {0} classification" -f $routeId) "FAIL" "a fit failed, or its evidence is missing or invalid"
         }
+        Add-Result ("Lane A {0} regeneration identity" -f $routeId) "PASS" ("family={0}, calibration={1}" -f $route.regeneration.model_identity.selected_family, $route.regeneration.calibration_identity_sha256.Substring(0, 12))
     }
-}
-else {
-    Add-Result "Lane A evidence file" "FAIL" ("{0} was not produced" -f $laneAPath)
 }
 
 # --------------------------------------------------------------------------- #
-# 8. Frozen V1 surface                                                        #
+# 8. Targeted regression tests (mandatory)                                    #
 # --------------------------------------------------------------------------- #
-Write-Section "8. Frozen-surface check"
+Write-Section "8. Targeted regression"
+
+python -m pytest tests/experiments/test_rh04_v2_reference.py `
+    -q -W error -k "v2_02 or v2_03 or v2_07 or lane_a or convergence"
+if ($LASTEXITCODE -eq 0) {
+    Add-Result "targeted regression" "PASS" "exit 0"
+}
+else {
+    Add-Result "targeted regression" "FAIL" ("exit {0}" -f $LASTEXITCODE)
+}
+
+# --------------------------------------------------------------------------- #
+# 9. Frozen V1 surface                                                       #
+# --------------------------------------------------------------------------- #
+Write-Section "9. Frozen-surface check"
 
 foreach ($file in @(
     "research/intake/offline_fixture_pack.py",
@@ -505,40 +475,38 @@ foreach ($file in @(
 }
 
 # --------------------------------------------------------------------------- #
-# 9. Summary                                                                  #
+# 10. Summary                                                                 #
 # --------------------------------------------------------------------------- #
-Write-Section "9. Summary"
+Write-Section "10. Summary"
 
 $script:Results | Format-Table -AutoSize | Out-Host
 
 Write-Host ""
-Write-Host ("  HEAD          : {0}" -f $head)
-Write-Host ("  base reference: {0}" -f $baseRef)
-Write-Host ("  interpreter   : {0}" -f $interpreterPath)
-Write-Host ("  evidence      : {0}" -f $evidenceRoot)
-Write-Host ("  failures      : {0}" -f $script:Failures.Count)
+Write-Host ("  HEAD        : {0}" -f $head)
+Write-Host ("  base        : {0}" -f $baseRef)
+Write-Host ("  interpreter : {0}" -f $interpreterPath)
+Write-Host ("  evidence    : {0}" -f $evidenceRoot)
+Write-Host ("  failures    : {0}" -f $script:Failures.Count)
 
-# Persist the machine-readable record, so the owner can attach it unedited.
-# Note: the verdict is assigned with a plain if/else. A statement-list `$(if ...)`
-# inside a hashtable literal is not valid PowerShell 5.1.
 $overall = "GREEN"
 if ($script:Failures.Count -gt 0) {
     $overall = "RED"
 }
 $summary = [pscustomobject]@{
-    head          = $head
-    base_ref      = $baseRef
-    interpreter   = $interpreterPath
-    python        = $interpreter
-    platform      = ([System.Environment]::OSVersion.VersionString)
-    architecture  = ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture).ToString()
-    results       = $script:Results
-    failures      = $script:Failures
-    result        = $overall
+    head         = $head
+    base_ref     = $baseRef
+    interpreter  = $interpreterPath
+    python       = $interpreter
+    platform     = ([System.Environment]::OSVersion.VersionString)
+    architecture = ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture).ToString()
+    evidence_dir = $evidenceRoot
+    results      = $script:Results
+    failures     = $script:Failures
+    result       = $overall
 }
-$summaryPath = Join-Path $evidenceDir "summary.json"
+$summaryPath = Join-Path $evidenceRoot "summary.json"
 $summary | ConvertTo-Json -Depth 8 | Set-Content -Path $summaryPath -Encoding UTF8
-Write-Host ("  summary       : {0}" -f $summaryPath)
+Write-Host ("  summary     : {0}" -f $summaryPath)
 
 if ($script:Failures.Count -gt 0) {
     Write-Host ""

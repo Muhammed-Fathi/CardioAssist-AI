@@ -2,37 +2,36 @@
     RH-04 V2 - owner-applied CI patch. PowerShell 5.1 compatible.
 
     The Arena integration has no `workflows` scope, so it cannot push workflow
-    changes: pushes touching .github/workflows are rejected and workflow_dispatch
-    returns 403. This script is therefore run by the owner, who has that scope.
+    changes: pushes touching .github/workflows are rejected. This script is
+    therefore run by the owner, who has that scope.
 
-    WHAT CHANGED FROM THE PREVIOUS VERSION, AND WHY
-      * `patch -p1 < $PatchPath` is gone. PowerShell 5.1 does not implement `<`
-        redirection at all: it is a parser error, not a runtime failure. The patch
-        is now applied with `git apply`, which reads the file itself.
-      * The preview no longer modifies the checkout. Previously the script applied
-        the patch and then asked for confirmation, so a preview left a dirty tree
-        and the next run failed its own clean-tree check. Preview is now
-        `git apply --check` only, which changes nothing.
-      * The tree is verified again AFTER applying, so a partially applied patch
-        cannot be committed.
-      * Only the two known workflow paths may change. Any other path fails.
+    CORRECTIONS IN THIS VERSION
+      * `git status --porcelain --untracked-files=no` is gone from the
+        post-apply check. The patch CREATES .github/workflows/rh04-dual-run-gate.yml,
+        which is untracked, so excluding untracked files made the expected
+        two-path assertion fail on a correct apply. Verification now uses the
+        staged diff (`git diff --cached --name-only`), which is authoritative for
+        what is about to be committed and includes newly added files.
+      * The remote HEAD must MATCH. Previously a mismatch printed a warning and
+        continued, so the script would happily commit on top of a remote it had
+        never verified.
+      * No PyYAML requirement. Workflow validation uses a small structural check
+        written in Python's standard library only, so nothing undeclared has to be
+        installed on the owner's machine. If PyYAML happens to be present it is
+        used as an additional check, never as a requirement.
+      * The apply is transactional: if any verification fails after applying, the
+        patch is reversed and the tree is returned to its pre-run state.
 
-    ORDER OF OPERATIONS
-      1. verify HEAD, branch, clean tree and remote HEAD;
-      2. --check the patch (read-only);
-      3. show the diff preview;
-      4. stop here unless -Confirm;
-      5. apply, verify the changed-path set, re-parse both workflows;
-      6. commit and push.
+    PREVIEW IS READ-ONLY. Without -Confirm the script runs only read-only git
+    commands and changes nothing.
 
-    The checkout is left untouched unless -Confirm is supplied.
-
-    Usage, from the repository root:
+    Usage, from the repository root. Preview first:
         powershell -ExecutionPolicy Bypass -File .\APPLY_AS_OWNER.ps1 `
-            -ExpectedHead 2aee5edd6c60ad530aa3804b7833c9acfd019d9e
+            -ExpectedHead <candidate-sha>
 
+    Then apply:
         powershell -ExecutionPolicy Bypass -File .\APPLY_AS_OWNER.ps1 `
-            -ExpectedHead 2aee5edd6c60ad530aa3804b7833c9acfd019d9e -Confirm
+            -ExpectedHead <candidate-sha> -Confirm
 #>
 
 [CmdletBinding()]
@@ -46,7 +45,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# The only paths this patch is allowed to touch. Anything else is a red flag.
+# The only paths this patch may touch, exactly. The gate is a NEW file; that is the
+# case the old check excluded.
 $AllowedPaths = @(
     ".github/workflows/experiment-runner-ci.yml",
     ".github/workflows/rh04-dual-run-gate.yml"
@@ -58,22 +58,39 @@ function Fail([string]$Message) {
     exit 1
 }
 
-function Invoke-Git([string[]]$Arguments) {
-    $output = & git @Arguments 2>&1
-    return @{ Output = $output; Code = $LASTEXITCODE }
+function Stop-WithRollback([string]$Message, [bool]$Applied) {
+    Write-Host ""
+    Write-Host "FAILED: $Message" -ForegroundColor Red
+    if ($Applied) {
+        Write-Host "Rolling the patch back so the checkout is left as it was found." -ForegroundColor Yellow
+        & git apply --reverse $PatchPath
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  Automatic rollback failed. Inspect the tree before doing anything else." -ForegroundColor Red
+            Write-Host "  The patch was applied but not committed, so 'git checkout -- .' and" -ForegroundColor Yellow
+            Write-Host "  removing untracked workflow files restores the checkout." -ForegroundColor Yellow
+            exit 1
+        }
+        Write-Host "  rolled back; the checkout is unchanged" -ForegroundColor Green
+    }
+    exit 1
 }
 
-Write-Host "== 1. verify checkout ==" -ForegroundColor Cyan
+Write-Host "== 1. verify checkout identity ==" -ForegroundColor Cyan
 
-$head = (git rev-parse HEAD 2>$null)
-if ($LASTEXITCODE -ne 0) { Fail "not a git checkout, or git is not on PATH." }
-$head = $head.Trim()
-$branch = (git rev-parse --abbrev-ref HEAD 2>$null).Trim()
+if (-not (Test-Path ".git")) {
+    Fail "not a git checkout, or not run from the repository root."
+}
 
-Write-Host "  HEAD     : $head"
-Write-Host "  expected : $ExpectedHead"
-Write-Host "  branch   : $branch"
-Write-Host "  expected : $ExpectedBranch"
+& git rev-parse --git-dir | Out-Null
+if ($LASTEXITCODE -ne 0) { Fail "git is not usable in this directory." }
+
+$head = (& git rev-parse HEAD).Trim()
+$branch = (& git rev-parse --abbrev-ref HEAD).Trim()
+
+Write-Host ("  HEAD     : {0}" -f $head)
+Write-Host ("  expected : {0}" -f $ExpectedHead)
+Write-Host ("  branch   : {0}" -f $branch)
+Write-Host ("  expected : {0}" -f $ExpectedBranch)
 
 if ($head -ne $ExpectedHead) {
     Fail "checkout is $head, expected $ExpectedHead. Refusing to patch the wrong tree."
@@ -82,113 +99,184 @@ if ($branch -ne $ExpectedBranch) {
     Fail "on branch '$branch', expected '$ExpectedBranch'. Refusing to patch the wrong branch."
 }
 
-# Dirty tracked files make "the patch is the only change" untrue, and make the
-# changed-path check meaningless.
-$dirty = @(git status --porcelain "--untracked-files=no" 2>$null)
+# The tracked tree must be clean AND there must be no untracked files that could be
+# mistaken for part of this patch.
+$dirty = @(& git status --porcelain)
 if ($dirty.Count -gt 0) {
     Write-Host $dirty
-    Fail "tracked files are dirty. Commit or stash them first."
+    Fail "the working tree is not clean. Commit, stash or remove these first."
 }
-Write-Host "  tracked tree is clean" -ForegroundColor Green
+Write-Host "  working tree is clean, including untracked files" -ForegroundColor Green
 
-# The remote must be where we think it is, so the push goes to the reviewed branch.
-$remoteHead = (git ls-remote $RemoteName "refs/heads/$ExpectedBranch" 2>$null) -split "\s+"
-if (-not $remoteHead -or $remoteHead.Count -lt 1 -or -not $remoteHead[0]) {
-    Fail "could not read $RemoteName/$ExpectedBranch from the remote."
+# The remote must be exactly at the reviewed commit. A mismatch is fatal, not a note:
+# committing on top of an unverified remote is how an unreviewed change gets included.
+$remoteLine = & git ls-remote $RemoteName ("refs/heads/{0}" -f $ExpectedBranch) 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $remoteLine) {
+    Fail ("could not read {0}/{1} from the remote." -f $RemoteName, $ExpectedBranch)
 }
-Write-Host "  remote $RemoteName/$ExpectedBranch : $($remoteHead[0])"
-if ($remoteHead[0] -ne $ExpectedHead) {
-    Write-Host "  note: the remote is not at HEAD. That is fine if HEAD is a reviewed" -ForegroundColor Yellow
-    Write-Host "        candidate you intend to push on top of." -ForegroundColor Yellow
+$remoteHead = ($remoteLine -split "\s+")[0]
+Write-Host ("  remote {0}/{1} : {2}" -f $RemoteName, $ExpectedBranch, $remoteHead)
+if ($remoteHead -ne $ExpectedHead) {
+    Fail ("the remote is at {0}, expected {1}. Fetch and re-check out before applying; a patch applied on top of an unverified remote cannot be reviewed." -f $remoteHead, $ExpectedHead)
 }
+Write-Host "  remote HEAD matches the reviewed commit" -ForegroundColor Green
 
 Write-Host "== 2. check the patch (read-only) ==" -ForegroundColor Cyan
-if (-not (Test-Path $PatchPath)) { Fail "patch not found: $PatchPath" }
 
-# `git apply --check` reads the file directly. There is no redirection here, so it
-# is valid in PowerShell 5.1, and it cannot modify the working tree.
+if (-not (Test-Path $PatchPath)) { Fail ("patch not found: {0}" -f $PatchPath) }
+
 & git apply --check --verbose $PatchPath
 if ($LASTEXITCODE -ne 0) {
     Fail "the patch does not apply cleanly. Do not force it; inspect the conflict."
 }
 Write-Host "  the patch applies cleanly (nothing was modified)" -ForegroundColor Green
 
-Write-Host "== 3. preview the diff ==" -ForegroundColor Cyan
-# --summary and --stat read the patch itself; they do not touch the tree.
+Write-Host "== 3. preview ==" -ForegroundColor Cyan
+
 & git apply --stat $PatchPath
 & git apply --numstat $PatchPath
 
-# Paths named by the patch, checked against the allow-list before anything runs.
 $patchPaths = @()
 Select-String -Path $PatchPath -Pattern '^\+\+\+ b/(.+)$' | ForEach-Object {
     $patchPaths += $_.Matches[0].Groups[1].Value.Trim()
 }
-Write-Host "  paths in the patch: $($patchPaths -join ', ')"
+Write-Host ("  paths in the patch: {0}" -f ($patchPaths -join ", "))
 foreach ($path in $patchPaths) {
     if ($AllowedPaths -notcontains $path) {
-        Fail "the patch touches '$path', which is not an allowed path."
+        Fail ("the patch touches '{0}', which is not an allowed path." -f $path)
     }
 }
-Write-Host "  every path is allowed" -ForegroundColor Green
+if ($patchPaths.Count -ne $AllowedPaths.Count) {
+    Fail ("the patch touches {0} paths, expected {1}." -f $patchPaths.Count, $AllowedPaths.Count)
+}
+Write-Host "  every path is allowed and all expected paths are present" -ForegroundColor Green
 
 if (-not $Confirm) {
     Write-Host ""
     Write-Host "Nothing was modified. The patch checks clean and touches only allowed paths." -ForegroundColor Green
-    Write-Host "Nothing was committed and nothing was pushed." -ForegroundColor Yellow
-    Write-Host "Re-run with -Confirm to apply, commit and push." -ForegroundColor Yellow
+    Write-Host "Re-run with -Confirm to apply, verify, commit and push." -ForegroundColor Yellow
     exit 0
 }
 
 Write-Host "== 4. apply ==" -ForegroundColor Cyan
-& git apply --verbose $PatchPath
-if ($LASTEXITCODE -ne 0) { Fail "apply failed after a clean check; investigate before retrying." }
 
-# Verify what actually changed, not what we intended to change.
-$changed = @(git status --porcelain "--untracked-files=no" 2>$null | ForEach-Object { $_.Substring(3).Trim() })
-Write-Host "  changed: $($changed -join ', ')"
-foreach ($path in $changed) {
+& git apply --verbose $PatchPath
+if ($LASTEXITCODE -ne 0) { Stop-WithRollback "apply failed after a clean check; investigate before retrying." $false }
+
+# Stage first, then verify the STAGED set. `git status` with untracked files excluded
+# is what broke the previous version; the index is the right source of truth because
+# it is exactly what the commit will contain, and it includes added files.
+& git add -- $AllowedPaths
+if ($LASTEXITCODE -ne 0) { Stop-WithRollback "git add failed." $true }
+
+$staged = @(& git diff --cached --name-only)
+Write-Host ("  staged: {0}" -f ($staged -join ", "))
+if ($staged.Count -ne $AllowedPaths.Count) {
+    Stop-WithRollback ("expected {0} staged paths, found {1}." -f $AllowedPaths.Count, $staged.Count) $true
+}
+foreach ($path in $staged) {
     if ($AllowedPaths -notcontains $path) {
-        Fail "apply changed '$path', which is not allowed. Reverting nothing; inspect the tree."
+        Stop-WithRollback ("apply changed '{0}', which is not allowed." -f $path) $true
     }
 }
-if ($changed.Count -ne $AllowedPaths.Count) {
-    Fail "expected $($AllowedPaths.Count) changed paths, found $($changed.Count)."
+foreach ($path in $AllowedPaths) {
+    if ($staged -notcontains $path) {
+        Stop-WithRollback ("expected path '{0}' was not staged." -f $path) $true
+    }
 }
-Write-Host "  changed-path set matches exactly" -ForegroundColor Green
+Write-Host "  staged-path set matches exactly, including the newly added workflow" -ForegroundColor Green
 
-Write-Host "== 5. re-parse both workflows ==" -ForegroundColor Cyan
+# Nothing outside the allow-list may be modified in the working tree either.
+$trackedChanges = @(& git diff --name-only)
+foreach ($path in $trackedChanges) {
+    if ($AllowedPaths -notcontains $path) {
+        Stop-WithRollback ("the working tree changed '{0}', which is not allowed." -f $path) $true
+    }
+}
+Write-Host "  no changes outside the allowed paths" -ForegroundColor Green
+
+Write-Host "== 5. structural validation (no PyYAML required) ==" -ForegroundColor Cyan
+
+# Standard library only. PyYAML is not a declared dependency of this repository's
+# application requirements, so requiring it here would fail on a clean owner machine.
 $checkScript = @'
 import sys
-import yaml
 
-expected = {
-    ".github/workflows/experiment-runner-ci.yml": 40,
-    ".github/workflows/rh04-dual-run-gate.yml": None,
+REQUIRED_JOBS = {
+    ".github/workflows/experiment-runner-ci.yml": ["synthetic-runner-tests"],
+    ".github/workflows/rh04-dual-run-gate.yml": ["dual-run", "host-dispatch"],
 }
-for path, timeout in expected.items():
-    with open(path, encoding="utf-8") as handle:
-        document = yaml.safe_load(handle)
-    jobs = list(document["jobs"])
-    print("{0}: jobs={1}".format(path, jobs))
 
-with open(".github/workflows/experiment-runner-ci.yml", encoding="utf-8") as handle:
-    runner = yaml.safe_load(handle)
-observed = runner["jobs"]["synthetic-runner-tests"]["timeout-minutes"]
-print("synthetic-runner-tests timeout-minutes = {0}".format(observed))
-if observed != 40:
-    sys.exit("timeout is {0}, expected 40".format(observed))
+def check_structure(path, jobs):
+    with open(path, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    problems = []
+    if "\t" in text:
+        problems.append("contains a tab character, which YAML forbids for indentation")
+    lines = text.splitlines()
+    if not lines or not lines[0].startswith("name:"):
+        problems.append("does not begin with a name: key")
+    for job in jobs:
+        if ("  " + job + ":") not in text:
+            problems.append("job definition not found: " + job)
+    for marker in ("on:", "jobs:", "permissions:"):
+        if marker not in text:
+            problems.append("missing top-level key: " + marker)
+    return problems
 
-with open(".github/workflows/rh04-dual-run-gate.yml", encoding="utf-8") as handle:
-    gate = yaml.safe_load(handle)
-matrix = gate["jobs"]["dual-run"]["strategy"]["matrix"]
-versions = matrix["python-version"]
-classes = matrix["dispatch-class"]
-print("gate matrix: {0} python versions x {1} dispatch classes = {2} runs".format(
-    len(versions), len(classes), len(versions) * len(classes)))
-if len(versions) < 2 or len(classes) < 3:
-    sys.exit("the gate matrix is too small to be a cross-environment run")
-if gate["jobs"]["dual-run"]["timeout-minutes"] != 40:
-    sys.exit("the gate timeout is not 40 minutes")
+def check_values():
+    problems = []
+    with open(".github/workflows/experiment-runner-ci.yml", "r", encoding="utf-8") as handle:
+        runner = handle.read()
+    if "timeout-minutes: 40" not in runner:
+        problems.append("experiment-runner-ci.yml does not carry timeout-minutes: 40")
+    with open(".github/workflows/rh04-dual-run-gate.yml", "r", encoding="utf-8") as handle:
+        gate = handle.read()
+    for needle in ("'3.11', '3.12'", "prescott", "nehalem", "sandybridge", "haswell"):
+        if needle not in gate:
+            problems.append("gate matrix is missing: " + needle)
+    if gate.count("timeout-minutes: 40") < 1:
+        problems.append("the gate does not carry a 40 minute timeout")
+    if "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8" not in gate:
+        problems.append("the gate does not pin the Lane B reference digest")
+    return problems
+
+failed = 0
+for path, jobs in REQUIRED_JOBS.items():
+    found = check_structure(path, jobs)
+    if found:
+        failed = 1
+        print("STRUCTURE PROBLEM {0}: {1}".format(path, found))
+    else:
+        print("structure OK: {0}".format(path))
+
+value_problems = check_values()
+if value_problems:
+    failed = 1
+    print("VALUE PROBLEM: {0}".format(value_problems))
+else:
+    print("timeout is 40 in both workflows; gate matrix and digest are present")
+
+# If PyYAML happens to be installed, use it as an additional parse. Never required.
+try:
+    import yaml
+except ImportError:
+    print("note: PyYAML not installed; the structural checks above ran without it")
+else:
+    for path in REQUIRED_JOBS:
+        with open(path, "r", encoding="utf-8") as handle:
+            document = yaml.safe_load(handle)
+        print("yaml parse OK: {0} jobs={1}".format(path, list(document["jobs"])))
+    with open(".github/workflows/rh04-dual-run-gate.yml", "r", encoding="utf-8") as handle:
+        gate_document = yaml.safe_load(handle)
+    matrix = gate_document["jobs"]["dual-run"]["strategy"]["matrix"]
+    combinations = len(matrix["python-version"]) * len(matrix["dispatch-class"])
+    print("gate matrix: {0} combinations".format(combinations))
+    if combinations < 6:
+        failed = 1
+        print("VALUE PROBLEM: the gate matrix is smaller than 3 classes x 2 versions")
+
+sys.exit(failed)
 '@
 
 $tempCheck = [System.IO.Path]::GetTempFileName()
@@ -196,17 +284,18 @@ try {
     Set-Content -Path $tempCheck -Value $checkScript -Encoding ASCII
     & python $tempCheck
     if ($LASTEXITCODE -ne 0) {
-        Fail "a workflow failed to parse, or a value is not what the patch intends. Do not commit."
+        Stop-WithRollback "workflow validation failed. Do not commit." $true
     }
 }
 finally {
     Remove-Item -Path $tempCheck -Force -ErrorAction SilentlyContinue
 }
-Write-Host "  both workflows parse; matrix and timeout are as intended" -ForegroundColor Green
+Write-Host "  both workflows validate structurally; values are as intended" -ForegroundColor Green
 
 Write-Host "== 6. commit and push ==" -ForegroundColor Cyan
+
 $commitMessage = @"
-ci(rh04): raise the synthetic-runner budget to 40 minutes and rebuild the dual-run gate
+ci(rh04): raise the synthetic-runner budget to 40 minutes and add the dual-run gate
 
 Authorised by the maintainer for the RH-04 V2 delivery.
 
@@ -218,39 +307,33 @@ non-measurement. No tolerance, retry, skip or continue-on-error is added, and a
 genuine test failure still fails the job.
 
 The dual-run gate implements V2-05 with a 4 dispatch class x 2 Python version
-matrix: prescott, nehalem, sandybridge and haswell on 3.11 and 3.12, plus an
-unforced host-dispatch job on both versions. The previous version ran one default
-execution per Python version, which is a single class and therefore does not test
-anything cross-environment. Each run reads threadpoolctl after the numerical
-libraries are loaded and fails if the resident kernel is not the class it is
-recorded under.
+matrix -- prescott, nehalem, sandybridge and haswell on 3.11 and 3.12 -- plus an
+unforced host-dispatch job on both versions. Each run reads threadpoolctl inside
+the process that does the work, after the numerical libraries are loaded and
+exercised, and refuses to be recorded under a class it did not get. NumPy and
+SciPy ship separate OpenBLAS builds, so the full resident set is recorded rather
+than a single collapsed architecture.
 
-Stages: V1 scoped, Lane A regeneration identity and replay evidence, Lane B exact
-replay against the fixed digest 891d9e3b, targeted regression including the
-negative tests, and security. Every stage runs with if: always() and records its
-own exit code, and the aggregate step fails if any mandatory stage failed or
-recorded no result at all. Lane A treats training failure, missing evidence and
-invalid output as failures, and only numerical divergence as a reportable finding.
-Lane B compares exactly, with no numeric tolerance, and records the observed
-digest and verdict rather than searching the output for the expected string.
+Stages: V1 scoped, Lane A regeneration identity, Lane B exact replay against the
+fixed digest 891d9e3b, targeted regression including the negative tests, and
+security. Every stage runs with if: always() and records its own exit code, and the
+aggregate step fails if any mandatory stage failed or recorded no result at all.
+Lane B compares the observed digest as a value rather than searching the output for
+the expected string.
 "@
 
-& git add -- $AllowedPaths
-if ($LASTEXITCODE -ne 0) { Fail "git add failed." }
-
 & git commit -m $commitMessage
-if ($LASTEXITCODE -ne 0) { Fail "commit failed." }
+if ($LASTEXITCODE -ne 0) { Fail "commit failed. The staged changes are still staged; inspect them." }
 
-& git push $RemoteName "HEAD:$ExpectedBranch"
+& git push $RemoteName ("HEAD:{0}" -f $ExpectedBranch)
 if ($LASTEXITCODE -ne 0) {
     Fail "push failed. The workflow scope may still be missing on this credential."
 }
 
+$newHead = (& git rev-parse HEAD).Trim()
 Write-Host ""
-Write-Host "Pushed to $RemoteName/$ExpectedBranch." -ForegroundColor Green
+Write-Host ("Pushed {0} to {1}/{2}." -f $newHead, $RemoteName, $ExpectedBranch) -ForegroundColor Green
 Write-Host "Read the new run's logs before drawing any conclusion."
-Write-Host "Record: every job conclusion, step 7 duration, the Lane A classification"
-Write-Host "tally, and the Lane B observed digest and verdict."
-Write-Host ""
-Write-Host "Then run verify-native-windows.ps1 -Apply for the Windows measurements."
+Write-Host "Record: every job conclusion, the resident dispatch classes, the Lane A"
+Write-Host "regeneration identities, and the Lane B observed digest and verdict."
 exit 0

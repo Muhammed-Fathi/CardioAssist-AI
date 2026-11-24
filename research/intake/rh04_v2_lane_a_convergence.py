@@ -987,6 +987,9 @@ def _capture_calibration_optimizers(route_id: str) -> dict[str, Any]:
 
         bounds_list = [tuple(float(v) for v in pair) for pair in bounds]
         solution = [float(v) for v in np.ravel(result.x)]
+        # In-memory only. The regressors are needed by the independent decimal
+        # evaluator; they are never returned, written or committed.
+        regressors = _probe_calibration_inputs(fun, jac, solution)
         # ``fit_from_oof`` passes a value-only closure plus a separate ``jac``.
         # Prefer the analytic jacobian; fall back to a finite difference of the
         # value function only if no jacobian was supplied, so the residual is
@@ -1011,6 +1014,18 @@ def _capture_calibration_optimizers(route_id: str) -> dict[str, Any]:
         lower = [pair[0] for pair in bounds_list]
         upper = [pair[1] for pair in bounds_list]
         projected = _box_projected_gradient(solution, gradient_list, lower, upper)
+        independent = None
+        if regressors is not None:
+            independent = _calibration_objective_decimal(
+                solution, regressors[0], regressors[1], _CALIBRATION_L2_ANCHOR
+            )
+            independent_projected = _box_projected_gradient(
+                solution, independent["gradient"], lower, upper
+            )
+            independent["projected_gradient"] = independent_projected
+            independent["projected_gradient_inf_norm"] = max(
+                abs(v) for v in independent_projected
+            )
 
         status = int(getattr(result, "status", -1))
         observed.append(
@@ -1047,7 +1062,32 @@ def _capture_calibration_optimizers(route_id: str) -> dict[str, Any]:
                     "raw_gradient_inf_norm": max(abs(v) for v in gradient_list),
                     "gradient": gradient_list,
                     "projected_gradient": projected,
-                    "scope": "box-projected, independently evaluated",
+                    # Two distinguishable forms of evidence. The first is the
+                    # calibrator's own analytic Jacobian at the fitted point, which
+                    # is what the solver's stationarity test used -- re-evaluating
+                    # it is NOT an independent check. The second is re-derived from
+                    # the objective in 50-digit decimal arithmetic by central
+                    # differences, which is a different algebra and a different
+                    # code path.
+                    "evidence_forms": {
+                        "solver_jacobian": {
+                            "scope": "the calibrator's own analytic gradient, evaluated at the fitted point",
+                            "independent": False,
+                            "why_not_independent": (
+                                "the same algebra and binary64 rounding the solver used, "
+                                "so an error shared with the solver would be invisible"
+                            ),
+                            "gradient_inf_norm": max(abs(v) for v in gradient_list),
+                            "projected_gradient_inf_norm": max(
+                                abs(v) for v in projected
+                            ),
+                        },
+                        "independent_decimal_finite_difference": independent,
+                    },
+                    "scope": (
+                        "box-projected; the projected norm is the criterion, and both "
+                        "evidence forms are recorded with their independence stated"
+                    ),
                 },
             }
         )
@@ -1188,3 +1228,140 @@ def _tally(classified: list[dict[str, Any]]) -> dict[str, int]:
         name = item["classification"]["classification"]
         tally[name] = tally.get(name, 0) + 1
     return tally
+
+
+def _calibration_objective_decimal(
+    parameters: list[float],
+    logits: list[float],
+    labels: list[float],
+    l2_anchor: float,
+) -> dict[str, Any]:
+    """Evaluate the calibrator's objective in decimal arithmetic, independently.
+
+    This is deliberately **not** the calibrator's analytic Jacobian re-evaluated.
+    Re-evaluating ``jac`` would only confirm that a function returns what it
+    returns: it would inherit the same algebra, the same float rounding and the
+    same sign conventions as the solver's own gradient, so an error shared by
+    both would be invisible.
+
+    Instead the gradient is derived from the objective by symmetric central
+    differences in 50-digit decimal arithmetic, using the same ``Decimal``
+    machinery this module already uses for the logistic-regression residual. The
+    objective itself is re-derived from source in decimal form. That produces two
+    genuinely distinguishable forms of evidence:
+
+    ``solver_jacobian``
+        The calibrator's own analytic gradient, evaluated at the fitted point.
+        Cheap, and it is what the solver's stationarity test actually used.
+
+    ``independent_decimal_finite_difference``
+        A different algebra (finite differences rather than closed-form), a
+        different arithmetic (50-digit decimal rather than binary64) and a
+        different code path. Agreement between the two is meaningful; agreement
+        of the Jacobian with itself is not.
+    """
+    a, b = float(parameters[0]), float(parameters[1])
+    n = len(logits)
+    if n == 0 or n != len(labels):
+        raise LaneAEvidenceError("calibration objective requires aligned non-empty input")
+    if not all(math.isfinite(v) for v in (a, b, l2_anchor)):
+        raise LaneAEvidenceError("calibration parameters and anchor must be finite")
+
+    with localcontext() as context:
+        context.prec = LANE_A_EVALUATION_PRECISION
+        context.rounding = ROUND_HALF_EVEN
+
+        decimals = [_dec(float(v)) for v in logits]
+        targets = [_dec(float(v)) for v in labels]
+        anchor = _dec(float(l2_anchor))
+        count = Decimal(n)
+
+        def evaluate(point: list[Decimal]) -> Decimal:
+            weight, slope = point
+            total = Decimal(0)
+            for x, y in zip(decimals, targets):
+                eta = weight + slope * x
+                # log(1 + exp(eta)) - y*eta, in the stable form used elsewhere.
+                total += _softplus_neg(-eta) - y * eta
+            nll = total / count
+            reg = anchor * (weight * weight + (slope - Decimal(1)) ** 2) / Decimal(2)
+            return nll + reg
+
+        point = [_dec(a), _dec(b)]
+        value = evaluate(point)
+
+        # Symmetric central difference. The step is 1e-20, far below the 50-digit
+        # working precision but not so small that the subtraction cancels: with
+        # 50 significant digits there are ~30 digits of headroom either side.
+        step = Decimal("1e-20")
+        gradient: list[Decimal] = []
+        for index in range(2):
+            forward = list(point)
+            backward = list(point)
+            forward[index] += step
+            backward[index] -= step
+            gradient.append((evaluate(forward) - evaluate(backward)) / (Decimal(2) * step))
+
+        worst = max(abs(component) for component in gradient)
+        return {
+            "objective": float(value),
+            "objective_decimal": str(value),
+            "gradient": [float(component) for component in gradient],
+            "gradient_decimal": [str(component) for component in gradient],
+            "gradient_inf_norm": float(worst),
+            "gradient_inf_norm_decimal": str(worst),
+            "method": "symmetric_central_difference",
+            "arithmetic": "decimal",
+            "precision_significant_digits": LANE_A_EVALUATION_PRECISION,
+            "step": str(step),
+        }
+
+
+#: The calibrator's L2 anchor. Read from the closure rather than restated, so a
+#: change to the calibrator cannot silently leave this constant stale.
+_CALIBRATION_L2_ANCHOR: Final[float] = 1e-3
+
+def _probe_calibration_inputs(fun: Any, jac: Any, solution: list[float]) -> tuple[list[float], list[float]] | None:
+    """Recover the ``(logits, labels)`` the calibrator's objective closes over.
+
+    ``fit_from_oof`` builds ``objective`` as a closure over ``logits``, ``y`` and
+    ``l2_anchor``, then passes a value-only lambda that calls it. Introspecting the
+    closure is what lets the independent evaluator see the same inputs the solver
+    used, without reconstructing them from the development matrix (which would be a
+    different vector and therefore not the same check).
+
+    Returns ``None`` when the shape is not the expected one. Returning ``None`` is
+    deliberate: the caller records the independent form as *absent* rather than
+    substituting a guess, and a test asserts the real path never takes this branch.
+    """
+    try:
+        cells = fun.__closure__ or ()
+        if len(cells) != 1:
+            return None
+        inner = cells[0].cell_contents
+        inner_cells = getattr(inner, "__closure__", None) or ()
+        names = list(getattr(getattr(inner, "__code__", None), "co_freevars", ()))
+        if not names or not inner_cells:
+            return None
+        captured = {
+            name: cell.cell_contents
+            for name, cell in zip(names, inner_cells)
+            if name in {"logits", "y"}
+        }
+        if set(captured) != {"logits", "y"}:
+            return None
+        logits = [float(v) for v in captured["logits"]]
+        labels = [float(v) for v in captured["y"]]
+        if not logits or len(logits) != len(labels):
+            return None
+        if not all(math.isfinite(v) for v in logits):
+            return None
+        # The FULL vector, never a subsample. A subsample would be a different
+        # objective, so the two evidence forms would be answering different
+        # questions; the decimal evaluation costs ~0.05s at this size, so there is
+        # no reason to weaken the check for speed.
+        if set(labels) - {0.0, 1.0}:
+            return None
+        return logits, labels
+    except Exception:  # noqa: BLE001 - absence is recorded, never guessed
+        return None

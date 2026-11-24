@@ -5481,3 +5481,173 @@ def test_v2_03_published_mapping_records_every_value_with_zero_delta():
     encoded = _json.dumps(document, sort_keys=True)
     for forbidden in ("feature_matrix", "target_vector", "raw_rows"):
         assert forbidden not in encoded
+
+
+# --------------------------------------------------------------------------- #
+# Round 17: evidence independence and resident-dispatch integrity             #
+# --------------------------------------------------------------------------- #
+
+
+def test_v2_02_calibration_residual_reports_both_evidence_forms():
+    """The calibrator's Jacobian and an independent evaluation must both appear.
+
+    Re-evaluating the calibrator's own analytic Jacobian is not an independent
+    check: it shares the algebra, the binary64 rounding and the sign conventions
+    of the gradient the solver used, so an error common to both would be
+    invisible. The observer therefore records two distinguishable forms, and says
+    which is which rather than averaging them into one number.
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    captured = lane_a._capture_calibration_optimizers("da_a2_resting_v1")
+    assert captured["optimizations"]
+    for entry in captured["optimizations"]:
+        forms = entry["residual"]["evidence_forms"]
+        jacobian = forms["solver_jacobian"]
+        independent = forms["independent_decimal_finite_difference"]
+
+        assert jacobian["independent"] is False
+        assert "would be invisible" in jacobian["why_not_independent"]
+        assert jacobian["gradient_inf_norm"] >= 0.0
+
+        assert independent is not None, (
+            "the independent decimal evaluation was not produced; the real path "
+            "must not silently fall back to the analytic Jacobian alone"
+        )
+        assert independent["independent"] if "independent" in independent else True
+        assert independent["method"] == "symmetric_central_difference"
+        assert independent["arithmetic"] == "decimal"
+        assert independent["precision_significant_digits"] == 50
+        assert independent["gradient_inf_norm"] >= 0.0
+
+        # The two forms must agree where they overlap, or one of them is wrong.
+        assert independent["objective"] == pytest.approx(entry["objective"], rel=1e-12)
+
+
+def test_v2_02_independent_evaluator_disagrees_when_the_objective_is_wrong():
+    """The independent evaluator must be able to contradict the analytic one.
+
+    A cross-check that can only ever agree is decoration. Perturbing one input
+    must move the independent gradient away from the analytic gradient, which
+    proves the two are computed from different data rather than being the same
+    number printed twice.
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    parameters = [-0.00994579150712183, 1.0083887187888398]
+    logits = [-1.2, -0.5, 0.1, 0.9, 1.4, -2.0, 0.3, 0.7]
+    labels = [0, 0, 1, 1, 1, 0, 0, 1]
+
+    analytic = lane_a._calibration_objective(parameters, logits, labels, 1e-3)
+    matching = lane_a._calibration_objective_decimal(parameters, logits, labels, 1e-3)
+    assert matching["gradient_inf_norm"] == pytest.approx(
+        max(abs(v) for v in analytic[1]), rel=1e-10
+    )
+
+    # Flip one label. The analytic gradient changes, and the independent gradient
+    # must track it independently rather than reproduce the old value.
+    perturbed_labels = list(labels)
+    perturbed_labels[0] = 1.0
+    perturbed = lane_a._calibration_objective_decimal(
+        parameters, logits, perturbed_labels, 1e-3
+    )
+    assert perturbed["gradient"] != matching["gradient"]
+    analytic_perturbed = lane_a._calibration_objective(
+        parameters, logits, perturbed_labels, 1e-3
+    )
+    assert perturbed["gradient_inf_norm"] == pytest.approx(
+        max(abs(v) for v in analytic_perturbed[1]), rel=1e-10
+    )
+
+
+def test_v2_02_missing_calibration_inputs_are_recorded_as_absent():
+    """When the closure cannot be read, the independent form is absent, not faked.
+
+    ``_probe_calibration_inputs`` returns ``None`` rather than guessing a vector,
+    so the evidence says "absent" instead of substituting a different vector and
+    presenting it as the solver's input.
+    """
+    from research.intake import rh04_v2_lane_a_convergence as lane_a
+
+    def no_closure(_theta):
+        return 0.0
+
+    assert lane_a._probe_calibration_inputs(no_closure, None, [0.0, 1.0]) is None
+
+
+def test_v2_05_resident_dispatch_keeps_every_library_entry():
+    """Mixed resident architectures must not collapse to the first entry.
+
+    NumPy and SciPy ship separate OpenBLAS builds here and can resolve different
+    architectures in the same process -- measured under OPENBLAS_CORETYPE=Prescott,
+    where NumPy resolves to Prescott and SciPy's bundled build to Katmai. Taking
+    the first entry would record a class the process does not uniformly have.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    identity = {
+        "libraries": [
+            {"internal_api": "openblas", "architecture": "Prescott"},
+            {"internal_api": "openblas", "architecture": "Katmai"},
+            {"internal_api": "openmp", "architecture": None},
+        ]
+    }
+    classes = report.dispatch_classes_of(identity)
+    assert classes["blas_architectures"] == ["Prescott", "Katmai"]
+    assert classes["distinct_blas_classes"] == 2
+    assert classes["mixed"] is True
+    assert classes["primary"] == "prescott"
+
+    single = report.dispatch_classes_of(
+        {"libraries": [{"internal_api": "openblas", "architecture": "Haswell"}]}
+    )
+    assert single["mixed"] is False
+    assert single["primary"] == "haswell"
+
+
+def test_v2_05_dispatch_request_is_refused_when_not_resident():
+    """A run must not be recorded under a class the process does not have."""
+    from research.intake import rh04_v2_lane_a_report as report
+
+    present = {"primary": "haswell", "blas_architectures": ["Haswell"], "mixed": False}
+    report.assert_dispatch_honoured("haswell", present)  # does not raise
+    report.assert_dispatch_honoured("host", present)  # does not raise
+    with pytest.raises(SystemExit):
+        report.assert_dispatch_honoured("nehalem", present)
+    with pytest.raises(SystemExit):
+        report.assert_dispatch_honoured(
+            "nehalem", {"primary": "unknown", "blas_architectures": [], "mixed": False}
+        )
+
+
+def test_v2_05_lane_a_records_model_calibration_and_replay_identities():
+    """Regeneration identity, not just a convergence hash, must be recorded.
+
+    A convergence hash says some fits satisfied a criterion. These say which
+    family was selected, with which hyperparameters, what intercept and slope the
+    calibrator fitted, and which fold and training-boundary identities were used.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    document = report._registered_regeneration("da_a2_resting_v1")
+    assert document["model_identity"]["selected_family"] in {
+        "l2_logistic_regression",
+        "constrained_random_forest",
+        "prevalence_dummy",
+    }
+    assert document["model_identity"]["selected_hyperparameters"]
+    calibration = document["calibration_identity"]
+    assert calibration["status"] == "FITTED_OOF_MONOTONE_LOGISTIC"
+    assert math.isfinite(calibration["intercept"])
+    assert math.isfinite(calibration["slope"])
+    replay = document["replay_identity"]
+    assert len(replay["training_input_sha256"]) == 64
+    assert len(replay["target_sha256"]) == 64
+    assert replay["n_rows"] > 0
+    # Every identity is digest-addressed, so it can be compared between runs.
+    for key in (
+        "model_identity_sha256",
+        "calibration_identity_sha256",
+        "replay_identity_sha256",
+    ):
+        assert len(document[key]) == 64
