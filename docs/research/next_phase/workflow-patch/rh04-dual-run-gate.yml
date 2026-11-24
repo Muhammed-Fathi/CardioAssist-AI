@@ -178,22 +178,34 @@ jobs:
                       "model": regen["model_identity_sha256"],
                       "calibration": regen["calibration_identity_sha256"],
                       "replay": regen["replay_identity_sha256"],
-                      # Actual regenerated parameters, not selection metadata.
-                      "regenerated_parameters": regen["regenerated_parameters"][
-                          "regenerated_parameters_sha256"
-                      ],
-                      "coefficient_max_abs_delta": regen["regenerated_parameters"].get(
-                          "coefficient_max_abs_delta"
+                      # The ACTUAL regenerated parameter identity, digested.
+                      # Within-environment: identical between two regenerations
+                      # in one class, and EXPECTED to differ between classes.
+                      "parameter_identity": regen["regenerated_parameters"][
+                          "parameter_identity"
+                      ]["regenerated_parameters_sha256"],
+                      "provenance_spec_sha256": regen["regenerated_parameters"][
+                          "source_provenance"
+                      ]["producer_spec_sha256"],
+                      # Measured equality against the archive. Recorded, never
+                      # required: under V2-04a a false here is a finding.
+                      "equality_exact": regen["regenerated_parameters"][
+                          "archived_parameter_equality"
+                      ]["exact"],
+                      "equality_classification": regen["regenerated_parameters"][
+                          "archived_parameter_equality"
+                      ]["classification"],
+                      "equality_max_delta": regen["regenerated_parameters"][
+                          "archived_parameter_equality"
+                      ].get(
+                          "coefficient_max_abs_delta",
+                          regen["regenerated_parameters"]["archived_parameter_equality"].get(
+                              "max_float_delta"
+                          ),
                       ),
-                      "intercept_abs_delta": regen["regenerated_parameters"].get(
-                          "intercept_abs_delta"
-                      ),
-                      "structure_exact": regen["regenerated_parameters"].get(
-                          "structure_exact"
-                      ),
-                      "lineage_established": regen["regenerated_parameters"][
-                          "lineage_established"
-                      ],
+                      "provenance_lineage_valid": regen["regenerated_parameters"][
+                          "provenance_lineage_valid"
+                      ]["valid"],
                       "selected_family": regen["model_identity"]["selected_family"],
                       "selected_hyperparameters": regen["model_identity"]["selected_hyperparameters"],
                       "intercept": regen["calibration_identity"]["intercept"],
@@ -234,12 +246,25 @@ jobs:
               raise SystemExit("Lane A did not regenerate identically within one environment")
           if not report["replay_responses_identical"]:
               raise SystemExit("Lane A replay responses differed between two runs")
+          # V2-04a: validity, not equality. A converged regeneration whose
+          # parameters differ from the archive by float noise is a diagnostic
+          # FINDING and must not fail the gate; missing evidence, broken
+          # provenance or a failed fit must. The module decides and this reads its
+          # verdict rather than re-deriving one, so the two cannot drift apart.
+          validity = first.get("validity") or {}
+          if validity.get("valid") is not True:
+              raise SystemExit(
+                  "Lane A evidence is invalid: "
+                  + "; ".join(validity.get("failures") or ["no validity record"])
+              )
           for route, value in report["identities_run1"].items():
-              if not value["lineage_established"]:
-                  raise SystemExit(
-                      f"{route}: regenerated parameters do not match the archive, so "
-                      "the lineage is not established"
-                  )
+              if value["provenance_lineage_valid"] is not True:
+                  raise SystemExit(f"{route}: provenance lineage is not established")
+          findings = validity.get("findings") or []
+          if findings:
+              print("Lane A findings (measured differences, not failures):")
+              for finding in findings:
+                  print("  - " + finding)
           if report["any_failure"]:
               raise SystemExit("Lane A reported a convergence failure")
           PY
@@ -312,9 +337,16 @@ jobs:
         if: always()
         run: |
           set +e
+          # The previous filter selected only v2_02/v2_03/v2_07/lane_a/convergence.
+          # Seven tests asserting the same cross-host-equality contradiction were
+          # never selected, so the gate could not see them while a developer running
+          # the file directly hit all seven. The selection is now explicit about the
+          # families it must cover, including the V2-04a negatives and the portable
+          # lane diagnostics.
           python -m pytest \
             tests/experiments/test_rh04_v2_reference.py \
-            -q -W error -k "v2_02 or v2_03 or v2_07 or lane_a or convergence"
+            -q -W error \
+            -k "v2_02 or v2_03 or v2_04a or v2_05 or v2_07 or v2_08 or lane_a or lane_b or convergence or portable_lane or manifest_builder or producer_lineage or never_deserializes or never_reads_the_producer or calibration_input"
           code=$?
           echo "stage4_exit=$code" >> "$GITHUB_OUTPUT"
           exit 0
@@ -361,7 +393,10 @@ jobs:
           record = {
               "dispatch_class": report["observed_dispatch_class"],
               "python": report["python"],
-              "digests": report["run1_digests"],
+              # `identities_run1` is what Stage 2 writes; `run1_digests` never
+              # existed, which is why every forced-dispatch job raised KeyError
+              # here instead of classifying its differences.
+              "digests": report["identities_run1"],
               "regeneration_identical": report["regeneration_identical"],
               "note": (
                   "a Lane A digest differing between two dispatch classes is a "

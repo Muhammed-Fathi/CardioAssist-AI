@@ -7,11 +7,13 @@
 
     CORRECTIONS IN THIS VERSION
       * `git status --porcelain --untracked-files=no` is gone from the
-        post-apply check. The patch CREATES .github/workflows/rh04-dual-run-gate.yml,
-        which is untracked, so excluding untracked files made the expected
-        two-path assertion fail on a correct apply. Verification now uses the
-        staged diff (`git diff --cached --name-only`), which is authoritative for
-        what is about to be committed and includes newly added files.
+        post-apply check. Verification uses the staged diff
+        (`git diff --cached --name-only`), which is authoritative for what is about
+        to be committed.
+      * The patch now MODIFIES the installed gate rather than creating it, so it
+        touches one path and the allowance list matches. Both `--untracked-files=no`
+        and the staged diff report that one path, and the script asserts the exact
+        set rather than only a minimum.
       * The remote HEAD must MATCH. Previously a mismatch printed a warning and
         continued, so the script would happily commit on top of a remote it had
         never verified.
@@ -45,10 +47,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# The only paths this patch may touch, exactly. The gate is a NEW file; that is the
-# case the old check excluded.
+# The only paths this patch may touch, exactly.
+#
+# Round 18's patch created the gate and bumped the runner timeout, so it touched two
+# paths. The gate was installed by the maintainer at 73d9f9d -- and immediately
+# failed -- so the round-19 patch MODIFIES the installed gate and touches one path.
+# `experiment-runner-ci.yml` is already at 40 minutes and is no longer part of the
+# patch. This list must match the patch exactly; the assertion below enforces that.
 $AllowedPaths = @(
-    ".github/workflows/experiment-runner-ci.yml",
     ".github/workflows/rh04-dual-run-gate.yml"
 )
 
@@ -59,13 +65,18 @@ function Fail([string]$Message) {
 }
 
 function Remove-CreatedGateFile {
-    # The gate file is new, so --reverse leaves it behind as untracked. Remove only
-    # the one path this script creates, and only if it is still untracked -- never a
-    # blanket 'git clean', which would take anything else the owner happens to have.
+    # The gate is now a TRACKED file, so `git apply --reverse` restores it and
+    # removing it would destroy the owner's installed workflow. This refuses to
+    # touch a tracked file and only cleans up if the patch genuinely created an
+    # untracked one, which is the round-18 shape and may still be seen if the owner
+    # applies this patch to a pre-install checkout.
     $gate = ".github/workflows/rh04-dual-run-gate.yml"
     if (-not (Test-Path $gate)) { return }
     $tracked = & git ls-files --error-unmatch $gate 2>$null
-    if ($LASTEXITCODE -eq 0) { return }
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  the gate file is tracked; left in place (reverse apply restored it)" -ForegroundColor Green
+        return
+    }
     Remove-Item -Path $gate -Force
     Write-Host "  removed the untracked gate file this script created" -ForegroundColor Green
 }

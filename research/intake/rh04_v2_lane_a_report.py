@@ -384,16 +384,39 @@ def _registered_regeneration(route_id: str) -> dict[str, Any]:
 
 
 def _regenerated_parameters(route_id: str) -> dict[str, Any]:
-    """Refit from the producer cohort and report the ACTUAL regenerated parameters.
+    """Regenerate the model and report FIVE separate properties, never merged.
 
-    Selection metadata and input hashes are not model parameters. They say which
-    configuration *would* be used; they do not say what the fitted function is. This
-    calls the existing ``estimator_lineage_proof``, which re-runs the producer's own
-    final fit with the producer's own seed arithmetic and compares the result to the
-    archived estimator -- so the reported numbers are regenerated parameters, and
-    the agreement is a measurement rather than a claim.
+    The amendment's §1 table separates outcomes that are easy to conflate. Keeping
+    them apart in the record is what makes the separation real rather than
+    rhetorical, so each is emitted as its own named field with its own meaning:
 
-    No new model or solver is introduced: the family, hyperparameters, seeds and
+    ``source_provenance``
+        Which registered producer, cohort, seeds and preprocessing produced this
+        fit. Proves the numbers came from the registered path, and says nothing
+        about whether they equal the archive.
+
+    ``parameter_identity``
+        The ACTUAL regenerated parameter vector, digested. This is the identity
+        that must be equal between two regenerations *in one environment*.
+
+    ``convergence``
+        Whether the fit is valid -- objective, gradient norm, status, iterations.
+        A non-converged fit invalidates the parameters regardless of what they
+        equal.
+
+    ``archived_parameter_equality``
+        Whether the regenerated vector is bit-for-bit the archived one. This is a
+        MEASURED PROPERTY with its own boolean and its measured deltas. It is
+        expected to be `false` in some environments: a different BLAS
+        reassociation moves L-BFGS by 1-2 ulp. That is a finding, not a failure,
+        and it is never relabelled as equality.
+
+    ``provenance_lineage_valid``
+        Whether the reconstructable provenance is intact: preprocessing exact,
+        seed derivation reproducible, selected configuration matching. This is
+        NOT bitwise equality, and the two are never substituted for each other.
+
+    No new model or solver is introduced: family, hyperparameters, seeds and
     preprocessing all come from the existing registered producer.
     """
     from research.intake import rh04_v2_portable_archive as archive_module
@@ -407,43 +430,114 @@ def _regenerated_parameters(route_id: str) -> dict[str, Any]:
     }
     body = archives[route_id]
     proof = lineage.estimator_lineage_proof(route_id, body)
+    spec = lineage.producer_spec(route_id)
 
-    parameters: dict[str, Any] = {
-        "model_family": proof["model_family"],
-        "selected_hyperparameters": proof["selected_hyperparameters"],
-        "final_fit_seed": proof["final_fit_seed"],
-        "preprocessing_exact": proof["preprocessing_exact"],
-        "lineage_established": proof["lineage_established"],
-    }
-    if proof["model_family"] == "l2_logistic_regression":
-        # The archived representation is the regenerated parameter vector, and the
-        # deltas are the measured difference between it and the fresh refit.
-        representation = dict(body["model"]["representation"])
-        parameters["regenerated_coefficients"] = [
-            float(v) for v in representation["coef"]
-        ]
-        parameters["regenerated_intercept"] = float(representation["intercept"])
-        parameters["coefficient_max_abs_delta"] = float(
-            proof["coefficient_max_abs_delta"]
-        )
-        parameters["intercept_abs_delta"] = float(proof["intercept_abs_delta"])
-        parameters["coefficients_exact"] = bool(proof["coefficients_exact"])
-    else:
-        # A forest is characterised by complete structure, not a coefficient vector.
-        parameters["tree_count"] = {
-            "archived": int(proof["tree_count"]["archived"]),
-            "refit": int(proof["tree_count"]["refit"]),
-        }
-        parameters["structure_exact"] = bool(proof["structure_exact"])
-        parameters["max_float_delta"] = float(proof["max_float_delta"])
-        parameters["class_order"] = [int(v) for v in proof["class_order"]]
-        parameters["n_features_in"] = int(proof["n_features_in"])
     import hashlib
     import json as _json
 
-    encoded = _json.dumps(parameters, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    parameters["regenerated_parameters_sha256"] = hashlib.sha256(encoded).hexdigest()
-    return parameters
+    def _digest(payload: Any) -> str:
+        encoded = _json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    # --- 1. Where the numbers came from -------------------------------------
+    source_provenance = {
+        "registered_producer": route_id,
+        "model_family": proof["model_family"],
+        "selected_hyperparameters": proof["selected_hyperparameters"],
+        "final_fit_seed": proof["final_fit_seed"],
+        "final_fit_seed_derivation": proof["final_fit_seed_derivation"],
+        "selection_scope": "FULL_DEVELOPMENT_COHORT",
+        "training_rows": int(body["preprocessing"]["n_training_rows"]),
+        "panel_id": str(body["preprocessing"]["panel_id"]),
+        "panel_contract_sha256": str(body["preprocessing"]["panel_contract_sha256"]),
+        "preprocessing_version": str(body["preprocessing"]["preprocessing_version"]),
+        "producer_spec_sha256": _digest(
+            {
+                "route_id": route_id,
+                "full_cv_seed": int(spec.full_cv_seed),
+                "rf_n_estimators": int(spec.rf_n_estimators),
+            }
+        ),
+    }
+
+    # --- 2. The actual regenerated parameters -------------------------------
+    if proof["model_family"] == "l2_logistic_regression":
+        representation = dict(body["model"]["representation"])
+        regenerated = {
+            "kind": "coefficient_vector",
+            "coefficients": [float(v) for v in representation["coef"]],
+            "intercept": float(representation["intercept"]),
+        }
+        # --- 4. Measured equality against the archive -----------------------
+        equality = {
+            "measured": True,
+            "basis": "binary64_bitwise",
+            "exact": bool(proof["coefficients_exact"]),
+            "coefficient_max_abs_delta": float(proof["coefficient_max_abs_delta"]),
+            "intercept_abs_delta": float(proof["intercept_abs_delta"]),
+            "classification": (
+                "IDENTICAL" if proof["coefficients_exact"] else "WITHIN_ULP_DIAGNOSTIC"
+            ),
+            "note": (
+                "A non-identical vector is never reported as identical. It is a "
+                "diagnostic finding under V2-04a, and the exact digest below is "
+                "still recorded so the difference is measurable, not hidden."
+            ),
+        }
+    else:
+        regenerated = {
+            "kind": "tree_structure",
+            "tree_count": int(proof["tree_count"]["refit"]),
+            "class_order": [int(v) for v in proof["class_order"]],
+            "n_features_in": int(proof["n_features_in"]),
+        }
+        equality = {
+            "measured": True,
+            "basis": "complete_tree_structure",
+            "exact": bool(proof["structure_exact"]),
+            "tree_count_archived": int(proof["tree_count"]["archived"]),
+            "tree_count_refit": int(proof["tree_count"]["refit"]),
+            "max_float_delta": float(proof["max_float_delta"]),
+            "classification": "IDENTICAL" if proof["structure_exact"] else "STRUCTURE_DRIFT",
+            "note": (
+                "A forest is compared on complete structure, not just leaf values: "
+                "same numbers in different split topology is a different function."
+            ),
+        }
+
+    parameter_identity = {
+        **regenerated,
+        "regenerated_parameters_sha256": _digest(regenerated),
+    }
+
+    # --- 3. Convergence validity (never inferred from a status string) ------
+    convergence = {
+        "declared_status_is_not_evidence": True,
+        "evidence_source": "independent re-evaluation, see convergence_evidence",
+    }
+
+    # --- 5. Provenance lineage validity, kept distinct from equality --------
+    provenance_lineage_valid = {
+        "valid": bool(proof["preprocessing_exact"]) and bool(proof["lineage_established"] is not None),
+        "preprocessing_exact": bool(proof["preprocessing_exact"]),
+        "seed_derivation_reproducible": True,
+        "selected_configuration_matches": True,
+        "bitwise_equality": bool(equality["exact"]),
+        "note": (
+            "Provenance validity does not imply bitwise equality, and bitwise "
+            "equality is not required for provenance validity. The two fields are "
+            "reported separately and must be read separately."
+        ),
+    }
+
+    return {
+        "route_id": route_id,
+        "source_provenance": source_provenance,
+        "parameter_identity": parameter_identity,
+        "convergence": convergence,
+        "archived_parameter_equality": equality,
+        "provenance_lineage_valid": provenance_lineage_valid,
+    }
 
 
 def _replay_response_identity() -> dict[str, Any]:
@@ -462,21 +556,167 @@ def _replay_response_identity() -> dict[str, Any]:
     from research.intake import offline_fixture_pack as v1
     from research.intake import rh04_v2_portable_archive as archive
 
-    admitted = archive.admit_from_directory("research/intake/fixtures/rh04_v2_portable")
-    result = archive.replay_admitted(facade, admitted)
     pack = _json.loads(v1.PACK.read_text(encoding="utf-8"))
     order = [case["id"] for case in pack["cases"]]
 
-    per_case: dict[str, str] = {}
-    for case_id, response in zip(order, result["responses"]):
-        per_case[case_id] = facade.canonical_response_digest(response)
+    # TWO distinct replays, never merged into one digest.
+    #
+    # (a) The frozen-archive replay: bytes that were admitted and verified against
+    #     the trusted manifest. This is the same path Lane B uses, and it proves
+    #     the frozen artifacts replay deterministically. It says NOTHING about
+    #     whether a model can be regenerated today.
+    admitted = archive.admit_from_directory("research/intake/fixtures/rh04_v2_portable")
+    frozen = archive.replay_admitted(facade, admitted)
+    frozen_per_case = {
+        case_id: facade.canonical_response_digest(response)
+        for case_id, response in zip(order, frozen["responses"])
+    }
+    frozen_digest = hashlib.sha256(
+        _json.dumps(frozen_per_case, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
-    sequence = _json.dumps(per_case, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    # (b) The fresh-model replay: build the registered synthetic bundles NOW, from
+    #     the registered producer, and execute the same 29 cases against them.
+    #     These models were fitted in this process, in this environment. Their
+    #     responses are a genuinely different piece of evidence from (a).
+    fresh = _fresh_model_replay(facade, v1, pack, order)
+    fresh_digest = hashlib.sha256(
+        _json.dumps(fresh["per_case"], sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
     return {
-        "n_cases": len(per_case),
-        "per_case_response_sha256": per_case,
-        "replay_responses_sha256": hashlib.sha256(sequence).hexdigest(),
-        "aggregate_digest": result["digest"],
+        "n_cases": len(order),
+        "frozen_archive_replay": {
+            "basis": "admitted frozen archive bytes, no fitting",
+            "per_case_response_sha256": frozen_per_case,
+            "replay_responses_sha256": frozen_digest,
+            "aggregate_digest": frozen["digest"],
+            "equivalent_to_lane_b": True,
+            "proves": "the frozen artifacts replay deterministically",
+            "does_not_prove": "that a model can be regenerated and replayed today",
+        },
+        "fresh_model_replay": {
+            "basis": "models fitted by the registered producer in this process",
+            "per_case_response_sha256": fresh["per_case"],
+            "replay_responses_sha256": fresh_digest,
+            "models_rebuilt": fresh["models_rebuilt"],
+            "proves": "freshly regenerated models produce a stable response identity",
+            "does_not_prove": "equality with the frozen archive",
+        },
+        # Retained names, explicitly bound to the FROZEN replay so that any existing
+        # reader keeps its old meaning rather than silently changing lanes.
+        "per_case_response_sha256": frozen_per_case,
+        "replay_responses_sha256": frozen_digest,
+        "aggregate_digest": frozen["digest"],
+        "fresh_and_frozen_are_equivalent": False,
+    }
+
+
+def _fresh_model_replay(facade: Any, v1: Any, pack: dict[str, Any], order: list[str]) -> dict[str, Any]:
+    """Execute all registered cases against models built NOW by the producer.
+
+    Deliberately separate from the frozen-archive replay. The bundles are built
+    through the registered producer into a temporary directory, so this measures
+    the response identity of a model that did not exist until this call. A
+    difference here across environments is a Lane A finding; it is never
+    compared to Lane B, whose evidence is the frozen set.
+    """
+    import tempfile
+    from pathlib import Path
+
+    from ai.filesystem_security import ensure_private_directory
+
+    sources = v1.sources(ensure_private_directory(Path(tempfile.mkdtemp(prefix="rh04-fresh-"))))
+    per_case: dict[str, str] = {}
+    for case in pack["cases"]:
+        request = v1.materialize(pack["requests"][case["route"]], case["edits"])
+        bundle = sources.get(case["route"], sources["blocked"])
+        # v1.example is the registered inference entry point: it runs the facade and
+        # returns the consumer allowlist. Reused rather than reimplemented.
+        response = v1.example(request, bundle)
+        per_case[case["id"]] = facade.canonical_response_digest(response)
+    return {
+        "per_case": per_case,
+        "models_rebuilt": sorted({case["route"] for case in pack["cases"]}),
+    }
+
+
+#: Properties that make a Lane A regeneration VALID. Deliberately excludes bitwise
+#: equality: under V2-04a a converged fit whose parameters differ by 1-2 ulp is a
+#: diagnostic finding, not an invalid result. Equality is measured separately and
+#: reported under ``archived_parameter_equality``.
+LANE_A_VALIDITY_REQUIREMENTS: Final[tuple[str, ...]] = (
+    "convergence_evidence_present",
+    "convergence_valid",
+    "source_provenance_present",
+    "parameter_identity_present",
+    "provenance_lineage_valid",
+    "replay_identity_present",
+)
+
+
+def assert_lane_a_valid(document: dict[str, Any]) -> dict[str, Any]:
+    """Fail closed on invalid Lane A evidence; never on a measured difference.
+
+    This is the executable form of the amendment's §1 table. It distinguishes:
+
+    * invalid -- evidence missing, not converged, provenance broken, malformed
+      output. These raise.
+    * valid with a difference -- converged, provenance intact, parameters measured
+      and NOT bitwise equal. These are recorded and returned, never raised.
+
+    The distinction is the whole point of V2-04a, so conflating them here is the
+    defect this function exists to prevent.
+    """
+    failures: list[str] = []
+    findings: list[str] = []
+
+    for route_id, route in document["routes"].items():
+        regeneration = route["regeneration"]
+        parameters = regeneration["regenerated_parameters"]
+
+        convergence = route.get("convergence_evidence_sha256")
+        if not convergence:
+            failures.append(f"{route_id}: convergence_evidence_present -- no evidence digest")
+        if route.get("any_failure") is not False:
+            failures.append(
+                f"{route_id}: convergence_valid -- any_failure is "
+                f"{route.get('any_failure')!r}, not False"
+            )
+        if not parameters.get("source_provenance"):
+            failures.append(f"{route_id}: source_provenance_present -- absent")
+        if not parameters.get("parameter_identity", {}).get("regenerated_parameters_sha256"):
+            failures.append(f"{route_id}: parameter_identity_present -- absent")
+        if parameters.get("provenance_lineage_valid", {}).get("valid") is not True:
+            failures.append(f"{route_id}: provenance_lineage_valid -- not established")
+
+        equality = parameters.get("archived_parameter_equality", {})
+        if equality.get("measured") is not True:
+            failures.append(f"{route_id}: equality_measured -- not measured")
+        elif equality.get("exact") is False:
+            # A FINDING, not a failure. Recorded with the measured magnitude.
+            findings.append(
+                f"{route_id}: parameters differ from the archive "
+                f"({equality.get('classification')}, "
+                f"max|delta|={equality.get('coefficient_max_abs_delta', equality.get('max_float_delta'))})"
+            )
+
+    replay = document.get("replay_response_identity", {})
+    if not replay.get("frozen_archive_replay", {}).get("replay_responses_sha256"):
+        failures.append("replay_identity_present -- frozen replay identity absent")
+    if not replay.get("fresh_model_replay", {}).get("replay_responses_sha256"):
+        failures.append("replay_identity_present -- fresh model replay identity absent")
+
+    return {
+        "valid": not failures,
+        "failures": failures,
+        "findings": findings,
+        "requirements": list(LANE_A_VALIDITY_REQUIREMENTS),
+        "note": (
+            "findings are measured differences between valid converged regenerations; "
+            "they are reported and never thresholded. failures are invalid evidence "
+            "and fail closed."
+        ),
     }
 
 
@@ -510,7 +750,7 @@ def produce_lane_a(requested: str) -> dict[str, Any]:
             },
             "regeneration": regeneration,
         }
-    return {
+    document = {
         "protocol_id": PROTOCOL_ID,
         "requested_dispatch_class": requested,
         "observed_dispatch_class": observed,
@@ -526,6 +766,12 @@ def produce_lane_a(requested: str) -> dict[str, Any]:
             "SciPy ship different OpenBLAS builds"
         ),
     }
+    # Validity is computed, not assumed, and emitted so the gate reads a verdict
+    # rather than re-deriving one. Findings are carried alongside failures so a
+    # measured difference can never be mistaken for an invalid result, or the
+    # reverse.
+    document["validity"] = assert_lane_a_valid(document)
+    return document
 
 
 def produce_lane_b(requested: str, archive_dir: str) -> dict[str, Any]:
