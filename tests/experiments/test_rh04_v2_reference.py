@@ -5651,3 +5651,186 @@ def test_v2_05_lane_a_records_model_calibration_and_replay_identities():
         "replay_identity_sha256",
     ):
         assert len(document[key]) == 64
+
+
+# --------------------------------------------------------------------------- #
+# Round 18: Lane B must not train; evidence must be sanitised                  #
+# --------------------------------------------------------------------------- #
+
+
+def test_v2_05_lane_b_performs_no_estimator_fitting():
+    """Lane B is an inference path and must run with every fit entry point armed.
+
+    The guard replaces each fit entry point with a raising stub and records what it
+    armed. If it armed nothing it proves nothing, so the armed list is required to
+    be non-empty, and the replay must complete with zero attempts.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    document = report.produce_lane_b("host", "research/intake/fixtures/rh04_v2_portable")
+    assert document["verdict"] == "ACCEPTED"
+    assert document["estimator_fitting_performed"] is False
+    assert document["fitting_attempts_observed"] == []
+    armed = document["fitting_guard_armed_entry_points"]
+    assert armed, "the fitting guard armed no entry points, so it proves nothing"
+    # The calibrator and both estimator families must be covered.
+    assert "OofLogisticCalibrator.fit_from_oof" in armed
+    assert "LogisticRegression.fit" in armed
+    assert "RandomForestClassifier.fit" in armed
+
+
+def test_v2_05_lane_b_survives_with_fitting_entry_points_forbidden(monkeypatch):
+    """Lane B must be executable when training entry points are forbidden.
+
+    This is stronger than checking a flag: every fit entry point is replaced
+    *before* the replay is invoked, and the replay must still accept all 29 cases
+    with the pinned digest. If Lane B needed to fit anything -- including the
+    ``LogisticRegression.fit`` that earlier rounds used merely to touch the sklearn
+    path -- this test fails.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    attempts: list[str] = []
+
+    def _refuse(*_args, **_kwargs):
+        attempts.append("called")
+        raise AssertionError("Lane B attempted to fit during a replay")
+
+    from ai.calibration import OofLogisticCalibrator
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+
+    monkeypatch.setattr(OofLogisticCalibrator, "fit_from_oof", classmethod(
+        lambda cls, *a, **k: _refuse()
+    ))
+    monkeypatch.setattr(LogisticRegression, "fit", _refuse)
+    monkeypatch.setattr(RandomForestClassifier, "fit", _refuse)
+
+    document = report.produce_lane_b("host", "research/intake/fixtures/rh04_v2_portable")
+    assert attempts == [], "a fit entry point was reached during Lane B"
+    assert document["verdict"] == "ACCEPTED"
+    assert document["observed_digest"] == "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"
+
+
+def test_v2_08_resident_library_evidence_carries_no_absolute_paths():
+    """Published evidence must not name the machine that produced it.
+
+    Versions, architectures, thread counts and thread-pool API remain. Absolute
+    library paths, install prefixes and the interpreter path do not, because they
+    are committed and attached to a PR.
+    """
+    import json as _json
+
+    from research.intake import rh04_v2_lane_a_report as report
+
+    report._exercise_numerics()
+    identity = report.resident_libraries()
+    encoded = _json.dumps(identity)
+
+    import re
+
+    for pattern in (
+        r"/home/[A-Za-z0-9._-]+",
+        r"/Users/[A-Za-z0-9._-]+",
+        r"/usr/(local/)?(lib|bin)/",
+        r"/root/",
+    ):
+        assert not re.search(pattern, encoded), (pattern, encoded[:400])
+
+    assert "filepath" not in encoded
+    assert "executable" not in encoded
+    assert identity["interpreter"]["path_retained"] is False
+
+    # Structural check, not just a pattern scan. A pattern list only catches the
+    # prefixes it names, so a raw path under a directory nobody thought of would
+    # slip through. Every published string is required to be a basename or an
+    # identifier: no string may contain a path separator.
+    def _strings(node):
+        if isinstance(node, dict):
+            for value in node.values():
+                yield from _strings(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from _strings(value)
+        elif isinstance(node, str):
+            yield node
+
+    for value in _strings(identity):
+        assert "/" not in value, f"published evidence carries a path fragment: {value!r}"
+        assert "\\" not in value, f"published evidence carries a path fragment: {value!r}"
+
+    # The provenance a reader actually needs is still present.
+    assert identity["libraries"]
+    for entry in identity["libraries"]:
+        assert entry["internal_api"] in {"openblas", "openmp", "mkl", "blis"}
+        assert entry["library_file"]["basename"]
+        assert entry["library_file"]["path_retained"] is False
+        assert entry["num_threads"] is not None
+
+
+def test_v2_08_sanitizer_still_exposes_a_leaked_path():
+    """The sanitiser must actually remove a path, not merely be applied.
+
+    A sanitiser that returns its input unchanged would pass the previous test on a
+    machine whose paths happen to match no pattern. This feeds a known path in and
+    requires the output to carry no trace of the directory.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    sanitised = report.sanitize_path("/home/alice/venvs/rh04/lib/libopenblas.so.0")
+    assert sanitised["basename"] == "libopenblas.so.0"
+    assert sanitised["path_retained"] is False
+    assert "/home/alice" not in repr(sanitised)
+    assert "venvs" not in repr(sanitised)
+
+    prefix = report.sanitize_prefix("/home/alice/venvs/rh04/lib/python3.11/site-packages")
+    assert prefix["kind"] == "site-packages"
+    assert prefix["path_retained"] is False
+    assert "alice" not in repr(prefix)
+
+
+def test_v2_02_lane_a_records_actual_regenerated_parameters():
+    """Regenerated parameters, not selection metadata, must be reported.
+
+    Selection metadata says which configuration would be used; it does not say what
+    the fitted function is. The logistic route must report its coefficient vector,
+    and the forest route its tree count and structural comparison -- both regenerated
+    by the existing producer refit and compared against the archive.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    logistic = report._regenerated_parameters("da_a2_resting_v1")
+    assert logistic["model_family"] == "l2_logistic_regression"
+    assert len(logistic["regenerated_coefficients"]) == 10
+    assert all(isinstance(v, float) for v in logistic["regenerated_coefficients"])
+    assert logistic["coefficients_exact"] is True
+    assert logistic["coefficient_max_abs_delta"] == 0.0
+    assert logistic["intercept_abs_delta"] == 0.0
+    assert logistic["lineage_established"] is True
+
+    forest = report._regenerated_parameters("da_a1_basic_clinical_v1")
+    assert forest["model_family"] == "constrained_random_forest"
+    assert forest["tree_count"]["archived"] == forest["tree_count"]["refit"] == 50
+    assert forest["structure_exact"] is True
+    assert forest["max_float_delta"] == 0.0
+    assert forest["lineage_established"] is True
+
+
+def test_v2_02_lane_a_replay_identity_is_over_responses_not_statuses():
+    """The replay identity must digest the responses, not a status tally.
+
+    A tally such as ``{ERROR: 22, ABSTAIN: 2}`` is a summary and is identical for
+    many different response sets. The identity here is per-case, so two runs can be
+    compared on what was actually returned.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    identity = report._replay_response_identity()
+    assert identity["n_cases"] == 29
+    assert len(identity["per_case_response_sha256"]) == 29
+    for case_id, digest in identity["per_case_response_sha256"].items():
+        assert len(digest) == 64, case_id
+    assert len(identity["replay_responses_sha256"]) == 64
+    assert identity["aggregate_digest"] == (
+        "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"
+    )

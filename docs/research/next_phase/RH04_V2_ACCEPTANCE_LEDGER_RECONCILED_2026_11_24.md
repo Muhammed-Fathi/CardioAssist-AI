@@ -123,6 +123,58 @@ machine and one dispatch class, not on Windows and not across the matrix. The sc
 claim remains logistic regression plus its calibration map; the random forest is a
 different estimator with no gradient-based convergence test and is not covered.
 
+### 1c. Round-18 corrections: Lane B purity, evidence sanitisation, real parameters
+
+Three defects found before execution, all in the harness rather than the model.
+
+**Lane B was fitting an estimator.** `_warm_numerics()` called
+`LogisticRegression.fit` to touch the sklearn path before reading dispatch. That put
+a model fit inside Lane B, which is an inference path. Dispatch resolves from BLAS
+and LAPACK calls alone — `dgemm`, `dgesv`, `dgesdd`, `dgelsd` reach both NumPy's and
+SciPy's OpenBLAS builds — so no estimator is constructed. A `FittingGuard` now
+replaces every fit entry point with a raising stub for the duration of the replay and
+records what it armed: **4 entry points armed, 0 attempts** on both routes. A guard
+that armed nothing would prove nothing, so the armed list is asserted non-empty and
+recorded in the evidence.
+
+Module *residency* is deliberately not the signal. `ai.packaging` imports
+`ai.training` for a dataclass type and `ai/__init__.py` re-exports names from
+`ai.calibration`, so importing the facade makes several training modules resident. A
+residency check would either forbid the facade and make Lane B unrunnable, or be so
+weak as to prove nothing. The guarantee is on calls.
+
+**Resident-library evidence published absolute machine paths.** `filepath`,
+`prefix` and `sys.executable` were recorded verbatim, so every evidence artefact
+named the host directory. Evidence is committed and attached to a PR. The record now
+keeps what a reader needs — version, architecture, thread count, thread-pool API, the
+library basename and its SHA-256 — and reduces the install prefix to a
+non-identifying kind (`site-packages`, `system`, …). Demonstrated both ways: genuine
+evidence passes the scanner, and an injected `/home/...` path is detected.
+
+The negative test for this is structural, not a pattern list. A pattern list only
+catches the prefixes it names, so the first version of that test passed a mutation
+that republished a raw absolute path. Every published string is now required to
+contain no path separator, and the same mutation fails.
+
+**Lane A's regeneration identity was selection metadata, not parameters.**
+`selected_family`, `selected_hyperparameters` and input hashes say which
+configuration *would* be used; they do not say what the fitted function is. Lane A
+now calls the existing `estimator_lineage_proof`, which re-runs the producer's own
+final fit with its own seed arithmetic and compares the result to the archive:
+
+| route | family | regenerated parameters | agreement |
+|---|---|---|---|
+| `da_a2_resting_v1` | `l2_logistic_regression` | 10 coefficients + intercept | `max|Δcoef| = 0.0`, `|Δintercept| = 0.0` |
+| `da_a1_basic_clinical_v1` | `constrained_random_forest` | 50-tree structure | `tree_count` 50/50, `structure_exact`, `max_float_delta = 0.0` |
+
+And the replay identity is now over the **responses**: every one of the 29 cases is
+digested as returned, and the ordered sequence is digested
+(`8dd4388e…` locally). A status tally such as `{ERROR: 22, ABSTAIN: 2}` is a summary
+and is identical for many different response sets; it was never an identity.
+
+**No new model, solver or dataset.** Every parameter above comes from the existing
+registered producer and the existing archive.
+
 ### 1b. Correction to the round-16 evidence wording: independence was overstated
 
 Round 16 described the calibration residual as "independently evaluated". That was

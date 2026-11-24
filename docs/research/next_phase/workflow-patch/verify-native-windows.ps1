@@ -374,6 +374,12 @@ if ($laneBOk -and (Test-Path $laneBPath)) {
     }
     $laneBArch = ($laneB.resident_dispatch.blas_architectures -join ", ")
     Add-Result "Lane B resident dispatch" "PASS" ("{0} (read inside the replay process)" -f $laneBArch)
+    if ($laneB.estimator_fitting_performed -eq $false -and $laneB.fitting_attempts_observed.Count -eq 0) {
+        Add-Result "Lane B no fitting" "PASS" ("guard armed {0} entry points, 0 attempts" -f $laneB.fitting_guard_armed_entry_points.Count)
+    }
+    else {
+        Add-Result "Lane B no fitting" "FAIL" "Lane B fitted a model, or a fit was attempted"
+    }
 }
 else {
     Add-Result "Lane B evidence" "FAIL" "no Lane B document was produced by this run"
@@ -432,6 +438,39 @@ if (Invoke-PythonStep -Name "Lane A evidence" -Arguments @($laneAScriptPath, $la
             Add-Result ("Lane A {0} classification" -f $routeId) "FAIL" "a fit failed, or its evidence is missing or invalid"
         }
         Add-Result ("Lane A {0} regeneration identity" -f $routeId) "PASS" ("family={0}, calibration={1}" -f $route.regeneration.model_identity.selected_family, $route.regeneration.calibration_identity_sha256.Substring(0, 12))
+        $params = $route.regeneration.regenerated_parameters
+        if ($params.lineage_established -eq $true) {
+            Add-Result ("Lane A {0} regenerated parameters" -f $routeId) "PASS" ("{0} matches the archive (parameters sha {1})" -f $params.model_family, $params.regenerated_parameters_sha256.Substring(0, 12))
+        }
+        else {
+            Add-Result ("Lane A {0} regenerated parameters" -f $routeId) "FAIL" "the refit does not match the archive; lineage not established"
+        }
+        if ($params.model_family -eq "l2_logistic_regression") {
+            if ($params.coefficients_exact -eq $true) {
+                Add-Result ("Lane A {0} coefficient deltas" -f $routeId) "PASS" ("max|dcoef|={0}, |dint|={1}" -f $params.coefficient_max_abs_delta, $params.intercept_abs_delta)
+            }
+            else {
+                Add-Result ("Lane A {0} coefficient deltas" -f $routeId) "FAIL" ("max|dcoef|={0}, |dint|={1}" -f $params.coefficient_max_abs_delta, $params.intercept_abs_delta)
+            }
+        }
+        else {
+            if ($params.structure_exact -eq $true) {
+                Add-Result ("Lane A {0} forest structure" -f $routeId) "PASS" ("{0} of {1} trees, max float delta {2}" -f $params.tree_count.refit, $params.tree_count.archived, $params.max_float_delta)
+            }
+            else {
+                Add-Result ("Lane A {0} forest structure" -f $routeId) "FAIL" "the refit forest structure differs from the archive"
+            }
+        }
+    }
+}
+
+if ($laneA.replay_response_identity) {
+    Add-Result "Lane A replay response identity" "PASS" ("29 cases, responses sha {0}" -f $laneA.replay_response_identity.replay_responses_sha256.Substring(0, 16))
+    if ($laneA.replay_response_identity.aggregate_digest -eq $expectedDigest) {
+        Add-Result "Lane A replay aggregate digest" "PASS" $laneA.replay_response_identity.aggregate_digest
+    }
+    else {
+        Add-Result "Lane A replay aggregate digest" "FAIL" ("{0} != {1}" -f $laneA.replay_response_identity.aggregate_digest, $expectedDigest)
     }
 }
 

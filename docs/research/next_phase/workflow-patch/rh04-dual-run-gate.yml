@@ -178,6 +178,22 @@ jobs:
                       "model": regen["model_identity_sha256"],
                       "calibration": regen["calibration_identity_sha256"],
                       "replay": regen["replay_identity_sha256"],
+                      # Actual regenerated parameters, not selection metadata.
+                      "regenerated_parameters": regen["regenerated_parameters"][
+                          "regenerated_parameters_sha256"
+                      ],
+                      "coefficient_max_abs_delta": regen["regenerated_parameters"].get(
+                          "coefficient_max_abs_delta"
+                      ),
+                      "intercept_abs_delta": regen["regenerated_parameters"].get(
+                          "intercept_abs_delta"
+                      ),
+                      "structure_exact": regen["regenerated_parameters"].get(
+                          "structure_exact"
+                      ),
+                      "lineage_established": regen["regenerated_parameters"][
+                          "lineage_established"
+                      ],
                       "selected_family": regen["model_identity"]["selected_family"],
                       "selected_hyperparameters": regen["model_identity"]["selected_hyperparameters"],
                       "intercept": regen["calibration_identity"]["intercept"],
@@ -197,6 +213,12 @@ jobs:
               "libraries": first["identity"]["libraries"],
               "n_library_entries": first["identity"]["n_entries"],
               "regeneration_identical": first_ids == second_ids,
+              "replay_responses_identical": (
+                  first["replay_response_identity"] == second["replay_response_identity"]
+              ),
+              "replay_responses_sha256": first["replay_response_identity"][
+                  "replay_responses_sha256"
+              ],
               "identities_run1": first_ids,
               "identities_run2": second_ids,
               "any_failure": first["any_failure"] or second["any_failure"],
@@ -210,6 +232,14 @@ jobs:
           # tolerance: it is the property that makes the identity claim meaningful.
           if not report["regeneration_identical"]:
               raise SystemExit("Lane A did not regenerate identically within one environment")
+          if not report["replay_responses_identical"]:
+              raise SystemExit("Lane A replay responses differed between two runs")
+          for route, value in report["identities_run1"].items():
+              if not value["lineage_established"]:
+                  raise SystemExit(
+                      f"{route}: regenerated parameters do not match the archive, so "
+                      "the lineage is not established"
+                  )
           if report["any_failure"]:
               raise SystemExit("Lane A reported a convergence failure")
           PY
