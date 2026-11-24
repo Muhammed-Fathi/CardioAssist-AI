@@ -58,6 +58,18 @@ function Fail([string]$Message) {
     exit 1
 }
 
+function Remove-CreatedGateFile {
+    # The gate file is new, so --reverse leaves it behind as untracked. Remove only
+    # the one path this script creates, and only if it is still untracked -- never a
+    # blanket 'git clean', which would take anything else the owner happens to have.
+    $gate = ".github/workflows/rh04-dual-run-gate.yml"
+    if (-not (Test-Path $gate)) { return }
+    $tracked = & git ls-files --error-unmatch $gate 2>$null
+    if ($LASTEXITCODE -eq 0) { return }
+    Remove-Item -Path $gate -Force
+    Write-Host "  removed the untracked gate file this script created" -ForegroundColor Green
+}
+
 function Stop-WithRollback([string]$Message, [bool]$Applied) {
     Write-Host ""
     Write-Host "FAILED: $Message" -ForegroundColor Red
@@ -72,6 +84,7 @@ function Stop-WithRollback([string]$Message, [bool]$Applied) {
         }
         Write-Host "  rolled back; the checkout is unchanged" -ForegroundColor Green
     }
+    Remove-CreatedGateFile
     exit 1
 }
 
