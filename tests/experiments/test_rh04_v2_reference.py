@@ -5834,3 +5834,46 @@ def test_v2_02_lane_a_replay_identity_is_over_responses_not_statuses():
     assert identity["aggregate_digest"] == (
         "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"
     )
+
+
+def test_v2_08_sanitizer_closes_every_file_it_opens(tmp_path):
+    """Digesting a library must not leak the file handle.
+
+    CI runs the suite under ``-W error``, so a handle left to the garbage collector
+    becomes a ``ResourceWarning`` at collection time and fails whichever test
+    happens to be running at that moment. That is why three Lane B and evidence
+    tests were failing for a reason none of them named.
+
+    The digest is asserted alongside the closure, so passing this by reading less of
+    the file is not an option.
+    """
+    import builtins
+    import hashlib
+
+    from research.intake import rh04_v2_lane_a_report as report
+
+    payload = b"openblas" * 400_000  # 3.2 MB, past the 1 MiB streaming chunk
+    target = tmp_path / "libopenblas-test.so"
+    target.write_bytes(payload)
+
+    opened: list = []
+    real_open = builtins.open
+
+    def _spy(*args, **kwargs):
+        handle = real_open(*args, **kwargs)
+        opened.append(handle)
+        return handle
+
+    builtins.open = _spy
+    try:
+        sanitised = report.sanitize_path(str(target))
+    finally:
+        builtins.open = real_open
+
+    assert opened, "sanitize_path did not open the file it digested"
+    for handle in opened:
+        assert handle.closed, "sanitize_path left a file handle open"
+    assert sanitised["sha256"] == hashlib.sha256(payload).hexdigest()
+    assert sanitised["basename"] == "libopenblas-test.so"
+    assert sanitised["path_retained"] is False
+    assert str(tmp_path) not in repr(sanitised)

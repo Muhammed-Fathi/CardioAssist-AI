@@ -168,7 +168,15 @@ def sanitize_path(value: Any) -> dict[str, Any]:
     normalised = value.replace("\\", "/")
     basename = normalised.rsplit("/", 1)[-1]
     try:
-        digest = hashlib.sha256(open(value, "rb").read()).hexdigest()
+        # Context-managed and streamed. A bare ``open(...).read()`` leaves the
+        # handle to the garbage collector, which under ``-W error`` turns into a
+        # ResourceWarning the suite treats as a failure; it also loads a
+        # multi-megabyte shared object into memory for no reason.
+        hasher = hashlib.sha256()
+        with open(value, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1 << 20), b""):
+                hasher.update(chunk)
+        digest = hasher.hexdigest()
     except Exception:
         digest = None
     return {
