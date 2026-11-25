@@ -394,16 +394,14 @@ document it implements.
 Stage 2 now reads the module's validity verdict instead of re-deriving one from a
 bit-equality proxy, and prints measured differences as findings. Stage 6 read a key
 that never existed (run1_digests; Stage 2 writes identities_run1) and raised
-KeyError in all eight jobs. Stage 4's filter was too narrow: it never selected the
-`v2_04a` validity tests, so the stage that is supposed to catch a broken validity
-predicate could not execute it. It now selects 37 tests, including all six v2_04a
-negative cases.
+KeyError in all eight jobs. Stage 4's filter was too narrow -- five families -- and
+never selected the v2_04a validity tests, so the stage whose job is to catch a broken
+validity predicate could not execute it. The filter now names the families it must
+cover. At 07167b0 that selects 61 of 315 tests, up from 37; after the P0 corrections
+in the same series it selects 67 of 334.
 
-Correction to an earlier draft of this message: it claimed the stage now selects 61
-tests. That figure was wrong and is not reproducible -- the filter as written
-selects 37 of 334 (39 of the 340 at the time of writing). The 37 are the right
-tests; the number in the previous draft was a transcription error, not a change in
-coverage.
+Read the selection by name, not by count: a count alone cannot tell you WHICH
+families are covered, and this number moves whenever a test is added.
 
 WHAT IS NOT CHANGED. Lane B still compares the observed digest to the fixed value
 891d9e3b as a value rather than searching output for a string. The 4 dispatch class
