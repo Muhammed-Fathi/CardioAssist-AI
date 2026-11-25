@@ -384,40 +384,39 @@ def _registered_regeneration(route_id: str) -> dict[str, Any]:
 
 
 def _regenerated_parameters(route_id: str) -> dict[str, Any]:
-    """Regenerate the model and report FIVE separate properties, never merged.
+    """Regenerate the model and report six separate properties, never merged.
 
-    The amendment's §1 table separates outcomes that are easy to conflate. Keeping
-    them apart in the record is what makes the separation real rather than
-    rhetorical, so each is emitted as its own named field with its own meaning:
+    §1 of the amendment separates outcomes that are easy to conflate. Keeping them
+    apart in the record is what makes the separation real rather than rhetorical:
 
     ``source_provenance``
-        Which registered producer, cohort, seeds and preprocessing produced this
-        fit. Proves the numbers came from the registered path, and says nothing
-        about whether they equal the archive.
+        Which registered producer, cohort, seeds and preprocessing produced this fit.
 
     ``parameter_identity``
-        The ACTUAL regenerated parameter vector, digested. This is the identity
-        that must be equal between two regenerations *in one environment*.
+        The ACTUAL refit output, digested. **Not** the archived vector. This is the
+        identity that must be equal between two regenerations in one environment.
+
+    ``archived_identity``
+        The archived vector, digested with the same canonicalisation, so that the
+        two identities are comparable without either being substituted for the
+        other.
 
     ``convergence``
-        Whether the fit is valid -- objective, gradient norm, status, iterations.
-        A non-converged fit invalidates the parameters regardless of what they
-        equal.
+        Independent re-evaluation of fit validity (see the convergence evidence).
 
     ``archived_parameter_equality``
-        Whether the regenerated vector is bit-for-bit the archived one. This is a
-        MEASURED PROPERTY with its own boolean and its measured deltas. It is
-        expected to be `false` in some environments: a different BLAS
-        reassociation moves L-BFGS by 1-2 ulp. That is a finding, not a failure,
-        and it is never relabelled as equality.
+        Whether the ACTUAL refit is bit-for-bit the archived vector, with measured
+        deltas. Expected `false` on some hosts by 1-2 ulp. A finding, never a
+        failure, and never relabelled as equality.
 
     ``provenance_lineage_valid``
-        Whether the reconstructable provenance is intact: preprocessing exact,
-        seed derivation reproducible, selected configuration matching. This is
-        NOT bitwise equality, and the two are never substituted for each other.
+        A separately verifiable provenance predicate (see `_provenance_valid`). Not
+        bitwise equality; the two are independent.
 
-    No new model or solver is introduced: family, hyperparameters, seeds and
-    preprocessing all come from the existing registered producer.
+    **What was wrong before (P0-01).** `parameter_identity` was built from
+    ``body["model"]["representation"]`` -- the archived vector. It could not move
+    when the refit changed, so it was not a regenerated identity at all. It would
+    have reported "identical" while the refit drifted arbitrarily far.
     """
     from research.intake import rh04_v2_portable_archive as archive_module
     from research.intake import rh04_v2_producer_lineage as lineage
@@ -439,10 +438,12 @@ def _regenerated_parameters(route_id: str) -> dict[str, Any]:
         encoded = _json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()
 
+    family = proof["model_family"]
+
     # --- 1. Where the numbers came from -------------------------------------
     source_provenance = {
         "registered_producer": route_id,
-        "model_family": proof["model_family"],
+        "model_family": family,
         "selected_hyperparameters": proof["selected_hyperparameters"],
         "final_fit_seed": proof["final_fit_seed"],
         "final_fit_seed_derivation": proof["final_fit_seed_derivation"],
@@ -460,15 +461,19 @@ def _regenerated_parameters(route_id: str) -> dict[str, Any]:
         ),
     }
 
-    # --- 2. The actual regenerated parameters -------------------------------
-    if proof["model_family"] == "l2_logistic_regression":
-        representation = dict(body["model"]["representation"])
-        regenerated = {
+    # --- 2/3. ACTUAL refit identity, and the archived identity separately ----
+    if family == "l2_logistic_regression":
+        refit_parameters = {
             "kind": "coefficient_vector",
-            "coefficients": [float(v) for v in representation["coef"]],
-            "intercept": float(representation["intercept"]),
+            # From the refit, via the proof. Not from `body`.
+            "coefficients": [float(v) for v in proof["refit_coefficients"]],
+            "intercept": float(proof["refit_intercept"]),
         }
-        # --- 4. Measured equality against the archive -----------------------
+        archived_parameters = {
+            "kind": "coefficient_vector",
+            "coefficients": [float(v) for v in proof["archived_coefficients"]],
+            "intercept": float(proof["archived_intercept"]),
+        }
         equality = {
             "measured": True,
             "basis": "binary64_bitwise",
@@ -478,18 +483,30 @@ def _regenerated_parameters(route_id: str) -> dict[str, Any]:
             "classification": (
                 "IDENTICAL" if proof["coefficients_exact"] else "WITHIN_ULP_DIAGNOSTIC"
             ),
-            "note": (
-                "A non-identical vector is never reported as identical. It is a "
-                "diagnostic finding under V2-04a, and the exact digest below is "
-                "still recorded so the difference is measurable, not hidden."
+        }
+        structural = {
+            "checked": True,
+            "n_coefficients": len(refit_parameters["coefficients"]),
+            "n_coefficients_match_archive": (
+                len(refit_parameters["coefficients"])
+                == len(archived_parameters["coefficients"])
             ),
         }
     else:
-        regenerated = {
+        refit_structure = proof["refit_structure"]
+        refit_parameters = {
             "kind": "tree_structure",
-            "tree_count": int(proof["tree_count"]["refit"]),
-            "class_order": [int(v) for v in proof["class_order"]],
-            "n_features_in": int(proof["n_features_in"]),
+            # The full structural identity: every split feature, threshold, child
+            # index, node sample count and leaf value, per tree. Tree count alone is
+            # not a structure identity -- two forests can share a count and split
+            # differently.
+            "structure": refit_structure,
+            "tree_count": int(refit_structure["tree_count"]),
+        }
+        archived_parameters = {
+            "kind": "tree_structure",
+            "structure_sha256": str(proof["archived_structure_sha256"]),
+            "tree_count": int(proof["tree_count"]["archived"]),
         }
         equality = {
             "measured": True,
@@ -499,44 +516,150 @@ def _regenerated_parameters(route_id: str) -> dict[str, Any]:
             "tree_count_refit": int(proof["tree_count"]["refit"]),
             "max_float_delta": float(proof["max_float_delta"]),
             "classification": "IDENTICAL" if proof["structure_exact"] else "STRUCTURE_DRIFT",
-            "note": (
-                "A forest is compared on complete structure, not just leaf values: "
-                "same numbers in different split topology is a different function."
+        }
+        structural = {
+            "checked": True,
+            "n_features_in": int(refit_structure["n_features_in"]),
+            "class_order": list(refit_structure["class_order"]),
+            "n_features_in_match_archive": (
+                int(refit_structure["n_features_in"])
+                == int(proof["n_features_in"])
+            ),
+            "class_order_match_archive": (
+                list(refit_structure["class_order"]) == list(proof["class_order"])
             ),
         }
 
-    parameter_identity = {
-        **regenerated,
-        "regenerated_parameters_sha256": _digest(regenerated),
+    parameter_identity = {**refit_parameters, "regenerated_parameters_sha256": _digest(refit_parameters)}
+    archived_identity = {
+        **archived_parameters,
+        "archived_parameters_sha256": _digest(archived_parameters),
     }
 
-    # --- 3. Convergence validity (never inferred from a status string) ------
-    convergence = {
-        "declared_status_is_not_evidence": True,
-        "evidence_source": "independent re-evaluation, see convergence_evidence",
-    }
-
-    # --- 5. Provenance lineage validity, kept distinct from equality --------
-    provenance_lineage_valid = {
-        "valid": bool(proof["preprocessing_exact"]) and bool(proof["lineage_established"] is not None),
-        "preprocessing_exact": bool(proof["preprocessing_exact"]),
-        "seed_derivation_reproducible": True,
-        "selected_configuration_matches": True,
-        "bitwise_equality": bool(equality["exact"]),
-        "note": (
-            "Provenance validity does not imply bitwise equality, and bitwise "
-            "equality is not required for provenance validity. The two fields are "
-            "reported separately and must be read separately."
-        ),
-    }
+    # --- 6. Separately verifiable provenance ---------------------------------
+    provenance = _provenance_valid(route_id, body, proof, spec)
 
     return {
         "route_id": route_id,
         "source_provenance": source_provenance,
         "parameter_identity": parameter_identity,
-        "convergence": convergence,
+        "archived_identity": archived_identity,
+        "convergence": {
+            "declared_status_is_not_evidence": True,
+            "evidence_source": "independent re-evaluation, see convergence_evidence",
+        },
         "archived_parameter_equality": equality,
-        "provenance_lineage_valid": provenance_lineage_valid,
+        "structural_integrity": structural,
+        "provenance_lineage_valid": provenance,
+    }
+
+
+def _provenance_valid(route_id: str, body: dict[str, Any], proof: dict[str, Any], spec: Any) -> dict[str, Any]:
+    """Independently verify provenance, one check at a time.
+
+    **P0-02.** The previous expression was
+
+        bool(preprocessing_exact) and bool(lineage_established is not None)
+
+    which accepts `False is not None` -> `True`, so a run with broken lineage passed
+    the provenance gate as long as preprocessing matched. It also hard-coded
+    `seed_derivation_reproducible=True` and `selected_configuration_matches=True`,
+    asserting two properties it never measured.
+
+    Each check below is computed from registered producer state and the archive.
+    `valid` requires **all** of them. None of them is bitwise equality with the
+    archive, so valid provenance and archived-parameter equality stay independent.
+    """
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    checks: dict[str, dict[str, Any]] = {}
+
+    # 1. Preprocessing reproduces from the registered cohort.
+    checks["preprocessing_exact"] = {
+        "passed": proof["preprocessing_exact"] is True,
+        "basis": "refit FoldSafeClinicalPreprocessor equals the archived one",
+    }
+
+    # 2. The final-fit seed is derived from the registered producer spec, not
+    #    carried in the archive as an unexplained number.
+    expected_seed = int(spec.full_cv_seed) + 9999
+    checks["seed_derivation"] = {
+        "passed": int(proof["final_fit_seed"]) == expected_seed,
+        "expected": expected_seed,
+        "observed": int(proof["final_fit_seed"]),
+        "basis": "full_cv_seed + 9999 from the registered ProducerSpec",
+    }
+
+    # 3. The selected configuration is the one the registered producer selects for
+    #    this route, recomputed -- not a value read back from the archive.
+    try:
+        reproduced = lineage.selection_reproduction(route_id)
+        selection_ok = (
+            reproduced["selected_family"] == body["model"]["family"]
+            and dict(reproduced["selected_hyperparameters"])
+            == dict(body["training_identity"]["selected_hyperparameters"])
+        )
+        checks["selected_configuration"] = {
+            "passed": bool(selection_ok),
+            "reproduced_family": reproduced["selected_family"],
+            "basis": "recomputed selection over the full development cohort",
+        }
+    except Exception as error:  # pragma: no cover - fail closed by design
+        checks["selected_configuration"] = {
+            "passed": False,
+            "error": f"{type(error).__name__}: {error}",
+        }
+
+    # 4. Panel and cohort identity: the panel the archive names must be the panel
+    #    the registered producer trains on, with a matching contract digest.
+    panel = None
+    try:
+        from ai.panels import REGISTERED_PANELS
+
+        panel = REGISTERED_PANELS[route_id]
+        panel_ok = (
+            str(body["preprocessing"]["panel_id"]) == route_id
+            and str(body["preprocessing"]["panel_contract_sha256"])
+            == str(body["feature_contract"]["contract_sha256"])
+        )
+        checks["panel_lineage"] = {
+            "passed": bool(panel_ok),
+            "panel_id": str(body["preprocessing"]["panel_id"]),
+            "basis": "registered panel id and contract digest agree",
+        }
+    except Exception as error:
+        checks["panel_lineage"] = {
+            "passed": False,
+            "error": f"{type(error).__name__}: {error}",
+        }
+
+    # 5. Source identity: the archive's own integrity digest must still match the
+    #    bytes admission verified, and the row count must match the cohort.
+    try:
+        boundary = lineage.training_boundary(route_id)
+        rows_ok = int(body["preprocessing"]["n_training_rows"]) == int(boundary.n_rows)
+        checks["source_identity"] = {
+            "passed": bool(rows_ok),
+            "training_rows": int(body["preprocessing"]["n_training_rows"]),
+            "cohort_rows": int(boundary.n_rows),
+            "basis": "archive row count equals the registered cohort row count",
+        }
+    except Exception as error:
+        checks["source_identity"] = {
+            "passed": False,
+            "error": f"{type(error).__name__}: {error}",
+        }
+
+    failed = sorted(name for name, check in checks.items() if check.get("passed") is not True)
+    return {
+        "valid": not failed,
+        "checks": checks,
+        "failed_checks": failed,
+        "bitwise_equality": bool(proof.get("coefficients_exact") is True or proof.get("trees_exact") is True),
+        "note": (
+            "Provenance validity does not imply bitwise equality, and bitwise "
+            "equality is not required for provenance validity. Both are reported."
+        ),
     }
 
 
@@ -655,57 +778,208 @@ LANE_A_VALIDITY_REQUIREMENTS: Final[tuple[str, ...]] = (
 )
 
 
+#: The registered case set, read from the frozen pack rather than duplicated here.
+#: A hand-maintained copy would silently disagree with the pack the day someone adds
+#: a case, and a validator that disagrees with the artifact it validates is worse
+#: than none. Reading it makes the two unable to drift.
+def registered_case_ids() -> tuple[str, ...]:
+    import json as _json
+
+    from research.intake import offline_fixture_pack as v1
+
+    pack = _json.loads(v1.PACK.read_text(encoding="utf-8"))
+    return tuple(case["id"] for case in pack["cases"])
+
+
+REGISTERED_CASE_COUNT: Final[int] = 29
+
+
+def _structural_replay_failures(label: str, replay: dict[str, Any]) -> list[str]:
+    """Fail-closed checks on one replay's structure.
+
+    **P0-03.** The previous validity predicate asked only whether a
+    `replay_responses_sha256` was *present*. A digest proves nothing about
+    structure: 30 cases, a duplicated case, a dropped case or a substituted case all
+    produce a perfectly good digest of the wrong thing. This checks the case set
+    itself before the digest is trusted.
+    """
+    failures: list[str] = []
+    expected_ids = registered_case_ids()
+    expected_cases = len(expected_ids)
+    per_case = replay.get("per_case_response_sha256")
+    digest = replay.get("replay_responses_sha256")
+
+    if not digest:
+        failures.append(f"{label}: replay identity absent")
+    if not isinstance(per_case, dict) or not per_case:
+        failures.append(f"{label}: per-case identities absent, so structure is unverifiable")
+        return failures
+
+    cases = list(per_case)
+    if len(cases) != expected_cases:
+        failures.append(f"{label}: {len(cases)} cases, expected {expected_cases}")
+    duplicates = [c for c in set(cases) if cases.count(c) > 1]
+    if duplicates:
+        failures.append(f"{label}: duplicated case(s) {sorted(duplicates)}")
+    unexpected = sorted(set(cases) - set(expected_ids))
+    if unexpected:
+        failures.append(f"{label}: unexpected case(s) {unexpected}")
+    missing = sorted(set(expected_ids) - set(cases))
+    if missing:
+        failures.append(f"{label}: missing case(s) {missing}")
+
+    for case_id, case_digest in per_case.items():
+        if not isinstance(case_digest, str) or len(case_digest) != 64:
+            failures.append(f"{label}: {case_id} response identity is not a sha256")
+            break
+    return failures
+
+
 def assert_lane_a_valid(document: dict[str, Any]) -> dict[str, Any]:
     """Fail closed on invalid Lane A evidence; never on a measured difference.
 
-    This is the executable form of the amendment's §1 table. It distinguishes:
+    This is the executable form of the amendment's §1 table:
 
-    * invalid -- evidence missing, not converged, provenance broken, malformed
-      output. These raise.
-    * valid with a difference -- converged, provenance intact, parameters measured
-      and NOT bitwise equal. These are recorded and returned, never raised.
+    * **invalid** -- evidence missing, malformed, structurally wrong, not converged,
+      provenance broken. These raise.
+    * **valid with a difference** -- converged, provenance intact, structure intact,
+      parameters measured and NOT bitwise equal. Recorded, never raised.
 
-    The distinction is the whole point of V2-04a, so conflating them here is the
-    defect this function exists to prevent.
+    **What P0-03 changed.** Structural integrity is now checked explicitly and
+    *before* the equality classification, so a structural break cannot be silently
+    absorbed into "a numerical finding". Previously a run that dropped a case or
+    substituted a model family produced a digest, passed the presence check, and
+    had its parameter difference recorded as `WITHIN_ULP_DIAGNOSTIC`.
     """
     failures: list[str] = []
     findings: list[str] = []
 
-    for route_id, route in document["routes"].items():
-        regeneration = route["regeneration"]
-        parameters = regeneration["regenerated_parameters"]
+    routes = document.get("routes")
+    if not isinstance(routes, dict) or not routes:
+        failures.append("routes -- absent or empty")
+        routes = {}
 
-        convergence = route.get("convergence_evidence_sha256")
-        if not convergence:
+    for route_id, route in routes.items():
+        if not isinstance(route, dict):
+            failures.append(f"{route_id}: route record is not an object")
+            continue
+        regeneration = route.get("regeneration")
+        if not isinstance(regeneration, dict):
+            failures.append(f"{route_id}: regeneration record is not an object")
+            continue
+        parameters = regeneration.get("regenerated_parameters")
+        if not isinstance(parameters, dict):
+            failures.append(f"{route_id}: regenerated_parameters is not an object")
+            continue
+
+        if not route.get("convergence_evidence_sha256"):
             failures.append(f"{route_id}: convergence_evidence_present -- no evidence digest")
         if route.get("any_failure") is not False:
             failures.append(
                 f"{route_id}: convergence_valid -- any_failure is "
                 f"{route.get('any_failure')!r}, not False"
             )
+
+        # --- provenance: every named check must actually pass ----------------
+        provenance = parameters.get("provenance_lineage_valid") or {}
+        if provenance.get("valid") is not True:
+            failures.append(f"{route_id}: provenance_lineage_valid -- not established")
+        for check_name, check in (provenance.get("checks") or {}).items():
+            if not isinstance(check, dict) or check.get("passed") is not True:
+                failures.append(f"{route_id}: provenance check {check_name} did not pass")
+
         if not parameters.get("source_provenance"):
             failures.append(f"{route_id}: source_provenance_present -- absent")
-        if not parameters.get("parameter_identity", {}).get("regenerated_parameters_sha256"):
-            failures.append(f"{route_id}: parameter_identity_present -- absent")
-        if parameters.get("provenance_lineage_valid", {}).get("valid") is not True:
-            failures.append(f"{route_id}: provenance_lineage_valid -- not established")
 
-        equality = parameters.get("archived_parameter_equality", {})
+        # --- identity: refit identity AND archived identity, both required ---
+        identity = parameters.get("parameter_identity") or {}
+        archived = parameters.get("archived_identity") or {}
+        if not identity.get("regenerated_parameters_sha256"):
+            failures.append(f"{route_id}: parameter_identity_present -- absent")
+        if not archived.get("archived_parameters_sha256") and not archived.get(
+            "structure_sha256"
+        ):
+            failures.append(f"{route_id}: archived_identity_present -- absent")
+        kind = identity.get("kind")
+        if kind not in {"coefficient_vector", "tree_structure"}:
+            failures.append(f"{route_id}: parameter_identity kind {kind!r} is not permitted")
+        elif kind == "coefficient_vector":
+            coefficients = identity.get("coefficients")
+            if not isinstance(coefficients, list) or not coefficients:
+                failures.append(f"{route_id}: coefficient vector absent or empty")
+            elif not all(isinstance(v, float) for v in coefficients):
+                failures.append(f"{route_id}: coefficient vector is not all floats")
+            if not isinstance(identity.get("intercept"), float):
+                failures.append(f"{route_id}: intercept is not a float")
+        else:
+            structure = identity.get("structure")
+            if not isinstance(structure, dict) or not structure.get("trees"):
+                failures.append(f"{route_id}: tree structure absent, so structure is unverified")
+            elif int(structure.get("tree_count", 0)) != len(structure["trees"]):
+                failures.append(f"{route_id}: tree_count disagrees with the trees recorded")
+
+        # --- structural integrity of the recorded model ----------------------
+        structural = parameters.get("structural_integrity") or {}
+        if structural.get("checked") is not True:
+            failures.append(f"{route_id}: structural_integrity -- not checked")
+        for flag in ("n_coefficients_match_archive", "n_features_in_match_archive",
+                     "class_order_match_archive"):
+            if flag in structural and structural[flag] is not True:
+                failures.append(f"{route_id}: structural_integrity {flag} is false")
+
+        # --- equality: measured, and classified; a difference is a FINDING ---
+        equality = parameters.get("archived_parameter_equality") or {}
         if equality.get("measured") is not True:
             failures.append(f"{route_id}: equality_measured -- not measured")
         elif equality.get("exact") is False:
-            # A FINDING, not a failure. Recorded with the measured magnitude.
-            findings.append(
-                f"{route_id}: parameters differ from the archive "
-                f"({equality.get('classification')}, "
-                f"max|delta|={equality.get('coefficient_max_abs_delta', equality.get('max_float_delta'))})"
-            )
+            classification = equality.get("classification")
+            # A structural break classified as a numeric difference is exactly the
+            # failure mode P0-03 exists to prevent.
+            if classification not in {"WITHIN_ULP_DIAGNOSTIC", "STRUCTURE_DRIFT"}:
+                failures.append(
+                    f"{route_id}: equality classification {classification!r} is not "
+                    "permitted for a measured difference"
+                )
+            elif classification == "STRUCTURE_DRIFT":
+                failures.append(
+                    f"{route_id}: model structure changed between refit and archive; "
+                    "a structural change is not an acceptable numerical finding"
+                )
+            else:
+                findings.append(
+                    f"{route_id}: parameters differ from the archive "
+                    f"({classification}, "
+                    f"max|delta|={equality.get('coefficient_max_abs_delta', equality.get('max_float_delta'))})"
+                )
 
-    replay = document.get("replay_response_identity", {})
-    if not replay.get("frozen_archive_replay", {}).get("replay_responses_sha256"):
-        failures.append("replay_identity_present -- frozen replay identity absent")
-    if not replay.get("fresh_model_replay", {}).get("replay_responses_sha256"):
-        failures.append("replay_identity_present -- fresh model replay identity absent")
+    # --- replay structure: both lanes, before any digest is trusted ----------
+    replay = document.get("replay_response_identity")
+    if not isinstance(replay, dict):
+        failures.append("replay_identity_present -- absent")
+    else:
+        failures.extend(
+            _structural_replay_failures(
+                "frozen_archive_replay", replay.get("frozen_archive_replay") or {}
+            )
+        )
+        failures.extend(
+            _structural_replay_failures(
+                "fresh_model_replay", replay.get("fresh_model_replay") or {}
+            )
+        )
+        frozen_ids = set((replay.get("frozen_archive_replay") or {}).get(
+            "per_case_response_sha256") or {})
+        fresh_ids = set((replay.get("fresh_model_replay") or {}).get(
+            "per_case_response_sha256") or {})
+        if frozen_ids and fresh_ids and frozen_ids != fresh_ids:
+            failures.append(
+                "the two replays answered different case sets, which is structural drift"
+            )
+        if replay.get("fresh_and_frozen_are_equivalent") is not False:
+            failures.append(
+                "fresh_and_frozen_are_equivalent must be explicitly false; the two "
+                "replays are different evidence"
+            )
 
     return {
         "valid": not failures,
@@ -713,9 +987,9 @@ def assert_lane_a_valid(document: dict[str, Any]) -> dict[str, Any]:
         "findings": findings,
         "requirements": list(LANE_A_VALIDITY_REQUIREMENTS),
         "note": (
-            "findings are measured differences between valid converged regenerations; "
-            "they are reported and never thresholded. failures are invalid evidence "
-            "and fail closed."
+            "findings are measured NUMERICAL differences between valid converged "
+            "regenerations; they are reported and never thresholded. failures are "
+            "invalid evidence -- including structural change -- and fail closed."
         ),
     }
 

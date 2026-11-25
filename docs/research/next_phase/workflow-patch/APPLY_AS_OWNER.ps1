@@ -81,21 +81,76 @@ function Remove-CreatedGateFile {
     Write-Host "  removed the untracked gate file this script created" -ForegroundColor Green
 }
 
+function Restore-PatchPaths {
+    <#
+        Transactional rollback. Restores BOTH the index and the working tree for
+        exactly the patch's paths, and nothing else.
+
+        P0-04: the previous implementation ran `git apply --reverse` alone. Once
+        `git add` had staged the change, reversing the working tree left the STALE
+        modification in the index and added a second, unstaged reversal on top --
+        `git status` then showed `MM` and the checkout was NOT as it was found. A
+        --reverse after staging cannot restore a staged change: the index is a
+        separate state and has to be reset explicitly.
+
+        Order matters and is deliberate:
+
+          1. `git reset` the paths, which un-stages them back to HEAD. Without this
+             the index keeps the patch.
+          2. `git checkout --` the paths, which restores the working tree from the
+             now-clean index.
+          3. Only remove an untracked gate file if the patch genuinely CREATED it,
+             never a tracked one.
+
+        `git reset` here is a pathspec reset, not `--hard` and not a branch reset:
+        it touches only the named paths and cannot discard unrelated work.
+    #>
+    param([string[]]$Paths)
+
+    Write-Host "Rolling the patch back so the checkout is left as it was found." -ForegroundColor Yellow
+
+    $restored = $true
+
+    # 1. Un-stage exactly the patch's paths.
+    & git reset --quiet HEAD -- @Paths 2>$null
+    if ($LASTEXITCODE -ne 0) { $restored = $false }
+
+    # 2. Restore the working tree for exactly those paths.
+    & git checkout --quiet -- @Paths 2>$null
+    if ($LASTEXITCODE -ne 0) { $restored = $false }
+
+    # 3. Clean up only a file this script created.
+    Remove-CreatedGateFile
+
+    # 4. Verify, rather than assume. If anything is still dirty, say so loudly:
+    #    a rollback that reports success while leaving a dirty tree is worse than
+    #    one that reports failure.
+    $residual = @(& git status --porcelain -- @Paths 2>$null | Where-Object { $_ })
+    if ($residual.Count -gt 0) { $restored = $false }
+
+    if ($restored) {
+        Write-Host "  rolled back; index and working tree are clean for the patched paths" -ForegroundColor Green
+        & git status --porcelain -- @Paths
+    }
+    else {
+        Write-Host "  AUTOMATIC ROLLBACK FAILED. The checkout is NOT clean." -ForegroundColor Red
+        Write-Host "  Residual state:" -ForegroundColor Red
+        & git status --porcelain
+        Write-Host "  Restore manually before retrying: git reset HEAD -- <paths>; git checkout -- <paths>" -ForegroundColor Yellow
+    }
+    return $restored
+}
+
 function Stop-WithRollback([string]$Message, [bool]$Applied) {
     Write-Host ""
     Write-Host "FAILED: $Message" -ForegroundColor Red
     if ($Applied) {
-        Write-Host "Rolling the patch back so the checkout is left as it was found." -ForegroundColor Yellow
-        & git apply --reverse $PatchPath
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "  Automatic rollback failed. Inspect the tree before doing anything else." -ForegroundColor Red
-            Write-Host "  The patch was applied but not committed, so 'git checkout -- .' and" -ForegroundColor Yellow
-            Write-Host "  removing untracked workflow files restores the checkout." -ForegroundColor Yellow
-            exit 1
-        }
-        Write-Host "  rolled back; the checkout is unchanged" -ForegroundColor Green
+        $ok = Restore-PatchPaths -Paths $AllowedPaths
+        if (-not $ok) { exit 2 }
     }
-    Remove-CreatedGateFile
+    else {
+        Remove-CreatedGateFile
+    }
     exit 1
 }
 
@@ -319,31 +374,40 @@ Write-Host "  both workflows validate structurally; values are as intended" -For
 Write-Host "== 6. commit and push ==" -ForegroundColor Cyan
 
 $commitMessage = @"
-ci(rh04): raise the synthetic-runner budget to 40 minutes and add the dual-run gate
+ci(rh04): correct the dual-run gate's Lane A validity and stage logic
 
 Authorised by the maintainer for the RH-04 V2 delivery.
 
-The budget change is a reliability fix, not a relaxation. Step 7 measured 15.4,
-15.4, 15.9 and 19.9 minutes across four hosted runs of the same command, and needs
-22m28s cold locally; at a 20 minute budget a slow runner cancels the step and
-Python 3.12 ends up unmeasured. 40 minutes removes that intermittent
-non-measurement. No tolerance, retry, skip or continue-on-error is added, and a
-genuine test failure still fails the job.
+SCOPE: this patch MODIFIES ONE ALREADY-INSTALLED FILE,
+.github/workflows/rh04-dual-run-gate.yml. It does not add a workflow and it does
+not touch the synthetic-runner budget. Both were already done by the maintainer at
+73d9f9d, and an earlier version of this message claimed otherwise because the patch
+was built before that install. The gate at 73d9f9d ran and failed; this corrects it.
 
-The dual-run gate implements V2-05 with a 4 dispatch class x 2 Python version
-matrix -- prescott, nehalem, sandybridge and haswell on 3.11 and 3.12 -- plus an
-unforced host-dispatch job on both versions. Each run reads threadpoolctl inside
-the process that does the work, after the numerical libraries are loaded and
-exercised, and refuses to be recorded under a class it did not get. NumPy and
-SciPy ship separate OpenBLAS builds, so the full resident set is recorded rather
-than a single collapsed architecture.
+WHAT WAS WRONG. The gate required Lane A parameters to be bit-for-bit equal to the
+frozen archive. That holds only on the host that produced the archive: a different
+BLAS kernel reassociates L-BFGS and moves the fit by 1-2 ulp, so all eight forced
+dispatch jobs failed. CAI-RH04-AMEND-v3 already classified a converged regeneration
+with differing parameters as a diagnostic finding, so the workflow contradicted the
+document it implements.
 
-Stages: V1 scoped, Lane A regeneration identity, Lane B exact replay against the
-fixed digest 891d9e3b, targeted regression including the negative tests, and
-security. Every stage runs with if: always() and records its own exit code, and the
-aggregate step fails if any mandatory stage failed or recorded no result at all.
-Lane B compares the observed digest as a value rather than searching the output for
-the expected string.
+Stage 2 now reads the module's validity verdict instead of re-deriving one from a
+bit-equality proxy, and prints measured differences as findings. Stage 6 read a key
+that never existed (run1_digests; Stage 2 writes identities_run1) and raised
+KeyError in all eight jobs. Stage 4's test filter selected 35 of 315 tests and never
+selected the portable-lane and lineage tests, so the gate could not see failures a
+developer hit locally; it now selects 61.
+
+WHAT IS NOT CHANGED. Lane B still compares the observed digest to the fixed value
+891d9e3b as a value rather than searching output for a string. The 4 dispatch class
+x 2 Python version matrix is unchanged. Every stage still runs with if: always(),
+records its own exit code, and the aggregate still fails if any mandatory stage
+failed or recorded no result at all. No tolerance, retry, skip or
+continue-on-error is added.
+
+EXPECTED RESULT AFTER THIS PATCH: Stage 1 (V1) still exits 1. That failure is real,
+is retained on purpose, and is NOT fixed here; V1 retirement is a separate owner
+decision. Stages 2-6 should exit 0, and the aggregate should fail on Stage 1 alone.
 "@
 
 & git commit -m $commitMessage

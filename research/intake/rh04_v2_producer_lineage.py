@@ -737,6 +737,51 @@ _TREE_SCALARS: Final[tuple[tuple[str, str], ...]] = (
 )
 
 
+def _forest_structure_identity(estimator: Any) -> dict[str, Any]:
+    """Digest the refit forest over every structural array the comparison uses.
+
+    Deliberately covers the same arrays `_compare_forest_structure` compares, so a
+    structure identity and a structure comparison cannot disagree about what
+    "structure" means. Tree count, feature count and class order are recorded too —
+    but as *redundant* fields, not as the identity, because a forest can match on all
+    three while splitting on different thresholds.
+    """
+    per_tree: list[dict[str, Any]] = []
+    for index, fitted_estimator in enumerate(estimator.estimators_):
+        fitted = fitted_estimator.tree_
+        arrays: dict[str, Any] = {}
+        for key, attribute, kind in _TREE_ARRAYS:
+            values = np.asarray(getattr(fitted, attribute)).ravel()
+            if kind == "int":
+                arrays[key] = [int(v) for v in values.astype(np.int64).tolist()]
+            else:
+                # Exact binary64, not rounded: a threshold that moves by one ulp is
+                # a different split point and must move the digest.
+                arrays[key] = [float(v).hex() for v in values.astype(np.float64).tolist()]
+        per_tree.append(arrays)
+    return {
+        "tree_count": int(len(per_tree)),
+        "n_features_in": int(estimator.n_features_in_),
+        "class_order": [int(v) for v in estimator.classes_.tolist()],
+        "trees": per_tree,
+    }
+
+
+def _forest_arrays_digest(trees: Sequence[Mapping[str, Any]]) -> str:
+    """Digest the ARCHIVED tree arrays in the same shape as the refit identity."""
+    per_tree: list[dict[str, Any]] = []
+    for archived_tree in trees:
+        arrays: dict[str, Any] = {}
+        for key, _attribute, kind in _TREE_ARRAYS:
+            values = np.asarray(archived_tree[key]).ravel()
+            if kind == "int":
+                arrays[key] = [int(v) for v in values.astype(np.int64).tolist()]
+            else:
+                arrays[key] = [float(v).hex() for v in values.astype(np.float64).tolist()]
+        per_tree.append(arrays)
+    return _sha256(_canonical_bytes(per_tree))
+
+
 def _compare_forest_structure(
     estimator: Any, archived_trees: Sequence[Mapping[str, Any]]
 ) -> dict[str, Any]:
@@ -877,6 +922,14 @@ def estimator_lineage_proof(route_id: str, archive: Mapping[str, Any]) -> dict[s
         intercept_delta = float(abs(archived_intercept - float(estimator.intercept_[0])))
         result.update(
             {
+                # The ACTUAL refit output, carried out of this function so callers
+                # can record a regenerated identity. Previously only the deltas
+                # escaped, so any caller wanting a "regenerated identity" had to
+                # reach for the archived vector -- which is what P0-01 caught.
+                "refit_coefficients": [float(v) for v in estimator.coef_[0].tolist()],
+                "refit_intercept": float(estimator.intercept_[0]),
+                "archived_coefficients": [float(v) for v in archived_coef.tolist()],
+                "archived_intercept": float(archived_intercept),
                 "coefficient_max_abs_delta": coef_max_delta,
                 "intercept_abs_delta": intercept_delta,
                 "coefficients_exact": coef_max_delta == 0.0 and intercept_delta == 0.0,
@@ -898,6 +951,13 @@ def estimator_lineage_proof(route_id: str, archive: Mapping[str, Any]) -> dict[s
         trees = representation["trees"]
         structure = _compare_forest_structure(estimator, trees)
         result.update(structure)
+        # The ACTUAL refit forest, digested over the same arrays the comparison
+        # uses. Tree count plus class order plus feature count is NOT a structure
+        # identity: two forests can share all three and split differently. This is
+        # the digest Lane A records, and it moves if any split, threshold or leaf
+        # changes.
+        result["refit_structure"] = _forest_structure_identity(estimator)
+        result["archived_structure_sha256"] = _forest_arrays_digest(trees)
         result["rf_n_estimators"] = int(spec.rf_n_estimators)
         result["class_order"] = [int(v) for v in estimator.classes_.tolist()]
         result["n_features_in"] = int(estimator.n_features_in_)

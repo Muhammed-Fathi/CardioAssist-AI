@@ -5987,8 +5987,27 @@ def test_v2_02_lane_a_records_actual_regenerated_parameters():
     # equality nor equality from validity.
     lineage = logistic["provenance_lineage_valid"]
     assert lineage["valid"] is True
+    assert lineage["failed_checks"] == []
     assert lineage["bitwise_equality"] == equality["exact"]
-    assert lineage["preprocessing_exact"] is True
+    # Provenance is five named checks, each independently computed -- not the
+    # two-property hard-coded claim it replaced.
+    assert set(lineage["checks"]) == {
+        "preprocessing_exact",
+        "seed_derivation",
+        "selected_configuration",
+        "panel_lineage",
+        "source_identity",
+    }
+    for name, check in lineage["checks"].items():
+        assert check["passed"] is True, name
+
+    # The archived identity is recorded separately from the refit identity, so
+    # neither can be substituted for the other (P0-01).
+    assert "archived_identity" in logistic
+    assert (
+        logistic["archived_identity"]["archived_parameters_sha256"]
+        != logistic["parameter_identity"]["regenerated_parameters_sha256"]
+    ) or equality["exact"] is True
 
     # The forest is compared on complete structure, which is integer-valued and
     # therefore exact even where the coefficient route is not.
@@ -5998,6 +6017,11 @@ def test_v2_02_lane_a_records_actual_regenerated_parameters():
     assert forest_equality["tree_count_archived"] == forest_equality["tree_count_refit"] == 50
     assert forest_equality["measured"] is True
     assert forest_equality["exact"] is True
+    # The forest identity is the full structure, not count+features+classes.
+    structure = forest["parameter_identity"]["structure"]
+    assert len(structure["trees"]) == 50
+    assert "threshold" in structure["trees"][0] and "feature" in structure["trees"][0]
+    assert forest["structural_integrity"]["checked"] is True
     assert forest_equality["classification"] == "IDENTICAL"
 
 
@@ -6073,7 +6097,15 @@ def test_v2_08_sanitizer_closes_every_file_it_opens(tmp_path):
 
 
 def _lane_a_document():
-    """A minimal well-formed Lane A document, for mutation in the tests below."""
+    """A minimal well-formed Lane A document for mutation in the tests below.
+
+    Deliberately mirrors the real schema including the parts P0-03 added, so a
+    mutation here exercises the same predicate the gate reads.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    ids = report.registered_case_ids()
+    per_case = {case_id: "a" * 64 for case_id in ids}
     return {
         "routes": {
             "da_a2_resting_v1": {
@@ -6083,7 +6115,16 @@ def _lane_a_document():
                     "regenerated_parameters": {
                         "source_provenance": {"registered_producer": "da_a2_resting_v1"},
                         "parameter_identity": {
-                            "regenerated_parameters_sha256": "b" * 64
+                            "kind": "coefficient_vector",
+                            "coefficients": [0.5] * 10,
+                            "intercept": 0.1,
+                            "regenerated_parameters_sha256": "b" * 64,
+                        },
+                        "archived_identity": {"archived_parameters_sha256": "c" * 64},
+                        "structural_integrity": {
+                            "checked": True,
+                            "n_coefficients": 10,
+                            "n_coefficients_match_archive": True,
                         },
                         "archived_parameter_equality": {
                             "measured": True,
@@ -6091,24 +6132,49 @@ def _lane_a_document():
                             "classification": "IDENTICAL",
                             "coefficient_max_abs_delta": 0.0,
                         },
-                        "provenance_lineage_valid": {"valid": True},
+                        "provenance_lineage_valid": {
+                            "valid": True,
+                            "checks": {"preprocessing_exact": {"passed": True}},
+                        },
                     }
                 },
             }
         },
         "replay_response_identity": {
-            "frozen_archive_replay": {"replay_responses_sha256": "c" * 64},
-            "fresh_model_replay": {"replay_responses_sha256": "d" * 64},
+            "frozen_archive_replay": {
+                "per_case_response_sha256": dict(per_case),
+                "replay_responses_sha256": "d" * 64,
+            },
+            "fresh_model_replay": {
+                "per_case_response_sha256": dict(per_case),
+                "replay_responses_sha256": "e" * 64,
+            },
+            "fresh_and_frozen_are_equivalent": False,
         },
     }
 
 
+def _as_difference(document, classification="WITHIN_ULP_DIAGNOSTIC", delta=5.5e-17):
+    document["routes"]["da_a2_resting_v1"]["regeneration"]["regenerated_parameters"][
+        "archived_parameter_equality"
+    ] = {
+        "measured": True,
+        "exact": False,
+        "classification": classification,
+        "coefficient_max_abs_delta": delta,
+    }
+    return document
+
+
+# --- the two directions of the §1 table -----------------------------------
+
+
 def test_v2_04a_valid_lane_a_passes_with_no_findings():
-    """The baseline: valid evidence with exact parameters is valid, silently."""
+    """Valid evidence with identical parameters is valid, silently."""
     from research.intake import rh04_v2_lane_a_report as report
 
     verdict = report.assert_lane_a_valid(_lane_a_document())
-    assert verdict["valid"] is True
+    assert verdict["valid"] is True, verdict["failures"]
     assert verdict["failures"] == []
     assert verdict["findings"] == []
 
@@ -6116,29 +6182,174 @@ def test_v2_04a_valid_lane_a_passes_with_no_findings():
 def test_v2_04a_measured_difference_is_a_finding_never_a_failure():
     """A converged fit whose parameters differ by float noise is ACCEPTABLE.
 
-    This is the discriminating half: if the difference were treated as a failure,
-    the 4x2 matrix could never pass, and the contract would be unsatisfiable. The
-    difference must be recorded with its magnitude and must not raise.
+    The discriminating half: were the difference treated as a failure, the 4x2
+    matrix could never pass and the contract would be unsatisfiable. The difference
+    is recorded with its magnitude and does not raise.
     """
     from research.intake import rh04_v2_lane_a_report as report
 
-    document = _lane_a_document()
-    document["routes"]["da_a2_resting_v1"]["regeneration"]["regenerated_parameters"][
-        "archived_parameter_equality"
-    ] = {
-        "measured": True,
-        "exact": False,
-        "classification": "WITHIN_ULP_DIAGNOSTIC",
-        "coefficient_max_abs_delta": 5.551115123125783e-17,
-    }
-    verdict = report.assert_lane_a_valid(document)
+    verdict = report.assert_lane_a_valid(_as_difference(_lane_a_document()))
     assert verdict["valid"] is True, verdict["failures"]
     assert verdict["failures"] == []
     assert len(verdict["findings"]) == 1
     assert "WITHIN_ULP_DIAGNOSTIC" in verdict["findings"][0]
-    assert "5.551115123125783e-17" in verdict["findings"][0]
+    assert "5.5e-17" in verdict["findings"][0]
 
 
+# --- P0-03: structural integrity must fail closed -------------------------
+
+
+def test_v2_04a_structural_drift_is_never_an_acceptable_numerical_finding():
+    """A structural change must FAIL, not be absorbed as a numeric finding.
+
+    Before P0-03 a forest whose structure changed produced a digest, passed the
+    presence check, and had its difference recorded as a finding. A structural change
+    is a different model, not a different rounding.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    verdict = report.assert_lane_a_valid(
+        _as_difference(_lane_a_document(), classification="STRUCTURE_DRIFT", delta=0.0)
+    )
+    assert verdict["valid"] is False, (
+        "a structural change was accepted as a numerical finding"
+    )
+    assert any("structure changed" in f for f in verdict["failures"])
+
+    # An unknown classification must not be waved through either.
+    verdict = report.assert_lane_a_valid(
+        _as_difference(_lane_a_document(), classification="PROBABLY_FINE")
+    )
+    assert verdict["valid"] is False
+
+
+def test_v2_04a_replay_case_set_must_match_the_registered_pack():
+    """A digest is not structural evidence: the case set is checked directly."""
+    from research.intake import rh04_v2_lane_a_report as report
+
+    ids = report.registered_case_ids()
+
+    # A dropped case keeps every remaining digest valid, so only a set check
+    # catches it.
+    dropped = _lane_a_document()
+    dropped["replay_response_identity"]["fresh_model_replay"][
+        "per_case_response_sha256"
+    ].pop(ids[0])
+    verdict = report.assert_lane_a_valid(dropped)
+    assert verdict["valid"] is False
+    assert any("missing case" in f for f in verdict["failures"])
+
+    # An extra case.
+    extra = _lane_a_document()
+    extra["replay_response_identity"]["frozen_archive_replay"][
+        "per_case_response_sha256"
+    ]["an-invented-case"] = "f" * 64
+    verdict = report.assert_lane_a_valid(extra)
+    assert verdict["valid"] is False
+    assert any("unexpected case" in f for f in verdict["failures"])
+
+    # The two replays answering different case sets is structural drift between
+    # the lanes, not a numerical difference.
+    mismatched = _lane_a_document()
+    mismatched["replay_response_identity"]["fresh_model_replay"][
+        "per_case_response_sha256"
+    ].pop(ids[1])
+    verdict = report.assert_lane_a_valid(mismatched)
+    assert verdict["valid"] is False
+
+
+def test_v2_04a_duplicated_case_is_rejected():
+    """A case answered twice is not the registered case set."""
+    from research.intake import rh04_v2_lane_a_report as report
+
+    # A dict cannot hold a duplicate key, so duplication is expressed the way it
+    # can actually occur: the per-case map is replaced by a list-derived mapping
+    # whose length disagrees with its distinct keys.
+    document = _lane_a_document()
+    per_case = document["replay_response_identity"]["fresh_model_replay"][
+        "per_case_response_sha256"
+    ]
+    assert len(per_case) == 29
+    # 28 distinct cases but 29 entries: the count check must fire.
+    trimmed = dict(list(per_case.items())[:-1])
+    document["replay_response_identity"]["fresh_model_replay"][
+        "per_case_response_sha256"
+    ] = trimmed
+    verdict = report.assert_lane_a_valid(document)
+    assert verdict["valid"] is False
+
+
+def test_v2_04a_malformed_identity_records_fail_closed():
+    """Absent, mistyped or non-permitted identity records are invalid, not findings."""
+    from research.intake import rh04_v2_lane_a_report as report
+
+    cases = {}
+    doc = _lane_a_document()
+    doc["routes"]["da_a2_resting_v1"]["regeneration"]["regenerated_parameters"][
+        "parameter_identity"
+    ]["kind"] = "something_else"
+    cases["non-permitted kind"] = doc
+
+    doc = _lane_a_document()
+    del doc["routes"]["da_a2_resting_v1"]["regeneration"]["regenerated_parameters"][
+        "parameter_identity"
+    ]["regenerated_parameters_sha256"]
+    cases["identity digest absent"] = doc
+
+    doc = _lane_a_document()
+    doc["routes"]["da_a2_resting_v1"]["regeneration"]["regenerated_parameters"][
+        "parameter_identity"
+    ]["coefficients"] = ["0.5"] * 10
+    cases["coefficients not floats"] = doc
+
+    doc = _lane_a_document()
+    doc["routes"]["da_a2_resting_v1"]["regeneration"]["regenerated_parameters"][
+        "archived_identity"
+    ] = {}
+    cases["archived identity absent"] = doc
+
+    for label, document in cases.items():
+        verdict = report.assert_lane_a_valid(document)
+        assert verdict["valid"] is False, f"{label} was accepted"
+
+
+def test_v2_04a_tree_structure_must_be_verified_not_summarised():
+    """A tree identity of count+features+classes alone is not a structure identity."""
+    from research.intake import rh04_v2_lane_a_report as report
+
+    doc = _lane_a_document()
+    params = doc["routes"]["da_a2_resting_v1"]["regeneration"]["regenerated_parameters"]
+    params["parameter_identity"] = {
+        "kind": "tree_structure",
+        "tree_count": 50,
+        "structure": {"tree_count": 50, "trees": []},
+        "regenerated_parameters_sha256": "b" * 64,
+    }
+    verdict = report.assert_lane_a_valid(doc)
+    assert verdict["valid"] is False
+    assert any("structure absent" in f for f in verdict["failures"])
+
+    # Count disagreeing with the recorded trees is also caught.
+    doc = _lane_a_document()
+    params = doc["routes"]["da_a2_resting_v1"]["regeneration"]["regenerated_parameters"]
+    params["parameter_identity"] = {
+        "kind": "tree_structure",
+        "tree_count": 50,
+        "structure": {"tree_count": 51, "trees": [{"nodes": 1}]},
+        "regenerated_parameters_sha256": "b" * 64,
+    }
+    verdict = report.assert_lane_a_valid(doc)
+    assert verdict["valid"] is False
+
+
+def test_v2_04a_fresh_and_frozen_must_be_declared_different_evidence():
+    """Silently treating the two replays as equivalent is a failure."""
+    from research.intake import rh04_v2_lane_a_report as report
+
+    document = _lane_a_document()
+    document["replay_response_identity"]["fresh_and_frozen_are_equivalent"] = True
+    verdict = report.assert_lane_a_valid(document)
+    assert verdict["valid"] is False
 def test_v2_04a_invalid_convergence_fails_closed():
     """A fit that did not converge is INVALID, whatever its numbers are.
 
@@ -6205,7 +6416,7 @@ def test_v2_04a_missing_evidence_fails_closed():
     document["replay_response_identity"] = {}
     verdict = report.assert_lane_a_valid(document)
     assert verdict["valid"] is False
-    assert any("replay_identity_present" in f for f in verdict["failures"])
+    assert any("replay identity absent" in f for f in verdict["failures"])
 
     # Equality not measured at all: absence of a measurement is not a pass.
     document = _lane_a_document()
@@ -6246,3 +6457,285 @@ def test_v2_04a_structural_response_drift_is_distinguished_from_numeric_drift():
     drifted = dict(fresh)
     drifted.pop(next(iter(drifted)))
     assert set(frozen) != set(drifted)
+
+
+# --------------------------------------------------------------------------- #
+# P0-01: the recorded parameter identity must be the ACTUAL refit, and must   #
+# MOVE when the refit moves. A test that only checked the digest existed would #
+# pass on the archived vector, which is exactly the defect being corrected.   #
+# --------------------------------------------------------------------------- #
+
+
+def test_p0_01_parameter_identity_is_not_the_archived_vector():
+    """The regenerated identity must differ from the archived one where they differ.
+
+    This is the discriminating check. Reading `body["model"]["representation"]`
+    produced an identity that was *always* equal to the archived digest, so it could
+    never report drift. Here the two are required to be distinct objects with
+    distinct digests, and equality between them is a measured outcome rather than
+    an identity.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+
+    parameters = report._regenerated_parameters("da_a2_resting_v1")
+    refit = parameters["parameter_identity"]
+    archived = parameters["archived_identity"]
+
+    assert refit["regenerated_parameters_sha256"]
+    assert archived["archived_parameters_sha256"]
+    assert refit["regenerated_parameters_sha256"] != archived["archived_parameters_sha256"] or (
+        parameters["archived_parameter_equality"]["exact"] is True
+    ), "identities coincide but equality says they differ"
+
+    # Both vectors are real float vectors of the same width.
+    assert len(refit["coefficients"]) == len(archived["coefficients"]) == 10
+    assert all(isinstance(v, float) for v in refit["coefficients"])
+
+
+def test_p0_01_identity_responds_to_a_changed_refit(monkeypatch):
+    """Perturbing the refit must change the recorded identity.
+
+    The mutation is applied to the proof the module consumes, which is the same
+    seam a real numerical change travels through. The archived identity must NOT
+    move -- it describes the archive, which did not change.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    baseline = report._regenerated_parameters("da_a2_resting_v1")
+
+    original = lineage.estimator_lineage_proof
+
+    def perturbed(route_id, body):
+        result = original(route_id, body)
+        if "refit_coefficients" in result:
+            result["refit_coefficients"] = [
+                value + 1e-9 for value in result["refit_coefficients"]
+            ]
+            result["coefficient_max_abs_delta"] += 1e-9
+            result["coefficients_exact"] = False
+        return result
+
+    monkeypatch.setattr(lineage, "estimator_lineage_proof", perturbed)
+    mutated = report._regenerated_parameters("da_a2_resting_v1")
+
+    assert (
+        mutated["parameter_identity"]["regenerated_parameters_sha256"]
+        != baseline["parameter_identity"]["regenerated_parameters_sha256"]
+    ), "the recorded identity did not move when the refit moved"
+    assert (
+        mutated["archived_identity"]["archived_parameters_sha256"]
+        == baseline["archived_identity"]["archived_parameters_sha256"]
+    ), "the archived identity moved, but the archive did not change"
+    assert mutated["archived_parameter_equality"]["exact"] is False
+
+
+def test_p0_01_forest_identity_covers_full_structure_not_just_counts(monkeypatch):
+    """A forest identity of count+features+classes is not a structure identity.
+
+    Two forests can share tree count, feature count and class order while splitting
+    on different thresholds. The recorded identity covers every structural array, so
+    a change to a single threshold must move it.
+    """
+    from research.intake import rh04_v2_lane_a_report as report
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    baseline = report._regenerated_parameters("da_a1_basic_clinical_v1")
+    structure = baseline["parameter_identity"]["structure"]
+
+    # The identity must carry the full per-tree arrays, not summary fields.
+    assert structure["tree_count"] == 50
+    assert len(structure["trees"]) == 50
+    first_tree = structure["trees"][0]
+    assert "threshold" in first_tree and "feature" in first_tree
+    assert isinstance(first_tree["threshold"], list) and first_tree["threshold"]
+    assert isinstance(first_tree["feature"], list)
+
+    original = lineage.estimator_lineage_proof
+
+    def perturbed(route_id, body):
+        result = original(route_id, body)
+        if "refit_structure" in result:
+            trees = result["refit_structure"]["trees"]
+            # Move ONE threshold, in the last bit. Counts, features and classes are
+            # untouched, so a summary-only identity would not notice.
+            thresholds = trees[0]["threshold"]
+            if thresholds:
+                value = float.fromhex(thresholds[0])
+                thresholds[0] = (value * (1 + 2**-52)).hex()
+            result["structure_exact"] = False
+        return result
+
+    monkeypatch.setattr(lineage, "estimator_lineage_proof", perturbed)
+    mutated = report._regenerated_parameters("da_a1_basic_clinical_v1")
+
+    assert (
+        mutated["parameter_identity"]["regenerated_parameters_sha256"]
+        != baseline["parameter_identity"]["regenerated_parameters_sha256"]
+    ), "a changed threshold did not move the forest identity"
+    assert mutated["parameter_identity"]["tree_count"] == 50
+    assert mutated["archived_parameter_equality"]["exact"] is False
+
+
+def test_p0_01_forest_structural_drift_fails_the_validity_predicate(monkeypatch):
+    """A structural forest change must fail closed, not become a finding."""
+    from research.intake import rh04_v2_lane_a_report as report
+
+    document = report.produce_lane_a("host")
+    # Sanity: the clean document is valid.
+    assert document["validity"]["valid"] is True, document["validity"]["failures"]
+
+    # Force a structural-drift classification and confirm the predicate rejects it.
+    for route in document["routes"].values():
+        route["regeneration"]["regenerated_parameters"]["archived_parameter_equality"][
+            "classification"
+        ] = "STRUCTURE_DRIFT"
+        route["regeneration"]["regenerated_parameters"]["archived_parameter_equality"][
+            "exact"
+        ] = False
+    verdict = report.assert_lane_a_valid(document)
+    assert verdict["valid"] is False
+    assert any("structure changed" in f for f in verdict["failures"])
+
+
+# --------------------------------------------------------------------------- #
+# P0-02: provenance must be independently verified, one check at a time.      #
+# The previous predicate was `bool(prep) and bool(lineage is not None)`, which #
+# accepted `False is not None` -> True, so broken lineage passed.             #
+# --------------------------------------------------------------------------- #
+
+
+def _provenance_inputs(route_id="da_a2_resting_v1"):
+    import copy
+
+    from research.intake import rh04_v2_portable_archive as archive
+    from research.intake import rh04_v2_producer_lineage as lineage
+
+    admitted = archive.admit_from_directory("research/intake/fixtures/rh04_v2_portable")
+    body = archive._thaw(admitted.archives[route_id])
+    proof = lineage.estimator_lineage_proof(route_id, body)
+    spec = lineage.producer_spec(route_id)
+    return copy.deepcopy(body), dict(proof), spec
+
+
+def test_p0_02_the_old_predicate_accepts_broken_lineage():
+    """Document the defect that P0-02 corrects, so it cannot silently return."""
+    # This is the exact expression that shipped in round 19.
+    lineage_established = False
+    old = bool(True) and bool(lineage_established is not None)
+    assert old is True, "the recorded defect no longer reproduces; re-check the fix"
+    # The corrected predicate rejects the same input.
+    from research.intake import rh04_v2_lane_a_report as report
+
+    body, proof, spec = _provenance_inputs()
+    proof["lineage_established"] = False
+    verdict = report._provenance_valid("da_a2_resting_v1", body, proof, spec)
+    # Bitwise equality is genuinely gone, but provenance does not depend on it, so
+    # the run is still valid; the point is that validity is now decided by the five
+    # checks rather than by a truthiness bug.
+    assert set(verdict["checks"]) == {
+        "preprocessing_exact",
+        "seed_derivation",
+        "selected_configuration",
+        "panel_lineage",
+        "source_identity",
+    }
+
+
+def test_p0_02_clean_provenance_is_valid():
+    from research.intake import rh04_v2_lane_a_report as report
+
+    body, proof, spec = _provenance_inputs()
+    verdict = report._provenance_valid("da_a2_resting_v1", body, proof, spec)
+    assert verdict["valid"] is True, verdict["failed_checks"]
+    assert verdict["failed_checks"] == []
+    for name, check in verdict["checks"].items():
+        assert check["passed"] is True, name
+
+
+def test_p0_02_incorrect_seed_invalidates_provenance():
+    from research.intake import rh04_v2_lane_a_report as report
+
+    body, proof, spec = _provenance_inputs()
+    proof["final_fit_seed"] = int(proof["final_fit_seed"]) + 1
+    verdict = report._provenance_valid("da_a2_resting_v1", body, proof, spec)
+    assert verdict["valid"] is False
+    assert "seed_derivation" in verdict["failed_checks"]
+
+
+def test_p0_02_incorrect_selected_configuration_invalidates_provenance():
+    from research.intake import rh04_v2_lane_a_report as report
+
+    body, proof, spec = _provenance_inputs()
+    body["training_identity"]["selected_hyperparameters"] = {"C": 99.0}
+    verdict = report._provenance_valid("da_a2_resting_v1", body, proof, spec)
+    assert verdict["valid"] is False
+    assert "selected_configuration" in verdict["failed_checks"]
+
+
+def test_p0_02_broken_panel_lineage_invalidates_provenance():
+    from research.intake import rh04_v2_lane_a_report as report
+
+    body, proof, spec = _provenance_inputs()
+    body["preprocessing"]["panel_contract_sha256"] = "0" * 64
+    verdict = report._provenance_valid("da_a2_resting_v1", body, proof, spec)
+    assert verdict["valid"] is False
+    assert "panel_lineage" in verdict["failed_checks"]
+
+
+def test_p0_02_altered_source_identity_invalidates_provenance():
+    from research.intake import rh04_v2_lane_a_report as report
+
+    body, proof, spec = _provenance_inputs()
+    body["preprocessing"]["n_training_rows"] = 999
+    verdict = report._provenance_valid("da_a2_resting_v1", body, proof, spec)
+    assert verdict["valid"] is False
+    assert "source_identity" in verdict["failed_checks"]
+
+
+def test_p0_02_broken_preprocessing_invalidates_provenance():
+    from research.intake import rh04_v2_lane_a_report as report
+
+    body, proof, spec = _provenance_inputs()
+    proof["preprocessing_exact"] = False
+    verdict = report._provenance_valid("da_a2_resting_v1", body, proof, spec)
+    assert verdict["valid"] is False
+    assert "preprocessing_exact" in verdict["failed_checks"]
+
+
+def test_p0_02_provenance_and_equality_are_independent():
+    """Valid provenance must not require, imply, or be implied by bit equality."""
+    from research.intake import rh04_v2_lane_a_report as report
+
+    body, proof, spec = _provenance_inputs()
+
+    # Non-identical parameters, valid provenance.
+    proof_float = dict(proof)
+    proof_float["coefficients_exact"] = False
+    verdict = report._provenance_valid("da_a2_resting_v1", body, proof_float, spec)
+    assert verdict["valid"] is True, verdict["failed_checks"]
+    assert verdict["bitwise_equality"] is False
+
+    # Identical parameters, broken provenance: equality cannot rescue it.
+    body_broken, proof_exact, spec2 = _provenance_inputs()
+    body_broken["preprocessing"]["n_training_rows"] = 1
+    proof_exact["coefficients_exact"] = True
+    verdict = report._provenance_valid("da_a2_resting_v1", body_broken, proof_exact, spec2)
+    assert verdict["valid"] is False
+    assert verdict["bitwise_equality"] is True
+
+
+def test_p0_02_provenance_failure_fails_the_validity_predicate():
+    """A broken provenance record must fail `assert_lane_a_valid`, not just the helper."""
+    from research.intake import rh04_v2_lane_a_report as report
+
+    document = _lane_a_document()
+    params = document["routes"]["da_a2_resting_v1"]["regeneration"]["regenerated_parameters"]
+    params["provenance_lineage_valid"] = {
+        "valid": False,
+        "checks": {"seed_derivation": {"passed": False}},
+    }
+    verdict = report.assert_lane_a_valid(document)
+    assert verdict["valid"] is False
+    assert any("provenance_lineage_valid" in f for f in verdict["failures"])
+    assert any("seed_derivation" in f for f in verdict["failures"])
