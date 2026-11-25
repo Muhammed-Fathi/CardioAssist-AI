@@ -55,8 +55,8 @@ For the full suite, research dependencies must also be installed: `research/expe
 
 ## 5. Exact-head hosted CI (C0-F10)
 
-The four existing validation workflows with `workflow_dispatch` (`mock-backend-validation`, `contract-validation`, `audit-toolchain-validation`, `synthetic-experiment-runner-validation`) are dispatched on the published Arena branch after the C0-F01…F10 correction commit. No workflow, research test, Golden fixture, tolerance or research gate is edited. No unrelated research-evidence workflow is dispatched.
+The four existing validation workflows with `workflow_dispatch` (`mock-backend-validation`, `contract-validation`, `audit-toolchain-validation`, `synthetic-experiment-runner-validation`) could not be dispatched by Arena: each attempt returned `HTTP 403: Resource not accessible by integration` from the restricted integration token, and `actions/runs?head_sha=c68af475...` returned `total_count=0`. No workflow, research test, Golden fixture, tolerance or research gate is edited. No unrelated research-evidence workflow is dispatched and no further attempts are made with the same token.
 
-Evidence fields to report from the dispatch (recorded in the C0 completion report, not claimed here): run URL, workflow file, requested ref, run head SHA, checkout revision shown in the job, job conclusion, available log excerpts/counts, and whether any failure matches inherited Issue #132 behavior. A dispatch result of zero checks is not success and is not retried merely to obtain green.
+`HOSTED_CI=OWNER_DISPATCH_REQUIRED`. The owner will dispatch these four workflows on the final reviewed published SHA using their own authorized GitHub account: `backend-ci.yml`, `contracts-ci.yml`, `audit-ci.yml`, `experiment-runner-ci.yml`.
 
-No hosted result is stated in this document until the runs complete; the inherited Python 3.11 research failure remains in §1 and blocker B-01.
+Evidence fields the owner/reviewer must report: run URL, workflow file, requested ref, exact run head SHA, checkout revision shown in the job, job conclusion, available log excerpts/counts, and reviewer classification of any failure against the known baseline. Zero checks is not success; no result is claimed here. The inherited Python 3.11 research failure remains in §1 and blocker B-01.

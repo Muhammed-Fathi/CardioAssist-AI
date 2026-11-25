@@ -6,6 +6,8 @@
 
 **C0-F01…F10 correction notice (2026-11-25):** this document and its companion C0 documents were corrected after the reviewer's focused final review. Where older wording in this package conflicts, the C0-F sections below are normative. The historical preflight and reviewer-verdict documents are preserved unchanged. No implementation, migration, live contract, test or workflow change is made.
 
+**Final narrow closure clarification (2026-11-25):** §3.4, §4, §5, §6.1, §7.3 and §7.4 add mandatory C1/C2 implementation requirements for key-check metadata, actor-bound replay lookup, consent/assignment separation, notification identity, follow-up review binding and stale-attempt suppression. They do not redesign the architecture and grant no implementation or inference authorization.
+
 ## 1. Architecture summary
 
 ```
@@ -88,6 +90,7 @@ Verification recomputes with stored parameters and uses `hmac.compare_digest`. S
 - HMAC encoding: `HMAC-SHA256(key, b'invitation-subject-match/v1' + b'\x00' + normalized_id.encode('ascii'))`, lowercase hex. Purpose string is distinct from any other HMAC use. Key id is stored with the digest; matching uses the invitation's recorded key id.
 - Term 1 uses one stable operator-supplied demo identity-match key with id `demo-v1`, never committed. **Key replacement is disabled for any populated database (C0-F02).** If `patient_identity`, `verified_visit`, `patient_invitation` or `invitation_attempt` contains a row, an attempt to change the key/key id is refused with `409 identity_key_replacement_unsupported`; no `demo-v2` path is implemented. On an empty disposable database only, the key id may be set once before the first attestation. A key change for populated data requires a separately reviewed migration protocol with a new decision; no silent cross-key matching, no raw identifier storage, and no cross-key authenticated linking are permitted in Term 1.
 - A second, stable subject key produces `canonical_subject_id = HMAC-SHA256(subject_key, 'term1-subject-canonical/v1' || 0x00 || normalized_id)`, lowercase hex. It is stored blind-index-only and `UNIQUE(canonical_subject_id)` prevents duplicate identities even across identity-match-key versions. No raw identifier is stored. The subject key and identity-match key are distinct, purpose-separated operator secrets.
+- **Both stable identity keys are bound to persisted, non-secret key-check metadata before any write on a populated database (mandatory C1).** `identity_key_check` stores one row per `(purpose, key_id)` with `key_check_hash = HMAC-SHA256(operator_key, 'identity-key-check/v1' || 0x00 || purpose || 0x00 || key_id)`, algorithm id, activated timestamp and optional retired timestamp. The hash is a verification value, not secret material; no raw key is stored. Startup and every key-replacement attempt recompute and constant-time compare the check before any write to identity/visit/invitation/identity tables. Mismatch, missing row, duplicate key id with different check, or reuse of a retired key id → refuse with `409 identity_key_material_mismatch`. This detects replacement of key material under the same key id even when the key id string is unchanged; operator-provided key id and check metadata are versioned together.
 - Identifier matching is a demo binding only; it is not government identity verification or proof of attendance. The attestation is the evidence of a prior visit.
 
 ### 3.5 Invitation and redemption
@@ -121,6 +124,10 @@ user_account (PK user_id UUID str, email_norm UNIQUE NOT NULL, role CHECK,
    │ 1:*
    └── session (PK session_id, FK user_id, token_verifier_sha256 UNIQUE,
                 session_key_id, created_at, expires_at, last_seen_at, revoked_at)
+
+identity_key_check (PK check_id, purpose CHECK {identity_match,subject_canonical},
+                  key_id, key_check_hash, alg, activated_at, retired_at NULL;
+                  UNIQUE(purpose,key_id), UNIQUE(purpose,key_check_hash))
 
 patient_identity (PK identity_id, identifier_key_id, identifier_hmac,
                   canonical_subject_id UNIQUE, created_at;
@@ -179,12 +186,15 @@ assessment (PK assessment_id, FK patient_id, FK assignment_id,
    │       FK reviewer_user_id, decision CHECK, reason_code, rationale,
    │       recorded_at, idempotency_key_hash UNIQUE; append-only)
    └── follow_up_message (PK message_id, FK assessment_id,
-           FK author_user_id (doctor), body, prescription_json,
-           created_at, idempotency_key_hash UNIQUE)
+           FK review_id UNIQUE, FK author_user_id (doctor), body,
+           prescription_json, created_at, idempotency_key_hash UNIQUE)
           │ 1:*
-          └── notification_record (PK notification_id, FK recipient_user_id,
-                 FK message_id NULL for system notices, type, delivery_state,
-                 version, created_at, read_at NULL, idempotency_key_hash UNIQUE)
+          └── notification_record (PK notification_id UUID str (authoritative),
+                 FK recipient_user_id, FK message_id NULL for system notices,
+                 type CHECK, delivery_state CHECK, version,
+                 system_event_key NULL, created_at, read_at NULL,
+                 idempotency_key_hash UNIQUE;
+                 UNIQUE(system_event_key) WHERE system_event_key IS NOT NULL)
 
 durable_idempotency (PK replay_scope, key_hash, actor_binding, operation,
                      target_ref, request_fingerprint, secret_fingerprints_json,
@@ -211,16 +221,17 @@ login_attempt (PK attempt_id, bucket_key_hash, outcome, created_at)  // failure 
 | `verified_visit` | visit_id, doctor_id, visit_ref, subject_identifier_hmac, identifier_key_id, asserted_visit_at, attested_at, attestation_code | note_code | UNIQUE(doctor_id, visit_ref); no free clinical text |
 | `patient_invitation` | invitation_id, visit_id, issued_by_user_id, token_verifier_sha256, subject_identifier_hmac, identifier_key_id, issued_at, expires_at, max_attempts | consumed_at, revoked_at | UNIQUE token verifier; CHECK not both consumed/revoked; FK visit_id and issued_by_user_id only |
 | `invitation_redemption` | redemption_id, invitation_id, patient_id, assignment_id, redeemed_at, flow | — | FK invitation_id UNIQUE; flow enum |
-| `doctor_patient_assignment` | assignment_id, doctor_id, patient_id, assigned_at | revoked_at, revoked_by_user_id, reason_code | Partial UNIQUE active pair; no patient.doctor_id |
-| `consent_record` | consent_id, patient_id, kind, acknowledged_at, contract_version | revoked_at | kind only `synthetic_demo` in Term 1 |
+| `identity_key_check` | check_id, purpose, key_id, key_check_hash, alg, activated_at | retired_at | Purpose-separated non-secret check; `UNIQUE(purpose,key_id)`, `UNIQUE(purpose,key_check_hash)`; verified before writes |
+| `doctor_patient_assignment` | assignment_id, doctor_id, patient_id, assigned_at | revoked_at, revoked_by_user_id, reason_code | Partial UNIQUE active pair; no patient.doctor_id; revocation is assignment-only |
+| `consent_record` | consent_id, patient_id, kind, scope, acknowledged_at, contract_version | revoked_at | `kind='synthetic_demo'`, `scope='patient_wide_synthetic_demo'`; one active row per patient; withdrawal is patient-wide |
 | `health_profile` | profile_id, patient_id, schema_version, payload_json, provenance_json, created_at | superseded_at | immutable once created; new version supersedes |
 | `assessment` | assessment_id, patient_id, assignment_id, consent_id, health_profile_id, panel_id, panel_version, status, source_contract_version, created_at, current_generation, review_state, review_version | current_result_id, active_attempt_id, reassessment_of, reason_code | FK assignment binds authorization scope; all referenced records must belong to same patient; review_state authoritative |
 | `assessment_snapshot` | snapshot_id, assessment_id, canonical_json, payload_sha256, provenance_json, schema_sha256, panel_sha256, created_at | — | FK assessment UNIQUE; append-only/immutable |
 | `inference_attempt` | attempt_id, assessment_id, generation, idempotency_key_hash, state, lease_until, fence_token, requested_at | finished_at, error_code, worker_id | UNIQUE(assessment_id, generation), UNIQUE key hash; no score/explanation columns |
 | `inference_result` | result_id, attempt_id, assessment_id, generation, snapshot_sha256, model_id, model_version, artifact_sha256, source_binding, score_kind, score_json, explanation_json, explanation_method, background_id, result_sha256, recorded_at | — | FK attempt UNIQUE; one authoritative representation |
 | `assessment_review` | review_id, assessment_id, assignment_id, reviewer_user_id, decision, reason_code, rationale, recorded_at, idempotency_key_hash | — | append-only; decision enum |
-| `follow_up_message` | message_id, assessment_id, author_user_id, body, prescription_json, created_at, idempotency_key_hash | — | author must be doctor; AI cannot author |
-| `notification_record` | notification_id, recipient_user_id, type, delivery_state, version, created_at, idempotency_key_hash | message_id (NULL for system notices), read_at | `delivery_state IN ('PENDING','DELIVERED','READ')`; one per recipient/message or system event |
+| `follow_up_message` | message_id, assessment_id, review_id, author_user_id, body, prescription_json, created_at, idempotency_key_hash | — | `FK review_id UNIQUE`; one follow-up per review; author must be doctor; AI cannot author |
+| `notification_record` | notification_id, recipient_user_id, type, delivery_state, version, created_at, idempotency_key_hash | message_id (NULL for system notices), system_event_key, read_at | `notification_id` authoritative; `system_event_key` unique for system notices; `delivery_state IN ('PENDING','DELIVERED','READ')` |
 | `durable_idempotency` | replay_scope, key_hash, actor_binding, operation, target_ref, request_fingerprint, response_public_json, status_code, created_at, expires_at, secret_disclosed | secret_fingerprints_json (keyed digests only) | actor/operation/target-bound replay identity; keyed fingerprints; no raw secret or full request body |
 | `workflow_audit_event` | audit_id, event_type, subject_type, subject_id, payload_sha256, code, outcome, recorded_at | actor_user_id, request_id | metadata only; no identifiers/secrets |
 | `login_attempt` | attempt_id, bucket_key_hash, outcome, created_at | — | bucket key HMAC(email)+IP prefix; written outside rolled-back business tx |
@@ -266,16 +277,17 @@ UNIQUE(replay_scope, key_hash, actor_binding, operation, target_ref)
 
 `durable_idempotency` stores only `replay_scope`, `key_hash`, `actor_binding`, `operation`, `target_ref`, `request_fingerprint`, keyed `secret_fingerprints`, a redacted `response_public_json`, `status_code`, timestamps and `secret_disclosed`. It never stores a raw Idempotency-Key, password, access code, bearer token, raw identifier, raw request body or full credential-bearing response. For anonymous enrollment the actor binding is derived from the invitation verifier and `target_ref` from `invitation_id`, so replay cannot disclose another patient's identifiers or email.
 
-Rules:
+Rules and frozen lookup ordering (mandatory C1 implementation/test requirement):
 
-1. Same replay identity and same public/secret fingerprints → return the stored redacted response with `idempotent_replay:true`; no effect is repeated.
-2. Same replay identity but a different public or keyed secret fingerprint → `409 idempotency_key_conflict`. Conflict is checked before semantic validation. If actor, operation or target differs → `409 idempotency_scope_conflict`.
-3. Secret-bearing responses (temporary passwords, access codes, session tokens) are returned only in the original response. A replay of such an operation returns `409 secret_not_redisclosable` with non-secret identifiers only; it never rediscloses a secret. Non-secret replays return the redacted projection.
-4. `POST /v1/patients/register` replay never mints a second account, identity, consent, assignment or session. A permanently consumed invitation is never re-opened when the 24 h idempotency record expires.
-5. Login (`A1`) and refresh (`A4`) declare **no** `Idempotency-Key`: repeated login creates a new session; repeated refresh rotates again and invalidates the prior token. Failed logins and invitation attempts are counted durably.
-6. Failed enrollment/invitation attempts increment `invitation_attempt` and `login_attempt` in a separate transaction after rollback. Attempts against an unknown invitation have no FK target: record `workflow_audit_event` with `subject_type='unknown_invitation'`, `subject_id = HMAC-SHA256(code_audit_pepper, submitted_code)`, `invitation_id=NULL`, outcome and metadata only. No raw code is stored.
-7. Rate limits are durable and independent: per-account, per-source and per-invitation buckets (5 failures/15 min; 15 min lock; 5 failed invitation attempts exhaust and revoke that invitation). A composite email+IP bucket alone is not sufficient.
-8. A database key gives at-most-once replay within its scope and TTL, not distributed exactly-once execution. Single Uvicorn worker is required for Term 1.
+1. Validate only request structure and header presence. Compute the replay identity **including** `actor_binding`, operation and target. There is no global lookup by `key_hash`: a key presented by a different actor is simply not found in that actor's scope. Different actors can never discover or receive another actor's replay record, status, existence or identifiers; no cross-actor `scope_conflict` is returned.
+2. Look up the idempotency row **only** by the complete actor/operation/target-bound identity. If found with identical public and keyed secret fingerprints, return the stored redacted response with `idempotent_replay:true`; do not re-check invitation state, do not reopen a consumed invitation and do not repeat effects. If the original response carried a one-time secret, return `409 secret_not_redisclosable` with non-secret identifiers only.
+3. If found with different fingerprints but the same actor/operation/target, return `409 idempotency_key_conflict` before semantic validation. If the same actor uses the same key for a different operation or target, return `409 idempotency_scope_conflict` within that actor's scope only.
+4. Only when no record exists in the actor's scope may invitation expiry/revocation/consumption, subject binding, consent, uniqueness and commit occur. A legitimate replay is therefore resolved from the durable redacted result even after the invitation was consumed; it never reopens the invitation. If the idempotency record itself expired, normal invitation validation applies and a consumed invitation fails generically; a missing record never permits reuse.
+5. `POST /v1/patients/register` replay never mints a second account, identity, consent, assignment or session. Secret-bearing responses (temporary passwords, access codes, session tokens) are returned only in the original response.
+6. Login (`A1`) and refresh (`A4`) declare **no** `Idempotency-Key`: repeated login creates a new session; each refresh rotates and invalidates the prior token; refresh with an already revoked or expired token fails `401 invalid_session` and creates no session. Failed logins and invitation attempts are counted durably.
+7. Failed enrollment/invitation attempts increment `invitation_attempt` and `login_attempt` in a separate transaction after rollback. Unknown-invitation attempts are recorded as `workflow_audit_event` with `subject_type='unknown_invitation'`, keyed code digest, `invitation_id=NULL`, outcome and metadata only; no raw code is stored.
+8. Rate limits are durable and independent: per-account, per-source and per-invitation buckets (5 failures/15 min; 15 min lock; 5 failed invitation attempts exhaust and revoke that invitation). A composite email+IP bucket alone is not sufficient.
+9. A database key gives at-most-once replay within its scope and TTL, not distributed exactly-once execution. Single Uvicorn worker is required for Term 1.
 
 ### 6.2 Audit failure handling
 
@@ -305,6 +317,7 @@ Only `INFERENCE_SUCCEEDED` with a durable `inference_result` may enter `PENDING_
 - Lease: proposed 5 min. `lease_until` is authoritative; a worker may publish only while `lease_until > now()`. Expiry alone never creates a result.
 - Atomic completion transaction (`BEGIN IMMEDIATE`): all of the following must hold — attempt id; `attempt.assessment_id`; `attempt.generation == assessment.current_generation`; `assessment.active_attempt_id == attempt_id`; `state='INFERENCE_RUNNING'`; `fence_token` matches; `worker_id` matches; `lease_until > now()`; `assessment.status='INFERENCE_RUNNING'`; the assessment's assignment is still active; and the referenced consent is still active. Only then may the attempt become `INFERENCE_SUCCEEDED`, `inference_result` be inserted and `assessment.current_result_id` be set. Any failed condition → `409 stale_attempt`, no result, no review transition.
 - If assignment or consent was withdrawn before publication, the attempt terminates as `INFERENCE_UNAVAILABLE` with reason `authorization_withdrawn`; no score, no `PENDING_REVIEW`, no stale current-result projection.
+- An expired (`lease_until <= now()`), superseded (`generation < assessment.current_generation`), cancelled or non-`RUNNING` attempt can never publish a result or set `current_result_id`, even if the worker later returns with a valid-looking fence. The completion CAS is the only path that may publish.
 - Recovery scans `lease_until < now AND state='INFERENCE_RUNNING'`, marks the attempt `INFERENCE_ERROR`, clears `active_attempt_id`, increments `current_generation` and keeps authoritative history. An idempotent retry may create generation+1 with a new fence token; the late worker's CAS fails.
 - `inference_result` is the sole authoritative score/explanation representation and is immutable. Attempts/results are append-only; only `assessment.current_result_id` selects the current view. Stale rows remain as evidence but are never projected as current. Result binds `snapshot_sha256`, model id/version, artifact digest, source binding and panel/schema hashes; mismatch fails closed.
 - Decision A absent → `INFERENCE_UNAVAILABLE` before artifact access. Test doubles are permitted only in tests and never constitute production results.
@@ -313,7 +326,8 @@ Only `INFERENCE_SUCCEEDED` with a durable `inference_result` may enter `PENDING_
 
 - `assessment.review_state` is authoritative: `NOT_REVIEWED → ACCEPTED | REJECTED | REASSESSMENT_REQUESTED`. Review rows are append-only and bind `assignment_id` and `reviewer_user_id`. The state update is CAS on `review_state = expected` plus `review_version`; the loser gets `409 review_conflict`. Illegal transitions → `409 review_transition_conflict`. Replay of the same idempotency key returns the original public review row.
 - Follow-up eligibility is exact: a current successful result must exist; the review decision must be `ACCEPTED` or `REASSESSMENT_REQUESTED` by the doctor assigned to that assessment; the assignment must still be active or covered by a separately recorded historical grant; and no follow-up may already exist for that `review_id`. `REJECTED` blocks follow-up until reassessment. Each follow-up binds `review_id` with a UNIQUE constraint; AI cannot be an author because `author_user_id` must resolve to a doctor user.
-- `notification_record.delivery_state ∈ {PENDING, DELIVERED, READ}` with a `version` CAS. `message_id` is NULL for system notifications (`type='system'`); system notices require no follow-up message and no prescription. `read_at` is set once; repeated read is idempotent; stale version → `409 version_conflict`.
+- **Authoritative notification identity (mandatory C1/C2/C3):** `notification_id` is a server-assigned UUID and the only public identifier. For a system notice, `message_id` is NULL, `type` is a closed `system_*` enum, and `system_event_key` is a unique server-generated key derived from event type, recipient and source object; it prevents duplicate system notices under retry. Permitted transitions are `PENDING→DELIVERED`, `PENDING→READ` and `DELIVERED→READ`; `READ` is terminal and no backward transition exists. Every transition uses the `version` CAS; repeated read is idempotent, stale version → `409 version_conflict`.
+- System notices require no follow-up message and no prescription. `read_at` is set exactly once.
 - Reassessment creates a new assessment row with `reassessment_of` and a reason code. Generations, attempts, results and review state are per-assessment; the old result and review remain immutable and are never inherited as current. Patient history is read-only and role-redacted.
 
 ## 8. Canonical API contract composition (`R-06`)
@@ -329,7 +343,7 @@ Only `INFERENCE_SUCCEEDED` with a durable `inference_result` may enter `PENDING_
 ## 9. Migration ordering and restart requirements (C0-F04)
 
 1. Keep revision `20261017_01` and the legacy three tables unchanged. Every referenced table is created before its dependent table. Exact revision ids are assigned at implementation; ordering and stage placement are frozen here.
-2. **C1 (mandatory dependencies all inside C1):** `20261126_02_identity_auth` creates `user_account` (with `email_norm` UNIQUE), `doctor_profile`, `patient_identity` (with `canonical_subject_id` UNIQUE), then `patient_profile`, `session`, `login_attempt`, **and** `durable_idempotency` + `workflow_audit_event`. Infrastructure is not deferred past the clinical workflow.
+2. **C1 (mandatory dependencies all inside C1):** `20261126_02_identity_auth` creates `user_account` (with `email_norm` UNIQUE), `identity_key_check`, `doctor_profile`, `patient_identity` (with `canonical_subject_id` UNIQUE), then `patient_profile`, `session`, `login_attempt`, **and** `durable_idempotency` + `workflow_audit_event`. Infrastructure is not deferred past the clinical workflow.
 3. **C1:** `20261126_03_visit_invitation` creates `verified_visit`, `patient_invitation`, `invitation_attempt` (nullable invitation reference for unknown-attempt audit).
 4. **C1:** `20261126_04_assignment_consent` creates `doctor_patient_assignment` and `consent_record` before any constraint that references an assignment.
 5. **C1:** `20261126_05_enrollment_redemption` creates `invitation_redemption` only after invitation, patient identity/profile and assignment exist.
@@ -367,6 +381,18 @@ Only `INFERENCE_SUCCEEDED` with a durable `inference_result` may enter `PENDING_
 | C0-F08 | `TERM1_STAGE_EXECUTION_PLAN.md` §1.2/§2/§5 and `TERM1_STAGE_PROGRESS.md`: stage-PR policy, PR #143 evidence, reconstructed vs original commit disclosure; no self-acceptance. |
 | C0-F09 | `TERM1_WINDOWS_VERIFICATION_RUNBOOK.md`: complete PS5.1 C0 candidate verification block at PR #143 head, no prototype-branch overwrite. |
 | C0-F10 | `TERM1_TEST_EVIDENCE.md` §5: exact-head workflow_dispatch plan/evidence category; no ALL_GREEN inference. |
+
+### 10.2 Final narrow closure clarifications (mandatory C1/C2/C3)
+
+| Topic | Normative rule | Location |
+|---|---|---|
+| Key material binding | Both operator keys have persisted non-secret checks; same-key-id material replacement detected before any write on a populated DB | §3.4, §4, §5.1, §9 |
+| Idempotency actor isolation | Full actor/operation/target lookup only; no cross-actor lookup or disclosure | §6.1 |
+| Replay ordering | Identity lookup → fingerprint compare → redacted replay/secret error; invitation state checked only on first execution | §6.1 |
+| Consent vs assignment | Assignment revocation is local; patient-wide consent withdrawal is separate with one active consent row | §5.1, §9 |
+| Notification identity | Server-assigned UUID, unique system event key and forward-only state transitions | §7.4 |
+| Follow-up review binding | `review_id` FK UNIQUE; one follow-up per review | §4, §5.1, §7.4 |
+| Stale inference | Expired/superseded attempts can never publish or set current result | §7.3 |
 
 ## 11. Explicit non-authorizations
 

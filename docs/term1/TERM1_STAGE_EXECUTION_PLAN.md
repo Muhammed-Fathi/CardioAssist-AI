@@ -155,7 +155,7 @@ Refreshed at C0 start; no newer run for prototype HEAD:
 
 The 3.11 failure predates prototype implementation (Issue #132, still OPEN). It is not an automatic blocker to independent safe C1 engineering, but it remains in the blocker register and no `ALL_GREEN` claim may be made. No Golden fixture, tolerance, research test, workflow, PR #141, or Issue #132 change is authorized.
 
-**Stage-PR CI note:** the four existing validation workflows trigger on `pull_request` to main only; PR #143 targeting the prototype branch initially reports zero checks. As required by C0-F10, the four existing workflows with `workflow_dispatch` were dispatched on the published session branch after the corrections commit; exact run head SHA, conclusions and available counts are recorded in `TERM1_TEST_EVIDENCE.md` §5 and the completion report. Zero checks alone is not success.
+**Stage-PR CI note:** the four existing validation workflows trigger on `pull_request` to main only; PR #143 targeting the prototype branch reports zero checks. Four `workflow_dispatch` attempts on the published session branch were rejected by the available GitHub integration token with `HTTP 403: Resource not accessible by integration`; no runs were created. No further dispatch attempts are made with the same restricted token. The owner must dispatch `backend-ci.yml`, `contracts-ci.yml`, `audit-ci.yml` and `experiment-runner-ci.yml` on the final published SHA using their own authorized account. Zero checks is not success.
 
 ## 7. Status declarations
 
@@ -168,6 +168,7 @@ C4_STATUS=NOT_STARTED
 AI_SERVING_AUTHORIZATION=PENDING
 PATIENT_SCORE_DISPLAY_AUTHORIZATION=PENDING
 WINDOWS_VERIFICATION_STATUS=NOT_RUN
+HOSTED_CI=OWNER_DISPATCH_REQUIRED
 ```
 
 ## 8. Required owner confirmations at C0 acceptance

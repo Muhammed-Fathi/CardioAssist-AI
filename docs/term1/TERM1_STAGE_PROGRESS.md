@@ -29,6 +29,7 @@ C4_STATUS=NOT_STARTED
 AI_SERVING_AUTHORIZATION=PENDING
 PATIENT_SCORE_DISPLAY_AUTHORIZATION=PENDING
 WINDOWS_VERIFICATION_STATUS=NOT_RUN
+HOSTED_CI=OWNER_DISPATCH_REQUIRED
 LEGACY_RESEARCH_CI_STATUS=FAILURE_ON_PYTHON_3_11 (inherited; not suppressed)
 ```
 
@@ -73,7 +74,7 @@ Historical `TERM1_INTEGRATED_PROTOTYPE_MASTER_PLAN_20261125.md`, `ARENA_NEW_SESS
 | C0-F07 | Four AI gates A1/A2/A3/B, all PENDING | AI matrix §3; decision register A1/A2/A3; plan P-26 | Owner tokens and independent verification |
 | C0-F08 | Stage-PR policy, PR #143 evidence, reconstructed/original SHA distinction | Plan §1.2/§2/§5.1; blockers B-06 | Final review and owner acceptance |
 | C0-F09 | Complete PS5.1 candidate-before-merge block | `TERM1_WINDOWS_VERIFICATION_RUNBOOK.md` | Owner Windows transcript |
-| C0-F10 | Four exact-head workflow_dispatch runs after correction push | `TERM1_TEST_EVIDENCE.md` §5; completion report | Run verification; no ALL_GREEN claim |
+| C0-F10 | Four dispatch attempts blocked by 403; owner dispatch required | `TERM1_TEST_EVIDENCE.md` §5; completion report | Owner dispatch and reviewer verification; no ALL_GREEN claim |
 
 ## 5. Stage readiness
 

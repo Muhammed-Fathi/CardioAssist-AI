@@ -5,6 +5,8 @@
 
 **C0-F07 correction notice (2026-11-25):** §3 now separates development, independent artifact verification, owner activation and patient display into distinct gates. No gate is granted in C0. No private Cleveland bundle, real-data training, cross-platform byte-identity assumption, model execution or patient score display is authorized.
 
+**Final narrow closure clarification (2026-11-25):** A1 now names the exact permitted offline synthetic candidate-generation/testing environment. No generation or execution occurs before that exact scope is granted. A2, A3 and B remain separate and genuine same-model explanation requirements are unchanged.
+
 ## 1. Candidate inventory and readiness
 
 Rows below are candidates, not deployments. `SOURCE_VERIFIED` facts are from the exact prototype checkpoint; proposed values are labelled.
@@ -67,14 +69,14 @@ Decision A is not a single event. It is resolved only when gates A1, A2 and A3 a
 
 | Gate | Scope and required evidence | Owner act | Current state |
 |---|---|---|---|
-| **A1 — develop and generate candidate B** | Permission to write and test the synthetic-only candidate in an offline/test context and generate its artifact from a pinned generator function: exact code revision, function path, seed, row count, five-field DA-A2 panel digest, training/calibration protocol and dependency versions recorded; no real data/private bundle, no serving, no patient exposure | Owner ratifies development token below | `PENDING_AUTHORIZATION` |
-| **A2 — independent verification** | Independent reviewer verifies the exact implementation diff, generator source hash, seed, row count, training protocol, panel digest, package pins, artifact SHA-256, deterministic rebuild on the declared platform, frozen synthetic oracle, tamper/wrong-digest refusal, no fallback to M1, and explanation quality (genuine same-model exact SHAP; LIME only on the same scale with acceptable verdict; alternatives require explicit owner acceptance) | Reviewer posts verdict; no serving implied | `PENDING_AUTHORIZATION` |
+| **A1 — develop and generate candidate B** | Exact permitted environment: the offline local research workspace under `ai/` in an Arena or owner-local checkout, using only deterministic synthetic fixtures and the pinned generator function; no hosted HTTP service, no backend provider, no CI artifact distribution, no private Cleveland bundle and no real records. Within that bounded environment only, the grant permits synthetic-data generation, training/fitting/calibration and offline testing needed to produce and characterize the artifact: exact code revision, function path, seed, row count, five-field DA-A2 panel digest, protocol and dependency versions recorded. No serving or patient exposure. **No candidate generation or model execution occurs until the owner grants this exact scope.** | Owner ratifies development token below | `PENDING_AUTHORIZATION` |
+| **A2 — independent verification** | Independent reviewer verifies the exact implementation diff, generator source hash, seed, row count, training protocol, panel digest, package pins, artifact SHA-256, deterministic rebuild on the declared platform, frozen synthetic oracle, tamper/wrong-digest refusal, no fallback to M1, and explanation quality (genuine same-model exact SHAP is mandatory; LIME only on the same scale with acceptable verdict; any alternative requires explicit owner acceptance) | Reviewer posts verdict; no serving implied | `PENDING_AUTHORIZATION` |
 | **A3 — controlled activation** | Owner authorizes the reviewed local-demo adapter via a reviewed registry binding to the exact operation, model id/version, artifact digest, source kind and code revision; no env var/header selector; fail-closed `ABSTAIN/UNAVAILABLE/ERROR`; only after A1+A2 evidence | Owner ratifies activation token below | `PENDING_AUTHORIZATION` |
 | **B — patient-facing provisional score** | Separate display authorization with reviewed wording/redaction, status-only until granted | Owner ratifies B token | `PENDING_AUTHORIZATION` |
 
 ### 3.1 Exact proposed owner tokens (not yet ratified)
 
-> `AUTHORIZE-TERM1-CANDIDATE-B-DEVELOPMENT-ONLY` — I authorize development and offline synthetic-only testing of operation `term1_synthetic_demo_inference_v1`, model `synth_term1_demo_da_a2_v1` v0.1.0, using a pinned deterministic synthetic generator and the `da_a2_resting_v1` five-field panel. This token alone does not authorize serving, model execution in Arena, artifact distribution, patient exposure, real-data fitting, or use of any private bundle.
+> `AUTHORIZE-TERM1-CANDIDATE-B-DEVELOPMENT-ONLY` — I authorize synthetic-data generation, training/fitting/calibration and offline testing of operation `term1_synthetic_demo_inference_v1`, model `synth_term1_demo_da_a2_v1` v0.1.0, **only** in the offline local research workspace under `ai/` in an Arena or owner-local checkout, using a pinned deterministic synthetic generator and the `da_a2_resting_v1` five-field panel. This bounded grant is the only permitted model-execution scope; it does not authorize hosted HTTP serving, backend provider activation, CI artifact distribution, patient exposure, real-data fitting, use of any private bundle, or any execution outside that offline synthetic environment. No generation or execution occurs before this token is posted.
 
 > `VERIFY-TERM1-CANDIDATE-B-GATE-A2` — I confirm that the independent reviewer has verified the exact implementation, generator, seed, row count, training protocol, panel digest, pinned dependencies, artifact SHA-256, deterministic rebuild evidence, same-model explanation quality and tamper/refusal tests. This confirmation is verification only and does not activate serving or patient display.
 
@@ -86,7 +88,7 @@ Decision A is not a single event. It is resolved only when gates A1, A2 and A3 a
 
 Required wording (proposed): "Educational synthetic research result — not a diagnosis or personal risk estimate. This output comes from a model trained only on fabricated demo data and has not been validated for any real person. Your clinician will review it."
 
-Until B is ratified, every patient-facing route exposes status only; even after B, doctor and patient projections are separately tested for redaction. A1/A2/A3/B remain `PENDING_AUTHORIZATION`; no model is trained, loaded or executed in C0.
+Until B is ratified, every patient-facing route exposes status only; even after B, doctor and patient projections are separately tested for redaction. A1/A2/A3/B remain `PENDING_AUTHORIZATION`; no model is trained, loaded, generated or executed in C0. A2 verification, A3 activation and B display are separate gates and cannot be inferred from A1.
 
 ## 4. Non-authorizations and research boundaries
 

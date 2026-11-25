@@ -1,27 +1,30 @@
 # CardioAssist-Term1 — C0 Stage PR Windows Verification Runbook
 
 **Status:** `NOT_RUN` until the owner executes this block and supplies the transcript.
-**Workspace:** `E:\CardioAssist-Term1-Prototype` (owner-controlled).
+**Workspace:** `E:\CardioAssist-Term1-Prototype` (owner-controlled accepted prototype clone).
+**Candidate worktree:** unique sibling directory outside the tracked prototype checkout.
 **PowerShell:** 5.1 compatible. Python 3.11 or 3.12 supported.
-**Reviewed candidate SHA:** `a32aca29f68e5330344b7cc79e9956acdf446a2a` (PR #143 head verified by the independent reviewer). If a later corrected head is separately reviewed, the reviewer must supply the replacement SHA and this constant must be updated before execution.
+**Reviewed candidate SHA:** `a32aca29f68e5330344b7cc79e9956acdf446a2a` (PR #143 head verified by the independent reviewer). The independent reviewer will supply the final exact candidate SHA after the closing publication; update `$StageHead` before execution if a different SHA is supplied.
 **Prototype base:** `bca75b4646dbde26e495201938b7ae01ea7e0d21`.
 **Supersedes for new use:** the draft `WINDOWS_LOCAL_VERIFICATION_RUNBOOK_20261125.md` clone-to-default-folder and cleanup workflow; that historical file is preserved unchanged.
 
-## 1. Safety rules
+## 1. Safety and evidence rules
 
-- Verify the accepted prototype branch; never check out, reset, merge into or overwrite it during candidate verification.
+- Verify the accepted prototype branch; never check out, reset, merge into or write inside it during candidate verification. The candidate is tested in a uniquely named detached worktree outside the tracked clone.
 - Clone only into an empty target; reuse only a clean clone with the expected origin and branch.
-- No `git reset --hard`, `git clean`, `Remove-Item` of databases, destructive Alembic downgrade, or broad delete. Existing files and DBs are evidence and are left in place.
-- Use a separate detached worktree for the stage PR head; fail if the worktree path already contains files rather than deleting them.
-- Every native Git/Python command checks `$LASTEXITCODE`, including read-only Git verification queries.
+- No `git reset --hard`, `git clean`, `Remove-Item` of databases, destructive Alembic downgrade, or broad delete. All logs and databases remain as evidence.
+- Check `$LASTEXITCODE` for every native command, including read-only Git verification queries. Native stderr is captured as text and must not abort successful commands under PowerShell 5.1.
 - Verify the virtualenv interpreter, not merely the host `python`.
-- Use unique disposable DBs; use a separate preservation DB for the real legacy-row preservation check.
-- Record every suite independently so the inherited Python 3.11 research failure cannot prevent the remaining checks.
+- Use unique disposable and preservation databases; use the F-04 fixture's own request body and approved headers, never the whole fixture document, as the HTTP request body.
+- Record every nonzero exit code and every `FAILED`/`ERROR` test line independently. Do **not** classify a failure as matching a known baseline; only the independent reviewer may do that after inspecting evidence.
+- Do not record the owner's computer name or username.
+- Do not claim this block was executed by Arena; status is `NOT_RUN`.
 
 ## 2. Complete PowerShell 5.1 C0 candidate block (`NOT_RUN`)
 
 ```powershell
-$ErrorActionPreference = 'Stop'
+# PowerShell 5.1: keep native stderr non-fatal; explicit exit codes are authoritative.
+$ErrorActionPreference = 'Continue'
 function Get-CheckedOutput {
     param([string]$Command, [string[]]$Arguments)
     $global:LASTEXITCODE = 0
@@ -35,7 +38,7 @@ function Get-CheckedOutput {
 function Invoke-Checked {
     param([string]$Command, [string[]]$Arguments)
     $global:LASTEXITCODE = 0
-    & $Command @Arguments
+    & $Command @Arguments 2>&1 | Out-Null
     $code = $LASTEXITCODE
     if ($null -eq $code -or $code -ne 0) {
         throw "Native command failed with exit code $code : $Command $($Arguments -join ' ')"
@@ -58,14 +61,19 @@ function Invoke-Suite {
         $detail = $_.Exception.Message
     }
     $watch.Stop()
+    $failedLines = @(Select-String -Path $LogFile -Pattern '^(FAILED|ERROR) ' -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.Line })
     $script:SuiteResults += [pscustomobject]@{
         Suite = $Name
         ExitCode = $code
         Seconds = [math]::Round($watch.Elapsed.TotalSeconds, 1)
+        FailingTests = $failedLines
         Detail = $detail
         Log = $LogFile
     }
 }
+
+Write-Host "PowerShell $($PSVersionTable.PSVersion); OS $([Environment]::OSVersion.VersionString)"
 
 $Target = 'E:\CardioAssist-Term1-Prototype'
 $RepoUrl = 'https://github.com/Muhammed-Fathi/CardioAssist-AI.git'
@@ -73,9 +81,6 @@ $PrototypeBranch = 'delivery/term1-prototype'
 $ExpectedBase = 'bca75b4646dbde26e495201938b7ae01ea7e0d21'
 $StageBranch = 'arena/bdbd8a6e-cardioassist-ai'
 $StageHead = 'a32aca29f68e5330344b7cc79e9956acdf446a2a'
-
-Write-Host "PowerShell $($PSVersionTable.PSVersion); OS $([Environment]::OSVersion.VersionString)"
-Write-Host "Host: $env:COMPUTERNAME; user: $env:USERNAME"
 
 if (-not (Test-Path -LiteralPath $Target)) {
     New-Item -ItemType Directory -Path $Target | Out-Null
@@ -98,7 +103,7 @@ if (@(Get-CheckedOutput -Command git -Arguments @('status','--porcelain')).Count
 }
 Write-Host "Verified accepted prototype branch $PrototypeBranch at $LocalBase; it will not be modified."
 
-# Fetch the stage PR head into a separate remote-tracking ref; no checkout/merge of the prototype branch.
+# Verify the COMMITTED candidate against the exact prototype base, not only the worktree.
 Invoke-Checked -Command git -Arguments @(
     'fetch','origin',"refs/heads/$StageBranch`:refs/remotes/stage/$StageBranch")
 $ActualStageHead = (Get-CheckedOutput -Command git -Arguments @(
@@ -108,21 +113,25 @@ if ($ActualStageHead -ne $StageHead) {
 }
 Invoke-Checked -Command git -Arguments @('cat-file','-e',"$StageHead^{commit}")
 Invoke-Checked -Command git -Arguments @('merge-base','--is-ancestor',$ExpectedBase,$StageHead)
-$Changed = @(Get-CheckedOutput -Command git -Arguments @(
-    'diff','--name-only',"$ExpectedBase..$StageHead"))
-if ($Changed.Count -ne 11) { throw "Expected 11 changed docs; got $($Changed.Count)" }
-if (@($Changed | Where-Object { $_ -notlike 'docs/term1/*.md' }).Count -gt 0) {
-    throw 'Non-documentation file found in stage diff.'
+$NameStatus = @(Get-CheckedOutput -Command git -Arguments @(
+    'diff','--name-status',"$ExpectedBase..$StageHead"))
+if ($NameStatus.Count -ne 11) {
+    throw "Expected 11 committed changed files; got $($NameStatus.Count)"
 }
-Write-Host "Verified stage head $StageHead: 11 docs-only files, prototype base is ancestor."
+if (@($NameStatus | Where-Object { $_ -notmatch '^A\s+docs/term1/.*\.md$' }).Count -gt 0) {
+    throw 'Committed candidate diff is not exactly 11 added docs/term1 Markdown files.'
+}
+Invoke-Checked -Command git -Arguments @('diff','--check',"$ExpectedBase..$StageHead")
+$CommittedStat = @(Get-CheckedOutput -Command git -Arguments @(
+    'diff','--stat',"$ExpectedBase..$StageHead"))
+Write-Host ("Committed candidate vs exact base: " + ($CommittedStat[-1]).Trim())
 
-$Worktree = Join-Path $Target '.worktrees\c0-candidate'
+# Unique detached worktree OUTSIDE the tracked prototype checkout.
+$Worktree = Join-Path 'E:\' ("CardioAssist-C0-Candidate-" + [guid]::NewGuid().ToString('N').Substring(0,12))
 if (Test-Path -LiteralPath $Worktree) {
     if (@(Get-ChildItem -LiteralPath $Worktree -Force).Count -gt 0) {
         throw "Worktree path exists with content; refusing to overwrite: $Worktree"
     }
-} else {
-    New-Item -ItemType Directory -Path $Worktree -Force | Out-Null
 }
 Invoke-Checked -Command git -Arguments @('worktree','add','--detach',$Worktree,$StageHead)
 Set-Location $Worktree
@@ -131,7 +140,7 @@ if ($DetachedHead -ne $StageHead) { throw "Unexpected detached HEAD: $DetachedHe
 if (@(Get-CheckedOutput -Command git -Arguments @('status','--porcelain')).Count -gt 0) {
     throw 'Dirty candidate worktree; refusing verification.'
 }
-Write-Host "Testing detached candidate revision $DetachedHead; prototype branch untouched."
+Write-Host "Candidate worktree: $Worktree at $DetachedHead; prototype clone untouched."
 
 $HostPy = (Get-CheckedOutput -Command python -Arguments @('--version'))[0]
 if ($HostPy -notmatch 'Python 3\.(11|12)\.') { throw "Unsupported host Python: $HostPy" }
@@ -141,16 +150,13 @@ if (-not (Test-Path -LiteralPath .\.venv\Scripts\python.exe)) {
 $PyExe = (Resolve-Path -LiteralPath .\.venv\Scripts\python.exe).Path
 $VenvPy = (Get-CheckedOutput -Command $PyExe -Arguments @('--version'))[0]
 if ($VenvPy -notmatch 'Python 3\.(11|12)\.') { throw "Unsupported virtualenv Python: $VenvPy" }
-if ($VenvPy -notmatch [regex]::Escape($HostPy.Substring(7, 3))) {
-    Write-Warning "Host $HostPy and virtualenv $VenvPy differ; recording virtualenv version as authoritative."
-}
+Write-Host "Virtualenv interpreter: $VenvPy ($PyExe)"
 Invoke-Checked -Command $PyExe -Arguments @('-m','pip','install','--upgrade','pip')
 Invoke-Checked -Command $PyExe -Arguments @('-m','pip','install','-r','backend/requirements-dev.txt')
 Invoke-Checked -Command $PyExe -Arguments @('-m','pip','install','-r','research/experiments/requirements.txt')
 Invoke-Checked -Command $PyExe -Arguments @('-m','pip','install','-r','research/audit/requirements.txt')
 Invoke-Checked -Command $PyExe -Arguments @('-m','pip','install','-r','research/uci412/requirements.txt')
 Invoke-Checked -Command $PyExe -Arguments @('-m','pip','check')
-Write-Host "Virtualenv interpreter: $VenvPy ($PyExe)"
 
 New-Item -ItemType Directory -Force -Path .\var | Out-Null
 $Disposable = "c0_stage_$([guid]::NewGuid().ToString('N')).sqlite3"
@@ -159,21 +165,27 @@ $env:CARDIOASSIST_DATABASE_URL = "sqlite:///./var/$Disposable"
 Invoke-Checked -Command $PyExe -Arguments @('-m','alembic','upgrade','head')
 Invoke-Checked -Command $PyExe -Arguments @('-m','alembic','current')
 Invoke-Checked -Command $PyExe -Arguments @('-m','alembic','check')
-
 $env:CARDIOASSIST_DATABASE_URL = "sqlite:///./var/$Preservation"
 Invoke-Checked -Command $PyExe -Arguments @('-m','alembic','upgrade','head')
 Invoke-Checked -Command $PyExe -Arguments @('-m','alembic','current')
 Invoke-Checked -Command $PyExe -Arguments @('-m','alembic','check')
 
-# Real legacy preservation check: write one observation through the existing route,
-# rerun Alembic, and prove the monitoring row survives with the same count.
+# Service process, port and legacy preservation check with the real F-04 request body.
 $Port = 8123
+$ExistingListener = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+if ($ExistingListener.Count -gt 0) { throw "Port $Port is already in use." }
 $OutLog = Join-Path $Worktree 'var\c0_service_stdout.log'
 $ErrLog = Join-Path $Worktree 'var\c0_service_stderr.log'
 $Service = Start-Process -FilePath $PyExe -ArgumentList @(
     '-m','uvicorn','backend.app.main:app','--host','127.0.0.1','--port',"$Port",'--workers','1'
 ) -PassThru -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog
 try {
+    if ($Service.HasExited) { throw "Service exited early; see $ErrLog" }
+    $ProcInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $($Service.Id)"
+    if ($ProcInfo.CommandLine -notmatch 'backend\.app\.main:app' -or
+        $ProcInfo.CommandLine -notmatch "--port\s+$Port") {
+        throw "Started process $($Service.Id) is not the expected uvicorn command."
+    }
     $Ready = $false
     for ($i = 0; $i -lt 40; $i++) {
         if ($Service.HasExited) { throw "Service exited early; see $ErrLog" }
@@ -186,33 +198,90 @@ try {
         }
     }
     if (-not $Ready) { throw "Service did not become ready; see $ErrLog" }
+    $OwnedListener = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+        Where-Object { $_.OwningProcess -eq $Service.Id })
+    if ($OwnedListener.Count -eq 0) {
+        throw "Port $Port is not owned by the started service process $($Service.Id)."
+    }
     $Doc = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/openapi.json"
     $Served = @($Doc.paths.PSObject.Properties.Name | Sort-Object)
     $ExpectedPaths = @('/v1/monitoring/observations','/v1/predictions/cad-tabular')
     if (($Served -join '|') -ne ($ExpectedPaths -join '|')) {
         throw "Unexpected served paths: $($Served -join ', ')"
     }
-    $LegacyBody = Get-Content -Raw -LiteralPath 'shared/contracts/fixtures/F-04-monitoring-observation-valid.json'
-    $LegacyResponse = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$Port/v1/monitoring/observations" `
-        -Headers @{'Idempotency-Key' = 'c0-windows-preservation-001'} `
-        -ContentType 'application/json' -Body $LegacyBody
-    if ($null -eq $LegacyResponse) { throw 'Legacy observation response was empty.' }
-    Write-Host 'Legacy route accepted one synthetic F-04 observation on the preservation DB.'
+
+    # Parse the fixture and send ONLY steps[0].request.body with its approved headers.
+    $Fixture = Get-Content -Raw -LiteralPath 'shared/contracts/fixtures/F-04-monitoring-observation-valid.json' |
+        ConvertFrom-Json
+    $Step = $Fixture.steps[0]
+    if ($Fixture.endpoint -ne 'POST /v1/monitoring/observations') {
+        throw "Unexpected fixture endpoint: $($Fixture.endpoint)"
+    }
+    $LegacyBody = $Step.request.body | ConvertTo-Json -Depth 32 -Compress
+    $LegacyHeaders = @{}
+    foreach ($header in $Step.request.headers.PSObject.Properties) {
+        $LegacyHeaders[$header.Name] = [string]$header.Value
+    }
+    if (-not $LegacyHeaders.ContainsKey('Idempotency-Key')) {
+        throw 'F-04 approved headers do not contain Idempotency-Key.'
+    }
+    $RawResponse = Invoke-WebRequest -UseBasicParsing -Method Post `
+        -Uri "http://127.0.0.1:$Port/v1/monitoring/observations" `
+        -Headers $LegacyHeaders -ContentType 'application/json' -Body $LegacyBody
+    if ($RawResponse.StatusCode -ne [int]$Step.assertions.http_status) {
+        throw "Unexpected HTTP status: $($RawResponse.StatusCode)"
+    }
+    $LegacyResponse = $RawResponse.Content | ConvertFrom-Json
+    if ($LegacyResponse.accepted -ne $true -or $LegacyResponse.idempotent_replay -ne $false) {
+        throw 'Legacy response is not a fresh accepted observation.'
+    }
+    if ([string]$LegacyResponse.request_id -ne [string]$Step.request.body.request_id -or
+        [string]$LegacyResponse.observation_id -ne [string]$Step.expected.body.observation_id -or
+        [int]$LegacyResponse.recorded_metric_count -ne 3) {
+        throw 'Legacy response does not match the F-04 approved response.'
+    }
+    Write-Host "Legacy HTTP OK: status $($RawResponse.StatusCode), observation_id $($LegacyResponse.observation_id)."
 } finally {
     if (-not $Service.HasExited) { Stop-Process -Id $Service.Id }
 }
+
+# Persisted observation, metric and audit verification on the preservation DB.
 $PreservationPath = (Resolve-Path -LiteralPath (Join-Path $Worktree "var/$Preservation")).Path
-$CountSql = 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print(c.execute("SELECT COUNT(*) FROM monitoring_observation").fetchone()[0])'
-$CountAfterWrite = [int](Get-CheckedOutput -Command $PyExe -Arguments @('-c',$CountSql,$PreservationPath))[0]
+$VerifyDbSql = @'
+import sqlite3, sys
+db, obs_id, req_id = sys.argv[1], sys.argv[2], sys.argv[3]
+conn = sqlite3.connect(db)
+rows = conn.execute(
+    "SELECT record_id, observation_id, request_id FROM monitoring_observation WHERE observation_id=? AND request_id=?",
+    (obs_id, req_id)).fetchall()
+if len(rows) != 1:
+    raise SystemExit("expected exactly one persisted observation, got %d" % len(rows))
+rid = rows[0][0]
+metrics = conn.execute(
+    "SELECT metric_id, value_json, unit FROM monitoring_metric WHERE observation_record_id=? ORDER BY ordinal",
+    (rid,)).fetchall()
+audits = conn.execute(
+    "SELECT request_id, event_type, path FROM audit_event WHERE observation_record_id=?",
+    (rid,)).fetchall()
+print("observation_rows=1 record_id=%s metric_rows=%d audit_rows=%d" % (rid, len(metrics), len(audits)))
+if len(metrics) != 3 or len(audits) != 1 or audits[0][0] != req_id:
+    raise SystemExit("persisted metric/audit verification failed")
+'@
+$Persisted = (Get-CheckedOutput -Command $PyExe -Arguments @(
+    '-c',$VerifyDbSql,$PreservationPath,[string]$LegacyResponse.observation_id,[string]$LegacyResponse.request_id))[0]
+if ($Persisted -notmatch 'metric_rows=3 audit_rows=1') {
+    throw "Unexpected persisted state: $Persisted"
+}
 $env:CARDIOASSIST_DATABASE_URL = "sqlite:///./var/$Preservation"
 Invoke-Checked -Command $PyExe -Arguments @('-m','alembic','upgrade','head')
-$CountAfterUpgrade = [int](Get-CheckedOutput -Command $PyExe -Arguments @('-c',$CountSql,$PreservationPath))[0]
-if ($CountAfterWrite -lt 1 -or $CountAfterWrite -ne $CountAfterUpgrade) {
-    throw "Legacy preservation failed: before=$CountAfterWrite after=$CountAfterUpgrade"
+$PersistedAfter = (Get-CheckedOutput -Command $PyExe -Arguments @(
+    '-c',$VerifyDbSql,$PreservationPath,[string]$LegacyResponse.observation_id,[string]$LegacyResponse.request_id))[0]
+if ($Persisted -ne $PersistedAfter) {
+    throw "Legacy preservation failed: before=$Persisted after=$PersistedAfter"
 }
-Write-Host "Legacy preservation OK: $CountAfterUpgrade observation row(s) before and after re-upgrade."
+Write-Host "Legacy preservation OK: $PersistedAfter"
 
-# Test suites run independently; the inherited 3.11 research failure must not abort later checks.
+# Independent suite records; no automatic inherited-failure classification.
 $env:CARDIOASSIST_DATABASE_URL = "sqlite:///./var/$Disposable"
 $script:SuiteResults = @()
 Invoke-Suite -Name 'contracts+backend' -Arguments @($PyExe,'-m','pytest','tests/contracts','tests/backend','-q','-W','error') -LogFile (Join-Path $Worktree 'var\suite-contracts-backend.log')
@@ -222,25 +291,20 @@ Invoke-Suite -Name 'uci412-research' -Arguments @($PyExe,'-m','pytest','tests/uc
 Invoke-Suite -Name 'source-verification' -Arguments @($PyExe,'scripts/verify_sources.py') -LogFile (Join-Path $Worktree 'var\suite-source-verification.log')
 Invoke-Suite -Name 'git-diff-check' -Arguments @('git','diff','--check') -LogFile (Join-Path $Worktree 'var\suite-git-diff-check.log')
 
-$script:SuiteResults | Format-Table -AutoSize
-$InheritedAllowed = ($VenvPy -match 'Python 3\.11\.')
-$NewFailures = @($script:SuiteResults | Where-Object {
-    $_.ExitCode -ne 0 -and $_.Suite -ne 'uci412-research'
-})
-if (-not $InheritedAllowed) {
-    $NewFailures += @($script:SuiteResults | Where-Object {
-        $_.Suite -eq 'uci412-research' -and $_.ExitCode -ne 0
-    })
+$script:SuiteResults | Select-Object Suite,ExitCode,Seconds,Log | Format-Table -AutoSize
+foreach ($result in $script:SuiteResults) {
+    if ($result.ExitCode -ne 0) {
+        Write-Host "NONZERO: $($result.Suite) exit=$($result.ExitCode) log=$($result.Log)"
+        foreach ($failed in $result.FailingTests) { Write-Host "  $failed" }
+    }
 }
-if ($NewFailures.Count -gt 0) {
-    throw "NEW_REGRESSION: $($NewFailures.Suite -join ', '). Inspect the listed logs; do not rerun to obtain a green result."
-}
-Write-Host 'C0 stage PR verification complete. Inherited research failure handled separately; no destructive cleanup performed.'
+Write-Host 'All nonzero exits and failing tests recorded. Only the independent reviewer may classify any failure as matching the known baseline.'
+Write-Host 'No destructive cleanup performed; logs, worktree and databases remain for evidence.'
 ```
 
 ## 3. Evidence to return
 
-Record PowerShell version, OS build, host and virtualenv Python versions, `$LocalBase`, `$ActualStageHead`, detached candidate HEAD, clean status, pip check output, both Alembic outputs, all six suite exit codes/seconds/logs, the two legacy served paths, the F-04 legacy POST response, and the preservation row counts. All fields are `NOT_RUN` until the owner supplies the transcript. Hosted Linux CI does not substitute.
+Record PowerShell version, OS build, host and virtualenv Python versions, `$LocalBase`, `$ActualStageHead`, committed diff check/stat, detached worktree path and HEAD, clean status, port ownership/process verification, pip check output, both Alembic outputs, F-04 HTTP status and response fields, persisted observation/metric/audit verification, exact served paths, and every suite exit code, log path and `FAILED`/`ERROR` line. Do not classify failures in the transcript. All fields are `NOT_RUN` until supplied by the owner; hosted Linux CI does not substitute.
 
 ## 4. Stage-specific additions after acceptance
 
@@ -249,4 +313,4 @@ Record PowerShell version, OS build, host and virtualenv Python versions, `$Loca
 - **C3:** review/follow-up/notification tests; cross-role IDOR negatives; atomic message/notification check; read-status restart.
 - **C4:** full E2E with delivered fixtures; exact-head hosted CI links for the final accepted SHA.
 
-No deletion, reset, `git clean`, or database removal command is provided. Leave DBs and logs in `.\var` as evidence.
+No deletion, reset, `git clean`, or database removal command is provided. The only process stopped is the one started by this script.
