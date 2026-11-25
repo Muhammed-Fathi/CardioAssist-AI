@@ -1,6 +1,6 @@
 # CardioAssist-AI Term 1 — Stage Progress and Reviewer Correction Ledger
 
-**Status:** C0 design package produced; not accepted. No implementation stage started.
+**Status:** C0 corrected after final independent review; pending final re-review, owner Windows verification and explicit acceptance. No implementation stage started.
 
 ## 1. Checkpoint ledger
 
@@ -13,13 +13,15 @@
 | Test merge SHA | `8c4be2fb6d5d088d456ec5be935a2b30b5158173` — not a merge | GITHUB |
 | PR #141 | OPEN / DRAFT, head `9fb6d5173171bbdc22fd1528131bd2dd5b8963f5` | GITHUB; boundary only |
 | Issue #132 | OPEN | GITHUB; boundary only |
-| Workspace branch used for C0 commit | `arena/bdbd8a6e-cardioassist-ai` at main baseline | SOURCE_VERIFIED; disclosure in plan §1.2 |
+| PR #143 | OPEN / DRAFT, base `delivery/term1-prototype` at `bca75b4…`, head `arena/bdbd8a6e-cardioassist-ai` at `a32aca29f68e5330344b7cc79e9956acdf446a2a`, 6 commits ahead / 0 behind, 11 files, +2146/−0 | GITHUB |
+| Original five C0 commits | `94465c7c1454c7506c172cffc1694a8047463d99`, `0475193dd50247f64f7cba4f6adacab32dc7711b`, `45ad692363fb0a3f019f26ac30f796548ae2f198`, `4a60f7f1c4fa0eb134d31755141b341952477053`, `4f097401366d7d0f86086b72982c0632c7c58558` — unrecoverable objects; NOT the published commits | SOURCE_VERIFIED; disclosure in plan §1.2 |
+| Reconstructed five C0 commits | `6037ec7dd80c29ca6c60acba581639276bab7ec2`, `4c4584b07ba5575064cdb05f74802b4c706bbb23`, `c823b032e45365c0be5dcb15547dd12937f851f5`, `ee9804f3e2821fe062e07eac073f52105d3c4ee3`, `51a8cfeaf8723956872370f95f0cc445ad3838eb`; plus non-rewriting merge `a32aca29f68e5330344b7cc79e9956acdf446a2a` | GITHUB / SOURCE_VERIFIED |
 | Native Windows | NOT_RUN | — |
 
 ## 2. Status declarations
 
 ```
-C0_STATUS=DESIGN_PENDING_INDEPENDENT_REVIEW_AND_OWNER_ACCEPTANCE
+C0_STATUS=CORRECTED_PENDING_FINAL_REVIEW_AND_OWNER_WINDOWS_VERIFICATION
 C1_STATUS=NOT_STARTED
 C2_STATUS=NOT_STARTED
 C3_STATUS=NOT_STARTED
@@ -56,13 +58,28 @@ Historical `TERM1_INTEGRATED_PROTOTYPE_MASTER_PLAN_20261125.md`, `ARENA_NEW_SESS
 | R-05 | One authoritative result; generation/lease/fencing; review conflicts; follow-up eligibility; test doubles only in tests | Single `inference_result`; generation/fence CAS; history retained, stale hidden; review conflict rules; no AI prescription author | Architecture §4, §7.3–7.4 | C2/C3 tests; Decision A |
 | R-06 | One canonical served OpenAPI; complete allowlist; preserve legacy coverage; headers as headers | Deterministic composition into single served spec; legacy file unchanged; four named test classes; headers in `parameters` | Architecture §8; API §1 | C1/C2 contract tests and owner confirmation |
 | R-07 | PS5.1 exit-code checks; safe clone reuse; fresh DBs; exact pytest paths; correct deps | New Windows runbook with explicit `$LASTEXITCODE`, ff-only fetch/merge, unique DBs, preservation DB, exact paths, full-suite deps | `TERM1_WINDOWS_VERIFICATION_RUNBOOK.md` | Owner Windows execution (NOT_RUN) |
-| R-08 | Exact candidate B, A/B proposals, deterministic trust/rights, no clinical claim | Full candidate B design, exact A/B ratification text, rebuild/digest/trust requirements, non-authorizations | `TERM1_AI_READINESS_MATRIX.md` | Owner decisions A/B; C2 independent review |
+| R-08 | Exact candidate B, A/B proposals, deterministic trust/rights, no clinical claim | Full candidate B design, A/B ratification text, rebuild/digest/trust requirements, non-authorizations | `TERM1_AI_READINESS_MATRIX.md` §2/§3 | Owner gates A1/A2/A3/B; C2 independent review |
+
+## 4.1 Final reviewer corrections (C0-F01…F10)
+
+| ID | Resolution | Exact document reference | Verification still required |
+|---|---|---|---|
+| C0-F01 | Canonical `email_norm` UNIQUE, normalization, synthetic UUID ids, non-enumerating errors, status transitions, mandatory temp-password restriction, frozen password rules | Architecture §3.1/§3.2/§5.1/§5.2; API §2.1/§3; plan P-21…P-23 | Owner confirms P-21…P-23; C1 tests |
+| C0-F02 | Blind canonical subject id UNIQUE across key versions; single stable `demo-v1`; key replacement refused on populated DB; link compares canonical id | Architecture §3.4/§3.5/§5; API E1/E2; plan P-10/P-11 | C1 duplicate-across-keys and refusal tests |
+| C0-F03 | Actor/operation/target replay identity; keyed secret fingerprints; rate-limit buckets; unknown-invitation audit; redacted replay vs secret_not_redisclosable; login/refresh no Idempotency-Key | Architecture §6.1; API §3; plan P-17/P-24 | C1 replay/rate-limit/audit tests |
+| C0-F04 | Referenced-before-dependent migrations; C1 infra in C1; health profile C2; consistent field names; cross-entity constraints; multi-doctor consent | Architecture §9; plan P-25 | C1/C2 migration evidence |
+| C0-F05 | Lease + current-generation CAS; one active attempt; assignment/consent at publication; authoritative review state; notification states; exact follow-up eligibility | Architecture §7.3/§7.4 | C2/C3 concurrency tests |
+| C0-F06 | GET/PATCH separated allowlist; headers/errors/replay frozen; C1 field contract; server-assigned provenance; legacy schemas unchanged | API §2/§2.1/§3; architecture §8 | C1 contract allowlist test |
+| C0-F07 | Four AI gates A1/A2/A3/B, all PENDING | AI matrix §3; decision register A1/A2/A3; plan P-26 | Owner tokens and independent verification |
+| C0-F08 | Stage-PR policy, PR #143 evidence, reconstructed/original SHA distinction | Plan §1.2/§2/§5.1; blockers B-06 | Final review and owner acceptance |
+| C0-F09 | Complete PS5.1 candidate-before-merge block | `TERM1_WINDOWS_VERIFICATION_RUNBOOK.md` | Owner Windows transcript |
+| C0-F10 | Four exact-head workflow_dispatch runs after correction push | `TERM1_TEST_EVIDENCE.md` §5; completion report | Run verification; no ALL_GREEN claim |
 
 ## 5. Stage readiness
 
 | Stage | Readiness | Reason |
 |---|---|---|
-| C0 | DESIGN_PENDING_ACCEPTANCE | Docs complete; independent review and owner confirmation of proposed defaults pending |
+| C0 | CORRECTED_PENDING_FINAL_REVIEW_AND_OWNER_WINDOWS_VERIFICATION | Corrections committed to PR #143; final review, exact-head CI, Windows transcript and owner confirmations pending |
 | C1 | NOT_STARTED | C0 acceptance required; contract change-set and technical defaults pending |
 | C2 | NOT_STARTED | C1 acceptance, Decision A or documented safe-scope decision, artifact/dependency decision required |
 | C3 | NOT_STARTED | C2 acceptance or explicit owner scope revision required |

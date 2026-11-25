@@ -1,7 +1,7 @@
 # CardioAssist-AI Term 1 — Stage Execution Plan (C0 design package)
 
-**Document status:** PROPOSED DESIGN PACKAGE — awaiting independent review and explicit owner acceptance.
-**Date:** 2026-11-25 (UTC).
+**Document status:** CORRECTED C0 DESIGN PACKAGE — awaiting final independent review, owner Windows verification and explicit owner acceptance.
+**Date:** 2026-11-25 (UTC); focused C0-F01…F10 corrections dated 2026-11-25.
 **Target branch:** `delivery/term1-prototype` (existing Draft PR #142).
 **Verified starting HEAD:** `bca75b4646dbde26e495201938b7ae01ea7e0d21`.
 **Verified main baseline:** `c6a6bdee46a552a2b0d705a723c862ff8a95be4d`.
@@ -23,19 +23,26 @@ If a future reviewer requires a posted PR authorization record, the exact owner 
 
 Arena must not post this on the owner's behalf.
 
-### 1.2 Session branch constraint (must be disclosed)
+### 1.2 Stage publication policy, evidence and commit reconstruction
 
-This Arena session is fixed to branch `arena/bdbd8a6e-cardioassist-ai` and its local HEAD is the main baseline `c6a6bde…`; the platform does not permit switching to or pushing to `delivery/term1-prototype`. The remote prototype ref was independently verified as still `bca75b4…`, four docs-only commits ahead of main, before any change was made.
+The owner revised the publication strategy on 2026-11-25: Arena uses its assigned session branch and publishes a stage-specific Draft PR targeting `delivery/term1-prototype`. This supersedes the earlier cherry-pick transfer plan in this section, which is retained below only as history.
 
-Consequently, C0 documentation is committed on the **session branch only**. It is intentionally additive under `docs/term1/` and does not modify any existing tracked file, so it can be transferred by a fast-forward-free cherry-pick to the prototype branch by an actor authorized to do so:
+Verified publication evidence (`HOSTED_CI_VERIFIED` for GitHub API state, 2026-11-25 18:54Z):
 
-```bash
-# On an authorized clone of delivery/term1-prototype, after clean verification:
-git cherry-pick <C0_COMMIT_SHA>
-git push origin delivery/term1-prototype
-```
+- Stage PR: https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/143 — OPEN, DRAFT, unmerged; title `docs(term1): C0 architecture, contracts and execution plan`.
+- Base: `delivery/term1-prototype` at `bca75b4646dbde26e495201938b7ae01ea7e0d21`; head: `arena/bdbd8a6e-cardioassist-ai` at `a32aca29f68e5330344b7cc79e9956acdf446a2a`.
+- GitHub compare: six commits ahead, zero behind; `mergeable=true`, `mergeable_state=clean`; 11 added files, +2146/−0. PR #142 stays OPEN/DRAFT/unmerged at `bca75b4…` targeting main.
+- The exact prototype HEAD was merged into the session branch without rewrite; the four historical prototype documents are byte-identical in the PR head.
 
-No force-push, merge, new branch, or new PR is performed. This constraint is a publication-target deviation from the owner's instruction and is reported explicitly in §9 and the completion report.
+**Reconstructed versus original commits (must not be conflated):** the five original C0 commit objects `94465c7c…`, `0475193d…`, `45ad6923…`, `4a60f7f1…`, `4f097401…` became unrecoverable in this sandbox after workspace reset; GitHub returned 422 for `4f097401…`. They are **not** the commits published on PR #143. The five reconstructed commits, made from the preserved final document content with the same messages/grouping, are `6037ec7d…`, `4c4584b0…`, `c823b032…`, `ee9804f3…`, `51a8cfea…`; the sixth PR commit is a non-rewriting merge `a32aca29…` of the exact prototype base. Full SHAs are in `TERM1_STAGE_PROGRESS.md` §1.
+
+No owner approval, self-review, merge or stage acceptance is implied by publication.
+
+<details><summary>Superseded historical transfer note (do not execute)</summary>
+
+Earlier text proposed a fast-forward-free cherry-pick of session commits onto an authorized clone of `delivery/term1-prototype`. That plan is obsolete because the original commit objects are unrecoverable and PR #143 now carries the reviewed stage content.
+
+</details>
 
 ## 2. Dated supersession of the one-sprint policy
 
@@ -46,11 +53,13 @@ The following old policy is historical and superseded for all subsequent Term 1 
 
 **Supersession record (2026-11-25, owner-approved):** one complete logical engineering stage → one comprehensive stage master prompt → organized implementation commits → independent engineering review → native Windows testing → remediation and retesting → GitHub evidence → explicit owner acceptance → next stage. The historical documents are preserved verbatim; this record identifies the superseded policy but does not rewrite it. No stage advances automatically.
 
+**Second dated supersession (2026-11-25, owner-approved publication strategy):** one assigned Arena branch per logical stage → stage Draft PR targeting `delivery/term1-prototype` → independent review → exact-head hosted CI → owner native Windows tests → corrections/retesting → explicit owner acceptance → owner merge. Each subsequent stage starts from the latest accepted prototype revision. PR #142 remains the overall prototype delivery PR targeting main. This supersedes "no per-stage PRs by default" and the cherry-pick transfer note; it does not grant acceptance or merge authority to Arena.
+
 ## 3. Owner-approved direction versus technical proposals
 
 ### 3.1 Owner-approved direction (`OWNER_APPROVED_DIRECTION`)
 
-- Stage-based execution with one comprehensive master prompt per stage; existing prototype branch and Draft PR #142; no per-stage PRs by default; no self-approval or automatic merge.
+- Stage-based execution with one comprehensive master prompt per stage; existing prototype branch and Draft PR #142; **stage-specific Draft PRs from the assigned Arena branch to `delivery/term1-prototype` are the approved publication path**; no self-approval or automatic merge.
 - Preserve the complete workflow: admin provisions doctor → doctor attests prior visit → doctor issues identity-bound Access Code → patient registers → patient becomes associated with doctor → patient completes synthetic health profile → patient initiates assessment → authorized trained AI produces result and explanation → doctor reviews → doctor authors educational follow-up and demo prescription → patient receives notification → persistent history.
 - Provisional research result before clinician review remains part of the intended UX **only after separate authorization**; until then patient projection is status-only. No mandatory clinician confirmation before every assessment.
 - Architectural direction: one patient account per identity; database support for multiple independently authorized doctor-patient assignments; clinician-attested visit before invitation; synthetic-only identifiers; FastAPI/SQLAlchemy/SQLite/Alembic; secure auth/sessions/RBAC; durable idempotency; dedicated workflow audit; additive contracts preserving legacy behavior; genuinely trained educational AI candidate subject to separate authorization; Flutter/React are software-team responsibilities.
@@ -64,7 +73,7 @@ All values in this subsection require owner confirmation at C0 acceptance; none 
 | Area | Proposed default | Decision ID |
 |---|---|---|
 | Password KDF | `hashlib.pbkdf2_hmac('sha256', utf8_password, 16-byte CSPRNG salt, 600000 iterations, dklen=32)`; store algorithm id, version, iterations, salt and verifier; constant-time compare; no new dependency | P-01 |
-| Password policy | 12–128 UTF-8 bytes; no composition rules; trim only surrounding whitespace; reject NUL/control characters | P-02 |
+| Password policy | 12–128 UTF-8 bytes; no composition rules; **no trimming or normalization of any kind**; leading/trailing spaces significant; reject NUL/control characters | P-02 |
 | Session token | 32-byte CSPRNG, base64url; store SHA-256 verifier + `key_id`; raw token returned once | P-03 |
 | Session lifetime | Absolute 8 h; idle 30 min; rotation on login/password change; logout revokes current session; admin can revoke all | P-04 |
 | Session transport | Bearer token in `Authorization` header; no cookie; CORS disabled unless owner config allows an explicit origin allowlist; browser uses relative `/v1` URLs | P-05 |
@@ -72,23 +81,32 @@ All values in this subsection require owner confirmation at C0 acceptance; none 
 | Invitation token | 32-byte CSPRNG (256 bits), base64url; store SHA-256 verifier with pepper; plaintext shown once | P-07 |
 | Invitation TTL | 24 h default; owner may set 1–72 h at issue; revocation immediate | P-08 |
 | Identifier format | Demo-only `^DEMO-ID-[0-9]{3,6}$`; uppercase ASCII, trim; reject 14-digit production-format values | P-09 |
-| Identifier HMAC | `HMAC-SHA256(key, "invitation-subject-match/v1" || 0x00 || normalized_identifier)`, lowercase hex; key id stored; single demo key `demo-v1` for Term 1 | P-10 |
-| Key rotation | New `key_id` for new invitations only; matching uses the invitation's recorded key id; no silent cross-key matching; rotation requires re-attestation for existing subjects | P-11 |
+| Identifier HMAC | `HMAC-SHA256(key, "invitation-subject-match/v1" || 0x00 || normalized_identifier)`, lowercase hex; `identifier_key_id` stored; single stable demo key `demo-v1`; blind `canonical_subject_id` UNIQUE across key versions | P-10 |
+| Key rotation | **Disabled for populated databases**; refusal is `409 identity_key_replacement_unsupported`; no `demo-v2` path, no cross-key matching or authenticated linking; a populated-DB migration requires a new reviewed protocol | P-11 |
 | Assignment selection | Every doctor-scoped patient operation includes `assignment_id`; patient-facing doctor selection uses one active assignment id from `GET /v1/me/assignments`; absent selection → `409 assignment_selection_required` | P-12 |
 | Multiple assignments | Multiple active assignments allowed; UNIQUE(doctor_id, patient_id) over active rows; no `patient.doctor_id` anywhere | P-13 |
 | Assignment revocation | Immediate loss of new access; historical records keep original `assignment_id`; revoked doctor cannot read them; new doctor cannot read records from other assignments | P-14 |
 | Reassessment | New assessment row only, with `reassessment_of` and reason; never mutate prior snapshot/result | P-15 |
 | Inference lease | 5 min lease; generation counter; fence token; conditional completion; recovery after expiry creates new generation | P-16 |
-| Idempotency TTL | 24 h for workflow writes; hash-only keys; redacted replay responses; no secret redistribution | P-17 |
-| Scope of demo key/pepper | Operator environment only; no `.env` in Git; rotation procedure documented, not implemented in C0 | P-18 |
+| Idempotency TTL | 24 h for workflow writes; actor/operation/target-bound replay identity; keyed secret fingerprints; redacted replay vs `409 secret_not_redisclosable`; no secret redistribution | P-17 |
+| Scope of demo key/pepper | Operator environment only; no `.env` in Git; stable `demo-v1`; key replacement refused on populated DB | P-18 |
+| Canonical OpenAPI | Deterministic composition into one served spec; legacy file unchanged | P-19 |
+| Error semantics | Wrong owner 404, wrong role 403, generic 401 for auth/invite failures | P-20 |
+| Canonical login email | `email_norm` NOT NULL UNIQUE; trim ASCII whitespace, NFKC, reject non-ASCII, lowercase, max 254 bytes; synthetic UUID account ids | P-21 |
+| Account status | ACTIVE↔SUSPENDED, ACTIVE/SUSPENDED→DISABLED terminal; all sessions revoked on change; no hard delete | P-22 |
+| Temp password | Doctor first login may only use GET /auth/me, POST /me/password, POST /auth/logout until changed | P-23 |
+| Rate limits | Durable per-account + per-source + per-invitation buckets; composite email+IP alone insufficient | P-24 |
+| Migration placement | C1 creates identity/auth, visit/invitation, assignment/consent, redemption, durable idempotency and workflow audit; health profile/assessment in C2; reviews/notifications in C3 | P-25 |
+| AI gates | A1 development, A2 independent verification, A3 owner activation, B display are separate and all PENDING | P-26 |
+| Stage publication | One Arena branch + stage Draft PR to prototype; exact-head dispatch of four CI workflows; owner Windows evidence before acceptance | P-27 |
 
 ## 4. Stage plan and gates
 
 | Stage | Complete scope | Dependencies | Required approvals | Acceptance evidence | Blocking conditions |
 |---|---|---|---|---|---|
-| **C0** (this package) | Final architecture, threat model, ERD/data dictionary, canonical contract design, API matrix, AI readiness/candidate B, state machines, decision register, test strategy, stage plan, Windows baseline runbook, R-01…R-08 resolutions | Verified remote checkpoint; governing docs; preflight + reviewer verdict | Independent review + owner acceptance before C1 | Exact head, docs diff, CI baseline, owner Windows baseline output, decision confirmations | Unresolved owner decision that changes architecture; publication-target deviation not acknowledged |
-| **C1** | Accounts/admin bootstrap, sessions, RBAC/object-level via assignments, verified visits with identity binding, invitation issue/revoke/atomic redeem, existing-account linking, assignment lifecycle/consent, durable idempotency, workflow audit, migration, contracts and security/concurrency tests | C0 accepted; contract change-set approved; P-01…P-14 confirmed | Owner acceptance + Windows evidence | Exact-head CI for backend/contracts; migration evidence; negative/replay/concurrency summaries; Windows output | Any raw identifier/code/token leak, RBAC/IDOR defect, non-atomic redemption, destructive migration, legacy regression |
-| **C2** | Health profile/consent, source validation, immutable snapshot, inference attempt/result/generation/fencing, recovery, role projection, authorized trained adapter if Decision A; fail-closed otherwise | C1 accepted; Decision A for inference; synthetic-demo provenance approved; artifact/dependency decision | Decision A (or documented C2-safe scope), Decision B only for display; owner acceptance | Same-model explanation evidence, tamper/failure tests, state/restart tests, Windows output | No A and no documented revised scope; mock substitution; patient score leak; private bundle in Arena/CI |
+| **C0** (this package) | Final architecture, threat model, ERD/data dictionary, canonical contract design, API matrix, AI readiness/candidate B with four gates, state machines, decision register, test strategy, stage plan, Windows candidate runbook, R-01…R-08 and C0-F01…F10 resolutions | Verified remote checkpoint; governing docs; preflight + reviewer verdict | Final independent review + owner Windows verification + owner acceptance before C1 | Exact PR #143 head, docs diff, exact-head dispatch results, owner Windows output, decision confirmations | Unresolved owner decision that changes architecture; missing exact-head CI or Windows evidence |
+| **C1** | Accounts/admin bootstrap with `email_norm`, sessions, RBAC/object-level via assignments, verified visits with stable identity key, invitation issue/revoke/atomic redeem, existing-account linking, assignment lifecycle/consent, durable idempotency, workflow audit, C1 migrations in correct order, contracts and security/concurrency tests | C0 accepted; contract change-set approved; P-01…P-27 confirmed | Owner acceptance + Windows evidence | Exact-head CI for backend/contracts; migration evidence; negative/replay/concurrency/rate-limit summaries; Windows output | Any raw identifier/code/token leak, RBAC/IDOR defect, non-atomic redemption, destructive migration, legacy regression |
+| **C2** | Health profile/consent, source validation, immutable snapshot, inference attempt/result/generation/fencing, recovery, role projection, authorized trained adapter after A1+A2+A3; fail-closed otherwise | C1 accepted; A1/A2/A3 for inference; synthetic-demo provenance approved; artifact/dependency decision | A3 (or documented C2-safe scope), B only for display; owner acceptance | Same-model explanation evidence, tamper/failure tests, state/restart tests, Windows output | No A and no documented revised scope; mock substitution; patient score leak; private bundle in Arena/CI |
 | **C3** | Assigned doctor list/queue, append-only review decisions, clinician-authored notes/demo prescriptions, atomic messages/notifications, read status, authorized history | C2 accepted or explicit owner scope revision | Owner acceptance + Windows evidence | Cross-role negative tests, restart, atomicity, exact-head CI, Windows output | Object-level access defect, AI-authored prescription, partial follow-up writes |
 | **C4** | Full synthetic E2E, security/regression/migration/restart suites, exact-head hosted CI, Windows verification, setup instructions, integration matrix, handoff/blocker ledgers | C1–C3 accepted; exact SHA freeze; A/B decisions recorded | Final owner review; separate approval for new repo/merge | Complete evidence ledger; honest BLOCKED/DEFERRED list; Windows output | ALL_GREEN claim while research suite red; missing owner evidence; unapproved repository creation |
 
@@ -96,7 +114,7 @@ All values in this subsection require owner confirmation at C0 acceptance; none 
 
 ## 5. Reviewer correction resolution summary (R-01…R-08)
 
-Full detail is in `TERM1_STAGE_PROGRESS.md` §4 and the architecture document. Summary:
+Full detail is in `TERM1_STAGE_PROGRESS.md` §4/§6 and the architecture document. Summary:
 
 | ID | Resolution in C0 package |
 |---|---|
@@ -108,6 +126,21 @@ Full detail is in `TERM1_STAGE_PROGRESS.md` §4 and the architecture document. S
 | R-06 | One canonical served OpenAPI composition; complete method/path allowlist; original legacy file and behavior tests preserved; headers modeled as headers. |
 | R-07 | PS5.1 explicit exit-code checks; safe reuse of verified clone; fast-forward-only updates; unique disposable DBs; exact pytest paths; full-suite research dependencies; no cleanup/reset/invented endpoints. |
 | R-08 | Exact candidate B design, authorization proposals A/B, deterministic rebuild/trust/digest/rights requirements, no clinical claim, no private bundle execution or score display before approval. |
+
+### 5.1 Final reviewer corrections C0-F01…F10
+
+| ID | Where resolved |
+|---|---|
+| C0-F01 | Architecture §3.1/§3.2/§5; API matrix §2.1/§3; decision register P-21…P-23 |
+| C0-F02 | Architecture §3.4/§3.5/§5; API E1/E2; decision register P-10/P-11 |
+| C0-F03 | Architecture §6.1; API §3; decision register P-17/P-24 |
+| C0-F04 | Architecture §9; decision register P-25 |
+| C0-F05 | Architecture §7.3/§7.4 |
+| C0-F06 | API matrix §2/§2.1/§3; architecture §8 |
+| C0-F07 | AI readiness §3; decision register A/A1/A2/A3; P-26 |
+| C0-F08 | This document §1.2/§2; `TERM1_STAGE_PROGRESS.md` §1/§6; blocker B-06; P-27 |
+| C0-F09 | `TERM1_WINDOWS_VERIFICATION_RUNBOOK.md` complete C0 candidate block |
+| C0-F10 | `TERM1_TEST_EVIDENCE.md` §5; completion report carries exact run URLs |
 
 ## 6. CI baseline (`HOSTED_CI_VERIFIED`)
 
@@ -122,10 +155,12 @@ Refreshed at C0 start; no newer run for prototype HEAD:
 
 The 3.11 failure predates prototype implementation (Issue #132, still OPEN). It is not an automatic blocker to independent safe C1 engineering, but it remains in the blocker register and no `ALL_GREEN` claim may be made. No Golden fixture, tolerance, research test, workflow, PR #141, or Issue #132 change is authorized.
 
+**Stage-PR CI note:** the four existing validation workflows trigger on `pull_request` to main only; PR #143 targeting the prototype branch initially reports zero checks. As required by C0-F10, the four existing workflows with `workflow_dispatch` were dispatched on the published session branch after the corrections commit; exact run head SHA, conclusions and available counts are recorded in `TERM1_TEST_EVIDENCE.md` §5 and the completion report. Zero checks alone is not success.
+
 ## 7. Status declarations
 
 ```
-C0_STATUS=DESIGN_PENDING_INDEPENDENT_REVIEW_AND_OWNER_ACCEPTANCE
+C0_STATUS=CORRECTED_PENDING_FINAL_REVIEW_AND_OWNER_WINDOWS_VERIFICATION
 C1_STATUS=NOT_STARTED
 C2_STATUS=NOT_STARTED
 C3_STATUS=NOT_STARTED
@@ -137,13 +172,13 @@ WINDOWS_VERIFICATION_STATUS=NOT_RUN
 
 ## 8. Required owner confirmations at C0 acceptance
 
-1. Confirm or amend every `PROPOSED_C0_DEFAULT` in §3.2 and the detailed register.
-2. Confirm the publication-target deviation in §1.2 and decide how the C0 commit reaches `delivery/term1-prototype`.
-3. Confirm that multiple active assignments with `assignment_id` selection is the final ownership model.
-4. Confirm invitation/identifier policies and the single demo key with documented rotation.
-5. Confirm the canonical OpenAPI composition and complete allowlist approach.
-6. Record Decisions A and B as still PENDING; approve exact ratification text when ready.
-7. Acknowledge the inherited research CI failure and 2026-12-03 risk.
+1. Confirm or amend every `PROPOSED_C0_DEFAULT` in §3.2 (P-01…P-27), especially P-02, P-11, P-17, P-21…P-27.
+2. Confirm PR #143 publication, the reconstructed-commit disclosure and the stage-PR policy in §1.2/§2; owner merge only after acceptance.
+3. Confirm multiple active assignments with `assignment_id` selection and multi-doctor consent/revocation behavior.
+4. Confirm canonical email normalization, frozen password handling, single stable identity key with replacement refusal, and actor/operation/target-bound replay identity.
+5. Confirm the canonical OpenAPI composition and complete GET/PATCH-separated allowlist.
+6. Keep AI gates A1/A2/A3 and B PENDING; ratify tokens only with the required evidence.
+7. Acknowledge the inherited research CI failure, exact-head dispatch results, missing Windows evidence and 2026-12-03 risk.
 
 ## 9. Completion report cross-reference
 

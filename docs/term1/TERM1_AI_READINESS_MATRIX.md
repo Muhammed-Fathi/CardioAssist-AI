@@ -3,6 +3,8 @@
 **Status:** `PENDING_AUTHORIZATION` for all new inference; no training, artifact loading, model execution, or patient score display occurred in C0.
 **Governing constraints:** RD-01…RD-10, D-038/D-039/D-049, Gate PT P-1 PENDING / P-3 CLOSED, AGENTS.md M1c provider boundary, `ai/README.md` trust model.
 
+**C0-F07 correction notice (2026-11-25):** §3 now separates development, independent artifact verification, owner activation and patient display into distinct gates. No gate is granted in C0. No private Cleveland bundle, real-data training, cross-platform byte-identity assumption, model execution or patient score display is authorized.
+
 ## 1. Candidate inventory and readiness
 
 Rows below are candidates, not deployments. `SOURCE_VERIFIED` facts are from the exact prototype checkpoint; proposed values are labelled.
@@ -49,7 +51,7 @@ Rows below are candidates, not deployments. `SOURCE_VERIFIED` facts are from the
 | Optional / abstention | `trestbps` and `restecg` optional; absent → `ABSTAIN` with reason, no imputation; source not admissible → `UNAVAILABLE` or `ERROR`, never a score |
 | Input provenance | Server-assigned `synthetic_demo_patient_entry` with `term1.synthetic_demo_intake/v1`, acknowledgement id, actor id, panel/schema digest; client cannot set protected source fields |
 | Artifact identity | Deterministic rebuild produces manifest with panel hash, training seed/count, package versions, code revision and SHA-256 digest; digest pinned in new registry after Decision A |
-| Deterministic rebuild | Same pinned numpy/scipy/scikit-learn/joblib versions, same seed, same fold protocol, same calibration; CI rebuild must match digest; if digest differs, fail closed |
+| Deterministic rebuild | Same pinned numpy/scipy/scikit-learn/joblib versions, same seed, same row count, same fold protocol, same calibration, same code revision; rebuild must match digest on the declared platform; cross-platform byte identity is **not assumed** — a differing digest is a blocked verification result requiring an explicit owner decision on a curated bundle, not a green result |
 | Dependency requirements | Add pinned numerical deps to backend requirements only under Decision A; current `backend/requirements.txt` has none of them; separate approval and `pip check` evidence required |
 | Trust / distribution | Prefer source+seed+digest rebuild, not committed bundle; `.gitignore` excludes `*.pkl`/`*.joblib`; any bundle handed off must be curated with redistribution rights and no private key |
 | Score interpretation | `CALIBRATED_RESEARCH_SCORE_SYNTHETIC` in `calibrated_log_odds` (or explicitly raw log-odds if calibration unavailable); label `RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK` |
@@ -59,25 +61,32 @@ Rows below are candidates, not deployments. `SOURCE_VERIFIED` facts are from the
 | Runtime admission | Construction only through a new reviewed registry/adapter with Decision A binding; otherwise endpoint returns `INFERENCE_UNAVAILABLE` before any artifact access |
 | Failure behavior | `ABSTAIN`, `UNAVAILABLE`, `ERROR` are terminal for the attempt with no score; no `PENDING_REVIEW`; no stale current result |
 
-## 3. Authorization proposals — both PENDING
+## 3. Authorization gates — all PENDING (C0-F07)
 
-### 3.1 Decision A — educational local-demo inference adapter
+Decision A is not a single event. It is resolved only when gates A1, A2 and A3 are separately satisfied; Decision B is independent. No gate is granted by this document.
 
-Exact proposed text for owner ratification (not yet ratified):
+| Gate | Scope and required evidence | Owner act | Current state |
+|---|---|---|---|
+| **A1 — develop and generate candidate B** | Permission to write and test the synthetic-only candidate in an offline/test context and generate its artifact from a pinned generator function: exact code revision, function path, seed, row count, five-field DA-A2 panel digest, training/calibration protocol and dependency versions recorded; no real data/private bundle, no serving, no patient exposure | Owner ratifies development token below | `PENDING_AUTHORIZATION` |
+| **A2 — independent verification** | Independent reviewer verifies the exact implementation diff, generator source hash, seed, row count, training protocol, panel digest, package pins, artifact SHA-256, deterministic rebuild on the declared platform, frozen synthetic oracle, tamper/wrong-digest refusal, no fallback to M1, and explanation quality (genuine same-model exact SHAP; LIME only on the same scale with acceptable verdict; alternatives require explicit owner acceptance) | Reviewer posts verdict; no serving implied | `PENDING_AUTHORIZATION` |
+| **A3 — controlled activation** | Owner authorizes the reviewed local-demo adapter via a reviewed registry binding to the exact operation, model id/version, artifact digest, source kind and code revision; no env var/header selector; fail-closed `ABSTAIN/UNAVAILABLE/ERROR`; only after A1+A2 evidence | Owner ratifies activation token below | `PENDING_AUTHORIZATION` |
+| **B — patient-facing provisional score** | Separate display authorization with reviewed wording/redaction, status-only until granted | Owner ratifies B token | `PENDING_AUTHORIZATION` |
 
-> `AUTHORIZE-TERM1-CANDIDATE-B-LOCAL-DEMO-INFERENCE` — I authorize exactly one educational, synthetic-only local-demo inference operation `term1_synthetic_demo_inference_v1`, using model `synth_term1_demo_da_a2_v1` v0.1.0 generated by the pinned deterministic synthetic cohort procedure on panel `da_a2_resting_v1`, with ordered fields `age, sex, cp, trestbps, restecg`, server-assigned provenance `synthetic_demo_patient_entry`, genuine same-model explanation, and fail-closed `ABSTAIN/UNAVAILABLE/ERROR` behavior. This authorization does not permit HTTP serving of the real Cleveland D-047 bundle, real-data fitting/retraining, clinical use, patient score display, use of private artifacts in Arena/CI, or any change to RD-09/Gate PT. It becomes effective only after independent review of the exact implementation, artifact digest, dependency pins and registry binding.
+### 3.1 Exact proposed owner tokens (not yet ratified)
 
-Ratification path: owner posts exact token on a reviewed governance/implementation PR, human merge creates the reviewable revision, registry-only activation follows the project's established pattern, and runtime checks bind the exact operation/artifact/source/revision. No environment variable or header may substitute for this.
+> `AUTHORIZE-TERM1-CANDIDATE-B-DEVELOPMENT-ONLY` — I authorize development and offline synthetic-only testing of operation `term1_synthetic_demo_inference_v1`, model `synth_term1_demo_da_a2_v1` v0.1.0, using a pinned deterministic synthetic generator and the `da_a2_resting_v1` five-field panel. This token alone does not authorize serving, model execution in Arena, artifact distribution, patient exposure, real-data fitting, or use of any private bundle.
 
-### 3.2 Decision B — provisional research-score display to synthetic patient
+> `VERIFY-TERM1-CANDIDATE-B-GATE-A2` — I confirm that the independent reviewer has verified the exact implementation, generator, seed, row count, training protocol, panel digest, pinned dependencies, artifact SHA-256, deterministic rebuild evidence, same-model explanation quality and tamper/refusal tests. This confirmation is verification only and does not activate serving or patient display.
 
-Exact proposed text for owner ratification (not yet ratified):
+> `AUTHORIZE-TERM1-CANDIDATE-B-LOCAL-DEMO-ACTIVATION` — I authorize controlled local-demo activation of exactly `term1_synthetic_demo_inference_v1` / `synth_term1_demo_da_a2_v1` v0.1.0 bound to the reviewed artifact digest, registry entry and server-assigned provenance `synthetic_demo_patient_entry`, with fail-closed `ABSTAIN/UNAVAILABLE/ERROR`. This does not permit HTTP serving of the real Cleveland D-047 bundle, real-data fitting/retraining, clinical use, patient score display, use of private artifacts in Arena/CI, or any change to RD-09/Gate PT.
 
-> `AUTHORIZE-TERM1-SYNTHETIC-PATIENT-SCORE-DISPLAY` — I authorize a synthetic patient actor to see a provisional research-model result before clinician review, limited to the score kind and wording reviewed under Decision A, labelled as a synthetic educational research output that is not a diagnosis, not an individual CAD probability, not a future-event risk, and not treatment advice. Explanations must be from the same model and labelled research-only. No risk band, triage level, prescription, or clinical recommendation may be displayed.
+> `AUTHORIZE-TERM1-SYNTHETIC-PATIENT-SCORE-DISPLAY` — I authorize a synthetic patient actor to see a provisional research-model result before clinician review, limited to the score kind and wording reviewed under A3, labelled as a synthetic educational research output that is not a diagnosis, not an individual CAD probability, not a future-event risk, and not treatment advice. Explanations must be from the same model and labelled research-only. No risk band, triage level, prescription, or clinical recommendation may be displayed.
+
+### 3.2 Display wording and status
 
 Required wording (proposed): "Educational synthetic research result — not a diagnosis or personal risk estimate. This output comes from a model trained only on fabricated demo data and has not been validated for any real person. Your clinician will review it."
 
-Until B is ratified, every patient-facing route exposes status only; even after B, doctor and patient projections are separately tested for redaction.
+Until B is ratified, every patient-facing route exposes status only; even after B, doctor and patient projections are separately tested for redaction. A1/A2/A3/B remain `PENDING_AUTHORIZATION`; no model is trained, loaded or executed in C0.
 
 ## 4. Non-authorizations and research boundaries
 
