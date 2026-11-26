@@ -7,7 +7,14 @@
     "contract_version",
     "invitation_id",
     "access_code",
-    "expires_at"
+    "expires_at",
+    "visit_id",
+    "status",
+    "issued_at",
+    "consumed_at",
+    "revoked_at",
+    "attempt_count",
+    "max_attempts"
   ],
   "additionalProperties": false,
   "properties": {
@@ -28,6 +35,32 @@
     "expires_at": {
       "type": "string",
       "format": "date-time"
+    },
+    "visit_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "status": {
+      "const": "ACTIVE"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "attempt_count": {
+      "const": 0
+    },
+    "max_attempts": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "consumed_at": {
+      "type": "null"
+    },
+    "revoked_at": {
+      "type": "null"
     }
   }
 }
