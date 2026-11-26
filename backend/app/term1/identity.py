@@ -34,6 +34,7 @@ from . import constants, crypto
 from .errors import api_error
 from .models import (
     IdentityKeyCheck,
+    InvitationAttempt,
     PatientIdentity,
     PatientInvitation,
     VerifiedVisit,
@@ -41,7 +42,12 @@ from .models import (
 from .settings import Term1Settings
 from .timeutil import Clock
 
-_POPULATED_PROBE_TABLES = (PatientIdentity, VerifiedVisit, PatientInvitation)
+_POPULATED_PROBE_TABLES = (
+    PatientIdentity,
+    VerifiedVisit,
+    PatientInvitation,
+    InvitationAttempt,
+)
 
 
 @dataclass(frozen=True)
@@ -144,15 +150,19 @@ def verify_or_activate(
             continue
 
         active = [row for row in rows if row.retired_at is None]
-        matches = [row for row in active if row.key_id == settings.identity_key_id]
-        if not active:
+        # Exactly one active key-check row per purpose: zero means unbound,
+        # more than one means the binding is ambiguous. Both fail closed.
+        if len(active) != 1:
             raise api_error("identity_key_material_mismatch")
-        if not matches:
+        row = active[0]
+        if row.key_id != settings.identity_key_id:
             # Configured key id is not the active key id for this purpose.
             if activity:
                 raise api_error("identity_key_replacement_unsupported")
             raise api_error("identity_key_material_mismatch")
-        if not crypto.constant_time_equals(matches[0].key_check_hash, expected_hash):
+        if not crypto.constant_time_equals(row.key_check_hash, expected_hash):
+            # Same key id, changed material: replacement under an unchanged id
+            # is detected and refused.
             raise api_error("identity_key_material_mismatch")
 
 
@@ -160,8 +170,12 @@ def verify_or_activate(
 def verify_startup(session: Session, *, settings: Term1Settings) -> None:
     """Read-only startup verification (never activates or repairs)."""
     grouped = stored_checks(session)
+    activity = has_identity_activity(session)
     if not grouped:
-        # Brand-new or not-yet-used C1 database: nothing is bound yet.
+        # No check rows bound yet: only safe when there is no identity activity.
+        # A populated database whose key material was never bound fails closed.
+        if activity:
+            raise api_error("identity_key_material_mismatch")
         return
     expected = _expected_checks(settings)
     for purpose, expected_hash in expected.items():

@@ -122,6 +122,52 @@ def account_is_usable(account: UserAccount | None) -> bool:
     return account is not None and account.status == constants.STATUS_ACTIVE
 
 
+# Dummy, syntactically valid KDF parameters used when there is no usable
+# account (unknown email, or a non-active account). Running the full bounded
+# KDF against these parameters makes unknown, inactive and active accounts take
+# comparable verification work, so an attacker cannot distinguish them by
+# timing. The dummy verifier never matches a real password.
+_DUMMY_PASSWORD_ALG = constants.PASSWORD_ALG
+_DUMMY_PASSWORD_VERSION = constants.PASSWORD_KDF_VERSION
+_DUMMY_PASSWORD_ITERATIONS = constants.PASSWORD_KDF_ITERATIONS
+_DUMMY_PASSWORD_SALT_B64 = crypto.b64_encode(b"\x00" * constants.PASSWORD_SALT_BYTES)
+_DUMMY_PASSWORD_VERIFIER_B64 = crypto.b64_encode(b"\x00" * constants.PASSWORD_KEY_BYTES)
+
+
+def _kdf_params_for(account: UserAccount | None) -> dict[str, object]:
+    """Return bounded, validated KDF parameters for one account attempt.
+
+    Unknown or inactive accounts are verified against deterministic dummy
+    parameters so the computational path matches an active account with a wrong
+    password. Stored parameters are validated before any computation so a
+    corrupted row can never trigger unbounded work.
+    """
+    if account is not None and account_is_usable(account):
+        if (
+            account.password_alg != constants.PASSWORD_ALG
+            or account.password_version != constants.PASSWORD_KDF_VERSION
+            or not isinstance(account.password_iterations, int)
+            or account.password_iterations < 1
+            or account.password_iterations > 10_000_000
+        ):
+            # Corrupted or unsupported parameters: fail closed without hashing.
+            raise api_error("invalid_credentials")
+        return {
+            "alg": account.password_alg,
+            "version": account.password_version,
+            "iterations": account.password_iterations,
+            "salt_b64": account.password_salt_b64,
+            "verifier_b64": account.password_verifier_b64,
+        }
+    return {
+        "alg": _DUMMY_PASSWORD_ALG,
+        "version": _DUMMY_PASSWORD_VERSION,
+        "iterations": _DUMMY_PASSWORD_ITERATIONS,
+        "salt_b64": _DUMMY_PASSWORD_SALT_B64,
+        "verifier_b64": _DUMMY_PASSWORD_VERIFIER_B64,
+    }
+
+
 def login(
     session: Session,
     *,
@@ -131,26 +177,52 @@ def login(
     password: str,
     buckets: dict[str, str],
 ) -> dict[str, object]:
-    """Authenticate and open a session; every failure is generic."""
+    """Authenticate and open a session; every failure is generic.
+
+    Exactly one authoritative transaction: the lockout check, the bounded
+    password-verification work and the session issuance all commit together.
+    Unknown, inactive and active accounts perform comparable KDF work so the
+    service does not enumerate accounts by timing.
+    """
     email_norm = crypto.normalize_email(email)
     account = find_account_by_email(session, email_norm) if email_norm else None
 
-    usable = (
-        account is not None
-        and account_is_usable(account)
-        and crypto.verify_password(
-            password,
-            alg=account.password_alg,
-            version=account.password_version,
-            iterations=account.password_iterations,
-            salt_b64=account.password_salt_b64,
-            verifier_b64=account.password_verifier_b64,
-        )
+    params = _kdf_params_for(account)
+    password_ok = account is not None and account_is_usable(account) and crypto.verify_password(
+        password,
+        alg=params["alg"],
+        version=params["version"],
+        iterations=params["iterations"],
+        salt_b64=params["salt_b64"],
+        verifier_b64=params["verifier_b64"],
     )
-    if not usable:
+    if not password_ok:
         # Failure counters are written by the caller in a separate transaction
         # after this one rolls back (C1.9): evidence must survive the rollback.
         raise api_error("invalid_credentials")
+
+    assert account is not None and email_norm is not None
+    row, token = _issue_session(session, clock=clock, account=account)
+    account.last_login_at = clock.now_iso()
+    reset_login_failures(session, pepper=pepper, email_norm=email_norm)
+    record(
+        session,
+        clock=clock,
+        event_type=constants.EVENT_LOGIN_SUCCEEDED,
+        outcome=constants.OUTCOME_SUCCESS,
+        subject_type=constants.SUBJECT_SESSION,
+        subject_id=row.session_id,
+        actor_user_id=account.user_id,
+        payload={"role": account.role},
+    )
+    return {
+        "user_id": account.user_id,
+        "role": account.role,
+        "profile_id": profile_id_for(session, account),
+        "session_token": token,
+        "expires_at": row.expires_at,
+        "password_change_required": bool(account.password_change_required),
+    }
 
     assert account is not None and email_norm is not None
     row, token = _issue_session(session, clock=clock, account=account)

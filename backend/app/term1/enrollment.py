@@ -71,11 +71,21 @@ def record_failure(
     code_digest: str,
     outcome: str,
 ) -> None:
-    """Durable attempt evidence (written by the caller after rollback)."""
+    """Durable attempt evidence (written by the caller after rollback).
+
+    A consumed invitation is never re-marked as revoked: consumption is
+    permanent and the ``consumed_at IS NULL OR revoked_at IS NULL`` constraint
+    forbids the pair. Only an unconsumed, unrevoked invitation accumulates
+    attempts and is revoked only when its own limit is exhausted.
+    """
     now = clock.now_iso()
-    if invitation is not None:
+    if (
+        invitation is not None
+        and invitation.consumed_at is None
+        and invitation.revoked_at is None
+    ):
         invitation.attempt_count = min(invitation.attempt_count + 1, invitation.max_attempts)
-        if invitation.attempt_count >= invitation.max_attempts and invitation.revoked_at is None:
+        if invitation.attempt_count >= invitation.max_attempts:
             invitation.revoked_at = now
             invitation.revoked_reason = "attempts_exhausted"
     session.add(
@@ -199,6 +209,7 @@ def register_patient(
     visit = session.execute(
         select(VerifiedVisit).where(VerifiedVisit.visit_id == invitation.visit_id)
     ).scalar_one()
+    _require_usable_doctor(session, visit.doctor_id)
     assignment = _active_or_new_assignment(
         session, clock=clock, doctor_id=visit.doctor_id, patient_id=profile.patient_id
     )
@@ -286,6 +297,7 @@ def link_patient(
     visit = session.execute(
         select(VerifiedVisit).where(VerifiedVisit.visit_id == invitation.visit_id)
     ).scalar_one()
+    _require_usable_doctor(session, visit.doctor_id)
     assignment = _active_or_new_assignment(
         session, clock=clock, doctor_id=visit.doctor_id, patient_id=profile.patient_id
     )
@@ -316,6 +328,22 @@ def link_patient(
         "assigned_at": assignment.assigned_at,
         "patient_id": profile.patient_id,
     }
+
+
+def _require_usable_doctor(session: Session, doctor_id: str) -> DoctorProfile:
+    """The destination doctor must be active and usable; suspensions and
+    disabilities fail closed before any assignment or consumption is created."""
+    doctor = session.execute(
+        select(DoctorProfile).where(DoctorProfile.doctor_id == doctor_id)
+    ).scalar_one_or_none()
+    if doctor is None or not doctor.active:
+        raise api_error("forbidden")
+    account = session.execute(
+        select(UserAccount).where(UserAccount.user_id == doctor.user_id)
+    ).scalar_one_or_none()
+    if account is None or account.status != constants.STATUS_ACTIVE:
+        raise api_error("forbidden")
+    return doctor
 
 
 def _active_or_new_assignment(
@@ -355,9 +383,16 @@ def _consume_invitation(
     assignment_id: str,
     flow: str,
 ) -> None:
-    """Conditional consumption: exactly-one-winner semantics."""
+    """Conditional consumption: exactly-one-winner semantics.
+
+    Expiry is rechecked at the authoritative consumption boundary (defence in
+    depth for the concurrent exactly-one-winner race): a lapsed invitation is
+    never consumed, even if an earlier usability check passed.
+    """
     now_iso = clock.now_iso()
     if invitation.consumed_at is not None or invitation.revoked_at is not None:
+        raise api_error("invalid_invitation")
+    if from_iso(invitation.expires_at) <= clock.now():
         raise api_error("invalid_invitation")
     invitation.consumed_at = now_iso
     session.add(

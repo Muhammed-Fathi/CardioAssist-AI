@@ -141,8 +141,13 @@ def _row_for(session: Session, key: ReplayKey) -> DurableIdempotency | None:
     ).scalar_one_or_none()
 
 
-def _same_actor_key_elsewhere(session: Session, key: ReplayKey) -> bool:
-    """True when this actor already used the key for another operation/target."""
+def _same_actor_key_elsewhere(session: Session, clock: Clock, key: ReplayKey) -> bool:
+    """True when this actor already used the key for another operation/target.
+
+    Expired records do not block: once a record's TTL has passed the key may be
+    reused for a different operation or target.
+    """
+    now_iso = clock.now_iso()
     return (
         session.execute(
             select(DurableIdempotency.replay_id).where(
@@ -153,6 +158,8 @@ def _same_actor_key_elsewhere(session: Session, key: ReplayKey) -> bool:
                     DurableIdempotency.operation != key.operation,
                     DurableIdempotency.target_ref != key.target_ref,
                 ),
+                # Only live (not-yet-expired) records block reuse.
+                DurableIdempotency.expires_at > now_iso,
             ).limit(1)
         ).first()
         is not None
@@ -163,14 +170,17 @@ def precheck(session: Session, *, clock: Clock, identity: RequestIdentity) -> Re
     """Actor-scoped replay resolution; raises on conflicts."""
     key = identity.replay_key
     row = _row_for(session, key)
+    if row is not None:
+        if from_iso(row.expires_at) <= clock.now():
+            # An expired record still occupies the unique replay identity, so
+            # remove it within this transaction before a fresh execution can
+            # re-register the same identity. Treating it as absent without
+            # deleting would make remember() hit a uniqueness violation.
+            session.delete(row)
+            row = None
     if row is None:
-        if _same_actor_key_elsewhere(session, key):
+        if _same_actor_key_elsewhere(session, clock, key):
             raise api_error("idempotency_scope_conflict")
-        return ReplayDecision(identity)
-
-    if from_iso(row.expires_at) <= clock.now():
-        # An expired record is absent for replay purposes. A later execution
-        # still has to satisfy invitation/consent/uniqueness validation.
         return ReplayDecision(identity)
 
     stored_secrets = row.secret_fingerprints_json or {}
