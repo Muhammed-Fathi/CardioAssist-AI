@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import text
 
 from backend.app.term1 import constants
-from tests.c1.conftest import (
+from tests.backend.c1.conftest import (
     ADMIN_EMAIL,
     ADMIN_PASSWORD,
     TEST_BOOTSTRAP_SECRET,
@@ -232,6 +232,14 @@ def test_revoking_another_users_session_is_404(client, app):
             temp_password_policy="one_time_secret",
         )
     other_token = login(client, "demo.other@cardioassist.local", created["temp_secret"])["session_token"]
+    # A temporary-password account is limited to me/password/logout (C1-R02):
+    # rotate the temp password before session listing is permitted.
+    client.post(
+        "/v1/me/password",
+        json={"current_password": created["temp_secret"], "new_password": "doctor new password 002"},
+        headers=bearer(other_token),
+    )
+    assert client.get("/v1/auth/me", headers=bearer(other_token)).json()["password_change_required"] is False
     other_session = client.get("/v1/me/sessions", headers=bearer(other_token)).json()["sessions"][0]
     response = client.delete(
         f"/v1/me/sessions/{other_session['session_id']}", headers=bearer(admin_token)

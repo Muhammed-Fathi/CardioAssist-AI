@@ -21,7 +21,7 @@ from backend.app.term1.sessions import authenticate
 from backend.app.term1.timeutil import Clock
 from backend.app.term1.tx import write_transaction
 
-from tests.c1.factories import (
+from tests.backend.c1.factories import (
     DEMO_ID_A,
     attest_visit,
     bootstrap_admin,
@@ -153,7 +153,7 @@ def test_two_connections_cannot_open_two_active_assignments(migrated_url, clock,
         )
         visit = attest_visit(client, second_doctor, visit_ref="V-RACE-LINK")
         invitation = issue_invitation(client, second_doctor, visit["visit_id"])
-        from tests.c1.conftest import login
+        from tests.backend.c1.conftest import login
 
         patient_token = login(client, PATIENT_EMAIL, PATIENT_PASSWORD)["session_token"]
     assert first["patient_id"] and patient_token
@@ -207,7 +207,7 @@ def test_two_connections_cannot_open_two_active_assignments(migrated_url, clock,
 # --- concurrent refresh ------------------------------------------------------
 def test_concurrent_refresh_produces_exactly_one_replacement(client, app):
     bootstrap_admin(app)
-    from tests.c1.conftest import login
+    from tests.backend.c1.conftest import login
 
     token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
 
@@ -279,7 +279,7 @@ def test_suspension_during_a_write_blocks_the_effect(migrated_url, clock, test_s
 def test_suspension_revokes_sessions_and_blocks_reads(client, app):
     chain = setup_doctor_with_invitation(app, client)
     doctor = chain["doctor"]
-    from tests.c1.conftest import login
+    from tests.backend.c1.conftest import login
 
     admin = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)
     response = client.patch(

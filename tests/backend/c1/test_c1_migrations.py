@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, inspect, text
 
 from backend.app.storage.database import Database, _expected_migration_heads
 from backend.app.term1.models import Base
-from tests.c1.conftest import alembic_config, downgrade, upgrade
+from tests.backend.c1.conftest import alembic_config, downgrade, upgrade
 
 LEGACY_TABLES = {"monitoring_observation", "monitoring_metric", "audit_event"}
 C1_TABLES = {
@@ -108,7 +108,7 @@ def test_referenced_tables_are_created_before_dependents():
     """Each migration revision only references tables from earlier revisions."""
     from alembic.script import ScriptDirectory
 
-    from tests.c1.conftest import alembic_config
+    from tests.backend.c1.conftest import alembic_config
 
     script = ScriptDirectory.from_config(alembic_config("sqlite://"))
     declared: dict[str, set[str]] = {}
@@ -399,7 +399,7 @@ def test_disposable_downgrade_and_reupgrade_preserves_legacy_data(migrated_url):
 
 
 def test_alembic_check_reports_no_drift(migrated_url):
-    from tests.c1.conftest import alembic_check
+    from tests.backend.c1.conftest import alembic_check
 
     alembic_check(migrated_url)
 

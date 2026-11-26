@@ -6,8 +6,8 @@ import pytest
 from sqlalchemy import text
 
 from backend.app.term1 import constants, crypto
-from tests.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bootstrap_admin, login
-from tests.c1.factories import (
+from tests.backend.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bootstrap_admin, login
+from tests.backend.c1.factories import (
     DEMO_ID_A,
     DEMO_ID_B,
     attest_visit,
@@ -155,7 +155,7 @@ def test_duplicate_visit_reference_per_doctor_is_a_conflict(client, app):
 
 # --- invitation issuance -----------------------------------------------------
 def test_invitation_code_is_256_bit_and_disclosed_once(client, app):
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     chain = setup_doctor_with_invitation(app, client)
     code = chain["invitation"]["access_code"]
@@ -182,7 +182,7 @@ def test_invitation_code_is_256_bit_and_disclosed_once(client, app):
 
 
 def test_visit_a_cannot_produce_an_invitation_for_patient_b(client, app):
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     chain = setup_doctor_with_invitation(app, client)
     response = client.post(
@@ -207,7 +207,7 @@ def test_visit_a_cannot_produce_an_invitation_for_patient_b(client, app):
 
 
 def test_only_one_live_invitation_per_visit(client, app):
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     chain = setup_doctor_with_invitation(app, client)
     second = client.post(
@@ -223,7 +223,7 @@ def test_only_one_live_invitation_per_visit(client, app):
 
 
 def test_invitation_ttl_default_and_bounds(client, app):
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     chain = setup_doctor_with_invitation(app, client)
     doctor = chain["doctor"]
@@ -257,7 +257,7 @@ def test_invitation_ttl_default_and_bounds(client, app):
 
 
 def test_revocation_is_idempotent_and_owned_by_the_issuing_doctor(client, app):
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     chain = setup_doctor_with_invitation(app, client)
     doctor, invitation = chain["doctor"], chain["invitation"]
@@ -280,7 +280,7 @@ def test_revocation_is_idempotent_and_owned_by_the_issuing_doctor(client, app):
 
 
 def test_another_doctor_cannot_read_or_revoke_a_foreign_invitation(client, app):
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     chain = setup_doctor_with_invitation(app, client)
     intruder = provision_doctor(
@@ -306,7 +306,7 @@ def test_another_doctor_cannot_read_or_revoke_a_foreign_invitation(client, app):
 
 
 def test_patients_and_admins_cannot_use_doctor_operations(client, app):
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     chain = setup_doctor_with_invitation(app, client)
     admin_token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
@@ -325,7 +325,7 @@ def test_patients_and_admins_cannot_use_doctor_operations(client, app):
 
 
 def test_expired_invitation_cannot_be_redeemed_and_can_be_reissued(client, app, clock):
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     chain = setup_doctor_with_invitation(app, client)
     clock.advance(hours=25)
@@ -356,7 +356,7 @@ def test_expired_invitation_cannot_be_redeemed_and_can_be_reissued(client, app, 
 
 # --- identity key material (C0-F02) -----------------------------------------
 def test_key_check_rows_are_persisted_for_both_purposes(app, client):
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     setup_doctor_with_invitation(app, client)
     with app.state.database.engine.connect() as connection:
@@ -377,7 +377,7 @@ def test_key_material_replacement_under_the_same_key_id_is_detected(migrated_url
     from backend.app.term1.tx import write_transaction
 
     app = create_app(database_url=migrated_url, term1_settings=test_settings, term1_clock=clock)
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
     from fastapi.testclient import TestClient
 
     with TestClient(app) as client:
@@ -412,7 +412,7 @@ def test_key_id_change_on_a_populated_database_is_refused(migrated_url, clock, t
     from backend.app.term1.errors import ApiError
     from backend.app.term1.settings import Term1Settings
     from backend.app.term1.tx import write_transaction
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     app = create_app(database_url=migrated_url, term1_settings=test_settings, term1_clock=clock)
     with TestClient(app) as client:
@@ -439,7 +439,7 @@ def test_missing_key_checks_on_a_populated_database_fail_closed(app, client):
     from backend.app.term1 import identity
     from backend.app.term1.errors import ApiError
     from backend.app.term1.tx import write_transaction
-    from tests.c1.factories import setup_doctor_with_invitation
+    from tests.backend.c1.factories import setup_doctor_with_invitation
 
     setup_doctor_with_invitation(app, client)
     with app.state.database.engine.begin() as connection:

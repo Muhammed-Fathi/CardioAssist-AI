@@ -19,8 +19,8 @@ from backend.app.term1.errors import ApiError
 from backend.app.term1.timeutil import Clock
 from backend.app.term1.tx import write_transaction
 
-from tests.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bootstrap_admin, login
-from tests.c1.factories import (
+from tests.backend.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bootstrap_admin, login
+from tests.backend.c1.factories import (
     DEMO_ID_A,
     attest_visit,
     bootstrap_admin as ensure_admin,
@@ -386,7 +386,7 @@ def test_key_material_never_appears_in_any_table(client, app):
     chain = setup_doctor_with_invitation(app, client)
     register_patient(client, chain["invitation"]["access_code"])
     dump = _json_columns(app)
-    from tests.c1.conftest import TEST_IDENTITY_MATCH_KEY, TEST_PEPPER, TEST_SUBJECT_KEY
+    from tests.backend.c1.conftest import TEST_IDENTITY_MATCH_KEY, TEST_PEPPER, TEST_SUBJECT_KEY
 
     for material in (TEST_IDENTITY_MATCH_KEY, TEST_SUBJECT_KEY, TEST_PEPPER):
         text_value = material.decode() if isinstance(material, bytes) else material

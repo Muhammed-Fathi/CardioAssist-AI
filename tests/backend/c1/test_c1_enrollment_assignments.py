@@ -6,8 +6,8 @@ import pytest
 from sqlalchemy import text
 
 from backend.app.term1 import constants, crypto
-from tests.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bearer, login
-from tests.c1.factories import (
+from tests.backend.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bearer, login
+from tests.backend.c1.factories import (
     DEMO_ID_A,
     DEMO_ID_B,
     attest_visit,

@@ -23,7 +23,9 @@ from fastapi.testclient import TestClient
 from backend.app.main import create_app
 from backend.app.term1.settings import Term1Settings
 
-ROOT = Path(__file__).resolve().parents[2]
+# The C1 suite lives at tests/backend/c1/; the repository root (holding
+# alembic.ini) is three levels up from this conftest.
+ROOT = Path(__file__).resolve().parents[3]
 
 # Deterministic, obviously fake test key material (32+ bytes each, all distinct).
 TEST_IDENTITY_MATCH_KEY = b"c1-test-identity-match-key-0000000001"

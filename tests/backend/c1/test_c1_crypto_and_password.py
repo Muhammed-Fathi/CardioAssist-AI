@@ -7,7 +7,7 @@ import hashlib
 import pytest
 
 from backend.app.term1 import constants, crypto
-from tests.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bootstrap_admin, login
+from tests.backend.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bootstrap_admin, login
 
 
 # --- KDF parameters ----------------------------------------------------------

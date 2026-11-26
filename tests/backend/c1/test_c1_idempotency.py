@@ -8,8 +8,8 @@ import pytest
 from sqlalchemy import text
 
 from backend.app.term1 import constants, crypto
-from tests.c1.conftest import bearer, login
-from tests.c1.factories import (
+from tests.backend.c1.conftest import bearer, login
+from tests.backend.c1.factories import (
     DEMO_ID_A,
     DEMO_ID_B,
     attest_visit,
@@ -262,8 +262,8 @@ def test_invitation_replay_never_rediscloses_the_access_code(client, app):
 
 
 def test_temporary_password_replay_never_rediscloses_the_secret(client, app):
-    from tests.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bootstrap_admin
-    from tests.c1.factories import provision_doctor
+    from tests.backend.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bootstrap_admin
+    from tests.backend.c1.factories import provision_doctor
 
     bootstrap_admin(app)
     provision_doctor(app, client, email="demo.doc@cardioassist.local", display_name="Dr Doc")

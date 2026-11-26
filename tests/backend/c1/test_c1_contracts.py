@@ -31,7 +31,9 @@ import yaml
 
 from backend.app.term1 import errors, openapi
 
-ROOT = Path(__file__).resolve().parents[2]
+# The C1 suite lives at tests/backend/c1/; the repository root is three levels
+# up from this test module.
+ROOT = Path(__file__).resolve().parents[3]
 TERM1_DIR = ROOT / "shared" / "contracts" / "term1"
 
 _OP_RE = re.compile(r"`(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) (/v1/[A-Za-z0-9_{}/-]+)`")
@@ -199,14 +201,19 @@ def test_term1_schema_is_valid_draft_2020_12(path: Path):
 
 
 def test_all_referenced_schemas_exist():
-    """Every component schema key referenced by openapi.py has a file on disk."""
+    """Every component schema key referenced by openapi.py has a file on disk.
+
+    References are operation-specific (request + response schemas) plus the
+    shared common components; no generic envelope schemas are referenced.
+    """
     referenced = {
-        "term1_operation_body.schema.json",
         "term1_error.schema.json",
     }
     for _method, path in openapi.C1_OPERATIONS:
-        segment = path.strip("/").split("/")[1]
-        referenced.add(f"term1_{segment}_response.schema.json")
+        schemas = openapi.OP_SCHEMAS[(_method, path)]
+        if schemas["request"] is not None:
+            referenced.add(schemas["request"])
+        referenced.add(schemas["response"])
     on_disk = {p.name for p in _schema_files()}
     missing = referenced - on_disk
     assert not missing, f"schemas missing for: {sorted(missing)}"
