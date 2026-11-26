@@ -43,7 +43,7 @@ from ..storage.models import Base  # same metadata: one Alembic target
 
 ROLE_CHECK = "role IN ('admin','doctor','patient')"
 STATUS_CHECK = "status IN ('ACTIVE','SUSPENDED','DISABLED')"
-PURPOSE_CHECK = "purpose IN ('identity_match','subject_canonical')"
+PURPOSE_CHECK = "purpose IN ('identity_match','subject_canonical','pepper_binding')"
 FLOW_CHECK = "flow IN ('register','link')"
 ATTESTATION_CHECK = (
     "attestation_code IN ('PRIOR_IN_PERSON_VISIT_DEMO','PRIOR_TELEHEALTH_VISIT_DEMO')"

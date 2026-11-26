@@ -705,3 +705,56 @@ def test_unknown_invitation_bootstrap_lifecycle(client, app):
             text("SELECT COUNT(*) FROM user_account WHERE role='patient'")
         ).scalar_one()
     assert patients == 0
+
+
+# --- F2/F4: idempotency conflict not counted as guessing ---------------------
+
+
+def test_idempotency_conflict_is_not_counted_as_guessing(client, app):
+    """idempotency_key_conflict during enrollment must not increment the
+    guessing failure counter.
+
+    Idempotency/replay conflicts are rejected before any enrollment effect and
+    are excluded from ENROLLMENT_GUESSING_CODES_EXCLUDED (F4 fix). No
+    LoginAttempt record is created for the source bucket (F2: no double-counting
+    of rate-limited enrollment).
+    """
+    chain = setup_doctor_with_invitation(app, client)
+    access_code = chain["invitation"]["access_code"]
+    key = "idem-reg-guessing-key"
+
+    # First registration succeeds.
+    first = client.post(
+        "/v1/patients/register",
+        headers={"Idempotency-Key": key},
+        json={
+            "access_code": access_code,
+            "identifier": DEMO_ID_A,
+            "email": "demo.idem@cardioassist.local",
+            "password": "idem password 0001",
+            "consent_ack": True,
+        },
+    )
+    assert first.status_code == 201, first.text
+
+    # Same key, different secrets -> idempotency_key_conflict (409).
+    second = client.post(
+        "/v1/patients/register",
+        headers={"Idempotency-Key": key},
+        json={
+            "access_code": access_code,
+            "identifier": "DIFFERENT-ID-999",
+            "email": "demo.idem2@cardioassist.local",
+            "password": "idem password 0002",
+            "consent_ack": True,
+        },
+    )
+    assert second.status_code == 409, second.text
+    assert second.json()["error"]["code"] == "idempotency_key_conflict"
+
+    # No source-bucket login_attempt record was created by the conflict.
+    with app.state.database.engine.connect() as connection:
+        attempts = connection.execute(
+            text("SELECT COUNT(*) FROM login_attempt WHERE bucket_kind='source'")
+        ).scalar_one()
+    assert attempts == 0, attempts

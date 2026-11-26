@@ -363,7 +363,7 @@ def test_key_check_rows_are_persisted_for_both_purposes(app, client):
         rows = connection.execute(
             text("SELECT purpose, key_id, key_check_hash, alg FROM identity_key_check ORDER BY purpose")
         ).all()
-    assert [row[0] for row in rows] == ["identity_match", "subject_canonical"]
+    assert [row[0] for row in rows] == ["identity_match", "pepper_binding", "subject_canonical"]
     assert all(row[1] == "demo-v1" and row[3] == "hmac_sha256" for row in rows)
     assert all(len(row[2]) == 64 for row in rows)
 

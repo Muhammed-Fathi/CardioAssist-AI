@@ -49,6 +49,7 @@ REVISION_ORDER = [
     "20261126_03",
     "20261126_04",
     "20261126_05",
+    "20261126_06",
 ]
 
 
@@ -61,7 +62,7 @@ def _tables(url: str) -> set[str]:
 
 
 def test_migration_head_graph_is_the_documented_c1_chain(migrated_url):
-    assert _expected_migration_heads() == ("20261126_05",)
+    assert _expected_migration_heads() == ("20261126_06",)
     config = alembic_config(migrated_url)
     from alembic.script import ScriptDirectory
 
@@ -117,7 +118,7 @@ def test_referenced_tables_are_created_before_dependents():
         declared[revision.revision] = set(
             re.findall(r'op\.create_table\(\s*\n?\s*"([a-z_]+)"', source)
         )
-    order = ["20261017_01", "20261126_02", "20261126_03", "20261126_04", "20261126_05"]
+    order = ["20261017_01", "20261126_02", "20261126_03", "20261126_04", "20261126_05", "20261126_06"]
     assert list(declared) == list(reversed(order)) or set(declared) == set(order)
     seen: set[str] = set()
     for revision in order:
@@ -454,7 +455,7 @@ def test_startup_verification_is_read_only(migrated_url):
     finally:
         database.dispose()
     # No repair happened: alembic head and table inventory are unchanged.
-    assert _expected_migration_heads() == ("20261126_05",)
+    assert _expected_migration_heads() == ("20261126_06",)
     assert C1_TABLES <= _tables(migrated_url)
 
 

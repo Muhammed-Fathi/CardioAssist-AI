@@ -15,7 +15,7 @@ from typing import Callable
 from sqlalchemy import text
 
 from backend.app.storage.database import Database
-from backend.app.term1 import constants, enrollment, idempotency, visits
+from backend.app.term1 import constants, crypto, enrollment, idempotency, visits
 from backend.app.term1.errors import ApiError
 from backend.app.term1.sessions import authenticate
 from backend.app.term1.timeutil import Clock
@@ -435,3 +435,6 @@ def test_concurrent_same_key_requests_never_execute_twice(migrated_url, clock, t
         )
         == 1
     )
+
+
+

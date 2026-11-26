@@ -202,13 +202,23 @@ def login(
     account = find_account_by_email(session, email_norm) if email_norm else None
 
     params = _kdf_params_for(account)
-    password_ok = account is not None and account_is_usable(account) and crypto.verify_password(
+    # Always perform bounded password-verification work so that unknown,
+    # inactive and active accounts take comparable time. The verify_password
+    # call is NOT short-circuited: dummy params are used for unknown/inactive
+    # accounts, so the computational path is identical regardless of account
+    # existence or usability (F2: constant-time password-verification work).
+    password_verified = crypto.verify_password(
         password,
         alg=params["alg"],
         version=params["version"],
         iterations=params["iterations"],
         salt_b64=params["salt_b64"],
         verifier_b64=params["verifier_b64"],
+    )
+    password_ok = (
+        account is not None
+        and account_is_usable(account)
+        and password_verified
     )
     if not password_ok:
         # Record the failure durably within this same BEGIN IMMEDIATE

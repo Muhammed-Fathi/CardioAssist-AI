@@ -71,6 +71,9 @@ TEMP_PASSWORD_ALLOWED = frozenset(
 # invitation lifecycle.
 ENROLLMENT_GUESSING_CODES_EXCLUDED = frozenset(
     {
+        # Idempotency/replay outcomes are not credential guesses.
+        # C1-R04 registration: idempotency_key_conflict was being counted
+        # toward the guessing rate limit; it must be excluded.
         "idempotency_key_required",
         "idempotency_key_conflict",
         "idempotency_scope_conflict",
@@ -379,17 +382,10 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                 # together under BEGIN IMMEDIATE (tx.write_transaction).
                 with write_transaction(handler.database) as session:
                     if sessions.is_locked(session, buckets, clock=handler.clock):
-                        # Record the rate-limited attempt and commit it so
-                        # concurrent lockout checks see the updated counter
-                        # immediately (C1-R05 concurrent failed-login limit
-                        # proof).
-                        sessions.record_login_failure(
-                            session,
-                            clock=handler.clock,
-                            buckets=buckets,
-                            outcome="rate_limited",
-                        )
-                        session.commit()
+                        # Already locked: do not record another failure. The
+                        # existing failure evidence is already durable and
+                        # recording more attempts would indefinitely extend
+                        # the lockout window by refreshing failure timestamps.
                         raise sessions.rate_limited_error()
                     return sessions.login(
                         session,
@@ -789,14 +785,10 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
 
         def run(session, actor):
             # Source lockout check inside the write transaction (C1-R04).
+            # Do not record another failure when already locked: the failure
+            # hook records durable evidence after rollback, and recording
+            # here would double-count the rate-limited attempt.
             if sessions.is_locked(session, enrollment_buckets, clock=handler.clock):
-                sessions.record_login_failure(
-                    session,
-                    clock=handler.clock,
-                    buckets=enrollment_buckets,
-                    outcome="rate_limited",
-                )
-                session.commit()
                 raise sessions.rate_limited_error()
             result = enrollment.register_patient(
                 session,
@@ -872,14 +864,9 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
 
         def run(session, actor):
             # Source lockout check inside the write transaction (C1-R04).
+            # Do not record another failure when already locked: the failure
+            # hook records durable evidence after rollback.
             if sessions.is_locked(session, enrollment_buckets, clock=handler.clock):
-                sessions.record_login_failure(
-                    session,
-                    clock=handler.clock,
-                    buckets=enrollment_buckets,
-                    outcome="rate_limited",
-                )
-                session.commit()
                 raise sessions.rate_limited_error()
             handler.require_role(actor, constants.ROLE_PATIENT)
             result = enrollment.link_patient(
@@ -1075,6 +1062,22 @@ def _record_enrollment_failure(
     """
     known = target_ref != "none"
     if code not in ENROLLMENT_GUESSING_CODES_EXCLUDED:
+        # When already locked (rate_limited), do not record another failure:
+        # the existing failure evidence is already durable and recording more
+        # attempts would indefinitely extend the lockout window and bring the
+        # invitation closer to revocation (F2: lockout not extended on retry).
+        if code == "rate_limited":
+            record_isolated(
+                handler.database,
+                clock=handler.clock,
+                event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
+                outcome=constants.OUTCOME_FAILED,
+                subject_type=constants.SUBJECT_INVITATION if known else constants.SUBJECT_UNKNOWN_INVITATION,
+                subject_id=target_ref if known else None,
+                code=code,
+                payload={"invitation_known": known, "already_locked": True},
+            )
+            return
         try:
             with write_transaction(handler.database) as session:
                 invitation = enrollment.find_invitation_by_code(session, access_code)
@@ -1094,7 +1097,7 @@ def _record_enrollment_failure(
                         session,
                         clock=handler.clock,
                         buckets=source_buckets,
-                        outcome="rate_limited" if code == "rate_limited" else "invalid",
+                        outcome="invalid",
                     )
         except Exception as recording_error:  # pragma: no cover - defensive
             # Report the recording problem safely without exposing the access

@@ -13,13 +13,22 @@ import re
 import uuid
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import func, select, text
 
 from backend.app.term1 import audit, constants, identity
 from backend.app.term1.errors import ApiError
-from backend.app.term1.models import IdentityKeyCheck
+from backend.app.term1.models import (
+    IdentityKeyCheck,
+    InvitationAttempt,
+    PatientInvitation,
+    UserAccount,
+    VerifiedVisit,
+)
+from backend.app.term1.settings import Term1Settings
 from backend.app.term1.timeutil import Clock
-from backend.app.term1.tx import write_transaction
+from backend.app.term1.tx import read_transaction, write_transaction
+from tests.backend.c1.conftest import bootstrap_admin, login
+from tests.backend.c1.factories import DEMO_ID_A
 
 from tests.backend.c1.conftest import ADMIN_EMAIL, ADMIN_PASSWORD, bootstrap_admin, login
 from tests.backend.c1.factories import (
@@ -327,7 +336,7 @@ def test_identity_key_check_persists_once_and_detects_a_mismatch(app, test_setti
         rows = connection.execute(
             text("SELECT purpose, key_id, key_check_hash, alg, created_at FROM identity_key_check")
         ).all()
-    assert {row[0] for row in rows} == {"identity_match", "subject_canonical"}
+    assert {row[0] for row in rows} == {"identity_match", "subject_canonical", "pepper_binding"}
     assert all(row[1] == test_settings.identity_key_id for row in rows)
     assert all(len(row[2]) == 64 for row in rows)
     assert {row[3] for row in rows} == {constants.IDENTITY_KEY_ALG}
@@ -489,9 +498,239 @@ def test_retired_key_check_row_is_ignored(app, test_settings):
             activated_at=now,
             retired_at=None,
         ))
+        # Active row for pepper_binding.
+        session.add(IdentityKeyCheck(
+            check_id=str(uuid.uuid4()),
+            purpose=constants.PEPPER_PURPOSE,
+            key_id=test_settings.identity_key_id,
+            key_check_hash=expected[constants.PEPPER_PURPOSE],
+            alg=constants.IDENTITY_KEY_ALG,
+            created_at=now,
+            activated_at=now,
+            retired_at=None,
+        ))
     # Should succeed: exactly one active row per purpose.
     with write_transaction(app.state.database) as session:
         identity.verify_or_activate(session, clock=clock, settings=test_settings, write=True)
+
+
+# --- F1: fresh-database key bootstrap and durable pepper binding ------------
+
+def test_fresh_database_unknown_invitation_before_any_identity_activity(
+    migrated_url, clock, test_settings
+):
+    """F1: Fresh migrated database with zero identity activity.
+
+    1. Fresh migrated DB: zero identity_key_check rows, zero verified_visit,
+       zero patient_invitation, zero invitation_attempt.
+    2. Establish initial binding via verify_or_activate(write=True) on the
+       empty DB — creates identity_key_check rows including pepper_binding.
+    3. Submit an unknown invitation before creating any legitimate identity
+       activity → controlled rejection (401 invalid_invitation).
+    4. Durable attempt evidence must be written (InvitationAttempt row).
+    5. Bootstrap administrator → provision doctor → change temp password →
+       attest first legitimate visit succeeds.
+    6. Read-only startup verification with same keys succeeds.
+    7. Startup verification with changed identity-match key → fail closed.
+    8. Startup verification with changed canonical-subject key → fail closed.
+    9. Startup verification with changed pepper → fail closed.
+    10. Original keys still work (no silent re-binding).
+    """
+    from backend.app.term1 import identity
+    from backend.app.term1.accounts import bootstrap_administrator, create_doctor
+    from backend.app.term1.models import (
+        IdentityKeyCheck,
+        InvitationAttempt,
+        PatientInvitation,
+        VerifiedVisit,
+    )
+    from backend.app.term1.settings import Term1Settings
+    from backend.app.term1.tx import read_transaction, write_transaction
+    from backend.app.storage.database import Database
+    from backend.app.main import create_app
+    from fastapi.testclient import TestClient
+    from backend.app.term1.timeutil import Clock
+
+    term_clock = Clock()
+    db = Database(migrated_url)
+    clock_callable = lambda: term_clock.now()
+    try:
+        # 1. Confirm zero identity activity on fresh DB.
+        with write_transaction(db) as session:
+            assert (
+                session.execute(
+                    select(func.count()).select_from(IdentityKeyCheck)
+                ).scalar_one()
+                == 0
+            )
+            assert (
+                session.execute(
+                    select(func.count()).select_from(VerifiedVisit)
+                ).scalar_one()
+                == 0
+            )
+            assert (
+                session.execute(
+                    select(func.count()).select_from(PatientInvitation)
+                ).scalar_one()
+                == 0
+            )
+            assert (
+                session.execute(
+                    select(func.count()).select_from(InvitationAttempt)
+                ).scalar_one()
+                == 0
+            )
+
+        # 2. Establish initial binding on empty DB (creates pepper_binding +
+        # identity key checks).
+        with write_transaction(db) as session:
+            identity.verify_or_activate(
+                session, clock=term_clock, settings=test_settings, write=True
+            )
+        with read_transaction(db) as session:
+            checks = {
+                row.purpose: row
+                for row in session.execute(select(IdentityKeyCheck)).scalars()
+            }
+            assert set(checks) == {
+                constants.IDENTITY_MATCH_PURPOSE,
+                constants.SUBJECT_CANONICAL_PURPOSE,
+                constants.PEPPER_PURPOSE,
+            }
+            for row in checks.values():
+                assert row.key_id == test_settings.identity_key_id
+                assert row.retired_at is None
+
+        # 3. Create app; submit unknown invitation before any legitimate
+        # identity activity (but after initial binding).
+        app = create_app(
+            database_url=migrated_url,
+            term1_settings=test_settings,
+            term1_clock=clock_callable,
+        )
+        with TestClient(app) as client:
+            response = client.post(
+                "/v1/patients/register",
+                headers={"Idempotency-Key": "fresh-unknown-invite"},
+                json={
+                    "access_code": "Z" * 43,
+                    "identifier": DEMO_ID_A,
+                    "email": "demo.unknown@cardioassist.local",
+                    "password": PATIENT_PASSWORD,
+                    "consent_ack": True,
+                },
+            )
+        assert response.status_code == 401, response.text
+        assert response.json()["error"]["code"] == "invalid_invitation"
+
+        # 4. Durable attempt evidence must exist.
+        with read_transaction(db) as session:
+            attempts = (
+                session.execute(
+                    select(func.count()).select_from(InvitationAttempt)
+                ).scalar_one()
+            )
+        assert attempts >= 1
+
+        # 5. Bootstrap administrator, provision doctor, change temp password,
+        # attest first legitimate visit.
+        app2 = create_app(
+            database_url=migrated_url,
+            term1_settings=test_settings,
+            term1_clock=clock_callable,
+        )
+        with TestClient(app2) as client:
+            bootstrap_admin(app2)
+            with write_transaction(app2.state.database) as session:
+                admin_id = session.execute(
+                    text("SELECT user_id FROM user_account WHERE role='admin'")
+                ).scalar_one()
+                actor = session.get(UserAccount, admin_id)
+                created = create_doctor(
+                    session,
+                    clock=app2.state.term1.clock,
+                    actor=actor,
+                    email="demo.doctor@cardioassist.local",
+                    display_name="Dr F1",
+                    temp_password_policy="one_time_secret",
+                )
+            temp_token = login(client, "demo.doctor@cardioassist.local", created["temp_secret"])["session_token"]
+            pw_change = client.post(
+                "/v1/me/password",
+                headers={"Authorization": f"Bearer {temp_token}"},
+                json={
+                    "current_password": created["temp_secret"],
+                    "new_password": "doctor password 0001",
+                },
+            )
+            assert pw_change.status_code == 200, pw_change.text
+            token = login(client, "demo.doctor@cardioassist.local", "doctor password 0001")["session_token"]
+            visit = client.post(
+                "/v1/doctor/verified-visits",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Idempotency-Key": "fresh-first-visit",
+                },
+                json={
+                    "visit_ref": "FRESH-VISIT-001",
+                    "subject_identifier": DEMO_ID_A,
+                    "asserted_visit_at": "2026-11-25T10:00:00Z",
+                    "attestation_code": "PRIOR_IN_PERSON_VISIT_DEMO",
+                },
+            )
+            assert visit.status_code == 201, visit.text
+            doctor_token = token
+
+        # 6. Read-only startup verification with same keys succeeds.
+        with read_transaction(db) as session:
+            identity.verify_startup(session, settings=test_settings)
+
+        # 7. Startup verification with changed identity-match key → fail closed.
+        changed_match = Term1Settings(
+            identity_match_key=b"changed identity match key 0000000001",
+            subject_key=test_settings.subject_key,
+            pepper=test_settings.pepper,
+            admin_bootstrap_secret=test_settings.admin_bootstrap_secret,
+            identity_key_id=test_settings.identity_key_id,
+        )
+        with pytest.raises(ApiError) as error:
+            with read_transaction(db) as session:
+                identity.verify_startup(session, settings=changed_match)
+        assert error.value.code == "identity_key_material_mismatch"
+
+        # 8. Startup verification with changed canonical-subject key → fail closed.
+        changed_subject = Term1Settings(
+            identity_match_key=test_settings.identity_match_key,
+            subject_key=b"changed subject key material 00000001",
+            pepper=test_settings.pepper,
+            admin_bootstrap_secret=test_settings.admin_bootstrap_secret,
+            identity_key_id=test_settings.identity_key_id,
+        )
+        with pytest.raises(ApiError) as error:
+            with read_transaction(db) as session:
+                identity.verify_startup(session, settings=changed_subject)
+        assert error.value.code == "identity_key_material_mismatch"
+
+        # 9. Startup verification with changed pepper → fail closed.
+        changed_pepper = Term1Settings(
+            identity_match_key=test_settings.identity_match_key,
+            subject_key=test_settings.subject_key,
+            pepper=b"changed pepper material 00000000003",
+            admin_bootstrap_secret=test_settings.admin_bootstrap_secret,
+            identity_key_id=test_settings.identity_key_id,
+        )
+        with pytest.raises(ApiError) as error:
+            with read_transaction(db) as session:
+                identity.verify_startup(session, settings=changed_pepper)
+        assert error.value.code == "identity_key_material_mismatch"
+
+        # 10. Original keys still work after failed attempts (no silent re-binding).
+        with read_transaction(db) as session:
+            identity.verify_startup(session, settings=test_settings)
+
+    finally:
+        db.dispose()
 
 
 def test_key_material_never_appears_in_any_table(client, app):

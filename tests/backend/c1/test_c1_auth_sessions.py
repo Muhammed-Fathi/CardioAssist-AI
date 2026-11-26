@@ -559,3 +559,51 @@ def test_password_change_lockout_consulted(client, app):
     )
     assert response.status_code == 429, response.text
     assert response.json()["error"]["code"] == "rate_limited"
+
+
+# --- F2: lockout not extended on retry ---------------------------------------
+
+def test_lockout_not_extended_on_retry(client, app):
+    """When already locked, additional failed attempts do not refresh the lockout.
+
+    The failure counter is not incremented while locked, so the lockout window
+    is governed by the original failures only (F2: lockout not extended on retry).
+    """
+    bootstrap_admin(app)
+    for attempt in range(constants.LOGIN_FAILURE_LIMIT):
+        response = client.post(
+            "/v1/auth/login",
+            json={"email": ADMIN_EMAIL, "password": f"wrong password {attempt:04d}"},
+        )
+        assert response.status_code == 401, response.text
+
+    # Locked now.
+    first_locked = client.post(
+        "/v1/auth/login", json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}
+    )
+    assert first_locked.status_code == 429
+    assert first_locked.json()["error"]["code"] == "rate_limited"
+
+    # While still locked, another attempt must not add a new failure record
+    # or extend the lockout window.
+    second_locked = client.post(
+        "/v1/auth/login",
+        json={"email": ADMIN_EMAIL, "password": "yet another wrong password 0001"},
+    )
+    assert second_locked.status_code == 429
+    assert second_locked.json()["error"]["code"] == "rate_limited"
+
+    # Exactly LOGIN_FAILURE_LIMIT failure records per bucket, no more.
+    # Two buckets are written per login attempt (account + source), so
+    # total records = 2 * LOGIN_FAILURE_LIMIT.
+    from backend.app.term1 import crypto
+
+    account_bucket = crypto.bucket_key_hash(
+        app.state.term1.settings().pepper, "account", ADMIN_EMAIL
+    )
+    with app.state.database.engine.connect() as connection:
+        attempts = connection.execute(
+            text("SELECT COUNT(*) FROM login_attempt WHERE bucket_key_hash=:h"),
+            {"h": account_bucket},
+        ).scalar_one()
+    assert attempts == constants.LOGIN_FAILURE_LIMIT, attempts

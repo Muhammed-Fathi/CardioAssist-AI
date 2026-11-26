@@ -83,6 +83,9 @@ def _expected_checks(settings: Term1Settings) -> dict[str, str]:
         constants.SUBJECT_CANONICAL_PURPOSE: crypto.key_check_hash(
             settings.subject_key, constants.SUBJECT_CANONICAL_PURPOSE, settings.identity_key_id
         ),
+        constants.PEPPER_PURPOSE: crypto.key_check_hash(
+            settings.pepper, constants.PEPPER_PURPOSE, settings.identity_key_id
+        ),
     }
 
 
