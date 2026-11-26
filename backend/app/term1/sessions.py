@@ -65,6 +65,11 @@ def is_locked(session: Session, buckets: dict[str, str], *, clock: Clock) -> boo
 def record_login_failure(
     session: Session, *, clock: Clock, buckets: dict[str, str], outcome: str
 ) -> None:
+    # Flush the deletion of expired attempts before inserting the new one so
+    # the failure count is never inflated by stale rows outside the window
+    # (C1-R03: flush expired-row deletion before replacement insert).
+    prune_attempts(session, clock=clock)
+    session.flush()
     now = clock.now_iso()
     for kind, bucket_hash in buckets.items():
         session.add(
