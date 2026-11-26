@@ -225,7 +225,10 @@ def session_verifier(token: str) -> str:
 
 
 def invitation_verifier(code: str) -> str:
-    return hashlib.sha256(code.encode("ascii")).hexdigest()
+    # Non-ASCII access codes must not raise a Unicode error that becomes an
+    # HTTP 500: encode with replacement so the hash is deterministic and the
+    # lookup simply fails to match any stored invitation (C1-R04/R06).
+    return hashlib.sha256(code.encode("utf-8", "replace")).hexdigest()
 
 
 def actor_binding_anonymous(access_code: str) -> str:

@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 
 import pytest
 from sqlalchemy import text
 
 from backend.app.term1 import audit, constants, identity
 from backend.app.term1.errors import ApiError
+from backend.app.term1.models import IdentityKeyCheck
 from backend.app.term1.timeutil import Clock
 from backend.app.term1.tx import write_transaction
 
@@ -379,6 +381,117 @@ def test_new_key_id_with_existing_binding_is_refused(client, app, test_settings)
         with write_transaction(app.state.database) as session:
             identity.verify_or_activate(session, clock=clock, settings=rotated, write=True)
     assert error.value.code == "identity_key_replacement_unsupported"
+
+
+# --- key-check metadata variants ---------------------------------------------
+
+def test_missing_key_check_on_populated_db_fails_closed(app, test_settings):
+    """Activity exists but no identity_key_check rows: fail closed."""
+    from backend.app.term1.models import InvitationAttempt
+    clock = Clock()
+    # Create identity activity WITHOUT binding checks (do not call
+    # verify_or_activate with write=True, as that would create them).
+    with write_transaction(app.state.database) as session:
+        session.add(InvitationAttempt(
+            attempt_id=str(uuid.uuid4()),
+            invitation_id=None,
+            bucket_key_hash="digest-of-unknown-code",
+            outcome_code="invalid_invitation",
+            created_at=clock.now_iso(),
+        ))
+    # verify_or_activate with activity but no check rows must fail closed.
+    with pytest.raises(ApiError) as error:
+        with write_transaction(app.state.database) as session:
+            identity.verify_or_activate(session, clock=clock, settings=test_settings, write=False)
+    assert error.value.code == "identity_key_material_mismatch"
+
+
+def test_partial_key_checks_fail_closed(app, test_settings):
+    """Only one of two purposes has a check row: fail closed."""
+    from backend.app.term1.models import InvitationAttempt
+    clock = Clock()
+    expected = identity._expected_checks(test_settings)
+    now = clock.now_iso()
+    with write_transaction(app.state.database) as session:
+        # Create activity so has_identity_activity() is True.
+        session.add(InvitationAttempt(
+            attempt_id=str(uuid.uuid4()),
+            invitation_id=None,
+            bucket_key_hash="digest",
+            outcome_code="invalid_invitation",
+            created_at=now,
+        ))
+        # Insert only one of the two required checks.
+        session.add(IdentityKeyCheck(
+            check_id=str(uuid.uuid4()),
+            purpose=constants.IDENTITY_MATCH_PURPOSE,
+            key_id=test_settings.identity_key_id,
+            key_check_hash=expected[constants.IDENTITY_MATCH_PURPOSE],
+            alg=constants.IDENTITY_KEY_ALG,
+            created_at=now,
+            activated_at=now,
+            retired_at=None,
+        ))
+    with pytest.raises(ApiError) as error:
+        with write_transaction(app.state.database) as session:
+            identity.verify_or_activate(session, clock=clock, settings=test_settings, write=True)
+    assert error.value.code == "identity_key_material_mismatch"
+
+
+def test_retired_key_check_row_is_ignored(app, test_settings):
+    """A retired row alongside an active row: the active row is used.
+    
+    The UNIQUE(purpose, key_id) constraint prevents two rows with the same
+    purpose and key_id, so the retired row must use a different key_id.
+    """
+    from backend.app.term1.models import InvitationAttempt
+    clock = Clock()
+    expected = identity._expected_checks(test_settings)
+    now = clock.now_iso()
+    with write_transaction(app.state.database) as session:
+        session.add(InvitationAttempt(
+            attempt_id=str(uuid.uuid4()),
+            invitation_id=None,
+            bucket_key_hash="digest",
+            outcome_code="invalid_invitation",
+            created_at=now,
+        ))
+        # Active row for identity_match.
+        session.add(IdentityKeyCheck(
+            check_id=str(uuid.uuid4()),
+            purpose=constants.IDENTITY_MATCH_PURPOSE,
+            key_id=test_settings.identity_key_id,
+            key_check_hash=expected[constants.IDENTITY_MATCH_PURPOSE],
+            alg=constants.IDENTITY_KEY_ALG,
+            created_at=now,
+            activated_at=now,
+            retired_at=None,
+        ))
+        # Retired row for identity_match with a DIFFERENT key_id (UNIQUE allows it).
+        session.add(IdentityKeyCheck(
+            check_id=str(uuid.uuid4()),
+            purpose=constants.IDENTITY_MATCH_PURPOSE,
+            key_id="demo-v0",
+            key_check_hash="0" * 64,
+            alg=constants.IDENTITY_KEY_ALG,
+            created_at=now,
+            activated_at=now,
+            retired_at=now,  # retired: must be ignored
+        ))
+        # Active row for subject_canonical.
+        session.add(IdentityKeyCheck(
+            check_id=str(uuid.uuid4()),
+            purpose=constants.SUBJECT_CANONICAL_PURPOSE,
+            key_id=test_settings.identity_key_id,
+            key_check_hash=expected[constants.SUBJECT_CANONICAL_PURPOSE],
+            alg=constants.IDENTITY_KEY_ALG,
+            created_at=now,
+            activated_at=now,
+            retired_at=None,
+        ))
+    # Should succeed: exactly one active row per purpose.
+    with write_transaction(app.state.database) as session:
+        identity.verify_or_activate(session, clock=clock, settings=test_settings, write=True)
 
 
 def test_key_material_never_appears_in_any_table(client, app):
