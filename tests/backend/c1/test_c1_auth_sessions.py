@@ -112,6 +112,61 @@ def test_missing_and_malformed_bearer_headers_are_401(client, app):
     assert client.get("/v1/auth/me", headers={"Authorization": "Bearer not-a-token"}).status_code == 401
 
 
+def test_duplicate_authorization_headers_are_rejected(client, app):
+    """Duplicate Authorization headers must be rejected (header smuggling)."""
+    bootstrap_admin(app)
+    token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
+    # Two different Authorization headers on one request: 401.
+    response = client.get(
+        "/v1/auth/me",
+        headers=[
+            ("Authorization", f"Bearer {token}"),
+            ("Authorization", f"Bearer {token}"),
+        ],
+    )
+    assert response.status_code == 401, response.text
+    assert response.json()["error"]["code"] == "authentication_required"
+
+
+def test_non_ascii_bearer_token_is_401_not_500(app):
+    """Non-ASCII bearer value must fail with controlled error, not Unicode 500.
+
+    Tested at handler level because the test client cannot transmit
+    non-ASCII header values (they are Latin-1/ASCII encoded at the transport
+    layer).
+    """
+    from backend.app.term1.api import Term1Handler
+    from backend.app.term1.errors import ApiError
+    from tests.backend.c1.conftest import bootstrap_admin
+
+    bootstrap_admin(app)
+    handler = app.state.term1
+
+    class _FakeHeaders:
+        def __init__(self, header_value: str):
+            self._raw = [(b"authorization", header_value.encode("latin-1"))]
+
+        def get(self, key, default=""):
+            for k, v in self._raw:
+                if k.decode("latin-1").lower() == key.lower():
+                    return v.decode("latin-1")
+            return default
+
+        def getlist(self, key):
+            return [v.decode("latin-1") for k, v in self._raw if k.decode("latin-1").lower() == key.lower()]
+
+    class _FakeRequest:
+        def __init__(self, header_value: str):
+            self.headers = _FakeHeaders(header_value)
+
+    # Non-ASCII bearer value must raise authentication_required, not UnicodeEncodeError.
+    try:
+        handler.bearer(_FakeRequest("Bearer caf\xe9-token"))
+        assert False, "Expected ApiError for non-ASCII bearer token"
+    except ApiError as error:
+        assert error.code == "authentication_required"
+
+
 def test_session_tokens_are_256_bit_and_stored_only_as_verifiers(client, app):
     bootstrap_admin(app)
     token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
@@ -473,3 +528,34 @@ def test_failed_logins_leave_durable_evidence_after_the_rollback(client, app):
     with app.state.database.engine.connect() as connection:
         assert connection.execute(text("SELECT COUNT(*) FROM session")).scalar_one() == 0
     assert accounts == 1
+
+
+# --- password-change lockout --------------------------------------------------
+
+def test_password_change_lockout_consulted(client, app):
+    """Wrong current_password attempts on /v1/me/password are throttled like
+    login (C1-R02: password-change lockout consulted)."""
+    bootstrap_admin(app)
+    admin_token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
+    headers = bearer(admin_token)
+
+    # Exhaust the account bucket with wrong current_password attempts.
+    for attempt in range(constants.LOGIN_FAILURE_LIMIT):
+        response = client.post(
+            "/v1/me/password",
+            headers=headers,
+            json={
+                "current_password": f"wrong password {attempt:04d}",
+                "new_password": "new password 0001",
+            },
+        )
+        assert response.status_code == 401, response.text
+
+    # The account bucket is now at the limit: next password change is rate limited.
+    response = client.post(
+        "/v1/me/password",
+        headers=headers,
+        json={"current_password": ADMIN_PASSWORD, "new_password": "new password 0002"},
+    )
+    assert response.status_code == 429, response.text
+    assert response.json()["error"]["code"] == "rate_limited"
