@@ -22,7 +22,7 @@
 
 ```
 C0_STATUS=CORRECTED_PENDING_FINAL_REVIEW_AND_OWNER_WINDOWS_VERIFICATION
-C1_STATUS=NOT_STARTED
+C1_STATUS=REVISED_PENDING_INDEPENDENT_REVIEW
 C2_STATUS=NOT_STARTED
 C3_STATUS=NOT_STARTED
 C4_STATUS=NOT_STARTED
@@ -76,12 +76,26 @@ Historical `TERM1_INTEGRATED_PROTOTYPE_MASTER_PLAN_20261125.md`, `ARENA_NEW_SESS
 | C0-F09 | Complete PS5.1 candidate-before-merge block | `TERM1_WINDOWS_VERIFICATION_RUNBOOK.md` | Owner Windows transcript |
 | C0-F10 | Four dispatch attempts blocked by 403; owner dispatch required | `TERM1_TEST_EVIDENCE.md` §5; completion report | Owner dispatch and reviewer verification; no ALL_GREEN claim |
 
+## 4.2 C1 reviewer corrections (C1-R01…C1-R09)
+
+| ID | Owner/reviewer requirement | C1 resolution | Location | Verification |
+|---|---|---|---|---|
+| C1-R01 | Canonical contract composition from modular YAML source; operation-specific schemas; runtime enforcement | Served `/openapi.json` composed from `shared/contracts/term1/paths-*.yaml`; per-operation request/response JSON Schemas (draft 2020-12) under `shared/contracts/term1/schemas/`; request bodies validated at runtime against the operation-specific schema (422 `validation_failed` on structural violation; business vocabularies kept to handler-specific codes) | `backend/app/term1/openapi.py`, `shared/contracts/term1/paths-*.yaml`, `shared/contracts/term1/schemas/*.json`, `backend/app/term1/api.py` (`body()`) | C1 contract tests (inventory/header sets/catalogue/schema existence); 205/205 C1 tests pass |
+| C1-R02 | Temporary-password enforcement on all authenticated C1 operations incl. session listing/revocation | `authenticate()` rejects `password_change_required` accounts except `me/password`/`logout`/`me`; bearer non-ASCII → `authentication_required` (no 500); `list_sessions`/`revoke_session` use `handler.authenticate()` (fail-closed `settings()`) | `backend/app/term1/api.py` | C1 auth/session tests incl. `test_revoking_another_users_session_is_404` |
+| C1-R03 | Transactional idempotency expiration lifecycle | `precheck` deletes expired replay rows transactionally; `_same_actor_key_elsewhere` excludes expired records; accepts `clock` param; replay returns stored response, conflict on key/target/payload mismatch | `backend/app/term1/idempotency.py` | C1 idempotency tests |
+| C1-R04 | Durable failed-attempt accounting for authenticated link | `record_failure()` only revokes unconsumed/unrevoked invitations; `ENROLLMENT_GUESSING_CODES_EXCLUDED` excludes idempotency/replay/scope/secret codes; `link_patient` gained `failure_hook` mirroring `register_patient` | `backend/app/term1/enrollment.py` | C1 enrollment/invitation attempt tests |
+| C1-R05 | Single authoritative login transaction; constant-time password verification work | Login under one `BEGIN IMMEDIATE` write transaction; `run_in_threadpool(run)` no-arg (no `None` session); bounded dummy KDF params for unknown/inactive accounts; malformed requests write no failure evidence | `backend/app/term1/api.py`, `backend/app/term1/sessions.py` | C1 auth/login tests |
+| C1-R06 | Read-only fail-closed startup key verification incl. `invitation_attempt` probe and exactly-one active key-check row per purpose | `verify_startup` fail-closes populated DB without key checks; `InvitationAttempt` probe table; `verify_or_activate` enforces exactly-one active key-check row per purpose; `verify_identity_keys` fail-closes populated DB without configured material; `handler.settings()` fail-closed on logout/me/refresh/list_sessions/revoke_session | `backend/app/term1/identity.py`, `backend/app/term1/api.py` | C1 audit/keycheck tests |
+| C1-R07 | Invitation expiry at the consumption boundary; doctor suspension/disabling effect | `_consume_invitation` rechecks expiry at consumption boundary; `_require_usable_doctor` guard in `register_patient` and `link_patient` | `backend/app/term1/enrollment.py` | C1 enrollment/invitation tests |
+| C1-R08 | Relocate C1 suite under `tests/backend/c1/`; existing backend workflow collects every C1 test exactly once; no `.github/workflows/` edit | `git mv tests/c1 tests/backend/c1`; `conftest.py` ROOT `parents[3]`; all `tests.c1.` imports → `tests.backend.c1.`; `test_c1_contracts.py` ROOT `parents[3]` | `tests/backend/c1/` | `pytest tests/backend/c1` collects 205 tests exactly once |
+| C1-R09 | Complete C1 revision documentation set | Test evidence, stage progress, decision register, API integration matrix, blocker register, integration documentation, repository-governance basis for additive contract change-set | `docs/term1/` | This ledger; PR #144 (DRAFT, no force-push) |
+
 ## 5. Stage readiness
 
 | Stage | Readiness | Reason |
 |---|---|---|
 | C0 | CORRECTED_PENDING_FINAL_REVIEW_AND_OWNER_WINDOWS_VERIFICATION | Corrections committed to PR #143; final review, exact-head CI, Windows transcript and owner confirmations pending |
-| C1 | NOT_STARTED | C0 acceptance required; contract change-set and technical defaults pending |
+| C1 | REVISED_PENDING_INDEPENDENT_REVIEW | C1-R01..C1-R09 corrected in place on branch `arena/2b22dd7d-cardioassist-ai` (HEAD `ff9f794`): canonical contract composition from modular YAML source with operation-specific schemas and runtime enforcement; temporary-password enforcement on all authenticated C1 operations including session listing/revocation; transactional idempotency expiration lifecycle; durable failed-attempt accounting for authenticated link; single authoritative login transaction with constant-time password-verification work; read-only fail-closed startup key verification including `invitation_attempt` probe and exactly-one active key-check row per purpose; invitation expiry at the consumption boundary and doctor suspension/disabling effect; C1 suite relocated to `tests/backend/c1/` (collected exactly once, no workflow edit). Local suite: 205 passed, 0 failed, 0 skipped. Pending independent review; no owner acceptance, no C2. |
 | C2 | NOT_STARTED | C1 acceptance, Decision A or documented safe-scope decision, artifact/dependency decision required |
 | C3 | NOT_STARTED | C2 acceptance or explicit owner scope revision required |
 | C4 | NOT_STARTED | Prior stages and evidence required |
