@@ -435,6 +435,3 @@ def test_concurrent_same_key_requests_never_execute_twice(migrated_url, clock, t
         )
         == 1
     )
-
-
-

@@ -450,7 +450,7 @@ def test_partial_key_checks_fail_closed(app, test_settings):
 
 def test_retired_key_check_row_is_ignored(app, test_settings):
     """A retired row alongside an active row: the active row is used.
-    
+
     The UNIQUE(purpose, key_id) constraint prevents two rows with the same
     purpose and key_id, so the retired row must use a different key_id.
     """
