@@ -234,7 +234,7 @@ login_attempt (PK attempt_id, bucket_key_hash, outcome, created_at)  // failure 
 | `notification_record` | notification_id, recipient_user_id, type, delivery_state, version, created_at, idempotency_key_hash | message_id (NULL for system notices), system_event_key, read_at | `notification_id` authoritative; `system_event_key` unique for system notices; `delivery_state IN ('PENDING','DELIVERED','READ')` |
 | `durable_idempotency` | replay_scope, key_hash, actor_binding, operation, target_ref, request_fingerprint, response_public_json, status_code, created_at, expires_at, secret_disclosed | secret_fingerprints_json (keyed digests only) | actor/operation/target-bound replay identity; keyed fingerprints; no raw secret or full request body |
 | `workflow_audit_event` | audit_id, event_type, subject_type, subject_id, payload_sha256, code, outcome, recorded_at | actor_user_id, request_id | metadata only; no identifiers/secrets |
-| `login_attempt` | attempt_id, bucket_key_hash, outcome, created_at | — | bucket key HMAC(email)+IP prefix; written outside rolled-back business tx |
+| `login_attempt` | attempt_id, bucket_key_hash, outcome, created_at | — | bucket key HMAC(email)+IP prefix; written outside rolled-back business tx |\n| `invitation_attempt` | attempt_id, invitation_id, bucket_key_hash, outcome_code, created_at | — | FK invitation_id nullable (unknown code); metadata only; written outside rolled-back business tx |\n| `admin_bootstrap_record` | bootstrap_id, user_id, email_norm, bootstrapped_at | — | one-time local admin bootstrap record; existence blocks re-bootstrap |
 
 ### 5.2 Indexes referencing actual columns
 
@@ -256,6 +256,31 @@ No index references a nonexistent `doctor_id` on invitations or a `status` colum
 ### 5.3 Legacy tables preserved
 
 `monitoring_observation`, `monitoring_metric`, `audit_event` and migration `20261017_01` remain unchanged. `audit_event.observation_record_id` stays NOT NULL with FK to `monitoring_observation.record_id` and UNIQUE per observation. Workflow events use `workflow_audit_event`; no fake monitoring rows are created.
+
+### 5.4 C1 sixteen-table inventory
+
+The Term 1 C1 stage owns exactly sixteen tables (plus the three untouched legacy monitoring tables):
+
+| # | Table | Purpose |
+|---|---|---|
+| 1 | `user_account` | Accounts (admin/doctor/patient) with KDF password verifiers and lifecycle status |
+| 2 | `doctor_profile` | Doctor display profile linked to a user account |
+| 3 | `patient_identity` | Blind identity binding (HMAC + canonical subject id), no raw identifier |
+| 4 | `patient_profile` | Patient profile linked to account + identity |
+| 5 | `identity_key_check` | Non-secret key-material binding per purpose; verified before identity writes |
+| 6 | `session` | Session rows with token verifier hash, absolute/idle expiry, revocation |
+| 7 | `login_attempt` | Durable failed-login counters for lockout; written outside rolled-back business tx |
+| 8 | `verified_visit` | Doctor-attested prior synthetic-demo visit with subject binding |
+| 9 | `patient_invitation` | One-time access code verifier, expiry, attempt count, consumption/revocation |
+| 10 | `invitation_attempt` | Durable failed-invitation-attempt evidence; metadata only |
+| 11 | `doctor_patient_assignment` | Active doctor↔patient assignment with partial UNIQUE; revocation-only |
+| 12 | `consent_record` | Patient-wide synthetic-demo consent; withdrawal is patient-wide |
+| 13 | `invitation_redemption` | One redemption per consumed invitation; links invitation→patient→assignment |
+| 14 | `durable_idempotency` | Actor/operation/target-bound replay identity; keyed secret fingerprints |
+| 15 | `workflow_audit_event` | Metadata-only audit trail; no identifiers or secrets |
+| 16 | `admin_bootstrap_record` | One-time administrator bootstrap record; blocks re-bootstrap |
+
+The legacy `monitoring_observation`, `monitoring_metric` and `audit_event` tables are preserved unchanged and are not part of the C1 inventory.
 
 ## 6. Transaction boundaries, idempotency and secret safety (`R-04`)
 
