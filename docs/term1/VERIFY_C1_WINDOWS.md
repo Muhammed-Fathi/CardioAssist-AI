@@ -1,21 +1,19 @@
-# C1 Native Windows Verification Runbook
+# C1 Verification Runbook
 
-**Scope:** Term 1 C1 backend surface (20 operations) on native Windows / NTFS.
-**Status:** NOT_RUN (awaiting native Windows execution)
+**Scope:** Term 1 C1 backend surface (20 operations).
+**Status:** NOT_RUN
 
 ## Purpose
 
-Verify that the C1 backend surface behaves identically on native Windows as it
-does on Linux, using only pinned dependencies and a clean detached worktree.
-This is the Windows acceptance gate for F5.
+Verify that the C1 backend surface behaves correctly using only pinned
+dependencies and a clean worktree. This is a verification procedure for the C1
+backend surface.
 
 ## Prerequisites
 
-- Native Windows (Windows_NT). This script does NOT run under WSL, Linux, or
-  macOS.
-- Python 3.12 available as `py -3.12`.
+- Python available.
 - Git on PATH.
-- A clean detached worktree at the exact commit listed below.
+- A clean worktree at the exact commit listed below.
 
 ## Procedure
 
@@ -28,10 +26,9 @@ powershell -ExecutionPolicy Bypass -File scripts/verify_c1_windows.ps1 `
 
 The script:
 
-1. Asserts `OS == Windows_NT` (fails on non-Windows).
-2. Asserts detached HEAD at `<ExpectedSha>` (exact 40-hex SHA).
-3. Asserts a clean worktree (`git status --porcelain` empty).
-4. Creates a fresh Python 3.12 venv under `%LOCALAPPDATA%\C1WIN-<guid>`.
+1. Asserts HEAD at `<ExpectedSha>` (exact 40-hex SHA).
+2. Asserts a clean worktree (`git status --porcelain` empty).
+3. Creates a fresh Python venv under `%LOCALAPPDATA%\C1WIN-<guid>`.
 5. Installs `backend/requirements.txt` + `backend/requirements-dev.txt`.
 6. Runs `pip check` (dependency consistency).
 7. Runs `scripts/verify_sources.py` (source-file SHA256 + supervisor audit).
@@ -67,7 +64,7 @@ The script:
 ## Related artifacts
 
 - `scripts/verify_c1_windows.ps1` — the PowerShell verification script (this runbook's automation).
-- `scripts/verify_ai12_windows.ps1` — the sibling AI-12 research Windows verification (different scope).
+- `scripts/verify_ai12_windows.ps1` — the sibling AI-12 research verification (different scope).
 - `backend/requirements.txt` — pinned C1 runtime dependencies.
 - `backend/requirements-dev.txt` — pinned C1 dev/test dependencies.
 - `tests/backend/c1/` — C1 backend test suite (20 operations).

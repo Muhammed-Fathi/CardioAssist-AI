@@ -25,6 +25,7 @@ import json
 from typing import Any, Callable, Mapping
 
 import jsonschema
+from sqlalchemy.orm import Session
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -32,8 +33,9 @@ from starlette.concurrency import run_in_threadpool
 
 from ..main_helpers import finite_float, reject_constant, unique_object
 from . import constants, crypto, enrollment, openapi, sessions, visits
+from .identity import database_is_populated, verify_or_activate
 from .accounts import bootstrap_administrator, change_account_status, create_doctor
-from .audit import record_isolated
+from .audit import record, record_isolated
 from .errors import ApiError, api_error, error_response
 from .idempotency import build_identity, precheck, remember
 from .settings import SettingsError, Term1Settings, load_settings
@@ -307,7 +309,7 @@ def run_idempotent(
     secret_fields: Mapping[str, str],
     run: Callable[[Any, Actor], tuple[dict[str, Any], dict[str, Any], bool]],
     anonymous_actor: str | None = None,
-    failure_hook: Callable[[ApiError | None], None] | None = None,
+    failure_hook: Callable[[ApiError | None, Session | None], None] | None = None,
     status: int = 200,
     scope_kind: str = "user",
 ) -> JSONResponse:
@@ -317,41 +319,66 @@ def run_idempotent(
     secret_disclosed)``. Authentication happens first inside the transaction so
     that the replay actor binding is the authenticated user, and so that a
     concurrently revoked session cannot authorize a disclosed replay.
+
+    Failure hooks are invoked INSIDE the transaction (before rollback) so that
+    durable attempt evidence is written under the same ``BEGIN IMMEDIATE``
+    lock as the business logic. A savepoint isolates business data from failure
+    evidence: on failure, business writes are rolled back to the savepoint,
+    failure evidence is added, and the outer transaction commits only the
+    evidence. This closes the gap where a concurrent request could slip
+    between business rollback and failure recording (F2: race-safe attempt
+    accounting) while ensuring failed enrollment leaves no partial account,
+    assignment, consent or redemption effects.
     """
     settings = handler.settings()
     try:
         raw_key = handler.idempotency_key(request)
         with write_transaction(handler.database) as session:
-            actor = handler.authenticate(session, request, operation=operation)
-            if anonymous_actor is not None:
-                scope = (constants.REPLAY_SCOPE_ANONYMOUS, anonymous_actor)
-            else:
-                scope = (constants.REPLAY_SCOPE_USER, f"user:{actor.account.user_id}")
-            identity = build_identity(
-                pepper=settings.pepper,
-                scope=scope,
-                operation=operation,
-                target_ref=target_ref,
-                raw_key=raw_key,
-                public_fields=public_fields,
-                secret_fields=secret_fields,
-            )
-            decision = precheck(session, clock=handler.clock, identity=identity)
-            if decision.is_replay:
-                return _response(status, envelope(**decision.body()))
-            result, redacted, disclosed = run(session, actor)
-            remember(
-                session,
-                clock=handler.clock,
-                identity=identity,
-                status_code=status,
-                public_response=redacted,
-                secret_disclosed=disclosed,
-            )
-            return _response(status, envelope(**result))
+            nested = session.begin_nested()
+            try:
+                actor = handler.authenticate(session, request, operation=operation)
+                if anonymous_actor is not None:
+                    scope = (constants.REPLAY_SCOPE_ANONYMOUS, anonymous_actor)
+                else:
+                    scope = (constants.REPLAY_SCOPE_USER, f"user:{actor.account.user_id}")
+                identity = build_identity(
+                    pepper=settings.pepper,
+                    scope=scope,
+                    operation=operation,
+                    target_ref=target_ref,
+                    raw_key=raw_key,
+                    public_fields=public_fields,
+                    secret_fields=secret_fields,
+                )
+                decision = precheck(session, clock=handler.clock, identity=identity)
+                if decision.is_replay:
+                    return _response(status, envelope(**decision.body()))
+                result, redacted, disclosed = run(session, actor)
+                remember(
+                    session,
+                    clock=handler.clock,
+                    identity=identity,
+                    status_code=status,
+                    public_response=redacted,
+                    secret_disclosed=disclosed,
+                )
+                return _response(status, envelope(**result))
+            except ApiError as error:
+                # Roll back business writes to the savepoint: no partial
+                # account, assignment, consent or redemption effects survive.
+                nested.rollback()
+                # Reset the session so objects added after the savepoint
+                # rollback are tracked by the outer transaction.
+                session.expire_all()
+                # Record durable failure evidence inside the same transaction
+                # before the lock is released.
+                if failure_hook is not None:
+                    failure_hook(error, session=session)
+                # Return the error response directly: the outer
+                # write_transaction will commit the failure evidence when it
+                # exits normally (no exception propagates).
+                return error_response_json(error)
     except ApiError as error:
-        if failure_hook is not None:
-            failure_hook(error)
         return error_response_json(error)
 
 
@@ -394,6 +421,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                         email=email,
                         password=password,
                         buckets=buckets,
+                        settings=settings,
                     )
 
             # Expensive synchronous password hashing and database work run off
@@ -682,20 +710,31 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             redacted = {key: value for key, value in result.items() if key != "access_code"}
             return result, redacted, True
 
-        def failure_hook(error: ApiError | None) -> None:
+        def failure_hook(error: ApiError | None, session: Session | None = None) -> None:
             # Record failed invitation attempts after rollback so evidence
             # survives even when the business transaction is rolled back
             # (C1-R07: failed subject-binding audit evidence surviving rollback).
             if error is not None and error.code == "invalid_invitation":
-                record_isolated(
-                    handler.database,
-                    clock=handler.clock,
-                    event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
-                    outcome=constants.OUTCOME_DENIED,
-                    subject_type=constants.SUBJECT_VERIFIED_VISIT,
-                    subject_id=visit_id,
-                    code="invalid_invitation",
-                )
+                if session is not None:
+                    record(
+                        session,
+                        clock=handler.clock,
+                        event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
+                        outcome=constants.OUTCOME_DENIED,
+                        subject_type=constants.SUBJECT_VERIFIED_VISIT,
+                        subject_id=visit_id,
+                        code="invalid_invitation",
+                    )
+                else:
+                    record_isolated(
+                        handler.database,
+                        clock=handler.clock,
+                        event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
+                        outcome=constants.OUTCOME_DENIED,
+                        subject_type=constants.SUBJECT_VERIFIED_VISIT,
+                        subject_id=visit_id,
+                        code="invalid_invitation",
+                    )
 
         return run_idempotent(
             handler,
@@ -811,7 +850,9 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         def anonymous_run(session, _actor_unused):
             return run(session, None)
 
-        def failure_hook(error: ApiError | None) -> None:
+        def failure_hook(
+            error: ApiError | None, session: Session | None = None
+        ) -> None:
             _record_enrollment_failure(
                 handler,
                 settings=settings,
@@ -819,6 +860,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                 target_ref=target_ref,
                 code=error.code if error is not None else "internal_error",
                 source_buckets=enrollment_buckets,
+                session=session,
             )
 
         return _run_anonymous_idempotent(
@@ -885,7 +927,9 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             }
             return result, redacted, False
 
-        def failure_hook(error: ApiError | None) -> None:
+        def failure_hook(
+            error: ApiError | None, session: Session | None = None
+        ) -> None:
             _record_enrollment_failure(
                 handler,
                 settings=settings,
@@ -893,6 +937,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                 target_ref=target_ref,
                 code=error.code if error is not None else "internal_error",
                 source_buckets=enrollment_buckets,
+                session=session,
             )
 
         return run_idempotent(
@@ -1024,6 +1069,10 @@ def _record_login_failure(handler: Term1Handler, settings, buckets, error: ApiEr
     # still leaves durable evidence (C1.9). Never swallow the write error: a
     # counter-write problem must surface rather than being silently ignored.
     with write_transaction(handler.database) as session:
+        # Ensure pepper binding precedes the first pepper-dependent durable
+        # write (LoginAttempt.bucket_key_hash is pepper-derived).
+        if not database_is_populated(session):
+            verify_or_activate(session, settings=settings, clock=handler.clock, write=True)
         sessions.record_login_failure(
             session,
             clock=handler.clock,
@@ -1050,15 +1099,18 @@ def _record_enrollment_failure(
     target_ref: str,
     code: str,
     source_buckets: dict[str, str] | None = None,
+    session: Session | None = None,
 ) -> None:
-    """Durable attempt evidence written after the business rollback.
+    """Durable attempt evidence for enrollment failures.
 
-    Idempotency and replay conflicts are not credential-guessing attempts: they
-    are rejected before any enrollment effect, so they must not corrupt the
-    invitation lifecycle or be counted as guessing. Attempt recording runs in
-    its own transaction after the business rollback so evidence survives
-    rejection; a recording problem is reported safely without masking the
-    original enrollment error returned to the client.
+    When ``session`` is provided, the failure is recorded inside the caller's
+    transaction (no new transaction is opened). This keeps the failure evidence
+    durable under the same ``BEGIN IMMEDIATE`` lock as the business logic,
+    closing the gap where a concurrent request could slip between rollback and
+    failure recording (F2: race-safe attempt accounting).
+
+    When ``session`` is None, a new transaction is opened (backward-compatible
+    standalone use).
     """
     known = target_ref != "none"
     if code not in ENROLLMENT_GUESSING_CODES_EXCLUDED:
@@ -1067,51 +1119,87 @@ def _record_enrollment_failure(
         # attempts would indefinitely extend the lockout window and bring the
         # invitation closer to revocation (F2: lockout not extended on retry).
         if code == "rate_limited":
-            record_isolated(
-                handler.database,
+            if session is not None:
+                record(
+                    session,
+                    clock=handler.clock,
+                    event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
+                    outcome=constants.OUTCOME_FAILED,
+                    subject_type=constants.SUBJECT_INVITATION if known else constants.SUBJECT_UNKNOWN_INVITATION,
+                    subject_id=target_ref if known else None,
+                    code=code,
+                    payload={"invitation_known": known, "already_locked": True},
+                )
+            else:
+                record_isolated(
+                    handler.database,
+                    clock=handler.clock,
+                    event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
+                    outcome=constants.OUTCOME_FAILED,
+                    subject_type=constants.SUBJECT_INVITATION if known else constants.SUBJECT_UNKNOWN_INVITATION,
+                    subject_id=target_ref if known else None,
+                    code=code,
+                    payload={"invitation_known": known, "already_locked": True},
+                )
+            return
+
+        def _record_in_session(sess: _Session) -> None:
+            # Ensure pepper binding precedes the first pepper-dependent durable
+            # write (InvitationAttempt.code_digest and LoginAttempt.bucket_key_hash
+            # are pepper-derived). On a fresh database this binds the keys; on a
+            # populated database it verifies existing bindings and fails closed on
+            # mismatch.
+            if not database_is_populated(sess):
+                verify_or_activate(sess, settings=settings, clock=handler.clock, write=True)
+            invitation = enrollment.find_invitation_by_code(sess, access_code)
+            enrollment.record_failure(
+                sess,
+                clock=handler.clock,
+                invitation=invitation,
+                code_digest=crypto.unknown_code_digest(settings.pepper, access_code),
+                outcome=code,
+            )
+            # Independent source-based enrollment rate limiting (C1-R04): record a
+            # LoginAttempt for the enrollment source bucket so repeated failed
+            # enrollments from the same source are throttled independently of login
+            # lockout.
+            if source_buckets:
+                sessions.record_login_failure(
+                    sess,
+                    clock=handler.clock,
+                    buckets=source_buckets,
+                    outcome="invalid",
+                )
+
+        if session is not None:
+            _record_in_session(session)
+            # Write the audit event inside the same transaction (no new lock).
+            record(
+                session,
                 clock=handler.clock,
                 event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
                 outcome=constants.OUTCOME_FAILED,
                 subject_type=constants.SUBJECT_INVITATION if known else constants.SUBJECT_UNKNOWN_INVITATION,
                 subject_id=target_ref if known else None,
                 code=code,
-                payload={"invitation_known": known, "already_locked": True},
             )
-            return
-        try:
-            with write_transaction(handler.database) as session:
-                invitation = enrollment.find_invitation_by_code(session, access_code)
-                enrollment.record_failure(
-                    session,
+        else:
+            try:
+                with write_transaction(handler.database) as sess:
+                    _record_in_session(sess)
+            except Exception as recording_error:  # pragma: no cover - defensive
+                # Report the recording problem safely without exposing the access
+                # code and without masking the original enrollment error.
+                record_isolated(
+                    handler.database,
                     clock=handler.clock,
-                    invitation=invitation,
-                    code_digest=crypto.unknown_code_digest(settings.pepper, access_code),
-                    outcome=code,
+                    event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
+                    outcome=constants.OUTCOME_FAILED,
+                    subject_type=constants.SUBJECT_UNKNOWN_INVITATION,
+                    subject_id=None,
+                    code="internal_error",
+                    payload={"attempt_recording_unavailable": True},
                 )
-                # Independent source-based enrollment rate limiting (C1-R04):
-                # record a LoginAttempt for the enrollment source bucket so
-                # repeated failed enrollments from the same source are throttled
-                # independently of login lockout.
-                if source_buckets:
-                    sessions.record_login_failure(
-                        session,
-                        clock=handler.clock,
-                        buckets=source_buckets,
-                        outcome="invalid",
-                    )
-        except Exception as recording_error:  # pragma: no cover - defensive
-            # Report the recording problem safely without exposing the access
-            # code and without masking the original enrollment error.
-            record_isolated(
-                handler.database,
-                clock=handler.clock,
-                event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
-                outcome=constants.OUTCOME_FAILED,
-                subject_type=constants.SUBJECT_UNKNOWN_INVITATION,
-                subject_id=None,
-                code="internal_error",
-                payload={"attempt_recording_unavailable": True},
-            )
     record_isolated(
         handler.database,
         clock=handler.clock,
@@ -1156,21 +1244,36 @@ def _run_anonymous_idempotent(
     )
     try:
         with write_transaction(handler.database) as session:
-            decision = precheck(session, clock=handler.clock, identity=identity)
-            if decision.is_replay:
-                return _response(status, envelope(**decision.body()))
-            result, redacted, disclosed = run(session, None)
-            remember(
-                session,
-                clock=handler.clock,
-                identity=identity,
-                status_code=status,
-                public_response=redacted,
-                secret_disclosed=disclosed,
-            )
-            return _response(status, envelope(**result))
+            nested = session.begin_nested()
+            try:
+                decision = precheck(session, clock=handler.clock, identity=identity)
+                if decision.is_replay:
+                    return _response(status, envelope(**decision.body()))
+                result, redacted, disclosed = run(session, None)
+                remember(
+                    session,
+                    clock=handler.clock,
+                    identity=identity,
+                    status_code=status,
+                    public_response=redacted,
+                    secret_disclosed=disclosed,
+                )
+                return _response(status, envelope(**result))
+            except ApiError as error:
+                # Roll back business writes to the savepoint: no partial
+                # account, assignment, consent or redemption effects survive.
+                nested.rollback()
+                # Reset the session so objects added after the savepoint
+                # rollback are tracked by the outer transaction.
+                session.expire_all()
+                # Record durable failure evidence inside the same transaction
+                # before the lock is released.
+                failure_hook(error, session=session)
+                # Return the error response directly: the outer
+                # write_transaction will commit the failure evidence when it
+                # exits normally (no exception propagates).
+                return error_response_json(error)
     except ApiError as error:
-        failure_hook(error)
         return error_response_json(error)
     except Exception as error:  # pragma: no cover - defensive
         failure_hook(None)

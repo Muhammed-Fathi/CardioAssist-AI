@@ -29,7 +29,9 @@ from . import constants, crypto
 from .accounts import find_account_by_email, profile_id_for
 from .audit import record
 from .errors import ApiError, api_error
+from .identity import database_is_populated, verify_or_activate
 from .models import LoginAttempt, Session as SessionModel, UserAccount
+from .settings import Term1Settings
 from .timeutil import Clock, from_iso, to_iso
 
 
@@ -190,6 +192,7 @@ def login(
     email: str,
     password: str,
     buckets: dict[str, str],
+    settings: Term1Settings | None = None,
 ) -> dict[str, object]:
     """Authenticate and open a session; every failure is generic.
 
@@ -197,6 +200,10 @@ def login(
     password-verification work and the session issuance all commit together.
     Unknown, inactive and active accounts perform comparable KDF work so the
     service does not enumerate accounts by timing.
+
+    Pepper binding is established before any pepper-dependent durable write
+    (including login-failure evidence) so that a fresh database never records
+    attempts against an unbound pepper (F1).
     """
     email_norm = crypto.normalize_email(email)
     account = find_account_by_email(session, email_norm) if email_norm else None
@@ -221,6 +228,12 @@ def login(
         and password_verified
     )
     if not password_ok:
+        # Ensure pepper binding precedes the first pepper-dependent durable
+        # write (the LoginAttempt rows use pepper-derived bucket hashes).
+        # On a fresh database this binds the keys; on a populated database it
+        # verifies existing bindings and fails closed on mismatch.
+        if settings is not None and not database_is_populated(session):
+            verify_or_activate(session, settings=settings, clock=clock, write=True)
         # Record the failure durably within this same BEGIN IMMEDIATE
         # transaction so the lockout check sees it immediately for concurrent
         # requests (C1-R05 concurrent failed-login limit proof). Committing the

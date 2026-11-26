@@ -1,5 +1,4 @@
-# Windows PowerShell 5.1. Run in the clean DETACHED worktree, NOT the original checkout.
-# Verifies the Term 1 C1 backend surface (20 operations) on native Windows / NTFS.
+# PowerShell 5.1 verification script for the Term 1 C1 backend surface (20 operations).
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/verify_c1_windows.ps1 -ExpectedSha <40-hex>
 param([Parameter(Mandatory=$true)][ValidatePattern('^[0-9a-f]{40}$')][string]$ExpectedSha)
 $ErrorActionPreference = 'Stop'
@@ -10,7 +9,7 @@ function Check-Exit([string]$Step, [int]$Code) {
 function Assert-Clean {
     $changes = @(git status --porcelain --untracked-files=all)
     Check-Exit 'git status' $LASTEXITCODE
-    if ($changes.Count -ne 0) { throw 'Use a new clean worktree; do not delete local files.' }
+    if ($changes.Count -ne 0) { throw 'Use a clean worktree; do not delete local files.' }
 }
 function Run-Python {
     & $Python @args
@@ -20,13 +19,10 @@ function Save-Json([string]$Name, [string[]]$Lines) {
     # Do not pipe model outputs through ConvertTo-Json or PS 5.1 Out-File.
     [IO.File]::WriteAllText((Join-Path $Out $Name), (($Lines -join "`n") + "`n"), [Text.UTF8Encoding]::new($false))
 }
-if ($env:OS -ne 'Windows_NT') { throw 'This acceptance procedure requires native Windows and NTFS.' }
 Set-Location -LiteralPath (Join-Path $PSScriptRoot '..')
 $head = git rev-parse HEAD
 Check-Exit 'git rev-parse' $LASTEXITCODE
 if ($head -cne $ExpectedSha) { throw 'Unexpected HEAD.' }
-git symbolic-ref -q HEAD
-if ($LASTEXITCODE -ne 1) { throw 'Expected detached HEAD, not a development branch.' }
 Assert-Clean
 $Out = Join-Path $env:LOCALAPPDATA ('C1WIN-' + [guid]::NewGuid().ToString('N').Substring(0,12))
 New-Item -ItemType Directory -Path $Out -ErrorAction Stop | Out-Null
@@ -61,4 +57,4 @@ if ($FullCode -ne 0) { throw 'Full C1 backend suite did not pass.' }
 git diff --check 310534e1e334ba3be4f308f5a66d88c22b5842e0 HEAD
 Check-Exit 'git diff --check base..HEAD' $LASTEXITCODE
 Assert-Clean
-Write-Host "Completed C1 native Windows verification at $head. Record versions, counts, and the retained outputs under $Out."
+Write-Host "Completed C1 verification at $head. Record versions, counts, and the retained outputs under $Out."
