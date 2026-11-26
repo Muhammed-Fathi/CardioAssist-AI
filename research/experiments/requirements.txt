@@ -5,9 +5,20 @@ scipy==1.15.3
 scikit-learn==1.6.1
 joblib==1.4.2
 threadpoolctl==3.6.0
+
+# Test tooling. These are NOT numerical/model dependencies: they are used by
+# the test suite only and none of them participates in the Golden Replay.
 pytest==9.0.3
 iniconfig==2.3.1
 packaging==26.3
 pluggy==1.7.0
 Pygments==2.21.0
 colorama==0.4.6; sys_platform == 'win32'
+
+# Structural validation of the CI workflow YAML in
+# tests/experiments/test_rh04_ci_observation_step.py. Pinned to the same
+# version already used by backend/requirements.txt and
+# tests/contracts/requirements.txt, so the repository has a single YAML parser
+# version. Without this, pytest fails at COLLECTION with
+# "ModuleNotFoundError: No module named 'yaml'" on a clean runner.
+PyYAML==6.0.2

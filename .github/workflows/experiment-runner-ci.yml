@@ -1,3 +1,4 @@
+
 name: synthetic-experiment-runner-validation
 
 # M2c/M2a/M3a tests are synthetic-only. This workflow never invokes preflight/run,
@@ -71,6 +72,18 @@ jobs:
           if any(x.get("num_threads") != 1 for x in info):
               raise SystemExit("Numerical thread count not pinned to one")
           PY
+
+      # RH-04 Issue #132: record the ACTUAL already-resident OpenBLAS kernels and
+      # the classified replay outcome. Read-only, non-scoring, synthetic-only.
+      # NON-VOTING: this step exits 0 for every classifier outcome (exact,
+      # classified deltas, unexpected drift, unverified, or refusal). It is
+      # supplemental evidence only and MUST NOT be read as a Golden Replay
+      # success -- EXPECTED_SINGLE_FIELD_DELTAS is not a pass. The canonical
+      # pytest Golden Replay step remains the sole pass/fail authority and is
+      # unchanged. No skip/xfail/continue-on-error/retry is introduced here.
+      - name: Record RH-04 environment observation (non-voting)
+        run: |
+          python scripts/rh04_observe_environment.py
 
       - name: Run synthetic experiment-runner and dataset-audit tests
         run: |
@@ -176,6 +189,18 @@ jobs:
           if any(x.get("num_threads") != 1 for x in info):
               raise SystemExit("Numerical thread count not pinned to one")
           PY
+
+      # RH-04 Issue #132: record the ACTUAL already-resident OpenBLAS kernels and
+      # the classified replay outcome. Read-only, non-scoring, synthetic-only.
+      # NON-VOTING: this step exits 0 for every classifier outcome (exact,
+      # classified deltas, unexpected drift, unverified, or refusal). It is
+      # supplemental evidence only and MUST NOT be read as a Golden Replay
+      # success -- EXPECTED_SINGLE_FIELD_DELTAS is not a pass. The canonical
+      # pytest Golden Replay step remains the sole pass/fail authority and is
+      # unchanged. No skip/xfail/continue-on-error/retry is introduced here.
+      - name: Record RH-04 environment observation (non-voting)
+        run: |
+          python scripts/rh04_observe_environment.py
 
       # Two separate Python/model-build processes: pinning must hold across replays.
       - name: Inspect canonical 29-case synthetic replay twice (strict, metadata only)
