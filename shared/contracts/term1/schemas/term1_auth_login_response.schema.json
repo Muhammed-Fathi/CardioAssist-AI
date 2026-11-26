@@ -26,7 +26,7 @@
       "type": "string"
     },
     "profile_id": {
-      "type": "string",
+      "type": ["string", "null"],
       "format": "uuid",
       "minLength": 36,
       "maxLength": 36

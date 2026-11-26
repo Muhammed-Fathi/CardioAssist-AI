@@ -99,7 +99,7 @@ def test_logout_revokes_only_the_current_session(client, app):
     bootstrap_admin(app)
     first = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
     second = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
-    assert client.post("/v1/auth/logout", headers=bearer(first)).json()["revoked"] is True
+    assert client.post("/v1/auth/logout", headers=bearer(first)).json().get("revoked_at")
     assert client.get("/v1/auth/me", headers=bearer(first)).status_code == 401
     assert client.get("/v1/auth/me", headers=bearer(second)).status_code == 200
 
@@ -261,7 +261,7 @@ def test_session_listing_shows_only_the_callers_sessions(client, app):
 
     target = next(row for row in listing if not row["current"])
     revoked = client.delete(f"/v1/me/sessions/{target['session_id']}", headers=bearer(token))
-    assert revoked.status_code == 200 and revoked.json()["revoked"] is True
+    assert revoked.status_code == 200 and revoked.json().get("revoked_at")
     assert client.get("/v1/auth/me", headers=bearer(second)).status_code == 401
 
 

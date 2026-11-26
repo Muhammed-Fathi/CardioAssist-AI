@@ -245,6 +245,7 @@ def create_doctor(
         "doctor_id": doctor.doctor_id,
         "user_id": account.user_id,
         "temp_secret": temp_password,
+        "role": constants.ROLE_DOCTOR,
     }
 
 

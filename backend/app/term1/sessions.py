@@ -329,7 +329,7 @@ def logout(session: Session, *, clock: Clock, token: str) -> dict[str, bool]:
         subject_id=row.session_id,
         actor_user_id=account.user_id,
     )
-    return {"revoked": True}
+    return {"revoked_at": row.revoked_at}
 
 
 def refresh(session: Session, *, clock: Clock, token: str) -> dict[str, object]:
@@ -469,7 +469,7 @@ def revoke_session(
             actor_user_id=account.user_id,
             payload={"self": row.session_id == current.session_id},
         )
-    return {"revoked": True, "session_id": row.session_id}
+    return {"revoked_at": row.revoked_at, "session_id": row.session_id}
 
 
 def current_account(session: Session, *, clock: Clock, token: str) -> dict[str, object]:

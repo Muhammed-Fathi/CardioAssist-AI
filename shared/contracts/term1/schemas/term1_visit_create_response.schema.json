@@ -43,6 +43,9 @@
     "attestation_code": {
       "type": "string",
       "maxLength": 64
+    },
+    "idempotent_replay": {
+      "const": true
     }
   }
 }

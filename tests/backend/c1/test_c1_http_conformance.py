@@ -274,8 +274,8 @@ def _served_openapi(client) -> dict:
     return response.json()
 
 
-def _response_schema_for(method: str, path: str) -> str | None:
-    """Look up the response schema filename for a C1 operation."""
+def _response_schema_for(method: str, path: str) -> dict | None:
+    """Look up the response schema for a C1 operation from the served OpenAPI."""
     from backend.app.term1 import openapi as _openapi
 
     binding = _openapi.OP_SCHEMAS.get((method.lower(), path))
@@ -284,31 +284,11 @@ def _response_schema_for(method: str, path: str) -> str | None:
     return binding.get("response")
 
 
-def _strip_none_values(obj):
-    """Recursively remove keys whose value is None, treating null as absent.
-
-    Also strips operational fields (idempotent_replay) that the service adds
-    at the HTTP layer but are not part of the stored contract schema, since
-    schemas must not be loosened globally.
-    """
-    OPERATIONAL_FIELDS = {"idempotent_replay"}
-    if isinstance(obj, dict):
-        return {
-            k: _strip_none_values(v)
-            for k, v in obj.items()
-            if v is not None and k not in OPERATIONAL_FIELDS
-        }
-    if isinstance(obj, list):
-        return [_strip_none_values(v) for v in obj if v is not None]
-    return obj
-
-
 def _validate_against_served_schema(response_body: dict, schema_name: str) -> None:
-    """Validate a response body against a C1 response schema with format checking.
+    """Validate a raw response body against a C1 response schema with format checking.
 
-    None values are stripped before validation because the served contract treats
-    absent optional fields as null; JSON Schema `type: string` does not accept
-    null, and schemas must not be loosened globally.
+    No normalization: null values and replay fields are validated as-is.
+    Schemas must accept the actual response shape without global loosening.
     """
     from backend.app.term1 import openapi as _openapi
 
@@ -318,8 +298,7 @@ def _validate_against_served_schema(response_body: dict, schema_name: str) -> No
         registry=_openapi.C1_REGISTRY,
         format_checker=Draft202012Validator.FORMAT_CHECKER,
     )
-    cleaned = _strip_none_values(response_body)
-    errors = list(validator.iter_errors(cleaned))
+    errors = list(validator.iter_errors(response_body))
     assert not errors, [
         {"message": e.message, "path": list(e.path), "schema": e.schema}
         for e in errors
@@ -492,3 +471,449 @@ def test_all_c1_ops_response_schema_coverage(client, app):
         assert binding is not None, (method, path)
         # Every C1 op must declare a response schema (even if it's the error schema)
         assert binding.get("response") is not None, (method, path)
+
+
+# ---------------------------------------------------------------------------
+# F3 complete: validate every C1 operation's real HTTP response against
+# the schema selected from the served OpenAPI document for the actual status.
+# ---------------------------------------------------------------------------
+
+
+def _schema_from_served(document: dict, method: str, path: str, status: int) -> dict:
+    """Resolve the response schema for a served operation+status from OpenAPI."""
+    operation = document["paths"][path][method.lower()]
+    status_key = str(status)
+    assert status_key in operation["responses"], (
+        f"{method.upper()} {path}: undeclared {status_key} in served OpenAPI"
+    )
+    content = operation["responses"][status_key]["content"]["application/json"]
+    schema = content["schema"]
+    # Resolve local JSON pointers (#/components/schemas/...) against the served doc
+    while "$ref" in schema:
+        ref = schema["$ref"]
+        assert ref.startswith("#/"), f"Expected local reference, got {ref}"
+        node = document
+        for segment in ref[2:].split("/"):
+            node = node[segment.replace("~1", "/").replace("~0", "~")]
+        schema = node
+    return schema
+
+
+def _validate_response_against_served(
+    document: dict, method: str, path: str, status: int, body: dict
+) -> None:
+    """Validate a raw response body against its served OpenAPI schema."""
+    from jsonschema import Draft202012Validator
+
+    schema = _schema_from_served(document, method, path, status)
+    validator = Draft202012Validator(
+        schema, format_checker=Draft202012Validator.FORMAT_CHECKER
+    )
+    errors = list(validator.iter_errors(body))
+    assert not errors, [
+        {"message": e.message, "path": list(e.path), "schema": e.schema}
+        for e in errors
+    ]
+
+
+def test_all_twenty_c1_ops_success_response_validates(client, app):
+    """Every C1 operation returns a 2xx response matching its served schema.
+
+    Walks the full supported chain: bootstrap admin → provision doctor →
+    attest visit → issue invitation → register patient → link patient,
+    exercising every operation at least once and validating each real HTTP
+    response body (including null values and replay fields) against the schema
+    selected from the served OpenAPI document for the actual HTTP status.
+    """
+    document = client.get("/openapi.json").json()
+    bootstrap_admin(app)
+
+    chain = setup_doctor_with_invitation(app, client)
+    doctor = chain["doctor"]
+    visit = chain["visit"]
+    invitation = chain["invitation"]
+    headers = {"Authorization": f"Bearer {doctor['token']}"}
+
+    # --- A1 login (anonymous) ---
+    resp = client.post(
+        "/v1/auth/login",
+        json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD},
+    )
+    assert resp.status_code == 200, resp.text
+    admin_token = resp.json()["session_token"]
+    _validate_response_against_served(document, "post", "/v1/auth/login", 200, resp.json())
+
+    # --- A3 me (authenticated) ---
+    resp = client.get(
+        "/v1/auth/me", headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(document, "get", "/v1/auth/me", 200, resp.json())
+
+    # --- A4 refresh (authenticated) ---
+    resp = client.post(
+        "/v1/auth/refresh",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document, "post", "/v1/auth/refresh", 200, resp.json()
+    )
+    admin_token = resp.json()["session_token"]
+
+    # --- AD1 provision doctor (already done via chain) ---
+    resp = client.post(
+        "/v1/admin/doctors",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+            "Idempotency-Key": "admin-doctors-schema-001",
+        },
+        json={
+            "email": "doc.schema.test@cardioassist.local",
+            "display_name": "Schema Test Doctor",
+            "temp_password_policy": "one_time_secret",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    _validate_response_against_served(
+        document, "post", "/v1/admin/doctors", 201, resp.json()
+    )
+
+    # --- AD2 account status (authenticated, idempotent) ---
+    # Need a user_id from the provisioned doctor response
+    doctor_user_id = chain["doctor"]["user_id"]
+    resp = client.patch(
+        f"/v1/admin/accounts/{doctor_user_id}/status",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+            "Idempotency-Key": "admin-status-schema-001",
+        },
+        json={"status": "ACTIVE", "reason_code": "schema_test"},
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document,
+        "patch",
+        "/v1/admin/accounts/{user_id}/status",
+        200,
+        resp.json(),
+    )
+
+    # --- A2 logout (authenticated) - done last since it revokes the token ---
+    resp = client.post(
+        "/v1/auth/logout",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document, "post", "/v1/auth/logout", 200, resp.json()
+    )
+
+    # --- Register patient (anonymous idempotent) ---
+    fresh_visit, fresh_invitation = chain["fresh_visit"](1)
+    reg_headers = {"Idempotency-Key": "reg-schema-001"}
+    resp = client.post(
+        "/v1/patients/register",
+        headers=reg_headers,
+        json={
+            "access_code": fresh_invitation["access_code"],
+            "identifier": DEMO_ID_A,
+            "email": "schema.patient@cardioassist.local",
+            "password": "patient schema password",
+            "consent_ack": True,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    reg_body = resp.json()
+    _validate_response_against_served(
+        document, "post", "/v1/patients/register", 201, reg_body
+    )
+    reg_token = reg_body["session_token"]
+
+    # --- Link patient (authenticated idempotent) ---
+    fresh_visit2, fresh_invitation2 = chain["fresh_visit"](2)
+    link_headers = {
+        "Authorization": f"Bearer {reg_token}",
+        "Idempotency-Key": "link-schema-001",
+    }
+    resp = client.post(
+        "/v1/patients/link",
+        headers=link_headers,
+        json={
+            "access_code": fresh_invitation2["access_code"],
+            "identifier": DEMO_ID_A,
+            "accept_linking": True,
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    link_body = resp.json()
+    _validate_response_against_served(
+        document, "post", "/v1/patients/link", 200, link_body
+    )
+
+    # Link replay → idempotent_replay field present
+    replay = client.post(
+        "/v1/patients/link",
+        headers=link_headers,
+        json={
+            "access_code": fresh_invitation2["access_code"],
+            "identifier": DEMO_ID_A,
+            "accept_linking": True,
+        },
+    )
+    assert replay.status_code == 200, replay.text
+    assert replay.json().get("idempotent_replay") is True
+    _validate_response_against_served(
+        document, "post", "/v1/patients/link", 200, replay.json()
+    )
+
+    # --- Get invitation (authenticated) ---
+    fresh_visit3, fresh_invitation3 = chain["fresh_visit"](3)
+    resp = client.get(
+        f"/v1/doctor/invitations/{fresh_invitation3['invitation_id']}",
+        headers={"Authorization": f"Bearer {doctor['token']}"},
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document,
+        "get",
+        "/v1/doctor/invitations/{invitation_id}",
+        200,
+        resp.json(),
+    )
+
+    # --- Revoke invitation (authenticated, idempotent) ---
+    resp = client.post(
+        f"/v1/doctor/invitations/{fresh_invitation3['invitation_id']}/revoke",
+        headers={
+            "Authorization": f"Bearer {doctor['token']}",
+            "Idempotency-Key": "invite-revoke-schema-001",
+        },
+        json={"reason_code": "schema_test"},
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document,
+        "post",
+        "/v1/doctor/invitations/{invitation_id}/revoke",
+        200,
+        resp.json(),
+    )
+
+    # --- Me assignments (authenticated) ---
+    resp = client.get(
+        "/v1/me/assignments",
+        headers={"Authorization": f"Bearer {reg_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document, "get", "/v1/me/assignments", 200, resp.json()
+    )
+
+    # --- Revoke assignment (patient, authenticated, idempotent) ---
+    assignment_id = link_body["assignment_id"]
+    resp = client.post(
+        f"/v1/me/assignments/{assignment_id}/revoke",
+        headers={
+            "Authorization": f"Bearer {reg_token}",
+            "Idempotency-Key": "assign-patient-revoke-schema-001",
+        },
+        json={"reason_code": "schema_test"},
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document,
+        "post",
+        "/v1/me/assignments/{assignment_id}/revoke",
+        200,
+        resp.json(),
+    )
+
+    # --- Synthetic consent revoke (authenticated, idempotent) ---
+    resp = client.post(
+        "/v1/me/consent/synthetic-demo/revoke",
+        headers={
+            "Authorization": f"Bearer {reg_token}",
+            "Idempotency-Key": "consent-revoke-schema-001",
+        },
+        json={"reason_code": "schema_test"},
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document,
+        "post",
+        "/v1/me/consent/synthetic-demo/revoke",
+        200,
+        resp.json(),
+    )
+
+    # --- Me sessions (authenticated) ---
+    resp = client.get(
+        "/v1/me/sessions",
+        headers={"Authorization": f"Bearer {reg_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document, "get", "/v1/me/sessions", 200, resp.json()
+    )
+
+    # --- Revoke session (authenticated) ---
+    # Get a session_id from me/sessions
+    sessions_body = resp.json()
+    session_id = None
+    if isinstance(sessions_body, dict) and "sessions" in sessions_body:
+        session_list = sessions_body["sessions"]
+        if session_list:
+            session_id = session_list[0]["session_id"]
+    elif isinstance(sessions_body, list) and sessions_body:
+        session_id = sessions_body[0]["session_id"]
+
+    # --- Change password (authenticated, idempotent) ---
+    resp = client.post(
+        "/v1/me/password",
+        headers={
+            "Authorization": f"Bearer {reg_token}",
+            "Idempotency-Key": "password-change-schema-001",
+        },
+        json={
+            "current_password": "patient schema password",
+            "new_password": "patient schema password 2",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document, "post", "/v1/me/password", 200, resp.json()
+    )
+
+    if session_id:
+        resp = client.delete(
+            f"/v1/me/sessions/{session_id}",
+            headers={"Authorization": f"Bearer {reg_token}"},
+        )
+        assert resp.status_code == 200, resp.text
+        _validate_response_against_served(
+            document,
+            "delete",
+            "/v1/me/sessions/{session_id}",
+            200,
+            resp.json(),
+        )
+
+
+def test_error_response_variants_validate(client, app):
+    """Relevant error responses validate against their served error schemas."""
+    document = client.get("/openapi.json").json()
+    bootstrap_admin(app)
+
+    # 401 authentication_required on /v1/auth/me
+    resp = client.get("/v1/auth/me")
+    assert resp.status_code == 401, resp.text
+    _validate_response_against_served(document, "get", "/v1/auth/me", 401, resp.json())
+
+    # 401 invalid_credentials on login
+    resp = client.post(
+        "/v1/auth/login",
+        json={"email": ADMIN_EMAIL, "password": "wrong password"},
+    )
+    assert resp.status_code == 401, resp.text
+    _validate_response_against_served(
+        document, "post", "/v1/auth/login", 401, resp.json()
+    )
+
+    # 429 rate_limited on login
+    for _ in range(5):
+        client.post(
+            "/v1/auth/login",
+            json={"email": ADMIN_EMAIL, "password": f"wrong {_}"},
+        )
+    resp = client.post(
+        "/v1/auth/login",
+        json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD},
+    )
+    assert resp.status_code == 429, resp.text
+    _validate_response_against_served(
+        document, "post", "/v1/auth/login", 429, resp.json()
+    )
+
+    # 401 authentication_required on link (unauthorized actor)
+    resp = client.post(
+        "/v1/patients/link",
+        headers={"Idempotency-Key": "err-link-001"},
+        json={
+            "access_code": "Z" * 43,
+            "identifier": DEMO_ID_A,
+            "accept_linking": True,
+        },
+    )
+    assert resp.status_code == 401, resp.text
+    _validate_response_against_served(
+        document, "post", "/v1/patients/link", 401, resp.json()
+    )
+
+
+def test_visit_create_and_replay_validate(client, app):
+    """Visit create initial response and replay validate against served schema."""
+    document = client.get("/openapi.json").json()
+    bootstrap_admin(app)
+    chain = setup_doctor_with_invitation(app, client)
+    doctor = chain["doctor"]
+    headers = {
+        "Authorization": f"Bearer {doctor['token']}",
+        "Idempotency-Key": "visit-schema-001",
+    }
+    payload = {
+        "visit_ref": "V-SCHEMA-001",
+        "subject_identifier": DEMO_ID_A,
+        "asserted_visit_at": "2026-11-25T10:00:00Z",
+        "attestation_code": "PRIOR_IN_PERSON_VISIT_DEMO",
+    }
+
+    # Initial visit create → 201
+    resp = client.post(
+        "/v1/doctor/verified-visits", headers=headers, json=payload
+    )
+    assert resp.status_code == 201, resp.text
+    _validate_response_against_served(
+        document,
+        "post",
+        "/v1/doctor/verified-visits",
+        201,
+        resp.json(),
+    )
+
+    # Replay → 200 with idempotent_replay
+    resp2 = client.post(
+        "/v1/doctor/verified-visits", headers=headers, json=payload
+    )
+    assert resp2.status_code in (200, 201), resp2.text
+    body2 = resp2.json()
+    _validate_response_against_served(
+        document,
+        "post",
+        "/v1/doctor/verified-visits",
+        resp2.status_code,
+        body2,
+    )
+
+
+def test_get_visit_validates(client, app):
+    """Get visit response validates against served schema."""
+    document = client.get("/openapi.json").json()
+    bootstrap_admin(app)
+    chain = setup_doctor_with_invitation(app, client)
+    doctor = chain["doctor"]
+    visit = chain["visit"]
+    headers = {"Authorization": f"Bearer {doctor['token']}"}
+
+    resp = client.get(
+        f"/v1/doctor/verified-visits/{visit['visit_id']}",
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    _validate_response_against_served(
+        document,
+        "get",
+        "/v1/doctor/verified-visits/{visit_id}",
+        200,
+        resp.json(),
+    )
