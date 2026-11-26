@@ -192,3 +192,75 @@ def test_reviewer_failure_audit_uses_one_writer_and_one_event(client, app, monke
     assert response.json()["error"]["code"] == "invalid_invitation"
     assert _scalar(app, query) == before + 1
     assert _scalar(app, "SELECT COUNT(*) FROM patient_identity") == 0
+
+
+def test_reviewer_first_doctor_provision_binds_pepper_before_idempotency(
+    app_factory, test_settings
+):
+    """AD1 is reachable before the first visit and without failed login."""
+    app = app_factory()
+    with TestClient(app) as client:
+        bootstrap_admin(app)
+        authenticated = client.post("/v1/auth/login", json={
+            "email": ADMIN_EMAIL, "password": ADMIN_PASSWORD,
+        })
+        assert authenticated.status_code == 200
+        created = client.post(
+            "/v1/admin/doctors",
+            headers={
+                **bearer(authenticated.json()["session_token"]),
+                "Idempotency-Key": "reviewer-first-ad1",
+            },
+            json={
+                "email": "reviewer.first@cardioassist.local",
+                "display_name": "Reviewer First Doctor",
+                "temp_password_policy": "one_time_secret",
+            },
+        )
+        assert created.status_code == 201
+        assert _scalar(app, "SELECT COUNT(*) FROM verified_visit") == 0
+        assert _scalar(app, "SELECT COUNT(*) FROM login_attempt") == 0
+        assert _scalar(app, "SELECT COUNT(*) FROM durable_idempotency") == 1
+        assert _scalar(app, "SELECT COUNT(*) FROM identity_key_check") == 3
+
+    changed = replace(test_settings, pepper=b"reviewer-synthetic-changed-pepper-001")
+    with pytest.raises(ApiError) as caught:
+        with TestClient(app_factory(term1_settings=changed)):
+            pytest.fail("Changed pepper accepted after successful AD1 replay record")
+    assert caught.value.code == "identity_key_material_mismatch"
+    with TestClient(app_factory()) as client:
+        assert client.get("/openapi.json").status_code == 200
+
+
+def test_reviewer_i1_issuance_and_secret_nonredisclosure_contract(client, app):
+    document = client.get("/openapi.json").json()
+    chain = setup_doctor_with_invitation(app, client)
+    doctor = chain["doctor"]
+    visit = attest_visit(client, doctor, visit_ref="REVIEWER-I1-SCHEMA")
+    path = "/v1/doctor/verified-visits/{visit_id}/invitations"
+    url = path.replace("{visit_id}", visit["visit_id"])
+    headers = {**bearer(doctor["token"]), "Idempotency-Key": "reviewer-i1"}
+    payload = {"subject_identifier": DEMO_ID_A}
+    first = client.post(url, headers=headers, json=payload)
+    assert first.status_code == 201
+    _assert_http_schema(document, "post", path, first)
+    replay = client.post(url, headers=headers, json=payload)
+    assert replay.status_code == 409
+    assert replay.json()["error"]["code"] == "secret_not_redisclosable"
+    assert first.json()["access_code"] not in replay.text
+    _assert_http_schema(document, "post", path, replay)
+
+
+def test_reviewer_e4_doctor_revocation_success_contract(client, app):
+    document = client.get("/openapi.json").json()
+    chain = setup_doctor_with_invitation(app, client)
+    registered = register_patient(client, chain["invitation"]["access_code"])
+    path = "/v1/doctor/assignments/{assignment_id}/revoke"
+    url = path.replace("{assignment_id}", registered["assignment_id"])
+    response = client.post(
+        url,
+        headers={**bearer(chain["doctor"]["token"]), "Idempotency-Key": "reviewer-e4"},
+        json={"reason_code": "schema_test"},
+    )
+    assert response.status_code == 200
+    _assert_http_schema(document, "post", path, response)
