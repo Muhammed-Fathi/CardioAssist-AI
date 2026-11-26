@@ -23,9 +23,12 @@ operations:
     summary: "Provision a doctor account; issues a one-time temp_secret."
     request:
       fields: [email, display_name, temp_password_policy]
+      body: required
+      request_schema: term1_admin_doctors_request.schema.json
     responses:
       - status: 201
         description: "{doctor_id, user_id, temp_secret once, display_name, role, contract_version}"
+        response_schema: term1_admin_doctors_response.schema.json
       - status: 409
         code: secret_not_redisclosable
         description: "Replay of the same key — the temporary secret is never re-emitted"
@@ -46,10 +49,13 @@ operations:
     summary: "Patch account status; last-administrator protection applies."
     request:
       fields: [status, reason_code]
+      body: required
+      request_schema: term1_admin_status_request.schema.json
     path_parameters: [user_id]
     responses:
       - status: 200
         description: Success
+        response_schema: term1_admin_status_response.schema.json
       - status: 403
         code: last_administrator_protected
       - status: 404

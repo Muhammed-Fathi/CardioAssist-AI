@@ -1,10 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_invitation_create_request.schema.json.schema.json",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_invitation_create_request.schema.json",
   "title": "term1_invitation_create_request.schema.json",
   "type": "object",
   "required": [
-    "contract_version",
     "subject_identifier"
   ],
   "additionalProperties": false,

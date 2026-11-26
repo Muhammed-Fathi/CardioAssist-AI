@@ -91,96 +91,44 @@ IDEMPOTENT_C1: frozenset[str] = frozenset(
 
 # ---------------------------------------------------------------------------
 # Operation -> JSON Schema mapping (operation-specific request / response).
-# Keys are (method, path) exactly as in C1_OPERATIONS.
+# Derived from the modular YAML source bindings; keys are (method, path).
 # ---------------------------------------------------------------------------
+
 
 def _schema_filename(operation_id: str, kind: str) -> str:
     return f"term1_{operation_id.lower()}_{kind}.schema.json"
 
 
-OP_SCHEMAS: dict[tuple[str, str], dict[str, str | None]] = {
-    # (method, path): {"request": <schema filename or None>, "response": <schema filename>}
-    ("post", "/v1/auth/login"): {
-        "request": _schema_filename("auth_login", "request"),
-        "response": _schema_filename("auth_login", "response"),
-    },
-    ("post", "/v1/auth/refresh"): {
-        "request": _schema_filename("auth_refresh", "request"),
-        "response": _schema_filename("auth_refresh", "response"),
-    },
-    ("get", "/v1/auth/me"): {
-        "request": None,
-        "response": _schema_filename("auth_me", "response"),
-    },
-    ("post", "/v1/auth/logout"): {
-        "request": _schema_filename("auth_logout", "request"),
-        "response": _schema_filename("auth_logout", "response"),
-    },
-    ("post", "/v1/me/password"): {
-        "request": _schema_filename("me_password", "request"),
-        "response": _schema_filename("me_password", "response"),
-    },
-    ("get", "/v1/me/sessions"): {
-        "request": None,
-        "response": _schema_filename("me_sessions", "response"),
-    },
-    ("delete", "/v1/me/sessions/{session_id}"): {
-        "request": None,
-        "response": _schema_filename("auth_session_revoke", "response"),
-    },
-    ("post", "/v1/admin/doctors"): {
-        "request": _schema_filename("admin_doctors", "request"),
-        "response": _schema_filename("admin_doctors", "response"),
-    },
-    ("patch", "/v1/admin/accounts/{user_id}/status"): {
-        "request": _schema_filename("admin_status", "request"),
-        "response": _schema_filename("admin_status", "response"),
-    },
-    ("post", "/v1/doctor/verified-visits"): {
-        "request": _schema_filename("visit_create", "request"),
-        "response": _schema_filename("visit_create", "response"),
-    },
-    ("get", "/v1/doctor/verified-visits/{visit_id}"): {
-        "request": None,
-        "response": _schema_filename("visit_get", "response"),
-    },
-    ("post", "/v1/doctor/verified-visits/{visit_id}/invitations"): {
-        "request": _schema_filename("invitation_create", "request"),
-        "response": _schema_filename("invitation_create", "response"),
-    },
-    ("post", "/v1/doctor/invitations/{invitation_id}/revoke"): {
-        "request": _schema_filename("invitation_revoke", "request"),
-        "response": _schema_filename("invitation_revoke", "response"),
-    },
-    ("get", "/v1/doctor/invitations/{invitation_id}"): {
-        "request": None,
-        "response": _schema_filename("invitation_get", "response"),
-    },
-    ("post", "/v1/patients/register"): {
-        "request": _schema_filename("patient_register", "request"),
-        "response": _schema_filename("patient_register", "response"),
-    },
-    ("post", "/v1/patients/link"): {
-        "request": _schema_filename("patient_link", "request"),
-        "response": _schema_filename("patient_link", "response"),
-    },
-    ("get", "/v1/me/assignments"): {
-        "request": None,
-        "response": _schema_filename("me_assignments", "response"),
-    },
-    ("post", "/v1/doctor/assignments/{assignment_id}/revoke"): {
-        "request": _schema_filename("assignment_doctor_revoke", "request"),
-        "response": _schema_filename("assignment_doctor_revoke", "response"),
-    },
-    ("post", "/v1/me/assignments/{assignment_id}/revoke"): {
-        "request": _schema_filename("assignment_patient_revoke", "request"),
-        "response": _schema_filename("assignment_patient_revoke", "response"),
-    },
-    ("post", "/v1/me/consent/synthetic-demo/revoke"): {
-        "request": _schema_filename("consent_revoke", "request"),
-        "response": _schema_filename("consent_revoke", "response"),
-    },
-}
+def _build_op_schemas() -> dict[tuple[str, str], dict[str, str | None]]:
+    """Build the request/response schema binding from each YAML operation.
+
+    Falls back to the conventional ``term1_<opid>_<kind>.schema.json`` name when
+    a YAML binding is omitted, so the map always covers every C1 operation.
+    """
+    mapping: dict[tuple[str, str], dict[str, str | None]] = {}
+    for op in _contract_operations():
+        key = (op["method"].lower(), op["path"])
+        op_id = op["id"]
+        request = op.get("request", {}) or {}
+        responses = op.get("responses", []) or []
+        success_entry = next(
+            (r for r in responses if str(r.get("status", "")).startswith("2")), {}
+        )
+        mapping[key] = {
+            "request": request.get("request_schema")
+            or (_schema_filename(op_id, "request") if request.get("body") == "required" else None),
+            "response": success_entry.get("response_schema")
+            or _schema_filename(op_id, "response"),
+        }
+    return mapping
+
+
+OP_SCHEMAS: dict[tuple[str, str], dict[str, str | None]] = _build_op_schemas()
+
+# Sanity check: every declared C1 operation has a schema binding.
+assert set(OP_SCHEMAS) == set(
+    (op["method"].lower(), op["path"]) for op in _contract_operations()
+), "OP_SCHEMAS does not cover every C1 operation"
 
 def _load_c1_schemas() -> dict[str, dict[str, Any]]:
     """Load every operation-specific C1 JSON Schema from disk."""
@@ -232,16 +180,22 @@ def _operation_object(
     authenticated: bool,
     idempotent: bool,
 ) -> dict[str, Any]:
-    schemas = OP_SCHEMAS[(method, path)]
+    op = next(
+        o for o in _contract_operations()
+        if o["method"].lower() == method and o["path"] == path
+    )
+    operation_id = op["id"]
+    request = op.get("request", {}) or {}
+    body_presence = str(request.get("body", "absent")).lower()
+    request_schema = request.get("request_schema")
+    response_schema = op.get("responses", [{}])[0].get("response_schema")
+
     operation: dict[str, Any] = {
         "operationId": f"{method}_{path.strip('/').replace('/', '_').replace('{', '').replace('}', '')}",
         "tags": ["term1-c1"],
         "summary": f"C1 {method.upper()} {path}",
         "x-term1-stage": "C1",
-        "x-op-id": next(
-            op["id"] for op in _contract_operations()
-            if op["method"].lower() == method and op["path"] == path
-        ),
+        "x-op-id": operation_id,
     }
     parameters: list[dict[str, Any]] = []
     for segment in path.split("/"):
@@ -279,33 +233,60 @@ def _operation_object(
         )
     operation["parameters"] = sorted(parameters, key=lambda item: (item["in"], item["name"]))
 
-    if method in {"post", "patch", "delete"} and schemas["request"] is not None:
+    # Bearer security requirement for authenticated operations (reconciled
+    # header-based bearer definition, not a body field).
+    if authenticated:
+        operation["security"] = [{"bearerAuth": []}]
+
+    # Request body presence and schema come from the YAML source. A body is only
+    # declared when a schema exists to validate it against.
+    if body_presence == "required" and request_schema:
         operation["requestBody"] = {
             "required": True,
             "content": {
                 "application/json": {
-                    "schema": {"$ref": f"#/components/schemas/{schemas['request']}"}
+                    "schema": {"$ref": f"#/components/schemas/{request_schema}"}
+                }
+            },
+        }
+    elif body_presence == "optional" and request_schema:
+        operation["requestBody"] = {
+            "required": False,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": f"#/components/schemas/{request_schema}"}
                 }
             },
         }
 
-    success = {"post": "201", "patch": "200", "delete": "200", "get": "200"}[method]
+    # Success status and schema come from the first (2xx) response declared in YAML.
+    responses = op.get("responses", []) or []
+    success_entry = next((r for r in responses if str(r.get("status", "")).startswith("2")), None)
+    success_status = str(success_entry.get("status", "200")) if success_entry else "200"
     operation["responses"] = {
-        success: {
-            "description": "Success.",
+        success_status: {
+            "description": success_entry.get("description", "Success."),
             "content": {
                 "application/json": {
-                    "schema": {"$ref": f"#/components/schemas/{schemas['response']}"}
+                    "schema": {
+                        "$ref": f"#/components/schemas/{success_entry.get('response_schema') or response_schema or 'term1_error.schema.json'}"
+                    }
                 }
             },
         }
     }
-    for status in ("400", "401", "403", "404", "409", "422", "429", "500"):
+    # Error statuses come from the remaining (non-2xx) responses declared in YAML.
+    for entry in responses:
+        status = str(entry.get("status", ""))
+        if status.startswith("2"):
+            continue
         operation["responses"][status] = {
-            "description": "C1 error.",
+            "description": entry.get("description", "C1 error."),
             "content": {
                 "application/json": {
-                    "schema": {"$ref": "#/components/schemas/term1_error.schema.json"}
+                    "schema": {
+                        "$ref": f"#/components/schemas/{entry.get('response_schema') or 'term1_error.schema.json'}"
+                    }
                 }
             },
         }
@@ -362,6 +343,19 @@ def compose_openapi(contracts) -> Any:
 
         schemas = document.setdefault("components", {}).setdefault("schemas", {})
         schemas.update(_c1_components())
+        # Reconciled bearer-security definition: Authorization is a header, never
+        # a body field. Declared once and referenced by authenticated operations.
+        components = document.setdefault("components", {})
+        components.setdefault(
+            "securitySchemes",
+            {},
+        )["bearerAuth"] = {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "session",
+            "description": "Bearer session token issued by POST /v1/auth/login.",
+        }
+        document["security"] = [{"bearerAuth": []}]
         document.setdefault("tags", []).append(
             {
                 "name": "term1-c1",
