@@ -110,7 +110,7 @@ jobs:
           # silently ignored, so the linked kernels are read at runtime.
           payload["resident_libraries"] = [
               {k: v for k, v in e.items() if k in
-               ("internal_api","user_api","version","prefix","filepath","architecture","num_threads")}
+               ("internal_api","user_api","version","prefix","architecture","num_threads")}
               for e in threadpool_info()
           ]
           print(json.dumps(payload, indent=2, sort_keys=True))
@@ -141,7 +141,7 @@ jobs:
             tests/experiments/test_research_facade.py \
             tests/contracts -q -W error
           code=$?
-          echo "stage1_exit=$code" >> "$GITHUB_OUTPUT"
+          echo "stage1_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
           exit 0
 
       # ------------------------------------------------------------------ #
@@ -157,11 +157,20 @@ jobs:
           # regeneration path and records the model, calibration and replay
           # identities, not just a convergence summary. Repeated fits in one
           # environment are the strictest same-environment identity test available.
+          producer_exit=0
           for run in 1 2; do
             python -m research.intake.rh04_v2_lane_a_report "${{ matrix.dispatch-class }}" lane-a \
               > "lane-a/run${run}.json"
-            echo "lane_a_run${run}_exit=$?"
+            run_code=$?
+            printf 'lane_a_run%s_exit=%s\n' "$run" "$run_code"
+            if [ "$run_code" -ne 0 ] && [ "$producer_exit" -eq 0 ]; then
+              producer_exit=$run_code
+            fi
           done
+          if [ "$producer_exit" -ne 0 ]; then
+            printf 'stage2_exit=%s\n' "$producer_exit" >> "$GITHUB_OUTPUT" || exit 1
+            exit 0
+          fi
           python - <<'PY'
           import json, pathlib
           first = json.loads(pathlib.Path("lane-a/run1.json").read_text())
@@ -236,7 +245,6 @@ jobs:
               "any_failure": first["any_failure"] or second["any_failure"],
           }
           pathlib.Path("lane-a/identity.json").write_text(json.dumps(report, indent=2, sort_keys=True))
-          print(json.dumps(report, indent=2, sort_keys=True))
           # An empty resident list is not evidence.
           if not report["libraries"]:
               raise SystemExit("no resident numerical libraries were recorded")
@@ -249,27 +257,26 @@ jobs:
           # V2-04a: validity, not equality. A converged regeneration whose
           # parameters differ from the archive by float noise is a diagnostic
           # FINDING and must not fail the gate; missing evidence, broken
-          # provenance or a failed fit must. The module decides and this reads its
-          # verdict rather than re-deriving one, so the two cannot drift apart.
-          validity = first.get("validity") or {}
-          if validity.get("valid") is not True:
-              raise SystemExit(
-                  "Lane A evidence is invalid: "
-                  + "; ".join(validity.get("failures") or ["no validity record"])
-              )
-          for route, value in report["identities_run1"].items():
-              if value["provenance_lineage_valid"] is not True:
-                  raise SystemExit(f"{route}: provenance lineage is not established")
-          findings = validity.get("findings") or []
-          if findings:
-              print("Lane A findings (measured differences, not failures):")
-              for finding in findings:
-                  print("  - " + finding)
-          if report["any_failure"]:
-              raise SystemExit("Lane A reported a convergence failure")
+          # provenance or a failed fit must.
+          #
+          # R23-01: BOTH regenerations are validated, through the same shared
+          # predicate the host-dispatch path uses, so the two cannot drift apart.
+          # The previous version read only `first`, which meant a second run that
+          # was structurally invalid still produced a passing stage.
+          from research.intake.rh04_v2_lane_a_validation import (
+              validate_lane_a_documents,
+          )
+
+          verdicts = validate_lane_a_documents(
+              [("run1", first), ("run2", second)], require_validity_record=True
+          )
+          if not all(verdict.valid for verdict in verdicts):
+              raise SystemExit("Lane A evidence is invalid")
+
+          print("Lane A validation passed; findings retained in evidence")
           PY
           code=$?
-          echo "stage2_exit=$code" >> "$GITHUB_OUTPUT"
+          echo "stage2_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
           exit 0
 
       # ------------------------------------------------------------------ #
@@ -288,7 +295,12 @@ jobs:
           python -m research.intake.rh04_v2_lane_a_report \
             "${{ matrix.dispatch-class }}" lane-b \
             research/intake/fixtures/rh04_v2_portable > lane-b/observed.json
-          echo "lane_b_exit=$?"
+          producer_exit=$?
+          printf 'lane_b_exit=%s\n' "$producer_exit"
+          if [ "$producer_exit" -ne 0 ]; then
+            printf 'stage3_exit=%s\n' "$producer_exit" >> "$GITHUB_OUTPUT" || exit 1
+            exit 0
+          fi
           python - <<'PY'
           import json, pathlib
           observed = json.loads(pathlib.Path("lane-b/observed.json").read_text())
@@ -307,15 +319,11 @@ jobs:
               "verdict": observed["verdict"],
           }
           pathlib.Path("lane-b/identity.json").write_text(json.dumps(record, indent=2, sort_keys=True))
-          print(json.dumps(record, indent=2, sort_keys=True))
           # The digest is compared exactly. It is never regenerated to fit, and the
           # observed value is what gets recorded -- not merely "the expected digest
           # appeared somewhere in the output".
           if observed["observed_digest"] != expected_digest:
-              raise SystemExit(
-                  f"Lane B digest mismatch: observed {observed['observed_digest']}, "
-                  f"expected {expected_digest}"
-              )
+              raise SystemExit("Lane B digest mismatch")
           if observed["reference_digest"] != expected_digest:
               raise SystemExit("the pinned reference digest is not the agreed digest")
           if observed["n_cases"] != 29:
@@ -326,7 +334,7 @@ jobs:
               raise SystemExit("Lane B recorded no resident library identity")
           PY
           code=$?
-          echo "stage3_exit=$code" >> "$GITHUB_OUTPUT"
+          echo "stage3_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
           exit 0
 
       # ------------------------------------------------------------------ #
@@ -348,41 +356,93 @@ jobs:
             -q -W error \
             -k "v2_02 or v2_03 or v2_04a or v2_05 or v2_07 or v2_08 or lane_a or lane_b or convergence or portable_lane or manifest_builder or producer_lineage or never_deserializes or never_reads_the_producer or calibration_input"
           code=$?
-          echo "stage4_exit=$code" >> "$GITHUB_OUTPUT"
+          echo "stage4_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
           exit 0
 
       # ------------------------------------------------------------------ #
       # Stage 5 — security checks (MANDATORY)
       # ------------------------------------------------------------------ #
+      # ------------------------------------------------------------------ #
+      # Stage 4b — hardening regressions (MANDATORY) —— R24-F04             #
+      # ------------------------------------------------------------------ #
+      # Why a separate step rather than folding these into Stage 4:
+      #   * Stage 4 must keep its existing 67-test selection unchanged, so the
+      #     reference-selection count stays comparable with earlier runs;
+      #   * a separate step records its OWN exit code, so "the hardening tests
+      #     never ran" becomes NO_RESULT_RECORDED and fails the aggregate rather
+      #     than being silently absorbed;
+      #   * the two suites are different files with different failure meanings.
+      # In Revision 1 these 36 tests existed but no hosted job executed them, so
+      # the tests that police publication ordering never ran on a runner.
+      - name: "Stage 4b - hardening validation and security regressions (mandatory)"
+        id: hardening
+        if: always()
+        run: |
+          set +e
+          # No textual file-existence guard here: `pytest` on a missing file exits
+          # non-zero, which is the fail-closed behaviour we want. A guard that
+          # skips when the file is absent would turn a missing mandatory suite
+          # into a green result -- exactly the defect R24-F04 describes.
+          python -m pytest \
+            tests/experiments/test_rh04_v2_hardening.py \
+            -q -W error
+          code=$?
+          echo "stage4b_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
+          exit 0
+
       - name: "Stage 5 - security checks (mandatory)"
         id: security
         if: always()
         run: |
           set +e
           # No raw artefact data may reach the repository from this gate.
-          leaked=$(git status --porcelain | grep -Ev '^\?\? (lane-a|lane-b)/' | wc -l)
+          worktree=$(git status --porcelain)
+          status_code=$?
+          if [ "$status_code" -ne 0 ]; then
+            leaked=1
+          else
+            unexpected=$(printf '%s\n' "$worktree" | grep -Ev '^$|^\?\? (lane-a|lane-b)/')
+            grep_code=$?
+            if [ "$grep_code" -eq 1 ]; then leaked=0; else leaked=1; fi
+          fi
           echo "unexpected_worktree_changes=$leaked"
           # The gate must not modify the frozen V1 surface.
           git diff --exit-code --stat -- ai/training.py ai/calibration.py
           frozen=$?
-          # No credentials or absolute host paths in the produced evidence.
-          if grep -RIlE '/(home|Users)/[A-Za-z0-9._-]+|BEGIN [A-Z ]*PRIVATE KEY' lane-a lane-b 2>/dev/null; then
-            paths=1
-          else
-            paths=0
-          fi
-          if [ "$leaked" -ne 0 ] || [ "$frozen" -ne 0 ] || [ "$paths" -ne 0 ]; then
+          # R23-03: the previous scan was `if grep ...; then paths=1; else paths=0; fi`.
+          # grep exits 2 on an unreadable file or an absent path, and that was
+          # indistinguishable from "no match", i.e. CLEAN. So a scan that could not
+          # run reported a pass. Evidence validation is now an allowlist with
+          # explicit schema and content rules, and a scan that cannot complete is a
+          # failure. The module never prints matched text, so a leak cannot become a
+          # second leak in this log.
+          python -m research.intake.rh04_v2_evidence_security \
+            . --evidence-dirs lane-a lane-b --status-file security-status.json
+          evidence=$?
+          echo "evidence_security_exit=$evidence"
+          if [ "$leaked" -ne 0 ] || [ "$frozen" -ne 0 ] || [ "$evidence" -ne 0 ]; then
             code=1
           else
             code=0
           fi
-          echo "stage5_exit=$code" >> "$GITHUB_OUTPUT"
+          echo "stage5_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
           exit 0
 
       # ------------------------------------------------------------------ #
       # Stage 6 — classified Lane A differences (REPORTING, NOT A PASS GATE)
       # ------------------------------------------------------------------ #
-      - name: "Stage 6 - classified Lane A differences (reporting)"
+      # ------------------------------------------------------------------ #
+      # Aggregate — fails if ANY mandatory stage failed
+      # ------------------------------------------------------------------ #
+      # ------------------------------------------------------------------ #
+      # Stage 6 — classify Lane A differences (WRITER, must precede the seal) #
+      # ------------------------------------------------------------------ #
+      # R24-F01: this used to run AFTER the security stage, so its output
+      # (lane-a/classified.json) reached the upload set without ever being
+      # validated. It is a pure function of lane-a/identity.json, so moving it
+      # before the seal costs nothing and removes the gap: after the seal runs,
+      # there is no step left that may write evidence.
+      - name: "Stage 6 - classified Lane A differences (pre-publication writer)"
         id: classify
         if: always()
         run: |
@@ -394,8 +454,7 @@ jobs:
               "dispatch_class": report["observed_dispatch_class"],
               "python": report["python"],
               # `identities_run1` is what Stage 2 writes; `run1_digests` never
-              # existed, which is why every forced-dispatch job raised KeyError
-              # here instead of classifying its differences.
+              # existed.
               "digests": report["identities_run1"],
               "regeneration_identical": report["regeneration_identical"],
               "note": (
@@ -407,83 +466,272 @@ jobs:
               ),
           }
           pathlib.Path("lane-a/classified.json").write_text(json.dumps(record, indent=2, sort_keys=True))
-          print(json.dumps(record, indent=2, sort_keys=True))
           PY
           code=$?
-          echo "stage6_exit=$code" >> "$GITHUB_OUTPUT"
+          echo "stage6_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
           exit 0
 
       # ------------------------------------------------------------------ #
-      # Aggregate — fails if ANY mandatory stage failed
+      # Stage 7 — SCIENTIFIC summary (WRITER, before the publication seal)   #
       # ------------------------------------------------------------------ #
-      - name: "Aggregate - fail if any mandatory stage failed"
+      # R24-F02: gate-summary.json used to be produced by the aggregate step,
+      # after the security stage, and was published unvalidated.
+      #
+      # To avoid a circular dependency (summary -> publication verdict ->
+      # aggregate -> summary) the summary is split in two:
+      #
+      #   * gate-summary.json  -- SCIENTIFIC stage outcomes only. Written HERE,
+      #     before the seal, and therefore inside the validated set. It records
+      #     the six scientific stage exit codes and nothing about publication.
+      #   * publication-status.json -- the PUBLICATION verdict. Written by a
+      #     minimal writer AFTER the mandatory aggregate has computed its
+      #     failures, and NOT published. It is surfaced through the job's own
+      #     exit status and the step summary instead.
+      #
+      # Stage 6 writes a report; its exit is recorded but not mandatory. It it cannot suppress a failure recorded by a mandatory
+      # stage, because every mandatory stage records its own exit code and the
+      # aggregate reads those codes directly.
+      - name: "Stage 7 - scientific summary (pre-publication writer)"
+        id: summary
+        if: always()
+        env:
+          RH04_V1: ${{ steps.v1.outputs.stage1_exit }}
+          RH04_LANE_A: ${{ steps.lane_a.outputs.stage2_exit }}
+          RH04_LANE_B: ${{ steps.lane_b.outputs.stage3_exit }}
+          RH04_REGRESSION: ${{ steps.regression.outputs.stage4_exit }}
+          RH04_HARDENING: ${{ steps.hardening.outputs.stage4b_exit }}
+          RH04_SECURITY: ${{ steps.security.outputs.stage5_exit }}
+          RH04_CLASSIFY: ${{ steps.classify.outputs.stage6_exit }}
+        run: |
+          set +e
+          python - <<'PY'
+          import json, os, pathlib, re
+          stages = {
+              "v1": os.environ.get("RH04_V1", ""),
+              "lane_a": os.environ.get("RH04_LANE_A", ""),
+              "lane_b": os.environ.get("RH04_LANE_B", ""),
+              "regression": os.environ.get("RH04_REGRESSION", ""),
+              "hardening": os.environ.get("RH04_HARDENING", ""),
+              "security": os.environ.get("RH04_SECURITY", ""),
+              "classify": os.environ.get("RH04_CLASSIFY", ""),
+          }
+          stages = {
+              name: value if re.fullmatch(r"0|[1-9][0-9]{0,2}", value) and int(value) <= 255
+              else "NO_RESULT_RECORDED" if value == "" else "INVALID_RESULT"
+              for name, value in stages.items()
+          }
+          # Scientific outcomes only. Publication status is NOT recorded here:
+          # it is computed later, would be circular, and must never influence a
+          # file that is published as scientific evidence.
+          summary = {
+              "python": "${{ matrix.python-version }}",
+              "dispatch_class": "${{ matrix.dispatch-class }}",
+              "stages": stages,
+              "scope_note": (
+                  "Scientific stage exit codes only. This file deliberately does "
+                  "not record the publication verdict; see publication-status.json."
+              ),
+          }
+          pathlib.Path("gate-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+          code=$?
+          echo "stage7_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
+          exit 0
+
+      # ------------------------------------------------------------------ #
+      # Publication security — SEAL (MANDATORY)                             #
+      # ------------------------------------------------------------------ #
+      # R24-F03. Two separate questions, asked in this order:
+      #
+      #   Stage 5  "is each evidence file safe?"      -- content rules
+      #   Stage 8  "is the package I will upload exactly the package I
+      #            validated?"                        -- lifecycle integrity
+      #
+      # Stage 8 refuses to seal unless every file in the evidence tree is on the
+      # allowlist, is a plain singly-linked regular file (no symlinks, no
+      # hardlinks, no directories, nothing resolving outside the tree), and passes
+      # the SAME content rules Stage 5 uses -- imported, not re-implemented.
+      #
+      # It then copies the validated bytes into a fresh staging directory, re-reads
+      # the copies, compares per-file SHA-256 with the originals, and writes a
+      # manifest. The upload step uploads THAT directory and nothing else, so a
+      # broad mutable evidence glob can no longer reach publication.
+      #
+      # The seal enumerates the SAME surface Stage 5 scans -- the two declared
+      # evidence directories -- and not the repository root. Walking the checkout
+      # would treat `.git`, `research/` and every tracked file as unexpected
+      # evidence and fail closed on every legitimate run: a control that can never
+      # pass is not a control, it is an outage. Within the declared surface the
+      # enumeration is complete, so a file added to lane-a/ after Stage 5 is still
+      # caught (R24-F01), and root-level evidence is limited to the allowlist key
+      # `gate-summary.json` (R24-F02).
+      #
+      # A sealing failure is a SECURITY failure: it sets stage8_exit non-zero, the
+      # aggregate fails, and the raw evidence is withheld.
+      - name: "Stage 8 - seal publication package (mandatory)"
+        id: seal
         if: always()
         run: |
+          set +e
+          python -m research.intake.rh04_v2_publication_integrity seal \
+            . publication-package --evidence-dirs lane-a lane-b --github-output "$GITHUB_OUTPUT"
+          code=$?
+          echo "stage8_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
+          exit 0
+
+      # ------------------------------------------------------------------ #
+      # Verify the sealed package immediately before upload (MANDATORY)      #
+      # ------------------------------------------------------------------ #
+      # Re-derives every digest from the bytes on disk. This is the last read of
+      # the package before it is uploaded; a mutation after the seal is caught
+      # here. The residual window between this step and the upload step is
+      # documented in the module's TRUST_BOUNDARY and is not claimed to be closed.
+      - name: "Verify sealed package integrity (mandatory)"
+        id: verify
+        if: always()
+        env:
+          EXPECTED_PACKAGE_DIGEST: ${{ steps.seal.outputs.package_digest }}
+        run: |
+          set +e
+          python -m research.intake.rh04_v2_publication_integrity verify \
+            publication-package --expected-digest "$EXPECTED_PACKAGE_DIGEST"
+          code=$?
+          echo "verify_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
+          exit 0
+
+      # Publication is independent of scientific success: require Stage 5,
+      # seal and verification, not a green V1 result. Final aggregate below
+      # consumes the completed outputs and propagates mandatory failures.
+      - name: Upload sealed publication package
+        if: always() && steps.security.outputs.stage5_exit == '0' && steps.seal.outputs.stage8_exit == '0' && steps.verify.outputs.verify_exit == '0'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rh04-gate-${{ matrix.dispatch-class }}-py${{ matrix.python-version }}
+          # R24-F03: ONE directory -- the sealed package. Every member was
+          # validated, copied and digested by `seal`, and re-verified immediately
+          # before this step. No evidence-directory glob is named here, so an
+          # unexpected file cannot ride along even if one appears afterwards.
+          path: publication-package/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write sanitized publication-withheld status
+        id: withheld_status
+        if: always() && (steps.security.outputs.stage5_exit != '0' || steps.seal.outputs.stage8_exit != '0' || steps.verify.outputs.verify_exit != '0')
+        run: |
+          set -o noclobber
+          printf '%s\n' '{"publication_permitted":false,"reason":"mandatory publication checks did not all pass"}' > publication-withheld.json
+
+      - name: Upload sanitized security status (publication withheld)
+        if: always() && (steps.security.outputs.stage5_exit != '0' || steps.seal.outputs.stage8_exit != '0' || steps.verify.outputs.verify_exit != '0') && steps.withheld_status.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rh04-gate-${{ matrix.dispatch-class }}-py${{ matrix.python-version }}-withheld
+          path: publication-withheld.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish per-class summary
+        if: always()
+        env:
+          V1: ${{ steps.v1.outputs.stage1_exit }}
+          LANE_A: ${{ steps.lane_a.outputs.stage2_exit }}
+          LANE_B: ${{ steps.lane_b.outputs.stage3_exit }}
+          REGRESSION: ${{ steps.regression.outputs.stage4_exit }}
+          HARDENING: ${{ steps.hardening.outputs.stage4b_exit }}
+          SECURITY: ${{ steps.security.outputs.stage5_exit }}
+          CLASSIFY: ${{ steps.classify.outputs.stage6_exit }}
+          SEAL: ${{ steps.seal.outputs.stage8_exit }}
+          VERIFY: ${{ steps.verify.outputs.verify_exit }}
+        run: |
           python - <<'PY'
-          import json, os, pathlib
+          import os, re
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as out:
+              out.write("## RH-04 dual-run stage status\n\n| Stage | Exit |\n| --- | --- |\n")
+              for name in ("V1", "LANE_A", "LANE_B", "REGRESSION", "HARDENING", "SECURITY", "CLASSIFY", "SEAL", "VERIFY"):
+                  raw = os.environ.get(name, "")
+                  value = raw if re.fullmatch(r"0|[1-9][0-9]{0,2}", raw) and int(raw) <= 255 else "INVALID_OR_MISSING"
+                  out.write(f"| {name} | {value} |\n")
+          PY
+
+      - name: "Aggregate - fail if any mandatory stage failed"
+        id: aggregate
+        if: always()
+        env:
+          RH04_V1: ${{ steps.v1.outputs.stage1_exit }}
+          RH04_LANE_A: ${{ steps.lane_a.outputs.stage2_exit }}
+          RH04_LANE_B: ${{ steps.lane_b.outputs.stage3_exit }}
+          RH04_REGRESSION: ${{ steps.regression.outputs.stage4_exit }}
+          RH04_HARDENING: ${{ steps.hardening.outputs.stage4b_exit }}
+          RH04_SECURITY: ${{ steps.security.outputs.stage5_exit }}
+          RH04_CLASSIFY: ${{ steps.classify.outputs.stage6_exit }}
+          RH04_SUMMARY: ${{ steps.summary.outputs.stage7_exit }}
+          RH04_SEAL: ${{ steps.seal.outputs.stage8_exit }}
+          RH04_VERIFY: ${{ steps.verify.outputs.verify_exit }}
+        run: |
+          set +e
+          python - <<'PY'
+          import json, os, pathlib, re
           stages = {
-              "v1": "${{ steps.v1.outputs.stage1_exit }}",
-              "lane_a": "${{ steps.lane_a.outputs.stage2_exit }}",
-              "lane_b": "${{ steps.lane_b.outputs.stage3_exit }}",
-              "regression": "${{ steps.regression.outputs.stage4_exit }}",
-              "security": "${{ steps.security.outputs.stage5_exit }}",
-              "classify": "${{ steps.classify.outputs.stage6_exit }}",
+              "v1": os.environ.get("RH04_V1", ""),
+              "lane_a": os.environ.get("RH04_LANE_A", ""),
+              "lane_b": os.environ.get("RH04_LANE_B", ""),
+              "regression": os.environ.get("RH04_REGRESSION", ""),
+              "hardening": os.environ.get("RH04_HARDENING", ""),
+              "security": os.environ.get("RH04_SECURITY", ""),
+              "classify": os.environ.get("RH04_CLASSIFY", ""),
+              "summary": os.environ.get("RH04_SUMMARY", ""),
+              "seal": os.environ.get("RH04_SEAL", ""),
+              "verify": os.environ.get("RH04_VERIFY", ""),
           }
-          mandatory = ("v1", "lane_a", "lane_b", "regression", "security")
+          stages = {
+              name: value if re.fullmatch(r"0|[1-9][0-9]{0,2}", value) and int(value) <= 255
+              else "NO_RESULT_RECORDED" if value == "" else "INVALID_RESULT"
+              for name, value in stages.items()
+          }
+          # R24-F04: `hardening` is mandatory. R24-F03: so are `seal` and
+          # `verify` -- an unsealed or unverified package must not be published.
+          # `classify` and `summary` are writers, not gates: they are recorded but
+          # not mandatory, because a reporting failure must not mask a scientific
+          # one. Their outputs are still validated by the seal.
+          mandatory = (
+              "v1", "lane_a", "lane_b", "regression",
+              "hardening", "security", "seal", "verify",
+          )
           failures = []
           for name, value in stages.items():
               if name not in mandatory:
                   continue
               # An empty value means the step never recorded a result. That is a
               # failure, not a skip: a stage that did not run produced no evidence.
-              if value is None or value.strip() == "":
+              if value == "NO_RESULT_RECORDED":
                   failures.append(f"{name}: NO_RESULT_RECORDED")
-              elif value.strip() != "0":
+              elif value != "0":
                   failures.append(f"{name}: exit {value}")
-          summary = {
+
+          # The final mandatory-stage verdict, written after the computation, so
+          # there is no circular dependency. It is intentionally NOT published:
+          # only gate-summary.json (scientific, sealed) is.
+          publication = {
               "python": "${{ matrix.python-version }}",
               "dispatch_class": "${{ matrix.dispatch-class }}",
               "stages": stages,
+              "mandatory": list(mandatory),
               "mandatory_failures": failures,
+              "all_mandatory_stages_passed": not failures,
               "verdict": "PASS" if not failures else "FAIL",
           }
-          print(json.dumps(summary, indent=2, sort_keys=True))
-          pathlib.Path("gate-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+          print(json.dumps(publication, indent=2, sort_keys=True))
+          pathlib.Path("publication-status.json").write_text(
+              json.dumps(publication, indent=2, sort_keys=True)
+          )
           if failures:
               raise SystemExit("mandatory stages failed: " + "; ".join(failures))
           PY
-
-      - name: Publish per-class summary
-        if: always()
-        run: |
-          {
-            echo "## RH-04 dual-run - ${{ matrix.dispatch-class }} / Python ${{ matrix.python-version }}"
-            echo
-            echo "| Stage | Exit |"
-            echo "| --- | --- |"
-            echo "| V1 scoped verification | ${{ steps.v1.outputs.stage1_exit }} |"
-            echo "| Lane A regeneration identity | ${{ steps.lane_a.outputs.stage2_exit }} |"
-            echo "| Lane B exact replay | ${{ steps.lane_b.outputs.stage3_exit }} |"
-            echo "| Targeted regression | ${{ steps.regression.outputs.stage4_exit }} |"
-            echo "| Security checks | ${{ steps.security.outputs.stage5_exit }} |"
-            echo "| Classified differences (reporting) | ${{ steps.classify.outputs.stage6_exit }} |"
-            echo
-            echo '```json'
-            cat lane-b/identity.json 2>/dev/null || echo '{"lane_b": "no evidence produced"}'
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: rh04-gate-${{ matrix.dispatch-class }}-py${{ matrix.python-version }}
-          path: |
-            lane-a/
-            lane-b/
-            gate-summary.json
-          if-no-files-found: warn
-          retention-days: 14
+          code=$?
+          printf 'aggregate_exit=%s\n' "$code" >> "$GITHUB_OUTPUT" || exit 1
+          exit "$code"
 
   # ---------------------------------------------------------------------- #
   # Unforced host dispatch: what this runner does with no coretype request.  #
@@ -533,41 +781,141 @@ jobs:
       - name: Lane A under host dispatch
         run: |
           # env -u so the job-level env cannot leak a coretype request in.
-          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host lane-a \
-            | tee lane-a-host.json
-          python -c "
-          import json
-          doc = json.load(open('lane-a-host.json'))
-          print('host resident classes:', doc['resident_dispatch']['blas_architectures'])
-          assert doc['identity']['libraries'], 'no resident library identity recorded'
-          assert doc['any_failure'] is False, doc
-          for route, value in doc['routes'].items():
-              regen = value['regeneration']
-              print(route, regen['model_identity']['selected_family'], regen['model_identity_sha256'][:12])
-          "
+          if env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host lane-a \
+            > lane-a-host.json; then
+            :
+          else
+            producer_exit=$?
+            printf 'host_lane_a_producer_exit=%s\n' "$producer_exit"
+            exit "$producer_exit"
+          fi
+          # R23-02: the host path previously asserted only `any_failure is False`.
+          # `any_failure` is a FIT signal; it says nothing about structural drift,
+          # malformed identity, a missing replay case or broken provenance. So the
+          # one path whose jobs were green was the one path that did not enforce
+          # V2-04a at all. It now calls the SAME shared predicate as forced
+          # dispatch, rather than a second, weaker copy of the rule.
+          python - <<'PY'
+          import json, pathlib, sys
+          from research.intake.rh04_v2_lane_a_validation import (
+              check_lane_a_document,
+          )
+
+          doc = json.loads(pathlib.Path("lane-a-host.json").read_text())
+
+
+          failures = []
+          if not doc["identity"]["libraries"]:
+              failures.append("no resident library identity recorded")
+
+          verdict = check_lane_a_document(doc, label="host", require_validity_record=True)
+
+          failures.extend(verdict.failures)
+
+          if failures:
+              sys.exit(1)
+          PY
 
       - name: Lane B under host dispatch
         run: |
-          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host lane-b \
-            research/intake/fixtures/rh04_v2_portable | tee lane-b-host.json
+          if env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host lane-b \
+            research/intake/fixtures/rh04_v2_portable > lane-b-host.json; then
+            :
+          else
+            producer_exit=$?
+            printf 'host_lane_b_producer_exit=%s\n' "$producer_exit"
+            exit "$producer_exit"
+          fi
           python -c "
           import json
           doc = json.load(open('lane-b-host.json'))
           expected = '891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8'
-          print('host Lane B observed:', doc['observed_digest'], doc['verdict'])
-          print('host Lane B resident classes:', doc['resident_dispatch']['blas_architectures'])
-          assert doc['observed_digest'] == expected, doc['observed_digest']
+          assert doc['observed_digest'] == expected, 'Lane B digest mismatch'
           assert doc['verdict'] == 'ACCEPTED'
           assert doc['identity']['libraries'], 'no resident library identity recorded'
           "
 
-      - name: Upload host evidence
+      # R24-F03: host dispatch gets the same publication boundary as forced
+      # dispatch. Its evidence set is smaller, so the seal is the same code path
+      # with the same rules rather than a second, weaker control -- two copies of a
+      # security rule is how the Round 23 host/forced divergence happened.
+      #
+      # NOTE: the host documents are `lane-a-host.json` / `lane-b-host.json`, which
+      # are NOT on the forced-dispatch allowlist. They are named explicitly in the
+      # host allowlist passed to the seal, so the allowlist stays a literal rather
+      # than a glob.
+      - name: "Host - security validation (mandatory)"
+        id: host_security
         if: always()
+        run: |
+          set +e
+          python -m research.intake.rh04_v2_evidence_security \
+            . --host-documents --status-file security-status-host.json
+          code=$?
+          echo "host_security_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
+          exit 0
+
+      - name: "Host - seal publication package (mandatory)"
+        id: host_seal
+        if: always()
+        run: |
+          set +e
+          python -m research.intake.rh04_v2_publication_integrity seal \
+            . publication-package --host-documents \
+            --root-documents lane-a-host.json lane-b-host.json --github-output "$GITHUB_OUTPUT"
+          code=$?
+          echo "host_seal_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
+          exit 0
+
+      - name: "Host - verify sealed package integrity (mandatory)"
+        id: host_verify
+        if: always()
+        env:
+          EXPECTED_PACKAGE_DIGEST: ${{ steps.host_seal.outputs.package_digest }}
+        run: |
+          set +e
+          python -m research.intake.rh04_v2_publication_integrity verify \
+            publication-package --expected-digest "$EXPECTED_PACKAGE_DIGEST" --host-documents
+          code=$?
+          echo "host_verify_exit=$code" >> "$GITHUB_OUTPUT" || exit 1
+          exit 0
+
+      - name: "Host - fail closed unless security, seal and verify all passed"
+        id: host_gate
+        if: always()
+        env:
+          SEC: ${{ steps.host_security.outputs.host_security_exit }}
+          SEAL: ${{ steps.host_seal.outputs.host_seal_exit }}
+          VER: ${{ steps.host_verify.outputs.host_verify_exit }}
+        run: |
+          if [ "$SEC" = "0" ] && [ "$SEAL" = "0" ] && [ "$VER" = "0" ]; then
+            printf 'host_gate_exit=0\n' >> "$GITHUB_OUTPUT" || exit 1
+            exit 0
+          fi
+          printf 'host_gate_exit=1\n' >> "$GITHUB_OUTPUT" || exit 1
+          exit 1
+
+      - name: Upload sealed host publication package
+        if: always() && steps.host_gate.outputs.host_gate_exit == '0'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: rh04-gate-host-py${{ matrix.python-version }}
-          path: |
-            lane-a-host.json
-            lane-b-host.json
+          path: publication-package/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write sanitized host publication-withheld status
+        id: host_withheld_status
+        if: always() && steps.host_gate.outputs.host_gate_exit != '0'
+        run: |
+          set -o noclobber
+          printf '%s\n' '{"publication_permitted":false,"reason":"mandatory publication checks did not all pass"}' > publication-withheld.json
+
+      - name: Upload sanitized host security status (publication withheld)
+        if: always() && steps.host_gate.outputs.host_gate_exit != '0' && steps.host_withheld_status.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rh04-gate-host-py${{ matrix.python-version }}-withheld
+          path: publication-withheld.json
           if-no-files-found: warn
           retention-days: 14

@@ -516,7 +516,19 @@ if ($laneA.replay_response_identity) {
     else {
         Add-Result "Lane A frozen replay vs fixed reference" "FAIL" ("{0} != {1}" -f $frozen.aggregate_digest, $expectedDigest)
     }
-    if ($laneA.validity.valid -eq $true) {
+    # R23-04: fail closed on TYPE, not just value. `-eq $true` is satisfied by the
+    # string "true" and by 1 in PowerShell, so a malformed verdict would read as a
+    # pass. The hosted path requires the value to BE a boolean true; so does this.
+    $validityPresent = $null -ne $laneA.PSObject.Properties["validity"]
+    $verdictRaw = if ($validityPresent) { $laneA.validity.PSObject.Properties["valid"] } else { $null }
+    $verdictIsBool = ($null -ne $verdictRaw) -and ($verdictRaw.Value -is [bool])
+    if (-not $validityPresent) {
+        Add-Result "Lane A validity" "FAIL" "validity record is absent"
+    }
+    elseif (-not $verdictIsBool) {
+        Add-Result "Lane A validity" "FAIL" ("validity.valid is not a boolean (type {0})" -f $(if ($null -eq $verdictRaw) { "absent" } else { $verdictRaw.Value.GetType().Name }))
+    }
+    elseif ($verdictRaw.Value -eq $true) {
         Add-Result "Lane A validity" "PASS" ("{0} finding(s), 0 invalid" -f $laneA.validity.findings.Count)
     }
     else {
@@ -524,18 +536,87 @@ if ($laneA.replay_response_identity) {
     }
 }
 
+# Native Windows repeatability note (R23-04): this procedure makes ONE
+# regeneration per route, so it can evidence a valid converged fit but it cannot
+# by itself evidence within-environment repeatability -- that requires two
+# independent runs in the same environment, which the hosted Stage 2 does with
+# run1/run2. Do not read a single Windows run as a repeatability claim.
+
 # --------------------------------------------------------------------------- #
 # 8. Targeted regression tests (mandatory)                                    #
 # --------------------------------------------------------------------------- #
 Write-Section "8. Targeted regression"
 
+# R23-04: this selector was the pre-patch five-family filter (37 of 315 tests).
+# It never selected the V2-04a validity predicates -- the amendment's central
+# fail-closed rule -- so native Windows evidence would have under-covered exactly
+# the property it exists to measure. The selector below is the same one the hosted
+# gate uses, extended with the hardening regressions, and is STRICTLY a superset:
+# nothing that was selected before is dropped.
+#
+# Parity is asserted, not assumed: the collected count must equal the gate's
+# applicable selection. If someone narrows the gate without narrowing this, or
+# widens this without widening the gate, the count check fails loudly.
+$rh04ReferenceSelection = "v2_02 or v2_03 or v2_04a or v2_05 or v2_07 or v2_08 or lane_a or lane_b or convergence or portable_lane or manifest_builder or producer_lineage or never_deserializes or never_reads_the_producer or calibration_input"
+# Revision 2: the selection is the whole file, not a `-k` expression. A `-k`
+# expression silently skips any test added later whose name does not match --
+# which is precisely how the R2 regressions could ship unexecuted on Windows.
+# The count below is the real collection count of the file at this revision
+# (54 Revision 2 tests + 19 reviewer tests), and the parity check fails if collection drifts.
+$rh04HardeningSelection = ""
+
+$rh04ReferenceCount = 67
+$rh04HardeningCount = 73
+
+$collected = & python -m pytest tests/experiments/test_rh04_v2_reference.py `
+    -q --collect-only -k $rh04ReferenceSelection
+$collectedCount = ($collected | Select-String -Pattern '^(\d+)/' | ForEach-Object { [int]$_.Matches[0].Groups[1].Value } | Select-Object -First 1)
+if ($collectedCount -eq $rh04ReferenceCount) {
+    Add-Result "regression selection parity" "PASS" ("{0} of the reference suite collected" -f $collectedCount)
+}
+else {
+    Add-Result "regression selection parity" "FAIL" ("collected {0}, expected {1}; the Windows selector has drifted from the hosted gate" -f $collectedCount, $rh04ReferenceCount)
+}
+
 python -m pytest tests/experiments/test_rh04_v2_reference.py `
-    -q -W error -k "v2_02 or v2_03 or v2_07 or lane_a or convergence"
+    -q -W error -k $rh04ReferenceSelection
 if ($LASTEXITCODE -eq 0) {
     Add-Result "targeted regression" "PASS" "exit 0"
 }
 else {
     Add-Result "targeted regression" "FAIL" ("exit {0}" -f $LASTEXITCODE)
+}
+
+# The hardening regressions are mandatory on native Windows too: a validity gate
+# that is only fail-closed on Linux is not fail-closed for the matrix V2-04 names.
+if (Test-Path "tests/experiments/test_rh04_v2_hardening.py") {
+    $hardeningCollected = & python -m pytest tests/experiments/test_rh04_v2_hardening.py `
+        -q --collect-only
+    # `pytest --collect-only -q` ends with "<n> tests collected in <t>", not the
+    # "N/..." progress format. The previous pattern matched nothing, so the count
+    # was $null, `-ge` compared $null and the parity check failed on every run --
+    # a check that can never pass. Match the real summary line.
+    $hardeningCount = ($hardeningCollected | Select-String -Pattern '^(\d+) tests? collected' | ForEach-Object { [int]$_.Matches[0].Groups[1].Value } | Select-Object -First 1)
+    if ($null -eq $hardeningCount) {
+        Add-Result "hardening selection parity" "FAIL" "could not parse the collected count; refusing to report parity that was not measured"
+    }
+    elseif ($hardeningCount -ge $rh04HardeningCount) {
+        Add-Result "hardening selection parity" "PASS" ("{0} collected (minimum {1})" -f $hardeningCount, $rh04HardeningCount)
+    }
+    else {
+        Add-Result "hardening selection parity" "FAIL" ("collected {0}, expected at least {1}" -f $hardeningCount, $rh04HardeningCount)
+    }
+    python -m pytest tests/experiments/test_rh04_v2_hardening.py `
+        -q -W error
+    if ($LASTEXITCODE -eq 0) {
+        Add-Result "hardening regressions" "PASS" "exit 0"
+    }
+    else {
+        Add-Result "hardening regressions" "FAIL" ("exit {0}" -f $LASTEXITCODE)
+    }
+}
+else {
+    Add-Result "hardening regressions" "FAIL" "tests/experiments/test_rh04_v2_hardening.py is absent; the fail-closed regressions cannot run"
 }
 
 # --------------------------------------------------------------------------- #
