@@ -686,6 +686,21 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             redacted = {key: value for key, value in result.items() if key != "access_code"}
             return result, redacted, True
 
+        def failure_hook(error: ApiError | None) -> None:
+            # Record failed invitation attempts after rollback so evidence
+            # survives even when the business transaction is rolled back
+            # (C1-R07: failed subject-binding audit evidence surviving rollback).
+            if error is not None and error.code == "invalid_invitation":
+                record_isolated(
+                    handler.database,
+                    clock=handler.clock,
+                    event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
+                    outcome=constants.OUTCOME_DENIED,
+                    subject_type=constants.SUBJECT_VERIFIED_VISIT,
+                    subject_id=visit_id,
+                    code="invalid_invitation",
+                )
+
         return run_idempotent(
             handler,
             request,
@@ -694,6 +709,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             public_fields={"ttl_seconds": ttl},
             secret_fields={"subject_identifier": identifier},
             run=run,
+            failure_hook=failure_hook,
             status=201,
         )
 

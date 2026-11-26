@@ -237,21 +237,13 @@ def issue_invitation(
     binding = compute_binding(settings, normalized)
 
     # The subject must be the identity attested for this visit. A mismatch (or a
-    # key id drift) is refused before any invitation row is created.
+    # key id drift) is refused before any invitation row is created. The failure
+    # audit evidence is recorded by the caller's failure_hook after rollback
+    # (C1-R07: failed subject-binding audit evidence surviving rollback).
     mismatch = not crypto.constant_time_equals(
         binding.identifier_hmac, visit.subject_identifier_hmac
     ) or binding.identifier_key_id != visit.identifier_key_id
     if mismatch:
-        record(
-            session,
-            clock=clock,
-            event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
-            outcome=constants.OUTCOME_DENIED,
-            subject_type=constants.SUBJECT_VERIFIED_VISIT,
-            subject_id=visit.visit_id,
-            actor_user_id=account.user_id,
-            code="subject_mismatch",
-        )
         raise api_error("invalid_invitation")
 
     _expire_stale(session, clock=clock, visit_id=visit.visit_id)
