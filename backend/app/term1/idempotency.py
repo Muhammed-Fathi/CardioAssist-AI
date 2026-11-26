@@ -174,9 +174,12 @@ def precheck(session: Session, *, clock: Clock, identity: RequestIdentity) -> Re
         if from_iso(row.expires_at) <= clock.now():
             # An expired record still occupies the unique replay identity, so
             # remove it within this transaction before a fresh execution can
-            # re-register the same identity. Treating it as absent without
-            # deleting would make remember() hit a uniqueness violation.
+            # re-register the same identity. Flush the deletion before any
+            # replacement insert so remember() does not hit a uniqueness
+            # violation on (replay_scope, key_hash, actor_binding, operation,
+            # target_ref) (C1-R03 durable idempotency expiration lifecycle).
             session.delete(row)
+            session.flush()
             row = None
     if row is None:
         if _same_actor_key_elsewhere(session, clock, key):

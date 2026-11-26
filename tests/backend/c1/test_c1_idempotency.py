@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import text
 
 from backend.app.term1 import constants, crypto
+from backend.app.term1.tx import write_transaction
 from tests.backend.c1.conftest import bearer, login
 from tests.backend.c1.factories import (
     DEMO_ID_A,
@@ -426,3 +427,281 @@ def test_idempotency_records_are_actor_scoped_not_globally_keyed(app):
     for statement in source.split("select("):
         if "DurableIdempotency" in statement and "key_hash ==" in statement:
             assert "actor_binding" in statement, statement[:200]
+
+
+# --- C1-R03: durable idempotency expiration lifecycle ------------------------
+
+def test_precheck_deletes_expired_row_then_remembers_without_conflict(app, clock):
+    """Unit-level proof of the C1-R03 durable idempotency expiration lifecycle:
+
+    1. precheck() creates a DurableIdempotency record.
+    2. A directly-inserted expired record with the same identity exists.
+    3. precheck() deletes the expired row (with flush) and returns a fresh
+       ReplayDecision (not a replay).
+    4. remember() then inserts a replacement row without a UNIQUE violation.
+
+    This proves deletion/INSERT ordering: the expired-row deletion is flushed
+    before the replacement insert, so no uniqueness violation occurs.
+    """
+    from backend.app.term1 import idempotency
+    from backend.app.term1.models import DurableIdempotency
+    from backend.app.term1.timeutil import Clock
+
+    settings = app.state.term1.settings()
+    clock_src = Clock(clock)
+
+    # Compute the real key_hash that build_identity/precheck will use.
+    key_hash = crypto.idempotency_key_hash(settings.pepper, "test-key")
+    actor_binding = idempotency.user_scope("user:test-user")[1]
+
+    # Insert an expired DurableIdempotency row directly (simulating a record
+    # whose TTL has passed).
+    expired_row = DurableIdempotency(
+        replay_id="expired-replay-id",
+        replay_scope="user",
+        key_hash=key_hash,
+        actor_binding=actor_binding,
+        operation="TEST /v1/test/op",
+        target_ref="test-target",
+        request_fingerprint="stored-fingerprint",
+        secret_fingerprints_json={"secret": "stored-secret-fingerprint"},
+        response_public_json={"result": "old"},
+        status_code=200,
+        created_at="2020-01-01T00:00:00.000000Z",
+        expires_at="2020-01-01T00:00:00.000000Z",  # long expired
+        secret_disclosed=False,
+    )
+
+    with write_transaction(app.state.database) as session:
+        session.add(expired_row)
+        session.flush()
+
+        # precheck with same identity: expired row is deleted (flushed),
+        # fresh decision returned (not a replay, not a conflict).
+        identity = idempotency.build_identity(
+            pepper=settings.pepper,
+            scope=idempotency.user_scope("user:test-user"),
+            operation="TEST /v1/test/op",
+            target_ref="test-target",
+            raw_key="test-key",
+            public_fields={"field": "value"},
+            secret_fields={"secret": "shh"},
+            secret_disclosed=True,
+        )
+        decision = idempotency.precheck(session, clock=clock_src, identity=identity)
+        assert not decision.is_replay
+
+        # remember() must succeed without a UNIQUE constraint violation
+        # (proof that the expired-row deletion was flushed before insert).
+        replay_id = idempotency.remember(
+            session,
+            clock=clock_src,
+            identity=identity,
+            status_code=200,
+            public_response={"result": "new"},
+            secret_disclosed=True,
+        )
+        assert replay_id is not None
+
+    # Exactly one durable_idempotency row (the replacement, not the expired one).
+    with app.state.database.engine.connect() as connection:
+        count = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM durable_idempotency WHERE operation='TEST /v1/test/op'"
+            )
+        ).scalar_one()
+        assert count == 1
+
+
+def test_precheck_expired_row_allows_cross_operation_reuse(app, clock):
+    """After expiration, the same key+actor can be used for a different
+    operation/target without a scope conflict (expired records don't block)."""
+    from backend.app.term1 import idempotency
+    from backend.app.term1.models import DurableIdempotency
+    from backend.app.term1.timeutil import Clock
+
+    settings = app.state.term1.settings()
+    clock_src = Clock(clock)
+
+    key_hash = crypto.idempotency_key_hash(settings.pepper, "test-key")
+    actor_binding = idempotency.user_scope("user:test-user")[1]
+
+    # Insert an expired DurableIdempotency row directly.
+    expired_row = DurableIdempotency(
+        replay_id="expired-replay-id-2",
+        replay_scope="user",
+        key_hash=key_hash,
+        actor_binding=actor_binding,
+        operation="TEST /v1/test/op-a",
+        target_ref="target-a",
+        request_fingerprint="stored-fingerprint",
+        secret_fingerprints_json={},
+        response_public_json={"op": "a"},
+        status_code=200,
+        created_at="2020-01-01T00:00:00.000000Z",
+        expires_at="2020-01-01T00:00:00.000000Z",  # long expired
+        secret_disclosed=False,
+    )
+
+    with write_transaction(app.state.database) as session:
+        session.add(expired_row)
+        session.flush()
+
+        # Same key+actor, different operation: no scope conflict after expiry.
+        identity_b = idempotency.build_identity(
+            pepper=settings.pepper,
+            scope=idempotency.user_scope("user:test-user"),
+            operation="TEST /v1/test/op-b",
+            target_ref="target-b",
+            raw_key="test-key",
+            public_fields={},
+            secret_fields={},
+            secret_disclosed=False,
+        )
+        decision_b = idempotency.precheck(session, clock=clock_src, identity=identity_b)
+        assert not decision_b.is_replay
+        idempotency.remember(
+            session,
+            clock=clock_src,
+            identity=identity_b,
+            status_code=200,
+            public_response={"op": "b"},
+            secret_disclosed=False,
+        )
+
+    # Exactly one durable_idempotency row (the new one for op-b).
+    with app.state.database.engine.connect() as connection:
+        count = connection.execute(
+            text(
+                "SELECT COUNT(*) FROM durable_idempotency WHERE operation='TEST /v1/test/op-b'"
+            )
+        ).scalar_one()
+        assert count == 1
+
+
+def test_consumed_invitation_stays_consumed_after_idempotency_expiry(client, app, clock):
+    """A consumed invitation remains permanently consumed even after the
+    idempotency record expires (permanent consumption, not idempotency-gated)."""
+    chain = setup_doctor_with_invitation(app, client)
+    access_code = chain["invitation"]["access_code"]
+
+    # Register the patient (consumes the invitation).
+    response = client.post(
+        "/v1/patients/register",
+        headers={"Idempotency-Key": "idem-consume-expire"},
+        json={
+            "access_code": access_code,
+            "identifier": DEMO_ID_A,
+            "email": "demo.patient@cardioassist.local",
+            "password": PATIENT_PASSWORD,
+            "consent_ack": True,
+        },
+    )
+    assert response.status_code == 201, response.text
+
+    # Advance past TTL so the idempotency record expires.
+    clock.advance(seconds=constants.IDEMPOTENCY_TTL_SECONDS + 1)
+
+    # Re-registering with the same access code must still fail: the invitation
+    # is permanently consumed, not merely idempotency-blocked.
+    replay = client.post(
+        "/v1/patients/register",
+        headers={"Idempotency-Key": "idem-consume-expire"},
+        json={
+            "access_code": access_code,
+            "identifier": DEMO_ID_A,
+            "email": "demo.other@cardioassist.local",
+            "password": PATIENT_PASSWORD,
+            "consent_ack": True,
+        },
+    )
+    assert replay.status_code == 401, replay.text
+    assert replay.json()["error"]["code"] == "invalid_invitation"
+
+    # The patient count must not have increased.
+    with app.state.database.engine.connect() as connection:
+        patients = connection.execute(
+            text("SELECT COUNT(*) FROM user_account WHERE role='patient'")
+        ).scalar_one()
+        redemptions = connection.execute(
+            text("SELECT COUNT(*) FROM invitation_redemption")
+        ).scalar_one()
+    assert patients == 1
+    assert redemptions == 1
+
+
+# --- Enrollment rate limiting (source + account buckets) --------------------
+
+def test_source_based_enrollment_rate_limit(client, app):
+    """Independent source-based rate limiting applies to enrollment attempts.
+
+    Uses unknown access codes so each attempt fails with invalid_invitation
+    without consuming any invitation; the source bucket accumulates failures
+    independently of login lockout.
+    """
+    base = {
+        "access_code": "Z" * 43,  # unknown code: never matches a stored verifier
+        "identifier": DEMO_ID_A,
+        "email": "demo.ratelimit@cardioassist.local",
+        "password": PATIENT_PASSWORD,
+        "consent_ack": True,
+    }
+
+    # Exhaust the source bucket with unknown access codes.
+    for i in range(constants.LOGIN_FAILURE_LIMIT):
+        response = client.post(
+            "/v1/patients/register",
+            headers={"Idempotency-Key": f"src-limit-{i}"},
+            json=base,
+        )
+        assert response.status_code == 401, response.text
+        assert response.json()["error"]["code"] == "invalid_invitation"
+
+    # The source bucket is now at the limit: next attempt is rate limited.
+    response = client.post(
+        "/v1/patients/register",
+        headers={"Idempotency-Key": "src-limit-final"},
+        json=base,
+    )
+    assert response.status_code == 429, response.text
+    assert response.json()["error"]["code"] == "rate_limited"
+
+
+def test_unknown_invitation_bootstrap_lifecycle(client, app):
+    """Fresh migrated DB: unknown invitation submission leaves durable attempt
+    evidence and fails with invalid_invitation (no enumeration oracle)."""
+    chain = setup_doctor_with_invitation(app, client)
+    before_attempts = None
+    with app.state.database.engine.connect() as connection:
+        before_attempts = connection.execute(
+            text("SELECT COUNT(*) FROM invitation_attempt")
+        ).scalar_one()
+
+    # Submit an unknown access code (43 chars, not matching any stored verifier).
+    response = client.post(
+        "/v1/patients/register",
+        headers={"Idempotency-Key": "unknown-bootstrap"},
+        json={
+            "access_code": "A" * 43,
+            "identifier": DEMO_ID_A,
+            "email": "demo.unknown@cardioassist.local",
+            "password": PATIENT_PASSWORD,
+            "consent_ack": True,
+        },
+    )
+    assert response.status_code == 401, response.text
+    assert response.json()["error"]["code"] == "invalid_invitation"
+
+    # Durable attempt evidence must exist.
+    with app.state.database.engine.connect() as connection:
+        after_attempts = connection.execute(
+            text("SELECT COUNT(*) FROM invitation_attempt")
+        ).scalar_one()
+    assert after_attempts == before_attempts + 1
+
+    # No patient account was created.
+    with app.state.database.engine.connect() as connection:
+        patients = connection.execute(
+            text("SELECT COUNT(*) FROM user_account WHERE role='patient'")
+        ).scalar_one()
+    assert patients == 0

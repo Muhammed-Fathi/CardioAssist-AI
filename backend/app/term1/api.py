@@ -773,12 +773,31 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+        # Independent source-based enrollment rate limiting (C1-R04):
+        # separate from login lockout, keyed by enrollment_source hash.
+        source_key = handler._source_key_for(request)
+        enrollment_buckets = {
+            "source": crypto.bucket_key_hash(
+                settings.pepper, "enrollment_source", source_key
+            )
+        }
+
         actor_binding = crypto.actor_binding_anonymous(access_code)
         with read_transaction(handler.database) as lookup:
             invitation = enrollment.find_invitation_by_code(lookup, access_code)
             target_ref = invitation.invitation_id if invitation is not None else "none"
 
         def run(session, actor):
+            # Source lockout check inside the write transaction (C1-R04).
+            if sessions.is_locked(session, enrollment_buckets, clock=handler.clock):
+                sessions.record_login_failure(
+                    session,
+                    clock=handler.clock,
+                    buckets=enrollment_buckets,
+                    outcome="rate_limited",
+                )
+                session.commit()
+                raise sessions.rate_limited_error()
             result = enrollment.register_patient(
                 session,
                 clock=handler.clock,
@@ -807,6 +826,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                 access_code=access_code,
                 target_ref=target_ref,
                 code=error.code if error is not None else "internal_error",
+                source_buckets=enrollment_buckets,
             )
 
         return _run_anonymous_idempotent(
@@ -838,11 +858,29 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+        # Independent source-based enrollment rate limiting for linking (C1-R04).
+        source_key = handler._source_key_for(request)
+        enrollment_buckets = {
+            "source": crypto.bucket_key_hash(
+                settings.pepper, "enrollment_source", source_key
+            )
+        }
+
         with read_transaction(handler.database) as lookup:
             invitation = enrollment.find_invitation_by_code(lookup, access_code)
             target_ref = invitation.invitation_id if invitation is not None else "none"
 
         def run(session, actor):
+            # Source lockout check inside the write transaction (C1-R04).
+            if sessions.is_locked(session, enrollment_buckets, clock=handler.clock):
+                sessions.record_login_failure(
+                    session,
+                    clock=handler.clock,
+                    buckets=enrollment_buckets,
+                    outcome="rate_limited",
+                )
+                session.commit()
+                raise sessions.rate_limited_error()
             handler.require_role(actor, constants.ROLE_PATIENT)
             result = enrollment.link_patient(
                 session,
@@ -867,6 +905,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                 access_code=access_code,
                 target_ref=target_ref,
                 code=error.code if error is not None else "internal_error",
+                source_buckets=enrollment_buckets,
             )
 
         return run_idempotent(
@@ -1023,6 +1062,7 @@ def _record_enrollment_failure(
     access_code: str,
     target_ref: str,
     code: str,
+    source_buckets: dict[str, str] | None = None,
 ) -> None:
     """Durable attempt evidence written after the business rollback.
 
@@ -1045,6 +1085,17 @@ def _record_enrollment_failure(
                     code_digest=crypto.unknown_code_digest(settings.pepper, access_code),
                     outcome=code,
                 )
+                # Independent source-based enrollment rate limiting (C1-R04):
+                # record a LoginAttempt for the enrollment source bucket so
+                # repeated failed enrollments from the same source are throttled
+                # independently of login lockout.
+                if source_buckets:
+                    sessions.record_login_failure(
+                        session,
+                        clock=handler.clock,
+                        buckets=source_buckets,
+                        outcome="rate_limited" if code == "rate_limited" else "invalid",
+                    )
         except Exception as recording_error:  # pragma: no cover - defensive
             # Report the recording problem safely without exposing the access
             # code and without masking the original enrollment error.
