@@ -62,7 +62,7 @@ operations:
         description: Not a PATIENT session
       - status: 400
         code: idempotency_key_required
-  - id: S1
+  - id: E3
     method: GET
     path: /v1/me/assignments
     authenticated: true
@@ -76,7 +76,7 @@ operations:
         description: Doctor or admin caller
       - status: 401
         code: authentication_required
-  - id: E5
+  - id: E4
     method: POST
     path: /v1/doctor/assignments/{assignment_id}/revoke
     authenticated: true
@@ -96,7 +96,7 @@ operations:
         code: forbidden
       - status: 400
         code: idempotency_key_required
-  - id: E6
+  - id: E5
     method: POST
     path: /v1/me/assignments/{assignment_id}/revoke
     authenticated: true
@@ -113,7 +113,7 @@ operations:
         code: forbidden
       - status: 400
         code: idempotency_key_required
-  - id: E7
+  - id: E6
     method: POST
     path: /v1/me/consent/synthetic-demo/revoke
     authenticated: true

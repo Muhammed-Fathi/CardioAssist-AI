@@ -1,41 +1,39 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://cardioassist.local/contracts/term1/schemas/error.schema.json",
-  "title": "C1 error envelope",
-  "description": "Explicit error response envelope served by every C1 operation: {\"contract_version\": \"v1\", \"error\": {\"code\", \"message\"}}. Messages are static per code; they never embed a submitted value, an account, an invitation, a token or a fingerprint.",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_error.schema.json",
+  "title": "term1_error",
   "type": "object",
-  "required": ["contract_version", "error"],
+  "required": [
+    "contract_version",
+    "error"
+  ],
   "additionalProperties": false,
   "properties": {
     "contract_version": {
-      "const": "v1",
-      "type": "string"
+      "type": "string",
+      "description": "Contract major version. Only 'v1' is defined."
     },
     "error": {
       "type": "object",
-      "required": ["code", "message"],
+      "required": [
+        "code",
+        "message"
+      ],
       "additionalProperties": true,
       "properties": {
-        "code": { "type": "string", "minLength": 1 },
-        "message": { "type": "string", "minLength": 1 },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
         "details": {
           "type": "array",
-          "items": { "type": "object" }
+          "items": {}
         }
       }
     }
-  },
-  "x-contract-status": "PROPOSED — NOT APPROVED, NOT DEPLOYED",
-  "x-source": "backend/app/term1/openapi.py::_c1_components() term1_error.schema.json",
-  "x-codes-by-status": {
-    "400": ["malformed_request", "idempotency_key_required"],
-    "401": ["invalid_credentials", "authentication_required", "invalid_session", "invalid_invitation"],
-    "403": ["forbidden", "password_change_required", "identity_key_change_unsupported"],
-    "404": ["not_found", "account_not_found", "visit_not_found", "invitation_not_found", "assignment_not_found", "consent_not_found"],
-    "409": ["account_registration_unavailable", "account_status_conflict", "last_administrator_protected", "role_profile_mismatch", "identity_key_material_mismatch", "identity_key_replacement_unsupported", "invitation_already_active", "invitation_attempts_exhausted", "subject_identity_conflict", "assignment_already_revoked", "idempotency_key_conflict", "idempotency_scope_conflict", "secret_not_redisclosable", "concurrency_conflict"],
-    "422": ["validation_failed", "password_policy_violation", "password_unchanged", "invalid_attestation", "invalid_demo_identifier"],
-    "429": ["rate_limited"],
-    "500": ["internal_error"],
-    "503": ["identity_key_configuration_error"]
   }
 }

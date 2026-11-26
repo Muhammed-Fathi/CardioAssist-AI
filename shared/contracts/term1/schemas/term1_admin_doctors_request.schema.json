@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_admin_doctors_request.schema.json.schema.json",
+  "title": "term1_admin_doctors_request.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "email",
+    "display_name",
+    "temp_password_policy"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "description": "Contract major version; only 'v1' is served."
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "maxLength": 254
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "temp_password_policy": {
+      "type": "string",
+      "maxLength": 32
+    }
+  }
+}

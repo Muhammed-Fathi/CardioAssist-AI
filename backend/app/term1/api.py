@@ -24,11 +24,14 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Mapping
 
+import jsonschema
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from ..main_helpers import finite_float, reject_constant, unique_object
-from . import constants, crypto, enrollment, sessions, visits
+from . import constants, crypto, enrollment, openapi, sessions, visits
 from .accounts import bootstrap_administrator, change_account_status, create_doctor
 from .audit import record_isolated
 from .errors import ApiError, api_error, error_response
@@ -61,6 +64,18 @@ BODY_OPTIONAL = frozenset({constants.OP_LOGOUT, constants.OP_REFRESH})
 
 TEMP_PASSWORD_ALLOWED = frozenset(
     {constants.OP_LOGOUT, constants.OP_ME, constants.OP_PASSWORD}
+)
+
+# Idempotency and replay conflicts are rejected before any enrollment effect.
+# They must not be counted as credential-guessing attempts or corrupt the
+# invitation lifecycle.
+ENROLLMENT_GUESSING_CODES_EXCLUDED = frozenset(
+    {
+        "idempotency_key_required",
+        "idempotency_key_conflict",
+        "idempotency_scope_conflict",
+        "secret_not_redisclosable",
+    }
 )
 
 
@@ -134,9 +149,15 @@ class Term1Handler:
         Never activates, repairs or writes: a populated database whose key
         material no longer matches is refused instead of silently re-bound.
         """
-        from .identity import verify_startup
+        from .identity import database_is_populated, verify_startup
 
         if self._settings is None and not _environment_configured():
+            # No operator material configured: only an empty, unused C1 database
+            # may skip verification. A populated database without configured
+            # material fails closed (C1-R06).
+            with read_transaction(self.database) as session:
+                if database_is_populated(session):
+                    raise api_error("identity_key_configuration_error")
             return
         settings = self.settings()
         with read_transaction(self.database) as session:
@@ -165,7 +186,28 @@ class Term1Handler:
             raise api_error("malformed_request")
         if parsed.get("contract_version", CONTRACT_VERSION) != CONTRACT_VERSION:
             raise api_error("malformed_request")
+        # The handler defaults a missing contract_version to "v1"; normalise the
+        # parsed body so the operation-specific schema (which lists
+        # contract_version as required) validates against the value the service
+        # actually serves (C1-R01 runtime enforcement).
+        parsed["contract_version"] = CONTRACT_VERSION
+        # Runtime enforcement of the operation-specific request schema (C1-R01):
+        # every C1 request body must validate against its own schema from
+        # shared/contracts/term1/schemas/. Anonymous and authenticated
+        # operations alike; an empty body (operations that allow one) is not
+        # validated here.
+        schema_name = openapi.OP_REQUEST_SCHEMA.get(self._operation_key(operation))
+        if schema_name is not None:
+            validator = openapi.c1_request_validator(schema_name)
+            schema_error = next(validator.iter_errors(parsed), None)
+            if schema_error is not None:
+                raise api_error("validation_failed")
         return parsed
+
+    @staticmethod
+    def _operation_key(operation: str) -> tuple[str, str]:
+        method, _, path = operation.partition(" ")
+        return (method.lower().strip(), path.strip())
 
     @staticmethod
     def idempotency_key(request: Request) -> str:
@@ -186,7 +228,15 @@ class Term1Handler:
         scheme, _, token = header.partition(" ")
         if scheme.lower() != "bearer" or not token.strip():
             raise api_error("authentication_required")
-        return token.strip()
+        token = token.strip()
+        # Session tokens are ASCII. A malformed or non-ASCII bearer value must
+        # fail with a controlled, non-enumerating error instead of raising a
+        # Unicode error that becomes an HTTP 500 (C1-R02).
+        try:
+            token.encode("ascii")
+        except UnicodeEncodeError:
+            raise api_error("authentication_required")
+        return token
 
     def authenticate(self, session, request: Request, *, operation: str) -> Actor:
         token = self.bearer(request)
@@ -303,20 +353,28 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     # ============================================================== A1 login
     @app.post("/v1/auth/login")
     async def login(request: Request) -> JSONResponse:
+        settings = None
+        buckets = {}
         try:
             body = await handler.body(request, constants.OP_LOGIN)
-            settings = handler.settings()
             email = handler.str_field(body, "email", maximum=254)
             password = handler.str_field(body, "password", minimum=1, maximum=1024)
+            settings = handler.settings()
             email_norm = crypto.normalize_email(email)
             buckets = sessions.login_buckets(
-                settings.pepper, email_norm=email_norm, source_key=handler._source_key_for(request)
+                settings.pepper,
+                email_norm=email_norm,
+                source_key=handler._source_key_for(request),
             )
-            try:
+
+            def run():
+                # One authoritative transaction: lockout check, bounded
+                # password-verification work and session issuance commit
+                # together under BEGIN IMMEDIATE (tx.write_transaction).
                 with write_transaction(handler.database) as session:
                     if sessions.is_locked(session, buckets, clock=handler.clock):
                         raise sessions.rate_limited_error()
-                    sessions.login(
+                    return sessions.login(
                         session,
                         clock=handler.clock,
                         pepper=settings.pepper,
@@ -324,25 +382,17 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                         password=password,
                         buckets=buckets,
                     )
-                    raise _LoginSucceeded
-            except _LoginSucceeded:
-                pass
-            except ApiError as inner:
-                _record_login_failure(handler, settings, buckets, inner)
-                raise
-            # Re-run the successful path outside the marker exception so the
-            # response body is returned by the normal flow.
-            with write_transaction(handler.database) as session:
-                result = sessions.login(
-                    session,
-                    clock=handler.clock,
-                    pepper=settings.pepper,
-                    email=email,
-                    password=password,
-                    buckets=buckets,
-                )
+
+            # Expensive synchronous password hashing and database work run off
+            # the async event loop, in a bounded threadpool, while the write
+            # transaction preserves transaction integrity (C1-R05).
+            result = await run_in_threadpool(run)
             return _response(200, envelope(**result))
         except ApiError as error:
+            # Only a genuine credential attempt (body parsed, settings loaded)
+            # leaves durable failure evidence; malformed requests do not.
+            if settings is not None:
+                _record_login_failure(handler, settings, buckets, error)
             return error_response_json(error)
 
     # ============================================================= A2 logout
@@ -350,6 +400,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     async def logout(request: Request) -> JSONResponse:
         try:
             await handler.body(request, constants.OP_LOGOUT)
+            handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
                 token = handler.bearer(request)
                 result = sessions.logout(session, clock=handler.clock, token=token)
@@ -361,6 +412,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     @app.get("/v1/auth/me")
     async def me(request: Request) -> JSONResponse:
         try:
+            handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
                 token = handler.bearer(request)
                 result = sessions.current_account(session, clock=handler.clock, token=token)
@@ -373,6 +425,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     async def refresh(request: Request) -> JSONResponse:
         try:
             await handler.body(request, constants.OP_REFRESH)
+            handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
                 token = handler.bearer(request)
                 _row, account = sessions.authenticate(
@@ -388,12 +441,25 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     # =========================================================== A5 password
     @app.post("/v1/me/password")
     async def change_password(request: Request) -> JSONResponse:
+        settings = None
+        buckets = {}
+        account = None
         try:
             body = await handler.body(request, constants.OP_PASSWORD)
             current = handler.str_field(body, "current_password", minimum=1, maximum=1024)
             new = handler.str_field(body, "new_password", minimum=1, maximum=1024)
+            settings = handler.settings()
             with write_transaction(handler.database) as session:
                 token = handler.bearer(request)
+                _row, account = sessions.authenticate(
+                    session, clock=handler.clock, token=token, touch=False
+                )
+                email_norm = account.email_norm
+                buckets = sessions.login_buckets(
+                    settings.pepper,
+                    email_norm=email_norm,
+                    source_key=handler._source_key_for(request),
+                )
                 result = sessions.change_password(
                     session,
                     clock=handler.clock,
@@ -403,16 +469,21 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                 )
             return _response(200, envelope(**result))
         except ApiError as error:
+            # A wrong current password is a credential attempt against the
+            # authenticated account: record durable failure evidence so repeated
+            # password-change guessing is throttled like login.
+            if settings is not None and account is not None and error.code == "invalid_credentials":
+                _record_login_failure(handler, settings, buckets, error)
             return error_response_json(error)
 
     # =========================================================== A6 sessions
     @app.get("/v1/me/sessions")
     async def list_sessions(request: Request) -> JSONResponse:
         try:
+            handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
-                token = handler.bearer(request)
-                sessions.authenticate(session, clock=handler.clock, token=token)
-                result = sessions.list_sessions(session, clock=handler.clock, token=token)
+                handler.authenticate(session, request, operation=constants.OP_SESSIONS)
+                result = sessions.list_sessions(session, clock=handler.clock, token=handler.bearer(request))
             return _response(200, envelope(**result))
         except ApiError as error:
             return error_response_json(error)
@@ -421,11 +492,11 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     @app.delete("/v1/me/sessions/{session_id}")
     async def revoke_session(session_id: str, request: Request) -> JSONResponse:
         try:
+            handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
-                token = handler.bearer(request)
-                sessions.authenticate(session, clock=handler.clock, token=token)
+                handler.authenticate(session, request, operation=constants.OP_SESSION_REVOKE)
                 result = sessions.revoke_session(
-                    session, clock=handler.clock, token=token, target_session_id=session_id
+                    session, clock=handler.clock, token=handler.bearer(request), target_session_id=session_id
                 )
             return _response(200, envelope(**result))
         except ApiError as error:
@@ -741,6 +812,15 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             }
             return result, redacted, False
 
+        def failure_hook(error: ApiError | None) -> None:
+            _record_enrollment_failure(
+                handler,
+                settings=settings,
+                access_code=access_code,
+                target_ref=target_ref,
+                code=error.code if error is not None else "internal_error",
+            )
+
         return run_idempotent(
             handler,
             request,
@@ -748,6 +828,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             target_ref=target_ref,
             public_fields={"accept_linking": accept},
             secret_fields={"access_code": access_code, "identifier": identifier},
+            failure_hook=failure_hook,
             run=run,
         )
 
@@ -895,20 +976,40 @@ def _record_enrollment_failure(
     target_ref: str,
     code: str,
 ) -> None:
-    """Durable attempt evidence written after the business rollback."""
-    try:
-        with write_transaction(handler.database) as session:
-            invitation = enrollment.find_invitation_by_code(session, access_code)
-            enrollment.record_failure(
-                session,
-                clock=handler.clock,
-                invitation=invitation,
-                code_digest=crypto.unknown_code_digest(settings.pepper, access_code),
-                outcome=code,
-            )
-    except Exception:  # pragma: no cover - defensive
-        pass
+    """Durable attempt evidence written after the business rollback.
+
+    Idempotency and replay conflicts are not credential-guessing attempts: they
+    are rejected before any enrollment effect, so they must not corrupt the
+    invitation lifecycle or be counted as guessing. Attempt recording runs in
+    its own transaction after the business rollback so evidence survives
+    rejection; a recording problem is reported safely without masking the
+    original enrollment error returned to the client.
+    """
     known = target_ref != "none"
+    if code not in ENROLLMENT_GUESSING_CODES_EXCLUDED:
+        try:
+            with write_transaction(handler.database) as session:
+                invitation = enrollment.find_invitation_by_code(session, access_code)
+                enrollment.record_failure(
+                    session,
+                    clock=handler.clock,
+                    invitation=invitation,
+                    code_digest=crypto.unknown_code_digest(settings.pepper, access_code),
+                    outcome=code,
+                )
+        except Exception as recording_error:  # pragma: no cover - defensive
+            # Report the recording problem safely without exposing the access
+            # code and without masking the original enrollment error.
+            record_isolated(
+                handler.database,
+                clock=handler.clock,
+                event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
+                outcome=constants.OUTCOME_FAILED,
+                subject_type=constants.SUBJECT_UNKNOWN_INVITATION,
+                subject_id=None,
+                code="internal_error",
+                payload={"attempt_recording_unavailable": True},
+            )
     record_isolated(
         handler.database,
         clock=handler.clock,

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_patient_link_response.schema.json.schema.json",
+  "title": "term1_patient_link_response.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "assignment_id",
+    "doctor_label",
+    "patient_id"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "description": "Contract major version; only 'v1' is served."
+    },
+    "assignment_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "doctor_label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "patient_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    }
+  }
+}
