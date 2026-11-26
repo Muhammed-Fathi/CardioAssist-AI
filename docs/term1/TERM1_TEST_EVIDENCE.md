@@ -80,7 +80,7 @@ Counts below are from local execution on this branch only. They do not alter the
 
 | Suite | Command | Result |
 |---|---|---|
-| C1 behavioral + contracts (relocated to `tests/backend/c1/` per C1-R08; collected exactly once by the existing backend command) | `python -m pytest tests/backend/c1 -q -W error` | 208 passed, 0 failed, 0 skipped — C1 revision complete: C1-R01 canonical contract composition from modular YAML source with operation-specific schemas + runtime enforcement; C1-R02 temporary-password enforcement on all authenticated C1 operations (incl. session listing/revocation); C1-R03 transactional idempotency expiration lifecycle; C1-R04 durable failed-attempt accounting for authenticated link; C1-R05 single authoritative login transaction with constant-time password-verification work; C1-R06 read-only fail-closed startup key verification (`invitation_attempt` probe; exactly-one active key-check row per purpose); C1-R07 invitation expiry at the consumption boundary and doctor suspension/disabling effect |
+| C1 behavioral + contracts (relocated to `tests/backend/c1/` per C1-R08; collected exactly once by the existing backend command) | `python -m pytest tests/backend/c1 -q -W error` | 213 passed, 0 failed, 0 skipped — C1 revision complete: C1-R01 canonical contract composition from modular YAML source with operation-specific schemas + runtime enforcement; C1-R02 temporary-password enforcement on all authenticated C1 operations (incl. session listing/revocation); refresh preserves absolute lifetime; duplicate Authorization rejected; non-ASCII bearer safe; C1-R03 durable idempotency expiration lifecycle (flush expired row before replacement insert); C1-R04 independent source-based enrollment rate limiting; Non-ASCII access codes safe at `invitation_verifier()`; C1-R05 single authoritative login transaction with constant-time password-verification work; C1-R06 read-only fail-closed startup key verification (`invitation_attempt` probe; exactly-one active key-check row per purpose); C1-R07 invitation expiry at the consumption boundary and doctor suspension/disabling effect |
 | Legacy backend + contracts | `python -m pytest tests/contracts tests/backend -q -W error` | 898 passed, 0 failed (unchanged from baseline; warnings-as-errors clean) |
 | Audit | `python -m pytest tests/audit -q -W error` | 711 passed, 0 failed |
 | Experiments | `python -m pytest tests/experiments -q -W error` | NOT_RUN — 30 collection errors; `ModuleNotFoundError: No module named 'numpy'`; research dependencies (`research/experiments/requirements.txt`) not installed |
@@ -91,7 +91,7 @@ Counts below are from local execution on this branch only. They do not alter the
 | Migration preservation | Disposable DB: downgrade to base, re-upgrade to head | Pass — current == head == `20261126_05` |
 | git diff --check | `git diff --check` | Pass — exit 0 (no whitespace errors) |
 
-Combined local total for runnable suites: C1 208 + legacy 898 + audit 711 = 1,817 passed, 0 failed.
+Combined local total for runnable suites: C1 213 + legacy 898 + audit 711 = 1,822 passed, 0 failed.
 
 Research suites (experiments, uci412) are NOT_RUN pending research dependency installation; no research code, test, Golden fixture, tolerance or CI was changed to obtain a result.
 
