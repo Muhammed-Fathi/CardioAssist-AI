@@ -80,6 +80,18 @@ ENROLLMENT_GUESSING_CODES_EXCLUDED = frozenset(
         "idempotency_key_conflict",
         "idempotency_scope_conflict",
         "secret_not_redisclosable",
+        # Authentication, authorization and infrastructure failures are not
+        # invitation-credential guesses.
+        "authentication_required",
+        "invalid_session",
+        "forbidden",
+        "password_change_required",
+        "identity_key_configuration_error",
+        "identity_key_material_mismatch",
+        "identity_key_change_unsupported",
+        "identity_key_replacement_unsupported",
+        "internal_error",
+        "concurrency_conflict",
     }
 )
 
@@ -1101,56 +1113,19 @@ def _record_enrollment_failure(
     source_buckets: dict[str, str] | None = None,
     session: Session | None = None,
 ) -> None:
-    """Durable attempt evidence for enrollment failures.
+    """Record one audit event and applicable counters under one write lock.
 
-    When ``session`` is provided, the failure is recorded inside the caller's
-    transaction (no new transaction is opened). This keeps the failure evidence
-    durable under the same ``BEGIN IMMEDIATE`` lock as the business logic,
-    closing the gap where a concurrent request could slip between rollback and
-    failure recording (F2: race-safe attempt accounting).
-
-    When ``session`` is None, a new transaction is opened (backward-compatible
-    standalone use).
+    A caller-provided session owns the outer transaction after savepoint
+    rollback. Never open another writer while that transaction is active.
+    Non-guessing outcomes and locked retries do not mutate attempt counters.
+    Failure to persist mandatory evidence propagates, rather than silently
+    allowing a credential attempt to bypass the durable limits.
     """
     known = target_ref != "none"
-    if code not in ENROLLMENT_GUESSING_CODES_EXCLUDED:
-        # When already locked (rate_limited), do not record another failure:
-        # the existing failure evidence is already durable and recording more
-        # attempts would indefinitely extend the lockout window and bring the
-        # invitation closer to revocation (F2: lockout not extended on retry).
-        if code == "rate_limited":
-            if session is not None:
-                record(
-                    session,
-                    clock=handler.clock,
-                    event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
-                    outcome=constants.OUTCOME_FAILED,
-                    subject_type=constants.SUBJECT_INVITATION if known else constants.SUBJECT_UNKNOWN_INVITATION,
-                    subject_id=target_ref if known else None,
-                    code=code,
-                    payload={"invitation_known": known, "already_locked": True},
-                )
-            else:
-                record_isolated(
-                    handler.database,
-                    clock=handler.clock,
-                    event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
-                    outcome=constants.OUTCOME_FAILED,
-                    subject_type=constants.SUBJECT_INVITATION if known else constants.SUBJECT_UNKNOWN_INVITATION,
-                    subject_id=target_ref if known else None,
-                    code=code,
-                    payload={"invitation_known": known, "already_locked": True},
-                )
-            return
 
-        def _record_in_session(sess: _Session) -> None:
-            # Ensure pepper binding precedes the first pepper-dependent durable
-            # write (InvitationAttempt.code_digest and LoginAttempt.bucket_key_hash
-            # are pepper-derived). On a fresh database this binds the keys; on a
-            # populated database it verifies existing bindings and fails closed on
-            # mismatch.
-            if not database_is_populated(sess):
-                verify_or_activate(sess, settings=settings, clock=handler.clock, write=True)
+    def _record_in_session(sess: Session) -> None:
+        if code not in ENROLLMENT_GUESSING_CODES_EXCLUDED and code != "rate_limited":
+            verify_or_activate(sess, settings=settings, clock=handler.clock, write=True)
             invitation = enrollment.find_invitation_by_code(sess, access_code)
             enrollment.record_failure(
                 sess,
@@ -1159,10 +1134,6 @@ def _record_enrollment_failure(
                 code_digest=crypto.unknown_code_digest(settings.pepper, access_code),
                 outcome=code,
             )
-            # Independent source-based enrollment rate limiting (C1-R04): record a
-            # LoginAttempt for the enrollment source bucket so repeated failed
-            # enrollments from the same source are throttled independently of login
-            # lockout.
             if source_buckets:
                 sessions.record_login_failure(
                     sess,
@@ -1170,48 +1141,22 @@ def _record_enrollment_failure(
                     buckets=source_buckets,
                     outcome="invalid",
                 )
+        record(
+            sess,
+            clock=handler.clock,
+            event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
+            outcome=constants.OUTCOME_FAILED,
+            subject_type=constants.SUBJECT_INVITATION if known else constants.SUBJECT_UNKNOWN_INVITATION,
+            subject_id=target_ref if known else None,
+            code=code,
+            payload={"invitation_known": known, "already_locked": code == "rate_limited"},
+        )
 
-        if session is not None:
-            _record_in_session(session)
-            # Write the audit event inside the same transaction (no new lock).
-            record(
-                session,
-                clock=handler.clock,
-                event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
-                outcome=constants.OUTCOME_FAILED,
-                subject_type=constants.SUBJECT_INVITATION if known else constants.SUBJECT_UNKNOWN_INVITATION,
-                subject_id=target_ref if known else None,
-                code=code,
-            )
-        else:
-            try:
-                with write_transaction(handler.database) as sess:
-                    _record_in_session(sess)
-            except Exception as recording_error:  # pragma: no cover - defensive
-                # Report the recording problem safely without exposing the access
-                # code and without masking the original enrollment error.
-                record_isolated(
-                    handler.database,
-                    clock=handler.clock,
-                    event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
-                    outcome=constants.OUTCOME_FAILED,
-                    subject_type=constants.SUBJECT_UNKNOWN_INVITATION,
-                    subject_id=None,
-                    code="internal_error",
-                    payload={"attempt_recording_unavailable": True},
-                )
-    record_isolated(
-        handler.database,
-        clock=handler.clock,
-        event_type=constants.EVENT_INVITATION_ATTEMPT_FAILED,
-        outcome=constants.OUTCOME_FAILED,
-        subject_type=constants.SUBJECT_INVITATION
-        if known
-        else constants.SUBJECT_UNKNOWN_INVITATION,
-        subject_id=target_ref if known else None,
-        code=code,
-        payload={"invitation_known": known},
-    )
+    if session is not None:
+        _record_in_session(session)
+    else:
+        with write_transaction(handler.database) as standalone:
+            _record_in_session(standalone)
 
 
 def _run_anonymous_idempotent(
