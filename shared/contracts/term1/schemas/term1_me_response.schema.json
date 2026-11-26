@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/me_response.schema.json",
+  "title": "C1 me success envelope",
+  "description": "Success response envelope for operations under /v1/me/* (password, sessions, assignments, consent revoke). Every envelope declares contract_version: \"v1\".",
+  "type": "object",
+  "required": ["contract_version"],
+  "additionalProperties": true,
+  "properties": {
+    "contract_version": {
+      "const": "v1",
+      "type": "string"
+    }
+  },
+  "x-contract-status": "PROPOSED — NOT APPROVED, NOT DEPLOYED",
+  "x-source": "backend/app/term1/openapi.py::_c1_components() term1_me_response.schema.json"
+}

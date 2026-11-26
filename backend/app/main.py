@@ -3,15 +3,20 @@
 python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
 
 CAD output remains MOCK_SYNTHETIC, produced by the single internal inference
-provider (``backend/app/inference``). Only the existing monitoring write path
-has durable storage; authentication and production guarantees are absent. The
-offline research-artifact validator is not imported by this application.
+provider (``backend/app/inference``). The legacy monitoring write path keeps its
+three-table persistence and success audit.
+
+Term 1 C1 (``backend/app/term1``) adds authentication, verified enrollment and
+durable identity workflows as twenty additional ``/v1`` operations. They are
+additive: the two legacy operations above are unchanged. Term 1 operator secrets
+come from the environment only; when they are absent every Term 1 route fails
+closed while the legacy routes keep working. The offline research-artifact
+validator is still not imported by this application.
 """
 
 from __future__ import annotations
 
 import json
-import math
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -22,29 +27,15 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from .contracts import CAD_PATH, MONITORING_PATH, ContractFiles, ContractViolation
+from .main_helpers import finite_float, reject_constant, unique_object
 from .state import MockState
 from .storage.database import Database
 from .storage.monitoring import MonitoringRepository
-
-
-def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError("Duplicate JSON object member.")
-        result[key] = value
-    return result
-
-
-def _finite_float(value: str) -> float:
-    number = float(value)
-    if not math.isfinite(number):
-        raise ValueError("Non-finite JSON number.")
-    return number
-
-
-def _reject_constant(value: str) -> None:
-    raise ValueError("Non-standard JSON numeric constant.")
+from .term1.api import Term1Handler, register_term1_routes
+from .term1.clock_provider import clock_from
+from .term1.openapi import compose_openapi
+from .term1.settings import Term1Settings
+from .term1.timeutil import Clock
 
 
 async def _read_json(request: Request) -> Any:
@@ -54,28 +45,51 @@ async def _read_json(request: Request) -> Any:
     raw = await request.body()
     try:
         return json.loads(
-            raw.decode("utf-8"), object_pairs_hook=_unique_object,
-            parse_float=_finite_float, parse_constant=_reject_constant,
+            raw.decode("utf-8"), object_pairs_hook=unique_object,
+            parse_float=finite_float, parse_constant=reject_constant,
         )
     except (ValueError, UnicodeError, RecursionError) as error:
         raise ContractViolation(400, "malformed_request", "Request body is not valid UTF-8 JSON.") from error
+
+
+def _source_key(request: Request) -> str:
+    """Per-source rate-limit key from the TCP peer only.
+
+    ``X-Forwarded-For`` and friends are never trusted: a client cannot choose
+    its own rate-limit bucket by inventing a header. Behind a TLS-terminating
+    proxy the operator configures the single-process deployment's trusted peer
+    address instead of accepting forwarded values.
+    """
+    client = request.client
+    return client.host if client is not None and client.host else "unknown-source"
 
 
 def create_app(
     *,
     clock: Callable[[], float] = time.monotonic,
     database_url: str | None = None,
+    term1_settings: Term1Settings | None = None,
+    term1_clock: Callable[[], object] | None = None,
 ) -> FastAPI:
     contracts = ContractFiles()
     database = Database(database_url)
     monitoring_repository = MonitoringRepository(database)
     state = MockState(contracts, monitoring_repository, clock=clock)
+    term1_clock = Clock(clock_from(term1_clock))
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             # Do not silently create/upgrade tables at service startup.
             database.verify_schema()
+            # Read-only identity-key verification. A populated database whose
+            # key material no longer matches its key-check metadata refuses to
+            # start. Unconfigured operator secrets are not a startup failure:
+            # the legacy routes stay usable and every Term 1 route fails closed
+            # with 503 identity_key_configuration_error per request.
+            handler: Term1Handler | None = getattr(app.state, "term1", None)
+            if handler is not None:
+                handler.verify_identity_keys()
             yield
         finally:
             database.dispose()
@@ -118,6 +132,18 @@ def create_app(
     @app.post(MONITORING_PATH, status_code=201)
     async def create_monitoring_observation(request: Request) -> JSONResponse:
         return await handle(request, MONITORING_PATH)
+
+    # Additive Term 1 C1 surface. The legacy OpenAPI document served at
+    # /openapi.json is composed separately (see backend/app/term1/openapi.py).
+    term1_handler = Term1Handler(
+        database=database,
+        clock=term1_clock,
+        settings=term1_settings,
+        source_key_for=_source_key,
+    )
+    app.state.term1 = term1_handler
+    register_term1_routes(app, handler=term1_handler)
+    app.openapi = compose_openapi(contracts)
 
     return app
 
