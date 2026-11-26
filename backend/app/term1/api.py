@@ -166,14 +166,14 @@ class Term1Handler:
         Never activates, repairs or writes: a populated database whose key
         material no longer matches is refused instead of silently re-bound.
         """
-        from .identity import database_is_populated, verify_startup
+        from .identity import database_is_populated, stored_checks, verify_startup
 
         if self._settings is None and not _environment_configured():
             # No operator material configured: only an empty, unused C1 database
             # may skip verification. A populated database without configured
             # material fails closed (C1-R06).
             with read_transaction(self.database) as session:
-                if database_is_populated(session):
+                if database_is_populated(session) or stored_checks(session):
                     raise api_error("identity_key_configuration_error")
             return
         settings = self.settings()
@@ -349,6 +349,10 @@ def run_idempotent(
             nested = session.begin_nested()
             try:
                 actor = handler.authenticate(session, request, operation=operation)
+                # Bind before any pepper-dependent replay record can be created,
+                # including doctor provisioning before the first verified visit.
+                verify_or_activate(session, settings=settings, clock=handler.clock, write=True)
+                session.flush()
                 if anonymous_actor is not None:
                     scope = (constants.REPLAY_SCOPE_ANONYMOUS, anonymous_actor)
                 else:
@@ -1191,6 +1195,8 @@ def _run_anonymous_idempotent(
         with write_transaction(handler.database) as session:
             nested = session.begin_nested()
             try:
+                verify_or_activate(session, settings=settings, clock=handler.clock, write=True)
+                session.flush()
                 decision = precheck(session, clock=handler.clock, identity=identity)
                 if decision.is_replay:
                     return _response(status, envelope(**decision.body()))
