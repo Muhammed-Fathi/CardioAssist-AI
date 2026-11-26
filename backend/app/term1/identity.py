@@ -33,8 +33,10 @@ from sqlalchemy.orm import Session
 from . import constants, crypto
 from .errors import api_error
 from .models import (
+    DurableIdempotency,
     IdentityKeyCheck,
     InvitationAttempt,
+    LoginAttempt,
     PatientIdentity,
     PatientInvitation,
     VerifiedVisit,
@@ -47,6 +49,8 @@ _POPULATED_PROBE_TABLES = (
     VerifiedVisit,
     PatientInvitation,
     InvitationAttempt,
+    LoginAttempt,
+    DurableIdempotency,
 )
 
 
@@ -132,8 +136,8 @@ def verify_or_activate(
     for purpose, expected_hash in expected.items():
         rows = grouped.get(purpose, [])
         if not rows:
-            if activity:
-                # Populated identity data with no binding metadata: fail closed
+            if activity or grouped:
+                # Existing activity or partial binding metadata must not be silently repaired: fail closed
                 # rather than silently re-binding possibly different material.
                 raise api_error("identity_key_material_mismatch")
             if not write:
