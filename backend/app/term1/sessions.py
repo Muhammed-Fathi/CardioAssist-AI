@@ -90,17 +90,26 @@ def prune_attempts(session: Session, *, clock: Clock) -> None:
 
 # --- session lifecycle --------------------------------------------------------
 def _issue_session(
-    session: Session, *, clock: Clock, account: UserAccount
+    session: Session,
+    *,
+    clock: Clock,
+    account: UserAccount,
+    expires_at: str | None = None,
 ) -> tuple[SessionModel, str]:
     now = clock.now()
     token = crypto.new_session_token()
+    # Refresh preserves the original absolute expiry so a session cannot be
+    # extended beyond its absolute lifetime by repeated rotation (C1-R02/R05).
+    absolute_expires = expires_at or to_iso(
+        now + timedelta(seconds=constants.SESSION_ABSOLUTE_SECONDS)
+    )
     row = SessionModel(
         session_id=str(uuid.uuid4()),
         user_id=account.user_id,
         token_verifier_sha256=crypto.session_verifier(token),
         session_key_id=constants.SESSION_KEY_ID,
         created_at=to_iso(now),
-        expires_at=to_iso(now + timedelta(seconds=constants.SESSION_ABSOLUTE_SECONDS)),
+        expires_at=absolute_expires,
         last_seen_at=to_iso(now),
         revoked_at=None,
         revoked_reason=None,
@@ -197,8 +206,13 @@ def login(
         verifier_b64=params["verifier_b64"],
     )
     if not password_ok:
-        # Failure counters are written by the caller in a separate transaction
-        # after this one rolls back (C1.9): evidence must survive the rollback.
+        # Record the failure durably within this same BEGIN IMMEDIATE
+        # transaction so the lockout check sees it immediately for concurrent
+        # requests (C1-R05 concurrent failed-login limit proof). Committing the
+        # failure here means the evidence survives even though login itself
+        # fails and the caller re-raises outside this transaction.
+        record_login_failure(session, clock=clock, buckets=buckets, outcome="invalid")
+        session.commit()
         raise api_error("invalid_credentials")
 
     assert account is not None and email_norm is not None
@@ -295,7 +309,11 @@ def refresh(session: Session, *, clock: Clock, token: str) -> dict[str, object]:
     row, account = _load_live_session(session, clock=clock, token=token, touch=False)
     row.revoked_at = clock.now_iso()
     row.revoked_reason = "rotated"
-    new_row, new_token = _issue_session(session, clock=clock, account=account)
+    # Preserve the original absolute expiry: refresh rotates the token but does
+    # not extend the session's absolute lifetime (C1-R02/R05).
+    new_row, new_token = _issue_session(
+        session, clock=clock, account=account, expires_at=row.expires_at
+    )
     record(
         session,
         clock=clock,

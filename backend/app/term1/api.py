@@ -224,7 +224,13 @@ class Term1Handler:
 
     @staticmethod
     def bearer(request: Request) -> str:
-        header = request.headers.get("authorization", "")
+        # Reject duplicate Authorization headers: header smuggling via repeated
+        # Authorization headers must never be silently resolved to one value
+        # (C1-R02).
+        auth_headers = request.headers.getlist("authorization")
+        if len(auth_headers) != 1:
+            raise api_error("authentication_required")
+        header = auth_headers[0]
         scheme, _, token = header.partition(" ")
         if scheme.lower() != "bearer" or not token.strip():
             raise api_error("authentication_required")
@@ -373,6 +379,17 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                 # together under BEGIN IMMEDIATE (tx.write_transaction).
                 with write_transaction(handler.database) as session:
                     if sessions.is_locked(session, buckets, clock=handler.clock):
+                        # Record the rate-limited attempt and commit it so
+                        # concurrent lockout checks see the updated counter
+                        # immediately (C1-R05 concurrent failed-login limit
+                        # proof).
+                        sessions.record_login_failure(
+                            session,
+                            clock=handler.clock,
+                            buckets=buckets,
+                            outcome="rate_limited",
+                        )
+                        session.commit()
                         raise sessions.rate_limited_error()
                     return sessions.login(
                         session,
@@ -389,10 +406,20 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             result = await run_in_threadpool(run)
             return _response(200, envelope(**result))
         except ApiError as error:
-            # Only a genuine credential attempt (body parsed, settings loaded)
-            # leaves durable failure evidence; malformed requests do not.
-            if settings is not None:
-                _record_login_failure(handler, settings, buckets, error)
+            # Audit evidence for the failed attempt (survives rollback via its
+            # own transaction); the attempt counter is committed inside
+            # sessions.login / the lockout branch above. Never masks the
+            # original error.
+            record_isolated(
+                handler.database,
+                clock=handler.clock,
+                event_type=constants.EVENT_LOGIN_FAILED,
+                outcome=constants.OUTCOME_RATE_LIMITED
+                if error.code == "rate_limited"
+                else constants.OUTCOME_FAILED,
+                subject_type=constants.SUBJECT_SESSION,
+                code=error.code,
+            )
             return error_response_json(error)
 
     # ============================================================= A2 logout
@@ -460,6 +487,11 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                     email_norm=email_norm,
                     source_key=handler._source_key_for(request),
                 )
+                # Consult the lockout before allowing a password-change guess:
+                # repeated wrong current_password attempts must be throttled
+                # like login (C1-R02).
+                if sessions.is_locked(session, buckets, clock=handler.clock):
+                    raise sessions.rate_limited_error()
                 result = sessions.change_password(
                     session,
                     clock=handler.clock,
@@ -946,16 +978,16 @@ class _LoginSucceeded(Exception):
 def _record_login_failure(handler: Term1Handler, settings, buckets, error: ApiError) -> None:
     if error.code not in {"invalid_credentials", "rate_limited"}:
         return
-    try:
-        with write_transaction(handler.database) as session:
-            sessions.record_login_failure(
-                session,
-                clock=handler.clock,
-                buckets=buckets,
-                outcome="rate_limited" if error.code == "rate_limited" else "invalid",
-            )
-    except Exception:  # pragma: no cover - defensive
-        pass
+    # Write the attempt counter in its own transaction so a rejected attempt
+    # still leaves durable evidence (C1.9). Never swallow the write error: a
+    # counter-write problem must surface rather than being silently ignored.
+    with write_transaction(handler.database) as session:
+        sessions.record_login_failure(
+            session,
+            clock=handler.clock,
+            buckets=buckets,
+            outcome="rate_limited" if error.code == "rate_limited" else "invalid",
+        )
     record_isolated(
         handler.database,
         clock=handler.clock,
