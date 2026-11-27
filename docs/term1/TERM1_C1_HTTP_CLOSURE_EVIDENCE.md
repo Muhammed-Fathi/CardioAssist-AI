@@ -410,3 +410,8 @@ No hosted CI exists at this HEAD (B-15), no native Windows run of this branch (B
 `tests/experiments` / `tests/uci412` remain `NOT_RUN` (B-17). No `ALL_GREEN` claim. The
 reachability audit is static (§A.3). C1 closure acceptance remains PENDING independent
 review.
+
+
+## Independent reviewer follow-up — exception-log redaction (proposed)
+
+The corrected HTTP 500 envelope is static and no-store. However, the c9026a1 implementation logs the full exception with `logger.exception(..., exc_info=error)`. Exception messages and SQLAlchemy tracebacks can contain submitted values, SQL parameters or security material. The proposed follow-up replaces that call with a fixed metadata-only ERROR event, and strengthens the existing fault-injection regression to require an error log without exception/stack payload or the synthetic sentinel. It does not change transaction boundaries, status or error catalogue. The earlier description of full exception logging is superseded by this proposal; runtime verification and owner acceptance remain pending. No claim that every logging channel has been exhaustively audited.
