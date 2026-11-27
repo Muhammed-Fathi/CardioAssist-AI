@@ -485,3 +485,70 @@ def test_timestamps_and_digests_are_stored_as_text_not_numbers(migrated_url):
     assert row[0] == "text"
     assert row[1] == "2026-11-26T09:00:00.000000Z"
     assert row[2] == "text"
+
+
+def test_bound_c1_downgrade_refused_before_ddl_preserves_all_state(
+    client, app, app_factory, migrated_url
+):
+    """A real enrolled database cannot lose its binding or replay evidence."""
+    from fastapi.testclient import TestClient
+    from tests.backend.c1.conftest import bearer
+    from tests.backend.c1.factories import register_patient, setup_doctor_with_invitation
+
+    chain = setup_doctor_with_invitation(app, client)
+    patient = register_patient(client, chain["invitation"]["access_code"])
+
+    def snapshot():
+        engine = create_engine(migrated_url)
+        try:
+            with engine.connect() as connection:
+                tables = sorted(inspect(connection).get_table_names())
+                schema = tuple(connection.exec_driver_sql(
+                    "SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name"
+                ).all())
+                rows = {}
+                for table in tables:
+                    # Names originate from the disposable test database's metadata.
+                    quoted = '"' + table.replace('"', '""') + '"'
+                    rows[table] = sorted(
+                        (tuple(row) for row in connection.exec_driver_sql(
+                            f"SELECT * FROM {quoted}"
+                        )), key=repr
+                    )
+                assert connection.exec_driver_sql("PRAGMA integrity_check").scalar_one() == "ok"
+                assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+                return schema, rows
+        finally:
+            engine.dispose()
+
+    before = snapshot()
+    assert len(before[1]["identity_key_check"]) == 3
+    assert before[1]["durable_idempotency"]
+    assert before[1]["patient_profile"]
+    assert before[1]["alembic_version"] == [("20261126_06",)]
+    with pytest.raises(RuntimeError, match="C1 downgrade refused: persisted C1 state"):
+        downgrade(migrated_url, "20261126_05")
+    # The entire schema and every durable row must be untouched, including
+    # Alembic metadata and the security binding; no temporary tables remain.
+    assert snapshot() == before
+    with TestClient(app_factory()) as restarted:
+        response = restarted.get("/v1/auth/me", headers=bearer(patient["session_token"]))
+        assert response.status_code == 200
+        assert response.json()["user_id"] == patient["user_id"]
+
+
+def test_admin_only_c1_state_also_refuses_downgrade(app, client, migrated_url):
+    """Even a database not yet used for visits cannot silently lose accounts."""
+    from tests.backend.c1.conftest import bootstrap_admin
+
+    bootstrap_admin(app)
+    with pytest.raises(RuntimeError, match="C1 downgrade refused: persisted C1 state"):
+        downgrade(migrated_url, "20261017_01")
+    db = Database(migrated_url)
+    try:
+        db.verify_schema()
+        with db.engine.connect() as connection:
+            assert connection.execute(text("SELECT COUNT(*) FROM user_account")).scalar_one() == 1
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20261126_06"
+    finally:
+        db.dispose()
