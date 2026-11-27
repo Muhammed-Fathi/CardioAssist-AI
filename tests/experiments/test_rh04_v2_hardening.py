@@ -13,7 +13,6 @@ from __future__ import annotations
 import copy
 import json
 import os
-import stat
 from pathlib import Path
 
 import pytest
@@ -376,17 +375,23 @@ def test_r23_03_unexpected_file_type_is_refused(tmp_path):
     assert any("allowlist" in f for f in result.failures)
 
 
-def test_r23_03_scan_error_is_a_failure_not_a_pass(tmp_path):
-    """The grep exit-2 defect: "could not scan" must never mean "clean"."""
+def test_r23_03_scan_error_is_a_failure_not_a_pass(tmp_path, monkeypatch):
+    """Inject an actual read failure at the scanner's I/O boundary on any OS."""
     root = _evidence_tree(tmp_path)
     target = root / "lane-a" / "run1.json"
-    target.chmod(0)
-    try:
-        if os.geteuid() == 0:  # pragma: no cover - root ignores permission bits
-            pytest.skip("running as root; permission bits are not enforced")
-        result = _scan_lane_a(root)
-    finally:
-        target.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    assert _scan_lane_a(root).passed is True
+    original_read = Path.read_bytes
+    reads = []
+
+    def denied_read(path):
+        if path == target:
+            reads.append(path)
+            raise PermissionError("synthetic read failure")
+        return original_read(path)
+
+    monkeypatch.setattr(Path, "read_bytes", denied_read)
+    result = _scan_lane_a(root)
+    assert reads == [target]
     assert result.passed is False
     assert any("scan could not complete" in f for f in result.failures)
 

@@ -21,3 +21,6 @@ research/schemas/rh04_synthetic_report.v1.schema.json text eol=lf
 # RH-02 / RH-06 validators bind this canonical register by raw SHA-256.
 # Windows autocrlf must not alter its reviewed Linux/Git blob bytes.
 docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json text eol=lf
+
+# RH-04 V2 archive admission hashes raw bytes before parsing.
+research/intake/fixtures/rh04_v2_portable/*.json -text
