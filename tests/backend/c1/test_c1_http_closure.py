@@ -48,6 +48,7 @@ from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator
+from sqlalchemy import text
 
 from backend.app.main import create_app
 from backend.app.term1 import errors, openapi
@@ -1561,3 +1562,210 @@ def test_reviewer_unexpected_c1_failure_matches_declared_500(app_factory, monkey
         _assert_error_catalogue(chain, response, label="unexpected-failure")
         assert response.body["error"]["code"] == "internal_error"
         _assert_schema(chain, response, label="unexpected-failure")
+
+
+
+
+# ---------------------------------------------------------------------------
+# 6. Reviewer residuals — reachable error codes through the real call graph
+# ---------------------------------------------------------------------------
+
+
+def test_reviewer_role_denial_uses_exact_forbidden_code():
+    """Wrong-role denial is pinned to the exact declared ``403 forbidden``.
+
+    The generic probe loop only requires *some* status >= 400, so a role guard
+    that silently degraded to 401, 404 or an unrelated 422 would still pass
+    there. Each role-guarded operation is asserted on exact status and code.
+    """
+    app = _fresh_app()
+    with TestClient(app) as client:
+        chain = Chain(app, client)
+        data = _drive_every_operation(chain)
+
+        with app.state.database.engine.connect() as connection:
+            assignment_id = str(
+                connection.execute(
+                    text("SELECT assignment_id FROM doctor_patient_assignment LIMIT 1")
+                ).scalar_one()
+            )
+
+        ids = {
+            "user_id": data["doctor_user_id"],
+            "visit_id": data["visit_id"],
+            "invitation_id": data["invitation_id"],
+            "assignment_id": assignment_id,
+        }
+
+        def materialize(template: str) -> str:
+            path = template
+            for key, value in ids.items():
+                path = path.replace("{" + key + "}", str(value))
+            return path
+
+        # Bodies are structurally valid so the wrong-role check is the *first*
+        # thing that can reject the request: a malformed body would answer 400
+        # and the probe would prove nothing about authorization.
+        role_guarded = [
+            ("post", "/v1/admin/doctors", data["patient_token"],
+             {"email": "review.role@cardioassist.local",
+              "display_name": "Synthetic Doctor",
+              "temp_password_policy": "one_time_secret"}),
+            ("patch", "/v1/admin/accounts/{user_id}/status", data["doctor_token"],
+             {"status": "SUSPENDED", "reason_code": "review_probe"}),
+            ("post", "/v1/doctor/verified-visits", data["patient_token"],
+             {"visit_ref": "REVIEW-ROLE-VISIT",
+              "subject_identifier": DEMO_ID_A,
+              "asserted_visit_at": "2026-11-25T10:00:00Z",
+              "attestation_code": "PRIOR_IN_PERSON_VISIT_DEMO"}),
+            ("get", "/v1/doctor/verified-visits/{visit_id}", data["patient_token"], None),
+            ("post", "/v1/doctor/verified-visits/{visit_id}/invitations",
+             data["patient_token"],
+             {"subject_identifier": DEMO_ID_A}),
+            ("get", "/v1/doctor/invitations/{invitation_id}", data["patient_token"], None),
+            ("post", "/v1/doctor/invitations/{invitation_id}/revoke",
+             data["patient_token"], {"reason_code": "review_probe"}),
+            ("post", "/v1/doctor/assignments/{assignment_id}/revoke",
+             data["patient_token"], {"reason_code": "review_probe"}),
+            ("get", "/v1/me/assignments", data["doctor_token"], None),
+            ("post", "/v1/me/assignments/{assignment_id}/revoke",
+             data["doctor_token"], {"reason_code": "review_probe"}),
+            ("post", "/v1/me/consent/synthetic-demo/revoke", data["doctor_token"],
+             {"reason_code": "review_probe"}),
+            ("post", "/v1/patients/link", data["doctor_token"],
+             {"access_code": "x" * 40,
+              "identifier": DEMO_ID_A, "accept_linking": True}),
+        ]
+        assert len(role_guarded) == 12
+
+        for index, (method, template, token, body) in enumerate(role_guarded):
+            path = materialize(template)
+            record = chain.call(
+                method, path, token=token,
+                idempotency_key=f"review-role-{index}",
+                json_body=body, record=False,
+            )
+            assert record.status == 403, (
+                f"{method.upper()} {template}: wrong role must be 403, "
+                f"got {record.status} {record.text[:200]}"
+            )
+            assert record.body["error"]["code"] == "forbidden", (
+                f"{method.upper()} {template}: expected forbidden, got "
+                f"{record.body['error']['code']}"
+            )
+            _assert_error_catalogue(chain, record, label=f"role-{template}")
+            _assert_schema(chain, record, label=f"role-{template}")
+
+
+def test_reviewer_administrator_has_no_clinical_access():
+    """An administrator is never granted a clinical projection."""
+    app = _fresh_app()
+    with TestClient(app) as client:
+        chain = Chain(app, client)
+        data = _drive_every_operation(chain)
+        admin = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
+
+        for method, template, value in (
+            ("get", "/v1/doctor/verified-visits/{visit_id}", data["visit_id"]),
+            ("get", "/v1/doctor/invitations/{invitation_id}", data["invitation_id"]),
+        ):
+            record = chain.call(
+                method,
+                template.replace("{visit_id}", value).replace("{invitation_id}", value),
+                token=admin, record=False,
+            )
+            assert record.status in (403, 404), (
+                f"{method.upper()} {template}: an administrator must not receive "
+                f"clinical data, got {record.status}"
+            )
+            if record.status == 403:
+                assert record.body["error"]["code"] == "forbidden"
+            _assert_error_catalogue(chain, record, label=f"admin-{template}")
+
+
+def test_reviewer_identity_key_binding_refusals_are_declared():
+    """Shared ``verify_or_activate`` refusals are declared where they are reachable.
+
+    ``verify_or_activate`` is reached from login, registration, linking, visit
+    attestation, invitation issuance and the revoke paths, so its 409 refusals
+    are reachable on those operations. This asserts the declaration side against
+    the shared call graph instead of inferring reachability from a sample.
+    """
+    app = _fresh_app()
+    with TestClient(app) as client:
+        document = client.get("/openapi.json").json()
+
+    binding_routes = [
+        ("post", "/v1/auth/login"),
+        ("post", "/v1/patients/register"),
+        ("post", "/v1/patients/link"),
+        ("post", "/v1/doctor/verified-visits"),
+        ("post", "/v1/doctor/verified-visits/{visit_id}/invitations"),
+        ("post", "/v1/me/consent/synthetic-demo/revoke"),
+        ("post", "/v1/admin/doctors"),
+        ("patch", "/v1/admin/accounts/{user_id}/status"),
+        ("post", "/v1/doctor/invitations/{invitation_id}/revoke"),
+        ("post", "/v1/me/assignments/{assignment_id}/revoke"),
+        ("post", "/v1/doctor/assignments/{assignment_id}/revoke"),
+    ]
+    for method, path in binding_routes:
+        responses = document["paths"][path][method]["responses"]
+        declared = responses.get("409", {}).get("x-error-codes") or []
+        for code in (
+            "identity_key_material_mismatch",
+            "identity_key_replacement_unsupported",
+        ):
+            assert code in declared, (
+                f"{method.upper()} {path}: {code} is reachable through the shared "
+                f"identity binding but is not declared at 409 (declared: {declared})"
+            )
+
+
+def test_reviewer_role_profile_mismatch_refusals_are_declared():
+    """``role_profile_mismatch`` is declared on every route that can raise it.
+
+    ``require_doctor`` / the patient-profile lookups raise ``409
+    role_profile_mismatch`` on the doctor and patient clinical routes. It is a
+    real fail-closed refusal, not an internal impossibility, so it must appear in
+    the served contract wherever the call graph can reach it.
+    """
+    app = _fresh_app()
+    with TestClient(app) as client:
+        document = client.get("/openapi.json").json()
+
+    routes = [
+        ("post", "/v1/doctor/verified-visits"),
+        ("post", "/v1/doctor/verified-visits/{visit_id}/invitations"),
+        ("post", "/v1/doctor/invitations/{invitation_id}/revoke"),
+        ("post", "/v1/doctor/assignments/{assignment_id}/revoke"),
+        ("post", "/v1/me/assignments/{assignment_id}/revoke"),
+        ("post", "/v1/me/consent/synthetic-demo/revoke"),
+    ]
+    for method, path in routes:
+        responses = document["paths"][path][method]["responses"]
+        found = any(
+            "role_profile_mismatch" in (entry.get("x-error-codes") or [])
+            for status, entry in responses.items()
+            if not status.startswith("2")
+        )
+        assert found, (
+            f"{method.upper()} {path}: role_profile_mismatch is reachable through "
+            "the role/profile guard but is not declared at any error status"
+        )
+
+
+def test_reviewer_failure_coverage_is_method_aware():
+    """Failure coverage compares ``(METHOD, template)`` pairs, never bare paths."""
+    app = _fresh_app()
+    with TestClient(app) as client:
+        chain = Chain(app, client)
+        data = _drive_every_operation(chain)
+        admin = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
+        probes = _error_probes(
+            app, client, admin_token=admin,
+            doctor_token=data["doctor_token"], patient_token=data["patient_token"],
+        )
+    pairs = {(probe.method.lower(), _template_for(probe.path)) for probe in probes}
+    assert pairs == set(openapi.C1_OPERATIONS), sorted(
+        pairs ^ set(openapi.C1_OPERATIONS)
+    )

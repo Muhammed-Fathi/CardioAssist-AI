@@ -216,3 +216,115 @@ A test that passes either way would prove nothing; these do not.
 
 **No `ALL_GREEN` claim.** Hosted CI at this exact head is `OWNER_DISPATCH_REQUIRED`; zero
 checks is not success.
+
+---
+
+# Appendix B — Reviewer-corrected C1 closure candidate (appended 2026-11-27)
+
+Append-only. Appendix A records the first closure candidate at `b860efc`. This appendix
+records the corrected candidate produced after independent review, on the same branch and
+the same PR #145. Nothing above is edited, and no earlier `NOT_RUN` label is cleared.
+
+## B.1 What changed and why
+
+The independent review published the residual list and a **proposed, not
+runtime-executed** corrective branch (`review/term1-closure-residuals-b860efc`, head
+`f81c37b9ff0ba8d4d498fc6a5ffce1171b801e01`). Its four commits were cherry-picked onto
+`arena/807e6023-cardioassist-ai` from `b860efc`; the resulting tree was verified
+byte-identical to the reviewer's head before any further work:
+
+```
+mine:     2ea561503346345452e921ac1debdd739b67d0f4
+reviewer: 2ea561503346345452e921ac1debdd739b67d0f4
+```
+
+Then the residuals were **executed**, not assumed, and the ones that reproduced were
+corrected.
+
+## B.2 The four reviewer regressions, as executed
+
+| Test | Before correction | After correction |
+|---|---|---|
+| `test_reviewer_temporary_password_refresh_declares_exact_403` | passed (YAML already corrected) | passed |
+| `test_reviewer_duplicate_registration_declares_exact_409` | passed | passed |
+| `test_reviewer_invalid_link_identifier_declares_exact_422` | passed | passed |
+| `test_reviewer_unexpected_c1_failure_matches_declared_500` | **FAILED** — `assert None == 'no-store'`, body `text/plain`, 500 | **passed** |
+
+The 500 regression exposed the defect the reviewer predicted: an unexpected exception
+escaped to the ASGI server as a bare `text/plain` `Internal Server Error` with no
+`Cache-Control`, on all twenty C1 routes, because every handler caught `ApiError` alone
+and `main.py`'s generic converter is scoped to the legacy routes. See
+`TERM1_C1_HTTP_CLOSURE_EVIDENCE.md` Appendix A §A.2.
+
+## B.3 Full verification of the corrected candidate
+
+Linux sandbox, Python 3.11.2, `backend/requirements-dev.txt` + `research/audit/requirements.txt`.
+
+| # | Command | Result | Exit |
+|---|---|---|---|
+| 1 | `pytest tests/backend/c1/test_c1_http_closure.py -q -W error` | **39 passed** (30 original + 9 reviewer) | 0 |
+| 2 | `pytest tests/backend/c1 -q -W error` | **300 passed** | 0 |
+| 3 | `pytest tests/contracts tests/backend -q -W error` | **1198 passed** | 0 |
+| 4 | `pytest tests/audit -q -W error` | **711 passed** | 0 |
+| 5 | `pip check` | `No broken requirements found.` | 0 |
+| 6 | `python scripts/verify_sources.py` | 4 source hashes OK; 25-paper supervisor audit | 0 |
+| 7 | `alembic upgrade head` / `current` / `check` (fresh disposable DB) | head `20261126_06`; no new upgrade operations | 0 |
+| 8 | `git diff --check` | clean | 0 |
+
+Auditable arithmetic: first candidate 30 closure tests → 39 (+9 reviewer regressions);
+C1 suite 291 → 300 (+9); combined 1189 → 1198 (+9). Nothing was removed, renamed, skipped
+or marked xfail to obtain these numbers.
+
+## B.4 Negative controls — the corrections are load-bearing
+
+| Reverted change | Focused command | Result |
+|---|---|---|
+| `backend/app/term1/api.py` (the unexpected-failure boundary) | `-k reviewer` | **1 failed, 8 passed** — the 500 regression returns to `text/plain` with no `no-store` |
+| (same, reverted) | `-k missing_configuration` | **11 failed, 9 passed** (D-01, from the first candidate) |
+| two revoke response schemas | `-k secret_free_replays` | **1 failed** — `idempotent_replay` unexpected (D-02) |
+
+Each revert was restored immediately and the tree re-verified.
+
+## B.5 One existing test was updated — and nothing was weakened
+
+`tests/backend/c1/test_c1_enrollment_assignments.py::test_registration_rolls_back_completely_on_a_mid_transaction_failure`
+previously asserted that a deliberately injected `RuntimeError` **propagated out of the
+test client** (`with pytest.raises(RuntimeError)`). That assertion encoded the very defect
+under review: propagation to the ASGI server is what produced the bare non-JSON 500.
+
+It now asserts the corrected contract **and keeps every rollback assertion unchanged**:
+
+```python
+assert response.status_code == 500
+assert response.headers["cache-control"] == "no-store"
+assert response.json()["error"]["code"] == "internal_error"
+assert "simulated persistence failure" not in response.text
+```
+
+The six orphan-table count assertions and the invitation-consumption assertion that
+follow it were not touched. So the test now proves *more* than before: the fault is
+reported as the declared redacted envelope **and** the transaction still rolled back
+completely. No assertion was deleted, relaxed or skipped.
+
+## B.6 Reachability audit
+
+Codes were audited through the real call graph (AST call edges, raise sites only, transitive
+closure from each C1 entry point), not from a sampled probe set:
+
+**20 routes, 20 implementations, 0 reachable-but-undeclared codes.**
+
+Honest limit: this is a **static over-approximation of reachability**. It answers "is any
+code the code can raise missing from the served contract?" — the direction requested. It
+does **not** claim every reachable code has been empirically observed, and no exhaustive
+runtime-reachability claim is made. Two false-positive classes found while building the
+audit (a code that was only *compared*, never raised; a code reached via a session helper)
+are recorded in the closure evidence Appendix A §A.3 so the method can be reviewed.
+
+## B.7 Still not claimed
+
+* **No hosted CI at this HEAD** — B-15 unchanged; `OWNER_DISPATCH_REQUIRED`. Zero checks is
+  not success.
+* **No native Windows run of this branch** — B-16 unchanged.
+* **`tests/experiments` and `tests/uci412`: `NOT_RUN`** — B-17 unchanged.
+* **Windows RH-04 research failures stay unresolved** — B-18 unchanged, untouched.
+* **No `ALL_GREEN` claim.** No C2 implementation, no model work, no AI gate change.

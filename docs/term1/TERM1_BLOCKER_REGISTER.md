@@ -65,3 +65,13 @@ Closure is **not** acceptance: independent review and owner acceptance are still
 A blocker closes only with recorded evidence **and** an owner decision. Inherited research
 failures stay visible forever. No blocker is closed by rerunning until green, suppressing a
 test, widening a tolerance, deleting evidence or changing a research gate.
+
+## A.5 Blocker updates after independent review (2026-11-27)
+
+| ID | Change | Basis |
+|---|---|---|
+| **B-14** | Remains **CLOSED_ENGINEERING_PENDING_INDEPENDENT_REVIEW**, scope broadened: the reviewer's residual list (R-1…R-7) is now also addressed | `TERM1_C1_HTTP_CLOSURE_EVIDENCE.md` Appendix A |
+| **B-21** (new) | **Runtime defect: unexpected C1 exceptions escaped as bare `text/plain` 500 with no `Cache-Control`** — the declared `500 internal_error` envelope was never produced for non-`ApiError` faults. **FIXED** with a uniform unexpected-failure boundary on all 20 routes; proven load-bearing by negative control | `TERM1_TEST_EVIDENCE.md` Appendix B §B.2/B.4 |
+| **B-22** (new) | **Contract under-declaration**: shared `verify_or_activate` 409 refusals and `role_profile_mismatch` were reachable but undeclared on up to 11 routes, and `POST /v1/auth/login` declared no 409 at all. **FIXED**; static reachability audit now reports 0 undeclared reachable codes over 20 routes | `TERM1_C1_HTTP_CLOSURE_EVIDENCE.md` Appendix A §A.3 |
+| **B-23** (new) | **Weak failure-coverage assertion**: failure probes compared bare paths (method-blind) and wrong-role probes accepted any `>= 400`. **FIXED** — `(METHOD, template)` pair equality plus 12 operations pinned to exact `403 forbidden` | same |
+| **B-15/B-16/B-17/B-18** | Unchanged and still open | — |

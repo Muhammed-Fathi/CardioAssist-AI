@@ -295,3 +295,118 @@ complete Windows count.
   A1/A2/A3/B remain `PENDING`.
 * **PR #142 remains OPEN/DRAFT**; PR #141 and Issue #132 are the separate research track
   and are untouched.
+
+---
+
+# Appendix A — Independent-review corrections at `b860efc` (2026-11-27)
+
+Append-only. §1–§6 above describe the first candidate (`b860efc`). This appendix records
+the residual corrections the reviewer required and what was found when they were executed.
+
+## A.1 Reviewer residuals, and their disposition
+
+Reviewer branch `review/term1-closure-residuals-b860efc`, head
+`f81c37b9ff0ba8d4d498fc6a5ffce1171b801e01`, four commits cherry-picked onto this branch
+(`c0ea509`, `4840eac`, `8a22d9e`, then the map correction). The reviewer stated the patch
+was *proposed and not runtime-executed*; the tests were therefore executed here.
+
+| # | Residual | Finding | Disposition |
+|---|---|---|---|
+| R-1 | A4 temporary-password refresh refusal undeclared | Confirmed: `403 password_change_required` was reachable and undeclared | **FIXED** in the YAML; regression test passes |
+| R-2 | E1 duplicate-email 409 and unusable-doctor 403 undeclared | Confirmed | **FIXED** in the YAML |
+| R-3 | E2 invalid identifier 422 / role-profile 409 undeclared | Confirmed | **FIXED** in the YAML |
+| R-4 | Shared `verify_or_activate` can emit 409 identity errors on routes that never declared them | **Confirmed and larger than reported**: 11 of 20 routes reached the binding; only some declared it; `POST /v1/auth/login` declared **no 409 at all** | **FIXED** — `identity_key_material_mismatch` and `identity_key_replacement_unsupported` declared on all 10 idempotent operations **and** on login |
+| R-5 | `role_profile_mismatch` reachable but undeclared | **Confirmed**: `require_doctor` and the patient-profile lookups raise it fail-closed | **FIXED** on V1/V2/I1/I2/I3/E3/E4/E5/E6 |
+| R-6 | Failure coverage compared paths without method; wrong-role probes accepted any `>= 400` | Confirmed as a genuine weak spot in the first candidate | **FIXED** — `(METHOD, template)` pair equality, and 12 role-guarded operations pinned to exact `403 forbidden` |
+| R-7 | 500 declared JSON but generic C1 faults escape as bare ASGI errors | **Confirmed as a runtime defect** (§A.2) | **FIXED** — uniform unexpected-failure boundary on all 20 routes |
+
+## A.2 D-04 — unexpected exceptions escaped as `500 text/plain` (runtime defect)
+
+The reviewer predicted this and it reproduced exactly. With a fault injected into
+`create_doctor` before business completion:
+
+```
+Recorded(method='post', path='/v1/admin/doctors', status=500, body=None,
+         text='Internal Server Error',
+         headers={'content-length': '21',
+                  'content-type': 'text/plain; charset=utf-8'})
+```
+
+Three contract violations in one response: the body is **not JSON** (the served 500 is
+declared `application/json`), the body is **not the frozen error envelope**, and there is
+**no `Cache-Control: no-store`** — on the one status where a cacheable error is most
+harmful. `main.py`'s generic handler is scoped to the **legacy** routes only, and every C1
+handler caught `ApiError` alone, so any other exception reached Starlette.
+
+**Fix:** a uniform response boundary. Each of the twenty route registrations is now a thin
+wrapper around a renamed `_impl_*` function:
+
+```python
+try:
+    return await _impl_<op>(...)
+except ApiError as error:
+    return error_response_json(error)
+except Exception as error:  # noqa: BLE001 - mapped to the declared 500
+    return unexpected_failure_json(error)
+```
+
+The decorator sits on the **wrapper**, so no path can bypass it — an earlier attempt left
+the decorator on the implementation and silently deregistered the route; that was caught
+by asserting the registered route count, not by inspection.
+
+`unexpected_failure_json` returns the static catalogue body
+(`{"contract_version":"v1","error":{"code":"internal_error","message":"The service could
+not complete the request."}}`) with `Cache-Control: no-store`, and logs the real exception
+server-side at ERROR. The message never embeds the exception type, text, traceback,
+submitted value or resource identifier.
+
+**What is deliberately *not* changed:** the boundary opens no transaction and performs no
+database work. An unexpected fault has already left the operation's own
+`write_transaction` block, so that block rolls back exactly as before; mandatory audit
+obligations inside the transaction are unaffected; legacy behaviour is untouched because
+legacy routes have their own handler. Returning success is structurally impossible — the
+status is fixed at 500.
+
+## A.3 Reachability audit — method, and honest limits
+
+Codes were audited from the **actual call graph**, not from a sampled probe set: an AST
+walk over `backend/app/term1/*.py` builds the call edges, marks a code as *raised* only at
+an `api_error("<code>")` / `ApiError(_, "<code>")` call site, and propagates through the
+transitive closure from each `_impl_*` entry point.
+
+Result: **20 routes, 20 implementations, 0 reachable-but-undeclared codes.**
+
+Two false-positive classes were found and eliminated while building the audit, and are
+recorded because they are the reason a naive grep is not evidence:
+
+* `invalid_invitation` appeared to be reachable from `admin/doctors` etc. It was only
+  **compared** (`error.code == "invalid_invitation"`) inside a `failure_hook`, never
+  raised. Counting call-site arguments instead of raised codes produced the artifact.
+* `password_change_required` on `GET /v1/auth/me` arrives through
+  `sessions.current_account`, so it is genuinely reachable and *was* already declared.
+
+**Limit, stated plainly:** this is a static over-approximation of reachability, not a proof
+of empirical reachability, and not a claim that every reachable code has been *observed*.
+It answers "is any code that the code can raise missing from the contract?" — the direction
+the reviewer asked for. It does not establish that each code has been triggered at runtime.
+
+## A.4 Verification of the corrected candidate
+
+| Command | Result | Exit |
+|---|---|---|
+| `pytest tests/backend/c1/test_c1_http_closure.py -q -W error` | **39 passed** (30 + 9 reviewer) | 0 |
+| `pytest tests/backend/c1 -q -W error` | see `TERM1_TEST_EVIDENCE.md` Appendix B | 0 |
+| `pytest tests/contracts tests/backend -q -W error` | see `TERM1_TEST_EVIDENCE.md` Appendix B | 0 |
+| `pytest tests/audit -q -W error` | see `TERM1_TEST_EVIDENCE.md` Appendix B | 0 |
+| `pip check`, `verify_sources.py`, `git diff --check` | clean | 0 |
+
+**Negative control (R-7):** reverting only `backend/app/term1/api.py` leaves
+`test_reviewer_unexpected_c1_failure_matches_declared_500` failing (`1 failed, 8 passed`);
+restoring it gives `9 passed`. The boundary is load-bearing, not cosmetic.
+
+## A.5 Still not claimed
+
+No hosted CI exists at this HEAD (B-15), no native Windows run of this branch (B-16), and
+`tests/experiments` / `tests/uci412` remain `NOT_RUN` (B-17). No `ALL_GREEN` claim. The
+reachability audit is static (§A.3). C1 closure acceptance remains PENDING independent
+review.

@@ -253,3 +253,99 @@ remain open and are untouched.
 ## Independent reviewer clarification (proposed, not authorization)
 
 The preceding corrections reconcile the dependency map with the governing C0 design. OQ-7 should also explicitly consider the existing C1 create-operation `target_ref="none"` pattern, with actor-local scope and full request fingerprint; neither a client-draft protocol nor a new key-derived target is established. OQ-3 and OQ-8 must distinguish already accepted P-16/P-25 defaults from any proposed amendment. Keep A1 offline numerical dependencies separate from backend admission under A3; no private artifact or real patient data. An owner-authorized safe-scope implementation and an independently authorized offline A1 development stream may be planned in parallel, but neither starts from this document. No full C2 or clinical-readiness claim without its applicable gates. The final decision register must be reconciled before implementation.
+
+---
+
+# Appendix A — Consolidated correction against governing C0 (2026-11-27)
+
+Append-only. §1–§7 above retain their original text; the reviewer's *proposed*
+corrections were integrated at commits `e6475a8`/`f81c37b`, and this appendix
+consolidates them with the governing C0 decisions the first draft had drifted from.
+Where this appendix and §2/§3/§5 disagree, **this appendix governs** and the earlier
+text is superseded. Nothing here is authorization.
+
+## A.1 What the first draft got wrong, and the governing correction
+
+| Draft said | Governing C0 says | Correction |
+|---|---|---|
+| C2 surface is H1a, H1b, S1, H2, R1, H3 | The C2 allowlist is **H1a, H1b, S1, S2, S3** | H2/H3 are the **C3** longitudinal-history boundary; `R1` was invented and is removed. C2 owns H1a, H1b, S1, S2, S3. |
+| "Patient/doctor projection **+ admin**" for H2 | **No administrator clinical access** | All admin clinical rows removed. Admin is refused every clinical read (proven by `test_reviewer_administrator_has_no_clinical_access`). |
+| Profile fields immutable "once referenced" | Profile payload and provenance are **immutable from creation** | A change creates a new version that supersedes the prior one; the prior version's fields are never rewritten. |
+| Attempt status machine invented (created → QUEUED → ...) | **C0 §7.2 exact state machine** | `DRAFT` → `INPUT_VALIDATED` → `INFERENCE_RUNNING` → `INFERENCE_SUCCEEDED` → `PENDING_REVIEW`; terminal `INFERENCE_ABSTAINED` / `INFERENCE_UNAVAILABLE` / `INFERENCE_ERROR` carry no current result and cannot enter review. |
+| Separate `inference_lease` table invented | **C0 §5/§7.3**: fence state lives on the attempt | `lease_until`, `worker_id`, generation and fence are columns of `inference_attempt`, with `assessment.active_attempt_id` and `assessment.current_generation`. No extra lease table without a reviewed schema amendment. |
+| CAS on `(assessment_id, generation, fence)` | **C0 §7.3 complete completion CAS** | Publication CAS must check *all* of: attempt id/assessment link, active attempt id, current generation, running attempt **and** assessment states, fence, worker, unexpired lease, active assignment, referenced consent. Withdrawn authorization terminates unavailable; expired/superseded/cancelled attempts cannot publish. |
+| "Until B, both doctor and patient expose status only; after B the patient shows a score" | **A3 and B are separate and ordered** | Before **A3**: status only for everyone. After **A3**: an *authorized doctor* may see the reviewed research-only projection. The **patient stays status-only until the separate B grant**. After B, patient fields and wording must match the ratified contract exactly. |
+| `C2_SAFE_SCOPE` = "no score column populated" | **No result row and no artifact access** | Safe scope creates **no result row** and reaches **no artifact**; it terminates `INFERENCE_UNAVAILABLE` before any adapter or artifact access. It is *proposed*, needs OQ-1/OQ-5, and can never be described as full C2 acceptance. |
+| OQ-7 offered "derive target from key+actor" or "client draft id" | **C1 already has the pattern** | S1 should use the **existing C1 creation-operation pattern**: `target_ref="none"` with actor, operation and key in the complete replay identity and the assignment/profile/panel/input fields in the keyed request fingerprint. Neither a client-draft protocol nor a new key-derived target is established. |
+| OQ-3/OQ-8 treated P-16/P-25 as open design | **P-16 and P-25 are already accepted defaults** | Both must be stated as *accepted defaults*; only a **proposed amendment** needs an owner decision. This distinction is now mandatory in the table. |
+
+## A.2 Governing C2 operation set (corrected)
+
+| ID | Operation | Actor | Governing dependency |
+|---|---|---|---|
+| H1a | `GET /v1/me/health-profile` | Patient, self | active assignment + active consent |
+| H1b | `PATCH /v1/me/health-profile` | Patient, self, idempotent | immutable version payload; new version supersedes |
+| S1 | `POST /v1/assessments` | Patient, self, idempotent | `assignment_id` + `health_profile_id` + panel binding; `target_ref="none"` |
+| S2 | `GET /v1/assessments/{assessment_id}` | Patient owner, or doctor via active assignment | role-redacted current result; **no admin clinical access** |
+| S3 | `GET /v1/me/assessments` | Patient, self | paginated status/history |
+| (C3) | `D1–D4`, `M1–M3`, `H2`, `H3` | — | **C3 scope**, not C2 |
+
+## A.3 Consolidated owner decision table
+
+Recommended option and explicit prerequisite for each. `PENDING` everywhere.
+"Accepted default" means the decision register already resolved it; only an
+**amendment** needs a new owner decision.
+
+| ID | Question | Accepted default | Recommended option | Prerequisite before the decision | Unlocks |
+|---|---|---|---|---|---|
+| **OQ-1** | C2 scope while Decision A is unresolved | — | **`C2_SAFE_SCOPE` only**: profiles, snapshots, authorization, attempts/leases/fencing, status publication, projections. No result row, no artifact, no score, no adapter. Recorded explicitly as AI-BLOCKED. | This map reviewed; C1 closure accepted | W1–W7 start |
+| **OQ-2** | Snapshot representation | — | **Canonical JSON bytes + `snapshot_sha256`**, provenance and panel digest inside the same byte string | OQ-1 | W2, W5 |
+| **OQ-3** | Lease/fence parameters | **P-16 accepted**: 5-minute lease, generation counter, fence token, CAS completion | **Confirm P-16 as-is**; no amendment proposed. Fence state on the attempt, no separate lease table | OQ-2 | W4 |
+| **OQ-4** | Panel contract reuse | — | **Reuse `da_a2_resting_v1`** and its `contract_sha256`; a C2-specific panel would need its own review and digest | OQ-2 | W1, W8 |
+| **OQ-5** | Publication without A | — | **No result row at all**; assessment terminates `INFERENCE_UNAVAILABLE`. Simpler and provably score-free — a nullable-score column requires a permanent impossibility proof | OQ-1 | W5 |
+| **OQ-6** | Artifact trust / numerical dependency route (B-05, ART) | — | **Deterministic rebuild with pinned numerical deps** preferred; a curated bundle only with redistribution rights and a pinned digest. Backend admission stays a separate A3 decision | OQ-1 | W8, A3 |
+| **OQ-7** | S1 replay identity before the target exists | **C1 creation pattern exists**: `target_ref="none"` | **Adopt the existing C1 pattern**: `target_ref="none"`, actor+operation+key in the replay identity, request fingerprint keyed. No client-draft protocol, no new key-derived target | OQ-2 | W2 |
+| **OQ-8** | Migration grouping | **P-25 accepted**: C2 migrations land as one C2 block | **Confirm P-25 as-is**; a per-workstream split would need an explicit migration-ordering amendment | OQ-1 | all |
+| **OQ-9** | Display wording | — | **Ratify the AI matrix §3.2 wording verbatim**; any edit is a new owner decision | A3 for the doctor wording; B for the patient wording | A3 projection, B |
+| **OQ-10** | C2 evidence route | — | **Owner dispatches the four existing workflows on each C2 PR head** plus a native Windows run (B-15/B-16) | C1 closure accepted | any C2 acceptance |
+
+## A.4 Two coordinated, separately authorized future streams
+
+Neither stream starts from this document. They are *proposed* and must not be
+conflated: one is ordinary software, the other is a gated research activity.
+
+### Stream 1 — `C2_SAFE_SCOPE` software infrastructure
+
+* **Authorization needed:** only OQ-1 (scope) and the OQ-2/OQ-5/OQ-7 design answers.
+  **No AI gate is involved**: profiles, snapshots, authorization re-checks, attempts,
+  leases, fencing, generation, CAS, status publication and projections are ordinary
+  server software.
+* **Explicitly out of scope:** any result row, any score column, any artifact read,
+  any adapter beyond the existing `MOCK_SYNTHETIC`, any numerical dependency.
+* **Order:** W1 → W2 → W3 → W4 → W5 → (W6 ∥ W7), per §5.
+* **Deliverable:** a status-only C2 surface that is *structurally* ready for A3 and
+  provably score-free until then.
+
+### Stream 2 — offline synthetic Candidate B development under **A1**
+
+* **Authorization needed:** **A1**, separately and explicitly. Stream 1 existing does
+  not imply it, and it does not imply Stream 1.
+* **Scope:** synthetic cohort from a pinned generator, offline research workspace only,
+  no hosted serving, no backend activation, no CI artifact distribution, no patient
+  exposure, no real data, no private bundle.
+* **Dependencies:** numerical pins live in an **offline A1 environment**, never in
+  `backend/requirements.txt`; backend admission is a **separate A3** decision.
+* **Then:** A2 verification → A3 controlled local-demo activation → B patient display.
+  Each is its own gate with its own token; none is inferable from another.
+
+**Why two streams:** the infrastructure work is unblocked by the AI gates and the model
+work is blocked by them. Running them as one would either stall ordinary software behind
+a research authorization or smuggle model work in under a software PR. Both failure modes
+are avoided by keeping them separate and independently authorized.
+
+## A.5 Non-authorizations restated
+
+This appendix implements nothing, authorizes nothing and infers no owner decision. No C2
+runtime code, migration, route, settings key, numerical dependency, model, artifact or
+registry entry exists. **A1, A2, A3 and B remain PENDING.** No administrator clinical
+access, no patient score before B, no full-C2 or clinical-readiness claim.

@@ -40,7 +40,7 @@ operations:
         codes: [forbidden, identity_key_change_unsupported]
         description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 409
-        codes: [idempotency_key_conflict, idempotency_scope_conflict, secret_not_redisclosable, subject_identity_conflict, account_registration_unavailable]
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, secret_not_redisclosable, subject_identity_conflict, account_registration_unavailable, identity_key_material_mismatch, identity_key_replacement_unsupported]
         description: "Idempotency, identity-key or domain-state conflict"
       - status: 422
         codes: [validation_failed, password_policy_violation, invalid_demo_identifier]
@@ -78,7 +78,7 @@ operations:
         codes: [forbidden, password_change_required, identity_key_change_unsupported]
         description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 409
-        codes: [idempotency_key_conflict, idempotency_scope_conflict, role_profile_mismatch]
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, role_profile_mismatch, identity_key_material_mismatch, identity_key_replacement_unsupported]
         description: "Idempotency, identity-key or domain-state conflict"
       - status: 422
         codes: [validation_failed, invalid_demo_identifier]
@@ -108,7 +108,7 @@ operations:
         codes: [authentication_required, invalid_session]
         description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
       - status: 403
-        codes: [forbidden, password_change_required]
+        codes: [forbidden, password_change_required, role_profile_mismatch]
         description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 500
         codes: [internal_error]
@@ -138,13 +138,13 @@ operations:
         codes: [authentication_required, invalid_session]
         description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
       - status: 403
-        codes: [forbidden, password_change_required]
+        codes: [forbidden, password_change_required, role_profile_mismatch]
         description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 404
         codes: [assignment_not_found]
         description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
       - status: 409
-        codes: [idempotency_key_conflict, idempotency_scope_conflict, assignment_already_revoked]
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, assignment_already_revoked, identity_key_material_mismatch, identity_key_replacement_unsupported]
         description: "Idempotency, identity-key or domain-state conflict"
       - status: 422
         codes: [validation_failed]
@@ -177,13 +177,13 @@ operations:
         codes: [authentication_required, invalid_session]
         description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
       - status: 403
-        codes: [forbidden, password_change_required]
+        codes: [forbidden, password_change_required, role_profile_mismatch]
         description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 404
         codes: [assignment_not_found]
         description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
       - status: 409
-        codes: [idempotency_key_conflict, idempotency_scope_conflict, assignment_already_revoked]
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, assignment_already_revoked, identity_key_material_mismatch, identity_key_replacement_unsupported]
         description: "Idempotency, identity-key or domain-state conflict"
       - status: 422
         codes: [validation_failed]
@@ -218,13 +218,13 @@ operations:
         codes: [authentication_required, invalid_session]
         description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
       - status: 403
-        codes: [forbidden, password_change_required]
+        codes: [forbidden, password_change_required, role_profile_mismatch]
         description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 404
         codes: [consent_not_found]
         description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
       - status: 409
-        codes: [idempotency_key_conflict, idempotency_scope_conflict]
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, identity_key_material_mismatch, identity_key_replacement_unsupported]
         description: "Idempotency, identity-key or domain-state conflict"
       - status: 422
         codes: [validation_failed]

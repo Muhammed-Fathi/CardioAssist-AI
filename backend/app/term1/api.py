@@ -22,6 +22,7 @@ restriction, ``404`` wrong owner, ``409`` conflict, ``422`` value failure,
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Callable, Mapping
 
 import jsonschema
@@ -41,6 +42,8 @@ from .idempotency import build_identity, precheck, remember
 from .settings import SettingsError, Term1Settings, load_settings
 from .timeutil import Clock
 from .tx import read_transaction, write_transaction
+
+logger = logging.getLogger("cardioassist.term1.api")
 
 CONTRACT_VERSION = "v1"
 NO_STORE = {"Cache-Control": "no-store", "Pragma": "no-cache"}
@@ -132,6 +135,36 @@ def error_response_json(error: ApiError) -> JSONResponse:
     return JSONResponse(
         envelope(error=error_response(error)), status_code=error.status, headers=headers
     )
+
+
+_INTERNAL_ERROR = api_error("internal_error")
+
+
+def unexpected_failure_json(error: BaseException) -> JSONResponse:
+    """Map an unexpected exception to the declared, redacted ``500`` envelope.
+
+    Every C1 operation declares ``500 internal_error`` with a frozen JSON body.
+    Without this boundary an unhandled exception escapes to the ASGI server and
+    the client receives Starlette's bare ``text/plain`` "Internal Server Error"
+    with no ``Cache-Control: no-store``: an undeclared media type, an undeclared
+    body shape, and a caching-rule violation on the one status that most needs
+    the rule.
+
+    The body is *static*. The message comes from the frozen catalogue and never
+    embeds the exception type, its text, a traceback, a submitted value or a
+    resource identifier, so an internal fault cannot become a disclosure
+    channel. The exception is logged server-side with full context.
+
+    Response boundary only: it performs no database work and opens no
+    transaction. An unexpected fault has already left the operation's own
+    ``write_transaction`` block, so that block has rolled back exactly as it did
+    before this boundary existed - rollback and audit atomicity are unchanged.
+    Returning success is impossible here; the status is fixed at 500.
+    """
+    logger.exception(
+        "term1 operation failed unexpectedly: %s", type(error).__name__, exc_info=error
+    )
+    return error_response_json(_INTERNAL_ERROR)
 
 
 class Term1Handler:
@@ -408,8 +441,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     """Attach exactly the twenty C1 operations to ``app``."""
 
     # ============================================================== A1 login
-    @app.post("/v1/auth/login")
-    async def login(request: Request) -> JSONResponse:
+    async def _impl_login(request: Request) -> JSONResponse:
         settings = None
         buckets = {}
         try:
@@ -467,9 +499,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             )
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/auth/login")
+    async def login(request: Request) -> JSONResponse:
+        try:
+            return await _impl_login(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ============================================================= A2 logout
-    @app.post("/v1/auth/logout")
-    async def logout(request: Request) -> JSONResponse:
+    async def _impl_logout(request: Request) -> JSONResponse:
         try:
             await handler.body(request, constants.OP_LOGOUT)
             handler.settings()  # fail closed when operator material is unusable
@@ -480,9 +522,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/auth/logout")
+    async def logout(request: Request) -> JSONResponse:
+        try:
+            return await _impl_logout(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ================================================================= A3 me
-    @app.get("/v1/auth/me")
-    async def me(request: Request) -> JSONResponse:
+    async def _impl_me(request: Request) -> JSONResponse:
         try:
             handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
@@ -492,9 +544,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.get("/v1/auth/me")
+    async def me(request: Request) -> JSONResponse:
+        try:
+            return await _impl_me(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ============================================================ A4 refresh
-    @app.post("/v1/auth/refresh")
-    async def refresh(request: Request) -> JSONResponse:
+    async def _impl_refresh(request: Request) -> JSONResponse:
         try:
             await handler.body(request, constants.OP_REFRESH)
             handler.settings()  # fail closed when operator material is unusable
@@ -510,9 +572,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/auth/refresh")
+    async def refresh(request: Request) -> JSONResponse:
+        try:
+            return await _impl_refresh(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # =========================================================== A5 password
-    @app.post("/v1/me/password")
-    async def change_password(request: Request) -> JSONResponse:
+    async def _impl_change_password(request: Request) -> JSONResponse:
         settings = None
         buckets = {}
         account = None
@@ -553,9 +625,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                 _record_login_failure(handler, settings, buckets, error)
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/me/password")
+    async def change_password(request: Request) -> JSONResponse:
+        try:
+            return await _impl_change_password(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # =========================================================== A6 sessions
-    @app.get("/v1/me/sessions")
-    async def list_sessions(request: Request) -> JSONResponse:
+    async def _impl_list_sessions(request: Request) -> JSONResponse:
         try:
             handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
@@ -565,9 +647,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.get("/v1/me/sessions")
+    async def list_sessions(request: Request) -> JSONResponse:
+        try:
+            return await _impl_list_sessions(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ============================================================= A7 revoke
-    @app.delete("/v1/me/sessions/{session_id}")
-    async def revoke_session(session_id: str, request: Request) -> JSONResponse:
+    async def _impl_revoke_session(session_id: str, request: Request) -> JSONResponse:
         try:
             handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
@@ -579,9 +671,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.delete("/v1/me/sessions/{session_id}")
+    async def revoke_session(session_id: str, request: Request) -> JSONResponse:
+        try:
+            return await _impl_revoke_session(session_id, request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ========================================================== AD1 doctors
-    @app.post("/v1/admin/doctors")
-    async def admin_create_doctor(request: Request) -> JSONResponse:
+    async def _impl_admin_create_doctor(request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_ADMIN_DOCTORS)
             email = handler.str_field(body, "email", maximum=254)
@@ -618,9 +720,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             status=201,
         )
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/admin/doctors")
+    async def admin_create_doctor(request: Request) -> JSONResponse:
+        try:
+            return await _impl_admin_create_doctor(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # =========================================================== AD2 status
-    @app.patch("/v1/admin/accounts/{user_id}/status")
-    async def admin_status(user_id: str, request: Request) -> JSONResponse:
+    async def _impl_admin_status(user_id: str, request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_ADMIN_STATUS)
             status = handler.str_field(body, "status", maximum=16)
@@ -650,9 +762,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             run=run,
         )
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.patch("/v1/admin/accounts/{user_id}/status")
+    async def admin_status(user_id: str, request: Request) -> JSONResponse:
+        try:
+            return await _impl_admin_status(user_id, request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ============================================================= V1 visit
-    @app.post("/v1/doctor/verified-visits")
-    async def create_visit(request: Request) -> JSONResponse:
+    async def _impl_create_visit(request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_VISIT_CREATE)
             visit_ref = handler.str_field(body, "visit_ref", minimum=1, maximum=128)
@@ -691,9 +813,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             status=201,
         )
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/doctor/verified-visits")
+    async def create_visit(request: Request) -> JSONResponse:
+        try:
+            return await _impl_create_visit(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ============================================================= V2 visit
-    @app.get("/v1/doctor/verified-visits/{visit_id}")
-    async def get_visit(visit_id: str, request: Request) -> JSONResponse:
+    async def _impl_get_visit(visit_id: str, request: Request) -> JSONResponse:
         try:
             handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
@@ -704,9 +836,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.get("/v1/doctor/verified-visits/{visit_id}")
+    async def get_visit(visit_id: str, request: Request) -> JSONResponse:
+        try:
+            return await _impl_get_visit(visit_id, request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ======================================================= I1 invitations
-    @app.post("/v1/doctor/verified-visits/{visit_id}/invitations")
-    async def create_invitation(visit_id: str, request: Request) -> JSONResponse:
+    async def _impl_create_invitation(visit_id: str, request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_INVITATION_CREATE)
             identifier = handler.str_field(body, "subject_identifier", maximum=64)
@@ -770,9 +912,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             status=201,
         )
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/doctor/verified-visits/{visit_id}/invitations")
+    async def create_invitation(visit_id: str, request: Request) -> JSONResponse:
+        try:
+            return await _impl_create_invitation(visit_id, request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ====================================================== I2 revoke invite
-    @app.post("/v1/doctor/invitations/{invitation_id}/revoke")
-    async def revoke_invitation(invitation_id: str, request: Request) -> JSONResponse:
+    async def _impl_revoke_invitation(invitation_id: str, request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_INVITATION_REVOKE)
             reason = handler.str_field(body, "reason_code", maximum=64)
@@ -800,9 +952,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             run=run,
         )
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/doctor/invitations/{invitation_id}/revoke")
+    async def revoke_invitation(invitation_id: str, request: Request) -> JSONResponse:
+        try:
+            return await _impl_revoke_invitation(invitation_id, request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ========================================================== I3 get invite
-    @app.get("/v1/doctor/invitations/{invitation_id}")
-    async def get_invitation(invitation_id: str, request: Request) -> JSONResponse:
+    async def _impl_get_invitation(invitation_id: str, request: Request) -> JSONResponse:
         try:
             handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
@@ -817,9 +979,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.get("/v1/doctor/invitations/{invitation_id}")
+    async def get_invitation(invitation_id: str, request: Request) -> JSONResponse:
+        try:
+            return await _impl_get_invitation(invitation_id, request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ========================================================= E1 register
-    @app.post("/v1/patients/register")
-    async def register(request: Request) -> JSONResponse:
+    async def _impl_register(request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_REGISTER)
             access_code = handler.str_field(body, "access_code", minimum=32, maximum=256)
@@ -903,9 +1075,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             status=201,
         )
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/patients/register")
+    async def register(request: Request) -> JSONResponse:
+        try:
+            return await _impl_register(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ============================================================= E2 link
-    @app.post("/v1/patients/link")
-    async def link(request: Request) -> JSONResponse:
+    async def _impl_link(request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_LINK)
             access_code = handler.str_field(body, "access_code", minimum=32, maximum=256)
@@ -974,9 +1156,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             run=run,
         )
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/patients/link")
+    async def link(request: Request) -> JSONResponse:
+        try:
+            return await _impl_link(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ======================================================== E3 assignments
-    @app.get("/v1/me/assignments")
-    async def my_assignments(request: Request) -> JSONResponse:
+    async def _impl_my_assignments(request: Request) -> JSONResponse:
         try:
             handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
@@ -989,9 +1181,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.get("/v1/me/assignments")
+    async def my_assignments(request: Request) -> JSONResponse:
+        try:
+            return await _impl_my_assignments(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ============================================ E4 doctor revoke assignment
-    @app.post("/v1/doctor/assignments/{assignment_id}/revoke")
-    async def doctor_revoke_assignment(assignment_id: str, request: Request) -> JSONResponse:
+    async def _impl_doctor_revoke_assignment(assignment_id: str, request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_ASSIGNMENT_DOCTOR_REVOKE)
             reason = handler.str_field(body, "reason_code", maximum=64)
@@ -1019,9 +1221,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             run=run,
         )
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/doctor/assignments/{assignment_id}/revoke")
+    async def doctor_revoke_assignment(assignment_id: str, request: Request) -> JSONResponse:
+        try:
+            return await _impl_doctor_revoke_assignment(assignment_id, request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # =========================================== E5 patient revoke assignment
-    @app.post("/v1/me/assignments/{assignment_id}/revoke")
-    async def patient_revoke_assignment(assignment_id: str, request: Request) -> JSONResponse:
+    async def _impl_patient_revoke_assignment(assignment_id: str, request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_ASSIGNMENT_PATIENT_REVOKE)
             reason = handler.str_field(body, "reason_code", maximum=64)
@@ -1049,9 +1261,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             run=run,
         )
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/me/assignments/{assignment_id}/revoke")
+    async def patient_revoke_assignment(assignment_id: str, request: Request) -> JSONResponse:
+        try:
+            return await _impl_patient_revoke_assignment(assignment_id, request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
     # ============================================================ E6 consent
-    @app.post("/v1/me/consent/synthetic-demo/revoke")
-    async def patient_revoke_consent(request: Request) -> JSONResponse:
+    async def _impl_patient_revoke_consent(request: Request) -> JSONResponse:
         try:
             body = await handler.body(request, constants.OP_CONSENT_REVOKE)
             reason = handler.str_field(body, "reason_code", maximum=64)
@@ -1076,7 +1298,19 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         )
 
 
+    # Decorator sits on the boundary wrapper, not on the implementation,
+    # so no path can bypass the unexpected-failure mapping.
+    @app.post("/v1/me/consent/synthetic-demo/revoke")
+    async def patient_revoke_consent(request: Request) -> JSONResponse:
+        try:
+            return await _impl_patient_revoke_consent(request)
+        except ApiError as error:
+            return error_response_json(error)
+        except Exception as error:  # noqa: BLE001 - mapped to declared 500
+            return unexpected_failure_json(error)
+
 def _environment_configured() -> bool:
+
     from .settings import missing_variables
 
     return not missing_variables()

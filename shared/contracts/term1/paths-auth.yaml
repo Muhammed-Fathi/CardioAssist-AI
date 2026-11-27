@@ -52,6 +52,9 @@ operations:
       - status: 429
         codes: [rate_limited]
         description: "Lockout; Retry-After is present"
+      - status: 409
+        codes: [identity_key_material_mismatch, identity_key_replacement_unsupported]
+        description: "The shared identity-key binding refused: configured material does not match the stored key check"
       - status: 500
         codes: [internal_error]
         description: "Unexpected failure; no internal detail is disclosed"
