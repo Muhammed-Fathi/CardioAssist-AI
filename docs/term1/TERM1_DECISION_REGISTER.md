@@ -133,3 +133,14 @@ This appendix grants no model serving, no patient score display, no real-data wo
 clinical or publication claim, no research-gate change, no C2 implementation, no C3/C4
 start, no workflow/test/fixture/research change, no merge, and no acceptance of the closure
 work itself. Arena has not posted and must not post any owner statement.
+
+## Dated owner-direction record — 2026-11-27 (proposed exact-head ratification)
+
+| ID | Direction | Status / boundary |
+|---|---|---|
+| O-11 | Reuse inherited main AI code and prefer existing real-data-trained Cleveland artifact rather than new synthetic-trained Candidate B; no duplicate training or rewrite without evidence and explicit decision. | OWNER_DIRECTION_RECORDED_IN_CHAT; exact plan PR ratification pending, artifact not independently inspected, A gates pending. |
+| O-12 | Preserve existing journey and add bounded fabricated report upload/view, fixed-template local OCR autofill, patient edit/confirmation, manual input and source traceability; no general real clinical OCR/PHI. | OWNER_DIRECTION_RECORDED_IN_CHAT; reviewed document contracts and narrow demo provenance exception required; unverified OCR never enters current Track A. |
+| O-13 | Preserve provisional research result before review and derived Reviewed label with actual doctor decision; doctor response/inbox/history. | OWNER_DIRECTION_RECORDED_IN_CHAT; B pending, no personal risk percentage, no implicit acceptance or clinical use. |
+| O-14 | Preserve accepted C0/C1 runtime, migration and contract behavior; reuse existing implementations and continue logical stage PR workflow, target 2026-12-03. | OWNER_DIRECTION_RECORDED_IN_CHAT; exact diff review, CI, native Windows and owner acceptance required. |
+
+Governing proposal: [delivery plan amendment](TERM1_DELIVERY_PLAN_AMENDMENT_REAL_AI_OCR_20261127.md). Chat direction authorizes documentation of intended scope, not a GitHub owner acceptance impersonation. Previous Candidate B tokens must not be used for Candidate A. A1/A2/A3/B remain PENDING; C2-safe-scope decision, OQ resolutions, C1 projection reconciliation and B20 acknowledgement remain separate. No operational or research authorization, no clinical deployment, no waiver of RH-04 findings. Historical records above remain unchanged.
