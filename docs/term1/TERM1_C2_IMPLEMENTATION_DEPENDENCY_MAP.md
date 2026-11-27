@@ -13,7 +13,7 @@ with `TERM1_C0_ARCHITECTURE_AND_CONTRACTS.md`, `TERM1_AI_READINESS_MATRIX.md` or
 data dictionary, §5 constraints, §6 idempotency/secrets, §7 state machines and
 concurrency, §8 canonical contract composition, §9 migration ordering),
 `TERM1_AI_READINESS_MATRIX.md` (§1 candidates, §2 candidate B, §3 gates A1/A2/A3/B),
-`TERM1_API_INTEGRATION_MATRIX.md` (§2 H1a/H1b/S1/H2/R1/H3, §2.1 field contract, §3
+`TERM1_API_INTEGRATION_MATRIX.md` (§2 H1a/H1b/S1/S2/S3 and C3 D1–D4/M1–M3/H2/H3, §2.1 field contract, §3
 headers/errors/replay), `TERM1_DECISION_REGISTER.md` (P-15, P-16, P-25, P-26, A1/A2/A3/B,
 ART), `TERM1_BLOCKER_REGISTER.md` (B-02, B-03, B-05), and the merged C1 implementation
 (`backend/app/term1/`, migrations `20261126_02`…`20261126_06`).
@@ -41,7 +41,7 @@ C2 may depend only on what is **implemented and tested** at the merged baseline
 | **Assessment** (`POST /v1/assessments`) | **NOT IMPLEMENTED** | no model, no table, no route |
 | **Inference attempt / lease / generation / fence** | **NOT IMPLEMENTED** | no model, no table, no route |
 | **Authoritative result publication** | **NOT IMPLEMENTED** | no model, no table, no route |
-| **Response projections** (`GET /v1/assessments/{id}`) | **NOT IMPLEMENTED** | no model, no table, no route |
+| **Response projections** (S2 `GET /v1/assessments/{id}`, S3 `GET /v1/me/assessments`) | **NOT IMPLEMENTED** | no model, no table, no route |
 | **Serving adapter / registry binding for candidate B** | **NOT IMPLEMENTED** and **NOT AUTHORIZED** | `backend/app/inference/` admits `MOCK_SYNTHETIC` only |
 | **Numerical backend dependencies** | **ABSENT by design** | `backend/requirements.txt` has no numpy/scikit-learn/joblib |
 
@@ -59,20 +59,19 @@ is `PATCH` and H1a is `GET`; they are distinct allowlist operations (C0-F06).
 | ID | Operation | Actor | Profile / consent dependency |
 |---|---|---|---|
 | H1a | `GET /v1/me/health-profile` | Patient, self | assignment + active consent |
-| H1b | `PATCH /v1/me/health-profile` | Patient, self, idempotent | immutable-once-referenced fields |
+| H1b | `PATCH /v1/me/health-profile` | Patient, self, idempotent | immutable version payload from creation; new version supersedes |
 | S1 | `POST /v1/assessments` | Patient, self, idempotent | `assignment_id` + `health_profile_id` + panel binding |
-| H2 | `GET /v1/assessments/{assessment_id}` | Patient/doctor projection + admin | assignment/consent re-checked at read |
-| R1 | patient/doctor projection of the published result | Doctor (owner), patient (self) | Decision B for any score |
-| H3 | follow-up eligibility / review state (C3 boundary) | Doctor | C3 owns the review |
+| S2 | `GET /v1/assessments/{id}` | Patient owner or doctor via active assignment; no admin clinical access | role-redacted current result; A3 before any score, B additionally before patient score |
+| S3 | `GET /v1/me/assessments` | Patient, self | paginated status/history |
+| H2/H3 | `GET /v1/me/history`; `GET /v1/doctor/assignments/{assignment_id}/history` | Patient self / doctor via active assignment | C3 longitudinal-history boundary |
 
-C2 owns H1a, H1b, S1, H2 and the projection redaction rules. C3 owns review decisions,
-notes, prescriptions, notifications and H3 history semantics.
+C2 owns H1a, H1b, S1, S2, S3 and projection redaction rules. C3 owns D1–D4, M1–M3, H2/H3, review decisions, clinician-authored follow-up and notifications. No invented R1 operation or admin clinical route is approved.
 
 ---
 
 ## 3. Workstream dependency map
 
-Six workstreams, each with its hard prerequisites, its observable contract, its failure
+Eight workstreams, each with its hard prerequisites, its observable contract, its failure
 mode and the artefacts an independent reviewer needs. The order in §5 is derived from
 these edges; no workstream may start before its prerequisites are *accepted*, not merely
 merged.
@@ -83,7 +82,7 @@ merged.
 |---|---|
 | Hard prerequisites | C1 identity/assignment/consent **accepted** (done); P-25 migration placement confirmed; this map reviewed |
 | New tables | `health_profile` (versioned), `health_profile_field` or JSON column with a frozen field contract, `synthetic_demo_consent` link already exists |
-| Immutability rule | once a profile version is referenced by an assessment snapshot, its `fields` cannot change; a change creates a new version |
+| Immutability rule | profile payload/provenance are immutable from creation; a change creates a new version and supersedes the prior version without rewriting its fields (C0 §5.1) |
 | Provenance | **server-assigned only.** `source_contract.source_kind = synthetic_demo_patient_entry`, `term1.synthetic_demo_intake/v1`, acknowledgement id, actor id, panel/schema digest. A client-supplied provenance field is `422`, never silently overridden |
 | Panel binding | five-field DA-A2 panel (`age`, `sex`, `cp`, `trestbps`, `restecg`) in that exact order, units `years`/`0|1`/code/`mmHg`/code; reuses `da_a2_resting_v1` only if the owner confirms that reuse (OQ-4) |
 | Abstention | absent optional `trestbps`/`restecg` → `ABSTAIN` at S1, no imputation, no zero default. A measured `0` for `trestbps` is *unavailable*, reusing the R1 `ED-DA-A2-01` rule |
@@ -100,8 +99,8 @@ merged.
 | New tables | `assessment` (status state machine), `assessment_snapshot` (frozen input bytes + `snapshot_sha256`), `reassessment_of` self-reference + reason |
 | Snapshot rule | the snapshot is the **only** input an inference attempt may read. It binds: profile version, panel id + version + digest, ordered inputs, server-assigned provenance, consent id at creation, `snapshot_sha256` |
 | Immutability | no `UPDATE` on a written snapshot; corrections create a new assessment with `reassessment_of` |
-| Status machine | created → `QUEUED`/`PENDING_REVIEW`/`INFERENCE_UNAVAILABLE`/`ABSTAINED`/`ERROR`; only one authoritative result; stale results hidden (C0-F05) |
-| Idempotency | S1 is idempotent; replay identity is actor/operation/target-bound as in C1, with `target_ref = assessment_id` unavailable before creation, so `target_ref` is derived from the idempotency key + actor (needs an explicit decision, OQ-7) |
+| Status machine | C0 §7.2: `DRAFT` → `INPUT_VALIDATED` → `INFERENCE_RUNNING` → `INFERENCE_SUCCEEDED` → `PENDING_REVIEW`; terminal `INFERENCE_ABSTAINED`/`INFERENCE_UNAVAILABLE`/`INFERENCE_ERROR` carry no current result and cannot enter review. Without A, terminate unavailable before artifact access. |
+| Idempotency | S1 is idempotent; replay identity is actor/operation/target-bound as in C1, with a stable pre-creation target (OQ-7); the recommended existing C1 pattern is `target_ref="none"` for a creation operation, with actor, operation and key in the complete replay identity and assignment/profile/panel/input fields in the keyed request fingerprint |
 | Observable contract | `assessment_id`, `status`, `snapshot_sha256`, `attempt_id` |
 | Failure mode to test | snapshot mutation attempts, digest mismatch, reassessment without reason, double-create under one key |
 | Reviewer artefacts | snapshot immutability proof, digest recomputation, reassessment lineage |
@@ -122,8 +121,8 @@ merged.
 | Aspect | Specification |
 |---|---|
 | Hard prerequisites | W2 + W3 accepted; **P-16 confirmed** (5 min lease, generation counter, fence token, CAS completion) |
-| New tables | `inference_attempt` (one active attempt per assessment), `inference_lease` (expiry, holder), generation/fence columns |
-| Rules | at most one active attempt per assessment; lease expiry allows recovery; completion is a compare-and-set on `(assessment_id, generation, fence)`; a stale holder cannot publish |
+| New tables | `inference_attempt` (one active attempt per assessment); authoritative `lease_until`, `worker_id`, generation and fence in the attempt, with `assessment.active_attempt_id`/`current_generation` per C0 §5/§7.3. No extra lease table without a reviewed schema amendment. |
+| Rules | at most one active attempt per assessment; atomic completion must check attempt id/assessment link, active attempt id, current generation, running attempt and assessment states, fence, worker, unexpired lease, active assignment and referenced consent (C0 §7.3). Withdrawn authorization terminates unavailable; expired/superseded/cancelled attempts cannot publish. |
 | Provider boundary | the existing `backend/app/inference/` registry admits **`MOCK_SYNTHETIC` only**. C2 must not add an environment-variable, header, settings or DI selector for any other provider. Candidate B admission requires A3 |
 | Failure mode to test | two workers racing the same assessment, lease expiry then stale publish attempt, fence mismatch, generation rollback, attempt restart across process restart, and *no* mock fallback when the real adapter is absent |
 | Observable contract | `attempt_id`; terminal states carry **no score** on `ABSTAIN`/`UNAVAILABLE`/`ERROR` |
@@ -137,7 +136,7 @@ merged.
 | New tables | `inference_result` (single authoritative row per assessment), explanation rows |
 | Rules | exactly one authoritative result per assessment; later attempts supersede by generation, and history is retained but not served as current; publication is idempotent; publication re-checks assignment + consent |
 | Score semantics | `CALIBRATED_RESEARCH_SCORE_SYNTHETIC` in `calibrated_log_odds`, labelled `RESEARCH_ONLY_NOT_INDIVIDUAL_CLINICAL_RISK`; never a CAD probability, future-event risk, diagnosis or treatment advice |
-| Without Decision A | the supported C2 path is `C2_SAFE_SCOPE`: status-only, `INFERENCE_UNAVAILABLE`, **no score column populated, no adapter reachable**. This must be the default and the only mergeable state until A is ratified |
+| Without Decision A | proposed owner-authorized `C2_SAFE_SCOPE`: status-only, `INFERENCE_UNAVAILABLE`, no result row, no artifact access, no adapter reachable. No full C2 acceptance or review eligibility may be claimed. OQ-5 still requires explicit confirmation. |
 | Failure mode to test | duplicate publication, stale publication, tampered artifact/wrong digest, wrong panel, wrong source kind, unauthorized flag/header/env bypass, and no fallback to the M1 mock |
 | Reviewer artefacts | single-result proof, supersession proof, tamper-refusal log, A/B status recorded |
 
@@ -155,7 +154,7 @@ merged.
 | Aspect | Specification |
 |---|---|
 | Hard prerequisites | W5 + W3 |
-| Rules | the doctor projection requires an active assignment; the patient projection is self-only. Until Decision B, **both** expose status only. After B, only the patient projection shows a score and only with the exact ratified wording (§4 of the AI matrix) |
+| Rules | the doctor projection requires an active assignment; patient projection is self-only. Before A3 both expose status only. After A3 an authorized doctor may see the reviewed research-only fields under the governing C0 projection; the patient remains status-only until the separate B grant. After B, patient-visible fields and wording must exactly match the ratified contract. No admin clinical projection. |
 | Redaction | no raw identifier, no HMAC, no verifier, no other patient's identifiers, no provenance secret, no artifact bytes, no digest of a private bundle in any projection |
 | Failure mode to test | cross-role projection, cross-assignment projection, score present before B, score absent after A3+B for the correct actor, wording mismatch |
 | Reviewer artefacts | projection matrix per role, redaction scan, B-status assertion |
@@ -249,3 +248,8 @@ any AI gate; waive any blocker; change `research/`, PR #141 or Issue #132; chang
 A1, A2, A3 and B remain **PENDING**. Gate PT P-1 remains PENDING, P-3 CLOSED, P-5
 prohibited. B-01, B-09, B-17 and B-18 (the separate RH-04 / Issue #132 research track)
 remain open and are untouched.
+
+
+## Independent reviewer clarification (proposed, not authorization)
+
+The preceding corrections reconcile the dependency map with the governing C0 design. OQ-7 should also explicitly consider the existing C1 create-operation `target_ref="none"` pattern, with actor-local scope and full request fingerprint; neither a client-draft protocol nor a new key-derived target is established. OQ-3 and OQ-8 must distinguish already accepted P-16/P-25 defaults from any proposed amendment. Keep A1 offline numerical dependencies separate from backend admission under A3; no private artifact or real patient data. An owner-authorized safe-scope implementation and an independently authorized offline A1 development stream may be planned in parallel, but neither starts from this document. No full C2 or clinical-readiness claim without its applicable gates. The final decision register must be reconciled before implementation.
