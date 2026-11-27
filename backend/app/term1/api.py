@@ -341,9 +341,14 @@ def run_idempotent(
     between business rollback and failure recording (F2: race-safe attempt
     accounting) while ensuring failed enrollment leaves no partial account,
     assignment, consent or redemption effects.
+
+    Operator key material is resolved inside the guarded block so that a missing
+    or unusable configuration is reported as the catalogue's ``503
+    identity_key_configuration_error`` envelope instead of escaping as an
+    unhandled exception (HTTP 500 with a non-JSON body).
     """
-    settings = handler.settings()
     try:
+        settings = handler.settings()
         raw_key = handler.idempotency_key(request)
         with write_transaction(handler.database) as session:
             nested = session.begin_nested()
@@ -690,6 +695,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     @app.get("/v1/doctor/verified-visits/{visit_id}")
     async def get_visit(visit_id: str, request: Request) -> JSONResponse:
         try:
+            handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
                 actor = handler.authenticate(session, request, operation=constants.OP_VISIT_GET)
                 handler.require_role(actor, constants.ROLE_DOCTOR)
@@ -798,6 +804,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     @app.get("/v1/doctor/invitations/{invitation_id}")
     async def get_invitation(invitation_id: str, request: Request) -> JSONResponse:
         try:
+            handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
                 actor = handler.authenticate(
                     session, request, operation=constants.OP_INVITATION_GET
@@ -971,6 +978,7 @@ def register_term1_routes(app: FastAPI, *, handler: Term1Handler) -> None:
     @app.get("/v1/me/assignments")
     async def my_assignments(request: Request) -> JSONResponse:
         try:
+            handler.settings()  # fail closed when operator material is unusable
             with write_transaction(handler.database) as session:
                 actor = handler.authenticate(
                     session, request, operation=constants.OP_ASSIGNMENTS
@@ -1176,9 +1184,14 @@ def _run_anonymous_idempotent(
     failure_hook: Callable[[ApiError | None], None],
     status: int,
 ) -> JSONResponse:
-    """Anonymous enrollment replay, bound to the invitation verifier digest."""
-    settings = handler.settings()
+    """Anonymous enrollment replay, bound to the invitation verifier digest.
+
+    As with :func:`run_idempotent`, operator key material is resolved inside the
+    guarded block so an unusable configuration yields the catalogue's ``503
+    identity_key_configuration_error`` instead of an unhandled HTTP 500.
+    """
     try:
+        settings = handler.settings()
         raw_key = handler.idempotency_key(request)
     except ApiError as error:
         return error_response_json(error)

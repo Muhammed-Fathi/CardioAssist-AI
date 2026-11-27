@@ -30,22 +30,30 @@ operations:
       - status: 201
         description: "{user_id, patient_id, assignment_id, session_id, session_token once, expires_at, subject_label, contract_version}"
         response_schema: term1_patient_register_response.schema.json
+      - status: 400
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
       - status: 401
-        code: invalid_invitation
-        description: "Not live / expired / revoked / consumed / attempts exhausted; wrong identifier HMAC; attempt row written, no account"
+        codes: [invalid_invitation]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [identity_key_change_unsupported]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 409
-        code: subject_identity_conflict
-        description: Identity already exists; client should use E2 while logged in
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, secret_not_redisclosable, subject_identity_conflict]
+        description: "Idempotency, identity-key or domain-state conflict"
       - status: 422
-        code: validation_failed
-        description: consent_ack not true or email not a local demo address
-      - status: 422
-        code: password_policy_violation
-        description: "Outside 12–128 byte policy"
-      - status: 400
-        code: idempotency_key_required
-      - status: 400
-        code: malformed_request
+        codes: [validation_failed, password_policy_violation, invalid_demo_identifier]
+        description: "Semantically complete but inadmissible values"
+      - status: 429
+        codes: [rate_limited]
+        description: "Lockout; Retry-After is present"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: E2
     method: POST
     path: /v1/patients/link
@@ -60,14 +68,30 @@ operations:
       - status: 200
         description: "{assignment_id, doctor_label, patient_id, contract_version}"
         response_schema: term1_patient_link_response.schema.json
-      - status: 401
-        code: invalid_invitation
-        description: "Cross-key HMAC equality fails"
-      - status: 403
-        code: forbidden
-        description: Not a PATIENT session
       - status: 400
-        code: idempotency_key_required
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session, invalid_invitation]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required, identity_key_change_unsupported]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed]
+        description: "Semantically complete but inadmissible values"
+      - status: 429
+        codes: [rate_limited]
+        description: "Lockout; Retry-After is present"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: E3
     method: GET
     path: /v1/me/assignments
@@ -80,11 +104,18 @@ operations:
       - status: 200
         description: "{assignments: [{assignment_id, doctor_label, assigned_at, consent_active}], contract_version}"
         response_schema: term1_me_assignments_response.schema.json
-      - status: 403
-        code: forbidden
-        description: Doctor or admin caller
       - status: 401
-        code: authentication_required
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: E4
     method: POST
     path: /v1/doctor/assignments/{assignment_id}/revoke
@@ -100,16 +131,30 @@ operations:
       - status: 200
         description: "{assignment_id, revoked_at, contract_version}"
         response_schema: term1_assignment_doctor_revoke_response.schema.json
-      - status: 409
-        code: assignment_already_revoked
-        description: Second revoke with a new key
-      - status: 404
-        code: assignment_not_found
-        description: Cross-owner id
-      - status: 403
-        code: forbidden
       - status: 400
-        code: idempotency_key_required
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 404
+        codes: [assignment_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, assignment_already_revoked]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed]
+        description: "Semantically complete but inadmissible values"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: E5
     method: POST
     path: /v1/me/assignments/{assignment_id}/revoke
@@ -125,13 +170,33 @@ operations:
       - status: 200
         description: "{assignment_id, revoked_at, contract_version}"
         response_schema: term1_assignment_patient_revoke_response.schema.json
-      - status: 404
-        code: assignment_not_found
-        description: Cross-patient id
-      - status: 403
-        code: forbidden
       - status: 400
-        code: idempotency_key_required
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 404
+        codes: [assignment_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, assignment_already_revoked]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed]
+        description: "Semantically complete but inadmissible values"
+      - status: 429
+        codes: [rate_limited]
+        description: "Lockout; Retry-After is present"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: E6
     method: POST
     path: /v1/me/consent/synthetic-demo/revoke
@@ -146,10 +211,27 @@ operations:
       - status: 200
         description: "{consent_id, revoked_at, contract_version}"
         response_schema: term1_consent_revoke_response.schema.json
-      - status: 404
-        code: consent_not_found
-        description: Second call (already revoked)
-      - status: 403
-        code: forbidden
       - status: 400
-        code: idempotency_key_required
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 404
+        codes: [consent_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed]
+        description: "Semantically complete but inadmissible values"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"

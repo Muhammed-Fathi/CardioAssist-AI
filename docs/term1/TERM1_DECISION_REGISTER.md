@@ -71,3 +71,65 @@ This register does not grant: model serving, patient score display, real-data wo
 ## 5. Historical authorization statement (superseded by O-10)
 
 The earlier draft statement `AUTHORIZE-TERM1-C0-DOCS` referred to direct documentation changes on `delivery/term1-prototype` in PR #142. It is retained for audit history but is superseded by the owner's revised stage-PR strategy (O-10) and PR #143. Arena has not posted, and must not post, any owner statement on the owner's behalf.
+
+---
+
+# Appendix A — C1 acceptance and C1-closure decisions (appended 2026-11-27)
+
+Append-only. §1–§5 keep their original text and their `PENDING` states as written at C0.
+Where this appendix and an earlier section disagree about C1 or C2, this appendix is
+current; every earlier `PENDING_AUTHORIZATION` entry that is *not* named below is
+**unchanged**.
+
+## A.1 New recorded decisions
+
+| ID | Decision | Status | Source / evidence | Scope limit |
+|---|---|---|---|---|
+| **AC-C1** | Accept the bounded C1 prototype baseline at `524d57cb17c995ea5ab299a6479f66b406751e07`, base `310534e1e334ba3be4f308f5a66d88c22b5842e0`, and authorize its integration into `delivery/term1-prototype` only | **OWNER_RATIFIED** (2026-11-27T01:53:34Z) | `ACCEPT-TERM1-C1-BOUNDED-PROTOTYPE-BASELINE`, PR #144 [comment 7207660039](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/144#issuecomment-7207660039); merged as `2a8a209fba20d0c7c43c255ede4545bcaa5f34b7` | Prototype delivery branch only. Explicitly **not**: real clinical data, model activation, patient-facing AI results, research-gate closure, or merging PR #142 into `main` |
+| **RB-C1** | In-place downgrade permitted **only** on disposable databases without C1 state; populated operational databases require verified backup restoration with explicit recovery-point acceptance | **OWNER_RATIFIED** (same comment) | `TERM1_C1_ROLLBACK_POLICY_PROPOSAL.md` + its Addendum; owner Windows retest transcript | Operational restoration still requires recovery-point acceptance and preservation of the current database. Isolated restoration test ≠ live-recovery certification. No automatic production rollback authorized |
+| **CL-C1** | The outstanding HTTP contract coverage obligations are a **prerequisite** to dependent C2 implementation | **OWNER_MANDATED** | Same acceptance text; reviewer recommendation [7207660039](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/144#issuecomment-7207660039) | Closure evidence: `TERM1_C1_HTTP_CLOSURE_EVIDENCE.md`; acceptance of it remains PENDING independent review |
+| **C2S** | C2 runtime work is not started and is blocked on owner decisions OQ-1…OQ-10 | **NOT_STARTED / NOT_AUTHORIZED** | `TERM1_C2_IMPLEMENTATION_DEPENDENCY_MAP.md` §6 | Documentation readiness only. No code, migration, route, dependency, model or artifact |
+
+## A.2 AC-C1 clauses as written by the owner (not paraphrased into a stronger grant)
+
+The acceptance text conditions were, verbatim in substance:
+
+1. exact-head hosted CI 4/4 workflows and 8/8 jobs successful;
+2. native Windows backend and contracts 1159 passed;
+3. native Windows migration and reviewer regressions 27 passed;
+4. legacy data preservation, application restart and isolated backup restoration verified;
+5. controlled populated-database downgrade refusal verified without schema or data loss;
+6. the safe rollback policy approved as in RB-C1;
+7. integration authorized into `delivery/term1-prototype` **only**;
+8. outstanding HTTP contract coverage obligations to be completed before dependent C2;
+9. historical Windows research failures remain unresolved in the separate RH-04 track;
+10. no authorization of real clinical data, model activation, patient-facing AI results,
+    research gate closure, or merging PR #142 into `main`;
+11. PR #142 to remain open and draft;
+12. C2 continuation subject to post-merge verification and its applicable authorization gates.
+
+Clause 8 is the reason this branch exists. Clause 10 is the reason it does none of those
+things.
+
+## A.3 Unchanged pending authorizations (re-stated, not relaxed)
+
+| ID | Decision | State |
+|---|---|---|
+| A1 | Candidate B synthetic development only | **PENDING** — no generation, training or execution |
+| A2 | Independent artifact/model verification | **PENDING** |
+| A3 | Controlled local-demo activation | **PENDING** — adapter disabled, registry admits `MOCK_SYNTHETIC` only |
+| A (umbrella) | Full Decision A = A1 + A2 + A3 | **PENDING** |
+| B | Patient-facing synthetic score display | **PENDING** — patient sees status only |
+| ART | Artifact trust/distribution and numerical dependency pins (OQ-6) | **PENDING** |
+| HR | Software-team repository creation | **PENDING** — do not create |
+| OQ-1…OQ-10 | C2 scope, snapshot form, lease parameters, panel reuse, publication semantics, dependency route, S1 replay target, migration grouping, display wording, CI evidence route | **PENDING** — see the C2 map §6 |
+
+Technical defaults P-01…P-27 remain `PROPOSED`; P-16 and P-25 are specifically implicated
+by C2 (OQ-3 and OQ-8) and require explicit confirmation there.
+
+## A.4 Explicit non-decisions
+
+This appendix grants no model serving, no patient score display, no real-data work, no
+clinical or publication claim, no research-gate change, no C2 implementation, no C3/C4
+start, no workflow/test/fixture/research change, no merge, and no acceptance of the closure
+work itself. Arena has not posted and must not post any owner statement.

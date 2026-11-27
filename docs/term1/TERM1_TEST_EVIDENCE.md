@@ -103,3 +103,116 @@ Counts below are from local execution on this branch only. They do not alter the
 | Legacy backend + contracts | `python -m pytest tests/contracts tests/backend -q -W error` | 898 passed (unchanged from baseline; warnings-as-errors clean) |
 
 Combined local total for this branch: 1,103 passed, 0 failed.
+
+---
+
+# Appendix A — Post-merge C1 evidence and closure-branch execution (appended 2026-11-27)
+
+**Append-only.** §1–§6 above keep their original text, including every `NOT_RUN` label and
+every inherited failure. This appendix adds evidence; it deletes nothing.
+
+## A.1 Hosted CI at the exact merged baseline `2a8a209fba20d0c7c43c255ede4545bcaa5f34b7`
+
+Read from the GitHub Actions API, not from a report. `total_count = 4` for that `head_sha`;
+all four `status: completed`, `conclusion: success`; **every job** individually confirmed at
+the same SHA.
+
+| Workflow | Run | Jobs (all at `2a8a209…`) | Conclusion |
+|---|---|---|---|
+| mock-backend-validation | [45925221406](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45925221406) | Mock backend (Python 3.12), Mock backend (Python 3.11) | SUCCESS / SUCCESS |
+| contract-validation | [45925221497](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45925221497) | Contract and fixture validation | SUCCESS |
+| audit-toolchain-validation | [45925221365](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45925221365) | Dataset audit toolchain (Python 3.11), (Python 3.12) | SUCCESS / SUCCESS |
+| synthetic-experiment-runner-validation | [45925221446](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45925221446) | Synthetic experiment runner (Python 3.11), (Python 3.12), RH-04 fixture structural drift diagnostic (Python 3.12) | SUCCESS / SUCCESS / SUCCESS |
+
+These are **post-merge** runs on the merged tree. They are not runs of this closure branch.
+
+## A.2 Native Windows evidence received from the owner (recorded as supplied, not re-derived)
+
+Verifier working directory `E:\CardioAssist-C1-Retest-f35326a6fd`.
+
+| Check | Result |
+|---|---|
+| Environment identity, dependency-freeze match, final identity | exit 0 |
+| Genuine legacy HTTP seed | exit 0 |
+| `alembic upgrade head` / `current` / schema check | exit 0 |
+| Legacy data preservation | exit 0 |
+| Empty-C1 downgrade + re-upgrade | exit 0 |
+| Enrollment / application restart | exit 0 |
+| Focused migration + reviewer regression suite | **27 passed** in 71.86 s, exit 0 |
+| Combined backend + contracts | **1159 passed** in 893.97 s, exit 0 |
+| Source verification | exit 0 |
+| Populated-database in-place downgrade | exit **1**, **expected** under the ratified invariant; preservation check exit 0 with full schema, all rows, revision, FKs and integrity unchanged |
+| Isolated legacy backup restore | exit 0 |
+
+Limitation, stated plainly: full Windows log files and per-suite counts beyond the two log
+tails above were not supplied. Only those two counts are asserted. The pre-closure Windows
+research run (**1093 passed, 9 failed, 4 skipped, 5 errors**) remains unresolved and is
+**not** rerun by the focused retest and **not** waived — see A.4.
+
+## A.3 Closure-branch local execution — exact commands, counts, exit codes
+
+Branch `arena/807e6023-cardioassist-ai` from `2a8a209…`. Linux sandbox, Python 3.11.2,
+`backend/requirements-dev.txt` + `research/audit/requirements.txt`.
+
+| # | Command | Result | Exit |
+|---|---|---|---|
+| 1 | `python -m pytest tests/backend/c1/test_c1_http_closure.py -q -W error` | **30 passed**, 0 failed, 0 skipped | 0 |
+| 2 | `python -m pytest tests/backend/c1 -q -W error` | **291 passed**, 0 failed, 0 skipped | 0 |
+| 3 | `python -m pytest tests/contracts tests/backend -q -W error` | **1189 passed**, 0 failed | 0 |
+| 4 | `python -m pytest tests/audit -q -W error` | **711 passed**, 0 failed | 0 |
+| 5 | `python -m pip check` | `No broken requirements found.` | 0 |
+| 6 | `python scripts/verify_sources.py` | 4 source hashes OK; supervisor audit 25 papers `{APPROVED_GREEN 9, MAYBE_PINK 1, MAYBE_ORANGE 6, REJECTED_RED 9}` | 0 |
+| 7 | `python -m alembic upgrade head` (fresh disposable DB) | head `20261126_06` | 0 |
+| 8 | `python -m alembic current` | `20261126_06 (head)` | 0 |
+| 9 | `python -m alembic check` | `No new upgrade operations detected.` | 0 |
+| 10 | `git diff --check` | no whitespace errors | 0 |
+
+Count arithmetic, so the numbers are auditable rather than asserted: the accepted baseline
+combined count was **1159**; this branch adds exactly **30** closure tests; `1159 + 30 =
+1189`. The C1 suite rises from **261** to **291** by the same 30. Nothing was removed,
+renamed or skipped.
+
+`tests/experiments` and `tests/uci412`: **NOT_RUN**. The research dependency set is not
+installed and this branch may not change research requirements, tolerances, fixtures or
+workflows to obtain a result. Inherited Python 3.11 research drift (B-01 / Issue #132)
+remains open.
+
+## A.4 Unresolved separate Windows RH-04 portability findings — preserved, not modified
+
+Recorded from the owner's pre-closure Windows run and left exactly as they are:
+
+* **1093 passed, 9 failed, 4 skipped, 5 errors** in the Windows research suite.
+* Failures confined to the **unchanged** RH-04 Issue #132 environment-classifier test
+  module, including invalid Windows repository-path handling and an `RTLD_NOLOAD` AST
+  assertion requiring a platform flag that does not exist on Windows.
+* Cause class: **platform portability**, not a Term 1 prototype regression.
+* Disposition: **separate unresolved research findings** on the RH-04 / Issue #132 track.
+  No waiver, no research edit, no tolerance change, no fixture change, no workflow change,
+  no AI-gate change, and no `ALL_GREEN` claim.
+
+This branch touches no file under `research/`, `tests/experiments/`, `tests/audit/`,
+`tests/uci412/`, `tests/manuscript_audit/`, `.github/` or `ai/`.
+
+## A.5 Load-bearing proof for the two fixes (negative controls)
+
+| Reverted change | Focused command | Result |
+|---|---|---|
+| `backend/app/term1/api.py` (D-01: 503 vs 500) | `pytest ... -k missing_configuration` | **11 failed**, 9 passed — the `500 text/plain` responses |
+| two response schemas (D-02: replay field) | `pytest ... -k secret_free_replays` | **1 failed** — `Additional properties are not allowed ('idempotent_replay' was unexpected)` |
+
+Both reverts were restored immediately and the tree re-verified with `git diff --check`.
+A test that passes either way would prove nothing; these do not.
+
+## A.6 Honest evidence classification
+
+| Label | Applies to |
+|---|---|
+| `SOURCE_VERIFIED` | merged SHA, merge parents, tree equality, branch head, file inventory, migration head, source hashes |
+| `GITHUB` / `API_VERIFIED` | PR #144 merged state, acceptance comment identities and timestamps, the four post-merge runs and all eight jobs at `2a8a209…` |
+| `EXECUTED_LOCALLY` | the ten commands in A.3 and the two negative controls in A.5 |
+| `OWNER_REPORTED` | the Windows table in A.2 (log tails supplied; full logs not supplied) |
+| `NOT_RUN` | `tests/experiments`, `tests/uci412`, hosted CI at this branch's head, native Windows of this branch |
+| `UNRESOLVED` | B-01 / B-09 / B-17 / B-18 research track; B-06 commit provenance |
+
+**No `ALL_GREEN` claim.** Hosted CI at this exact head is `OWNER_DISPATCH_REQUIRED`; zero
+checks is not success.

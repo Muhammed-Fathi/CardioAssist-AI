@@ -110,3 +110,114 @@ Additional C0-F tests at C1: `email_norm` case/whitespace normalization and UNIQ
 ## 6. Integration readiness
 
 Every new operation is `PROPOSED` / `NOT_RUN`. Legacy L1/L2 are `IMPLEMENTED_AND_HOSTED_CI_VERIFIED`. Flutter and React consumers are software-team responsibilities; no client code is implemented or accepted here.
+
+---
+
+# Appendix A — C1 closure: verified operation, status and code inventory (appended 2026-11-27)
+
+Append-only. §1–§6 keep their original `PROPOSED_C0_DEFAULT` text. This appendix records
+what the **merged C1 implementation actually serves**, verified over the live HTTP surface,
+and what the closure branch corrected.
+
+## A.1 Frozen inventory, confirmed by execution
+
+20 C1 operations (+ 2 unchanged legacy = 22 served). `AUTH` = bearer required, `IDEM` =
+`Idempotency-Key` required. Confirmed by the equality assertion in
+`test_executed_operation_set_equals_the_expected_inventory`.
+
+| # | Operation | AUTH | IDEM | Success | Secret in success body |
+|---|---|---|---|---|---|
+| 1 | `PATCH /v1/admin/accounts/{user_id}/status` | yes | yes | 200 | no |
+| 2 | `POST /v1/admin/doctors` | yes | yes | 201 | **yes** (`temp_secret`) |
+| 3 | `POST /v1/auth/login` | no | no | 200 | **yes** (`session_token`) |
+| 4 | `POST /v1/auth/logout` | yes | no | 200 | no |
+| 5 | `GET /v1/auth/me` | yes | no | 200 | no |
+| 6 | `POST /v1/auth/refresh` | yes | no | 200 | **yes** (`session_token`) |
+| 7 | `POST /v1/doctor/assignments/{assignment_id}/revoke` | yes | yes | 200 | no |
+| 8 | `GET /v1/doctor/invitations/{invitation_id}` | yes | no | 200 | no (never the code) |
+| 9 | `POST /v1/doctor/invitations/{invitation_id}/revoke` | yes | yes | 200 | no |
+| 10 | `POST /v1/doctor/verified-visits` | yes | yes | 201 | no |
+| 11 | `GET /v1/doctor/verified-visits/{visit_id}` | yes | no | 200 | no |
+| 12 | `POST /v1/doctor/verified-visits/{visit_id}/invitations` | yes | yes | 201 | **yes** (`access_code`) |
+| 13 | `GET /v1/me/assignments` | yes | no | 200 | no |
+| 14 | `POST /v1/me/assignments/{assignment_id}/revoke` | yes | yes | 200 | no |
+| 15 | `POST /v1/me/consent/synthetic-demo/revoke` | yes | yes | 200 | no |
+| 16 | `POST /v1/me/password` | yes | no | 200 | no |
+| 17 | `GET /v1/me/sessions` | yes | no | 200 | no |
+| 18 | `DELETE /v1/me/sessions/{session_id}` | yes | no | 200 | no |
+| 19 | `POST /v1/patients/link` | yes | yes | 200 | no |
+| 20 | `POST /v1/patients/register` | no | yes | 201 | **yes** (`session_token`) |
+
+18 authenticated paths, 10 idempotent paths, and exactly one idempotent-but-anonymous
+operation (`/v1/patients/register`) — all unchanged from §2.
+
+## A.2 Idempotent replay behaviour, proven
+
+The ten idempotent operations split exhaustively into two disjoint classes:
+
+**Secret-bearing (3) — replay must answer `409 secret_not_redisclosable`.** AD1, I1, E1.
+The original one-time secret is never reproduced; the error body carries non-secret
+identifiers only (`user_id`, `invitation_id`) and still validates against the served error
+schema.
+
+**Secret-free (7) — replay returns the stored body plus `idempotent_replay: true`.** AD2,
+V1, I2, E4, E5, E6, E2. Same HTTP status, same resource identifier, validated raw against
+the same served schema as the initial response.
+
+A4/A1 declare no `Idempotency-Key`; each valid call performs exactly one rotation/login and
+has no replay contract.
+
+## A.3 Corrections made by the closure branch
+
+| Defect | Correction | Contract effect |
+|---|---|---|
+| **D-01** — `500 text/plain` where `503` is declared, on 9 idempotent operations; V2/I3/E3 never checked configuration | settings resolved inside the guarded block; fail-closed check added to V2/I3/E3 | all 20 operations now answer `503 identity_key_configuration_error` when operator key material is absent (JSON, `no-store`, schema-valid). Legacy L1/L2 unaffected |
+| **D-02** — replay body violated `additionalProperties: false` | `idempotent_replay: {"const": true}` added to the five affected response schemas | replay is now provably a replay; initial response still omits the field; no schema loosened |
+| **D-03** — served document under-declared statuses | per-operation `responses:` blocks list exact catalogue codes; served as `x-error-codes` | status catalogue now matches the served surface; 422/500/503 declared everywhere they can occur |
+
+## A.4 Served error-status inventory by operation (as declared and enforced)
+
+Derived from the closure branch's contract source. Every listed code is cross-checked
+against `errors.py::ERROR_CATALOGUE` at that exact status by
+`tests/backend/c1/test_c1_contracts.py`; every response actually observed is asserted to be
+declared by `test_every_failure_response_uses_a_declared_status_and_code`.
+
+| Operation | Declared error statuses |
+|---|---|
+| AD1 | 400, 401, 403, 409, 422, 500, 503 |
+| AD2 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| A1 | 400, 401, 422, 429, 500, 503 |
+| A2 | 400, 401, 500, 503 |
+| A3 | 401, 500, 503 |
+| A4 | 400, 401, 500, 503 |
+| A5 | 400, 401, 403, 422, 429, 500, 503 |
+| A6 | 401, 403, 500, 503 |
+| A7 | 401, 403, 404, 500, 503 |
+| V1 | 400, 401, 403, 409, 422, 500, 503 |
+| V2 | 401, 403, 404, 500, 503 |
+| I1 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| I2 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| I3 | 401, 403, 404, 500, 503 |
+| E1 | 400, 401, 403, 409, 422, 429, 500, 503 |
+| E2 | 400, 401, 403, 409, 422, 429, 500, 503 |
+| E3 | 401, 403, 500, 503 |
+| E4 | 400, 401, 403, 404, 409, 422, 500, 503 |
+| E5 | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| E6 | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+
+`409` on every idempotent operation carries the idempotency/identity-key conflict family
+(`idempotency_key_conflict`, `idempotency_scope_conflict`, and — where a one-time secret was
+disclosed — `secret_not_redisclosable`), plus each operation's own domain conflicts
+(`account_registration_unavailable`, `account_status_conflict`,
+`last_administrator_protected`, `role_profile_mismatch`, `invitation_already_active`,
+`subject_identity_conflict`, `assignment_already_revoked`, `concurrency_conflict`).
+`401` on authenticated operations carries `authentication_required` and `invalid_session`;
+`422` carries `validation_failed` plus each operation's semantic codes.
+
+## A.5 Unchanged freeze items
+
+`shared/contracts/openapi.yaml` (legacy L1/L2) is byte-identical. Header modelling
+(`Authorization`, `Idempotency-Key` as `in: header`), authentication, authorization, replay
+ordering, redaction and the closed error catalogue are unchanged in semantics — only the
+declaration completeness and the two defects above changed. No C2 operation (H1a, H1b, S1,
+H2, R1, H3) is served, declared or implemented.

@@ -101,3 +101,114 @@ Historical `TERM1_INTEGRATED_PROTOTYPE_MASTER_PLAN_20261125.md`, `ARENA_NEW_SESS
 | C4 | NOT_STARTED | Prior stages and evidence required |
 
 This ledger does not constitute self-acceptance. Only the independent reviewer and human owner may accept C0.
+
+---
+
+# Appendix A — C1 closure reconciliation (appended 2026-11-27; earlier sections preserved verbatim)
+
+**This appendix is append-only.** §1–§5 above retain their original statuses as written at
+C0/C1 revision time. Where this appendix disagrees with them, this appendix is current and
+the earlier text is historical evidence, not a live status.
+
+## A.1 Exact merged C1 baseline and owner acceptance
+
+| Item | Value | Evidence category |
+|---|---|---|
+| Delivery branch | `delivery/term1-prototype` | GITHUB |
+| Exact merged baseline | `2a8a209fba20d0c7c43c255ede4545bcaa5f34b7` | GITHUB / SOURCE_VERIFIED (`git rev-parse HEAD`) |
+| Merge parents | `310534e1e334ba3be4f308f5a66d88c22b5842e0` (base), `524d57cb17c995ea5ab299a6479f66b406751e07` (accepted candidate) | GITHUB |
+| Accepted candidate tree | `1a117475e2d4ccb57d0902f368885065ee9e4145` — identical to the merge tree, 0 changed files | GITHUB |
+| PR #144 | `MERGED` 2026-11-27T01:54:17Z, title *feat(term1): C1 authentication, verified enrollment and durable identity workflow* | GITHUB |
+| Owner acceptance | `ACCEPT-TERM1-C1-BOUNDED-PROTOTYPE-BASELINE`, [comment 7207660039](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/144#issuecomment-7207660039) 2026-11-27T01:53:34Z | GITHUB |
+| Post-merge identity verification | [comment 7207679643](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/144#issuecomment-7207679643) 2026-11-27T01:54:59Z | GITHUB |
+| Post-merge hosted CI at `2a8a209…` | 4/4 workflows, 8/8 jobs SUCCESS: runs 45925221406, 45925221497, 45925221365, 45925221446 | GITHUB API; see `TERM1_TEST_EVIDENCE.md` §7.1 |
+| PR #142 | still OPEN / DRAFT, base `main`; not merged by this work | GITHUB |
+| PR #141, Issue #132 | OPEN; separate research track; untouched | GITHUB boundary only |
+| Arena closure branch | `arena/807e6023-cardioassist-ai`, from `2a8a209…` | GITHUB / local |
+
+## A.2 Status declarations (supersedes §2 for C1 and C2 only)
+
+```
+C0_STATUS=ACCEPTED_PENDING_OWNER_CONFIRMATION_OF_RECONSTRUCTED_COMMIT_PROVENANCE
+C1_STATUS=OWNER_ACCEPTED_BOUNDED_BASELINE_MERGED__HTTP_CONTRACT_CLOSURE_PENDING_INDEPENDENT_REVIEW
+C2_STATUS=DOCUMENTATION_READINESS_ONLY__NOT_STARTED__BLOCKED_ON_OWNER_DECISIONS_OQ-1..OQ-10
+C3_STATUS=NOT_STARTED
+C4_STATUS=NOT_STARTED
+AI_SERVING_AUTHORIZATION=PENDING            (A1 PENDING, A2 PENDING, A3 PENDING)
+PATIENT_SCORE_DISPLAY_AUTHORIZATION=PENDING (B PENDING)
+WINDOWS_VERIFICATION_STATUS=OWNER_VERIFIED_AT_524d57c_AND_MERGE; CLOSURE_BRANCH_NOT_RUN_ON_WINDOWS
+HOSTED_CI=OWNER_DISPATCH_REQUIRED_FOR_CLOSURE_BRANCH
+HOSTED_CI_AT_MERGED_BASELINE=4_OF_4_WORKFLOWS_8_OF_8_JOBS_SUCCESS
+LEGACY_RESEARCH_CI_STATUS=FAILURE_ON_PYTHON_3_11 (inherited; not suppressed, not waived)
+```
+
+`C0_STATUS` changes only in the sense that the owner accepted and merged the bounded C1
+baseline that followed it; the reconstructed-vs-original commit disclosure (C0-F08/B-06)
+still requires the owner's explicit acknowledgement.
+
+## A.3 C1 acceptance, as recorded — not as inferred
+
+Owner acceptance was explicitly **bounded**: `delivery/term1-prototype` only, no real
+clinical data, no model activation, no patient-facing AI result, no research-gate closure,
+no merge of PR #142 into `main`, and C2 "subject to post-merge verification and its
+applicable authorization gates". The acceptance text also made the HTTP contract work a
+**prerequisite**:
+
+> Outstanding HTTP contract coverage obligations must be completed before dependent C2
+> implementation.
+
+Acceptance of the bounded baseline is therefore **not** acceptance of exhaustive C1
+contract conformance, and this branch does not treat it as such.
+
+## A.4 Migration rollback decision, as ratified by the owner
+
+The owner's acceptance comment approved the safe rollback policy in these terms:
+
+> In-place downgrade is permitted only on disposable databases without C1 state. Populated
+> operational databases require verified backup restoration and explicit recovery-point
+> acceptance.
+
+Recorded state: **OWNER_RATIFIED** for the invariant; operational backup restoration still
+requires recovery-point acceptance and must preserve the current database. The isolated
+restoration test is not a live-recovery certification. The proposal text in
+`TERM1_C1_ROLLBACK_POLICY_PROPOSAL.md` is preserved verbatim; see its Addendum for the
+decision record and evidence binding.
+
+## A.5 Closure work on this branch — defects found and fixed
+
+Owner-mandated C1 contract obligations were completed on
+`arena/807e6023-cardioassist-ai` from `2a8a209…`. The work is a targeted closure, not a C1
+reimplementation. **Three real defects** were found by the new tests and fixed with
+narrowly scoped changes; each fix is proven load-bearing by a negative control.
+
+| ID | Defect | Operations | Fix | Negative control |
+|---|---|---|---|---|
+| **D-01** | `500 text/plain` instead of declared `503 identity_key_configuration_error` — settings were resolved outside the guarded block; three handlers never checked configuration | 9 idempotent + V2 + I3 + E3 | resolve settings inside `try`; add fail-closed `handler.settings()` to V2/I3/E3 | 11 tests fail when reverted |
+| **D-02** | replay body (`idempotent_replay: true`) violated its own `additionalProperties: false` schema | AD2, I2, E4, E5, E6 | declare `"idempotent_replay": {"const": true}`, matching the two schemas that already did | 1 test fails when reverted |
+| **D-03** | served document under-declared reachable statuses and their closed codes | all 20 | each YAML `responses:` block lists the exact catalogue codes per status; composed into the served document as `x-error-codes`; 3 contract tests enforce catalogue agreement | contract tests fail on drift |
+
+No assertion was weakened, no body normalisation was added, and no operation is skipped.
+
+## A.6 C2 readiness — documentation only
+
+`TERM1_C2_IMPLEMENTATION_DEPENDENCY_MAP.md` records the eight C2 workstreams (W1…W8), their
+hard prerequisites, failure modes and reviewer artefacts; the dependency-correct build
+order; and the ten owner decisions (OQ-1…OQ-10) that must be taken before C2 code. Its
+decisive finding: **C2 is not blocked on the AI gates; a full-score C2 is.** W1…W7 are
+ordinary software buildable in a documented `C2_SAFE_SCOPE`; only a score needs A3 and only
+a patient-visible score needs B.
+
+No C2 runtime code, migration, route, settings key, dependency, model or artifact exists.
+
+## A.7 Stage readiness (supersedes §5)
+
+| Stage | Readiness | Reason |
+|---|---|---|
+| C0 | ACCEPTED (commit-provenance acknowledgement still outstanding) | Baseline merged; B-06 disclosure unchanged |
+| C1 | OWNER_ACCEPTED_BOUNDED_BASELINE; HTTP closure PENDING_INDEPENDENT_REVIEW | Local: 291 C1 tests (30 new closure), 1189 combined backend+contracts with `-W error`, 711 audit. No hosted CI at this branch head; no native Windows run of this branch |
+| C2 | NOT_STARTED — documentation readiness only | Depends on C1 closure acceptance and OQ-1…OQ-10; A1/A2/A3/B PENDING |
+| C3 | NOT_STARTED | Depends on C2 acceptance |
+| C4 | NOT_STARTED | Depends on prior stages |
+
+This appendix is not self-acceptance. Only the independent reviewer and the human owner may
+accept the closure work, and only the owner may take OQ-1…OQ-10.
