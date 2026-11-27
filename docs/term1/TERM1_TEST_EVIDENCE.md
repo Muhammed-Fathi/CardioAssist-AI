@@ -328,3 +328,60 @@ are recorded in the closure evidence Appendix A §A.3 so the method can be revie
 * **`tests/experiments` and `tests/uci412`: `NOT_RUN`** — B-17 unchanged.
 * **Windows RH-04 research failures stay unresolved** — B-18 unchanged, untouched.
 * **No `ALL_GREEN` claim.** No C2 implementation, no model work, no AI gate change.
+
+---
+
+# Appendix C — Exception-log redaction verification (appended 2026-11-27)
+
+Append-only. Appendix B recorded the reviewer-corrected candidate at `c9026a1`. This
+appendix records the focused logging correction applied after that review. The reviewer's
+three commits (`b816861`, `06993d1`, `5ab92f8`) were cherry-picked; the resulting tree was
+verified byte-identical to the reviewer head `5ab92f8` (`78ef389306c2eca9a2e25e17f03c0e8bf9ec6f8c`)
+before anything else was run.
+
+## C.1 Commands, counts and exit codes
+
+Linux sandbox, Python 3.11.2, `backend/requirements-dev.txt` + `research/audit/requirements.txt`.
+
+| # | Command | Result | Expected | Exit |
+|---|---|---|---|---|
+| 1 | `pytest tests/backend/c1/test_c1_http_closure.py -q -W error` | **39 passed**, 0 failed, 0 skipped | 39 | 0 |
+| 2 | `pytest tests/contracts tests/backend -q -W error` | **1198 passed**, 0 failed | 1198 | 0 |
+| 3 | `pytest tests/audit -q -W error` | **711 passed**, 0 failed | 711 | 0 |
+| 4 | `pip check` | `No broken requirements found.` | clean | 0 |
+| 5 | `python scripts/verify_sources.py` | 4 source hashes OK; 25-paper supervisor audit | clean | 0 |
+| 6 | `alembic upgrade head` / `current` / `check` (fresh disposable DB) | head `20261126_06`; no new upgrade operations | unchanged | 0 |
+| 7 | `git diff --check` | clean | clean | 0 |
+
+All three expected counts held exactly. **No additional regression test was introduced**,
+so no count was justified upward: the strengthened assertions were added to an existing
+fault-injection test rather than as a new test, and the totals are unchanged at 39 / 1198 /
+711.
+
+## C.2 Negative controls
+
+| Reverted change | Focused command | Result |
+|---|---|---|
+| only the metadata-only log call (`logger.error(...)` → `logger.exception(..., exc_info=error)`) | `-k unexpected_c1_failure` | **1 failed** — the log assertion catches the exception payload |
+| the whole unexpected-failure boundary (`api.py` from the previous candidate) | `-k reviewer` | **1 failed, 8 passed** (from Appendix B §B.4) |
+| `api.py` D-01 fix | `-k missing_configuration` | **11 failed, 9 passed** |
+| two revoke response schemas | `-k secret_free_replays` | **1 failed** |
+
+Every revert was restored immediately and the tree re-verified with `git diff --check`.
+
+## C.3 Scope containment
+
+`git diff --name-only c9026a1..HEAD` touches exactly three paths:
+`backend/app/term1/api.py`, `docs/term1/TERM1_C1_HTTP_CLOSURE_EVIDENCE.md`,
+`tests/backend/c1/test_c1_http_closure.py` (plus this appendix). No path under `research/`,
+`tests/experiments/`, `tests/audit/`, `tests/uci412/`, `tests/manuscript_audit/`, `ai/`,
+`.github/`, `frontend/`, `infra/` or `prompts/`. No migration. Legacy
+`shared/contracts/openapi.yaml` unchanged. No contract declaration changed by this
+appendix — the corrections landed at `c9026a1` and are untouched here.
+
+## C.4 Still not claimed
+
+No hosted CI at this HEAD (**B-15**, owner dispatch; zero checks is not success). No native
+Windows run of this branch (**B-16**). `tests/experiments` / `tests/uci412` **`NOT_RUN`**
+(**B-17**). Windows RH-04 findings untouched (**B-18**). The logging assertion covers one
+logger and one event, not every logging channel (§B.5). **No `ALL_GREEN` claim.**

@@ -75,3 +75,16 @@ test, widening a tolerance, deleting evidence or changing a research gate.
 | **B-22** (new) | **Contract under-declaration**: shared `verify_or_activate` 409 refusals and `role_profile_mismatch` were reachable but undeclared on up to 11 routes, and `POST /v1/auth/login` declared no 409 at all. **FIXED**; static reachability audit now reports 0 undeclared reachable codes over 20 routes | `TERM1_C1_HTTP_CLOSURE_EVIDENCE.md` Appendix A §A.3 |
 | **B-23** (new) | **Weak failure-coverage assertion**: failure probes compared bare paths (method-blind) and wrong-role probes accepted any `>= 400`. **FIXED** — `(METHOD, template)` pair equality plus 12 operations pinned to exact `403 forbidden` | same |
 | **B-15/B-16/B-17/B-18** | Unchanged and still open | — |
+
+## A.6 Blocker update after focused logging review (2026-11-27)
+
+| ID | Change | Basis |
+|---|---|---|
+| **B-24** (new) | **Disclosure risk in operational logging**: the unexpected-failure boundary logged the full exception with `exc_info`, so SQLAlchemy statements, bound parameters, submitted identifiers or key material could reach log aggregation and long-term retention. The HTTP response was already static and `no-store`; the log was the residual surface. **FIXED** — one metadata-only ERROR event, no `exc_info`/`stack_info`/`traceback` anywhere under `backend/app/term1/`; proven load-bearing by negative control | `TERM1_C1_HTTP_CLOSURE_EVIDENCE.md` Appendix B; `TERM1_TEST_EVIDENCE.md` Appendix C §C.2 |
+| **B-14** | Remains **CLOSED_ENGINEERING_PENDING_INDEPENDENT_REVIEW**; scope now also covers R-8 (log redaction) | same |
+| **B-15/B-16/B-17/B-18** | Unchanged and still open | — |
+
+Limit recorded with the fix: the assertion covers the `cardioassist.term1.api` logger and
+the `term1 operation failed unexpectedly` event on the fault-injection path. It is **not** a
+claim that every logging channel has been audited — the legacy `main.py` handler,
+SQLAlchemy engine logging configuration and the audit tables remain separate surfaces.

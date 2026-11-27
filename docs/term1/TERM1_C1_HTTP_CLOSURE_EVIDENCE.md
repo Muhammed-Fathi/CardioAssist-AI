@@ -415,3 +415,78 @@ review.
 ## Independent reviewer follow-up — exception-log redaction (proposed)
 
 The corrected HTTP 500 envelope is static and no-store. However, the c9026a1 implementation logs the full exception with `logger.exception(..., exc_info=error)`. Exception messages and SQLAlchemy tracebacks can contain submitted values, SQL parameters or security material. The proposed follow-up replaces that call with a fixed metadata-only ERROR event, and strengthens the existing fault-injection regression to require an error log without exception/stack payload or the synthetic sentinel. It does not change transaction boundaries, status or error catalogue. The earlier description of full exception logging is superseded by this proposal; runtime verification and owner acceptance remain pending. No claim that every logging channel has been exhaustively audited.
+
+---
+
+# Appendix B — Exception-log redaction (verified 2026-11-27)
+
+Append-only. Appendix A §A.2 described the unexpected-failure boundary as logging the
+exception "server-side at ERROR with full context". **That description is superseded by
+this appendix.** The reviewer identified it as a disclosure risk and it was a real one.
+
+## B.1 The remaining issue
+
+The `b860efc`/`c9026a1` implementation logged:
+
+```python
+logger.exception("term1 operation failed unexpectedly: %s", type(error).__name__,
+                 exc_info=error)
+```
+
+`exc_info` attaches the full traceback. SQLAlchemy and SQLite exception messages routinely
+embed the offending statement and its **bound parameters**, and a validation or encoding
+error can embed the submitted value itself. The HTTP response was already static and
+`no-store`, so nothing leaked to the client — but the operational log is a real disclosure
+surface: it is shipped to log aggregation, retained for long periods, and readable by
+operators who are not authorised to see patient identifiers or key material. Treating
+"server-side only" as "safe" was the error.
+
+## B.2 The correction
+
+```python
+# Exception messages/tracebacks can contain SQL parameters, submitted
+# identifiers, credentials or key material. Never attach the exception
+# object (including exc_info) to the operational log.
+logger.error("term1 operation failed unexpectedly: internal_error")
+```
+
+A fixed, metadata-only ERROR event on the `cardioassist.term1.api` logger. It keeps the
+signal an operator actually needs — *this* logger, at ERROR, that an unexpected fault
+occurred — and drops everything that could carry data. There is now exactly one
+`logger.*` call in `backend/app/term1/api.py`, and no `exc_info`, `logger.exception`,
+`stack_info` or `traceback` call anywhere under `backend/app/term1/` (the remaining textual
+matches are the comments and docstring explaining why).
+
+## B.3 What is unchanged
+
+* the **static JSON `500` envelope** (`internal_error`, frozen catalogue message);
+* **`Cache-Control: no-store`** on the 500 response;
+* **transaction rollback and audit atomicity** — the boundary still opens no transaction
+  and performs no database work;
+* **all twenty route wrappers, all response schemas and all contract declarations**;
+* the served `x-error-codes` catalogue;
+* the six orphan-table and invitation-consumption rollback assertions in
+  `test_registration_rolls_back_completely_on_a_mid_transaction_failure`, untouched.
+
+## B.4 Negative control — the strengthened test detects the original defect
+
+The fault-injection regression was strengthened to assert the log *and* its absence of
+payload. Reverting only the logging call, nothing else:
+
+| Configuration | Result |
+|---|---|
+| With the metadata-only log | **1 passed** |
+| Reverted to `logger.exception(..., exc_info=error)` | **1 failed** — `assert False` on the message assertion; the captured record reads `term1 operation failed unexpectedly: RuntimeError` |
+
+The test therefore detects the original defect rather than merely passing after it. The
+revert was restored immediately and the tree re-verified.
+
+## B.5 Honest limits
+
+The log assertion covers the `cardioassist.term1.api` logger and the
+`term1 operation failed unexpectedly` event on the fault-injection path. It is **not** a
+claim that every logging channel in the application has been exhaustively audited — the
+legacy `main.py` handler, SQLAlchemy's own echo/engine logging configuration, and the
+audit tables are distinct surfaces with their own review. No such claim is made here.
+
+Verification for this appendix is recorded in `TERM1_TEST_EVIDENCE.md` Appendix C.
