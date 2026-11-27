@@ -1535,8 +1535,8 @@ def test_reviewer_invalid_link_identifier_declares_exact_422(app, client):
     _assert_schema(chain, response, label="invalid-link-identifier")
 
 
-def test_reviewer_unexpected_c1_failure_matches_declared_500(app_factory, monkeypatch):
-    """Fault injection: fail before business completion, never leak exception text."""
+def test_reviewer_unexpected_c1_failure_matches_declared_500(app_factory, monkeypatch, caplog):
+    """Fault injection: never leak exception text in HTTP or operational logs."""
     from backend.app.term1 import api
 
     app = app_factory()
@@ -1562,6 +1562,16 @@ def test_reviewer_unexpected_c1_failure_matches_declared_500(app_factory, monkey
         _assert_error_catalogue(chain, response, label="unexpected-failure")
         assert response.body["error"]["code"] == "internal_error"
         _assert_schema(chain, response, label="unexpected-failure")
+        # The operational log must retain an error signal, without attaching
+        # the exception or traceback (which can contain SQL parameters).
+        failure_records = [record for record in caplog.records
+                           if "term1 operation failed unexpectedly" in record.getMessage()]
+        assert failure_records, "unexpected failure must be logged"
+        assert all(record.getMessage() == "term1 operation failed unexpectedly: internal_error"
+                   for record in failure_records)
+        assert all(record.exc_info is None and record.stack_info is None
+                   for record in failure_records)
+        assert "SYNTHETIC_FAULT_MUST_NOT_LEAK" not in caplog.text
 
 
 
