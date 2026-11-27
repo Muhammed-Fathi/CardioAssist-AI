@@ -153,7 +153,8 @@ def unexpected_failure_json(error: BaseException) -> JSONResponse:
     The body is *static*. The message comes from the frozen catalogue and never
     embeds the exception type, its text, a traceback, a submitted value or a
     resource identifier, so an internal fault cannot become a disclosure
-    channel. The exception is logged server-side with full context.
+    channel. Only a fixed metadata-only event is logged server-side; no
+    exception text, traceback, SQL statement or parameter is logged.
 
     Response boundary only: it performs no database work and opens no
     transaction. An unexpected fault has already left the operation's own
@@ -161,9 +162,10 @@ def unexpected_failure_json(error: BaseException) -> JSONResponse:
     before this boundary existed - rollback and audit atomicity are unchanged.
     Returning success is impossible here; the status is fixed at 500.
     """
-    logger.exception(
-        "term1 operation failed unexpectedly: %s", type(error).__name__, exc_info=error
-    )
+    # Exception messages/tracebacks can contain SQL parameters, submitted
+    # identifiers, credentials or key material. Never attach the exception
+    # object (including exc_info) to the operational log.
+    logger.error("term1 operation failed unexpectedly: internal_error")
     return error_response_json(_INTERNAL_ERROR)
 
 
