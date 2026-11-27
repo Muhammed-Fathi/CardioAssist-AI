@@ -37,10 +37,10 @@ operations:
         codes: [invalid_invitation]
         description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
       - status: 403
-        codes: [identity_key_change_unsupported]
+        codes: [forbidden, identity_key_change_unsupported]
         description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 409
-        codes: [idempotency_key_conflict, idempotency_scope_conflict, secret_not_redisclosable, subject_identity_conflict]
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, secret_not_redisclosable, subject_identity_conflict, account_registration_unavailable]
         description: "Idempotency, identity-key or domain-state conflict"
       - status: 422
         codes: [validation_failed, password_policy_violation, invalid_demo_identifier]
@@ -78,10 +78,10 @@ operations:
         codes: [forbidden, password_change_required, identity_key_change_unsupported]
         description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 409
-        codes: [idempotency_key_conflict, idempotency_scope_conflict]
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, role_profile_mismatch]
         description: "Idempotency, identity-key or domain-state conflict"
       - status: 422
-        codes: [validation_failed]
+        codes: [validation_failed, invalid_demo_identifier]
         description: "Semantically complete but inadmissible values"
       - status: 429
         codes: [rate_limited]
