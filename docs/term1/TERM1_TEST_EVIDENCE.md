@@ -103,3 +103,285 @@ Counts below are from local execution on this branch only. They do not alter the
 | Legacy backend + contracts | `python -m pytest tests/contracts tests/backend -q -W error` | 898 passed (unchanged from baseline; warnings-as-errors clean) |
 
 Combined local total for this branch: 1,103 passed, 0 failed.
+
+---
+
+# Appendix A — Post-merge C1 evidence and closure-branch execution (appended 2026-11-27)
+
+**Append-only.** §1–§6 above keep their original text, including every `NOT_RUN` label and
+every inherited failure. This appendix adds evidence; it deletes nothing.
+
+## A.1 Hosted CI at the exact merged baseline `2a8a209fba20d0c7c43c255ede4545bcaa5f34b7`
+
+Read from the GitHub Actions API, not from a report. `total_count = 4` for that `head_sha`;
+all four `status: completed`, `conclusion: success`; **every job** individually confirmed at
+the same SHA.
+
+| Workflow | Run | Jobs (all at `2a8a209…`) | Conclusion |
+|---|---|---|---|
+| mock-backend-validation | [45925221406](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45925221406) | Mock backend (Python 3.12), Mock backend (Python 3.11) | SUCCESS / SUCCESS |
+| contract-validation | [45925221497](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45925221497) | Contract and fixture validation | SUCCESS |
+| audit-toolchain-validation | [45925221365](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45925221365) | Dataset audit toolchain (Python 3.11), (Python 3.12) | SUCCESS / SUCCESS |
+| synthetic-experiment-runner-validation | [45925221446](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45925221446) | Synthetic experiment runner (Python 3.11), (Python 3.12), RH-04 fixture structural drift diagnostic (Python 3.12) | SUCCESS / SUCCESS / SUCCESS |
+
+These are **post-merge** runs on the merged tree. They are not runs of this closure branch.
+
+## A.2 Native Windows evidence received from the owner (recorded as supplied, not re-derived)
+
+Verifier working directory `E:\CardioAssist-C1-Retest-f35326a6fd`.
+
+| Check | Result |
+|---|---|
+| Environment identity, dependency-freeze match, final identity | exit 0 |
+| Genuine legacy HTTP seed | exit 0 |
+| `alembic upgrade head` / `current` / schema check | exit 0 |
+| Legacy data preservation | exit 0 |
+| Empty-C1 downgrade + re-upgrade | exit 0 |
+| Enrollment / application restart | exit 0 |
+| Focused migration + reviewer regression suite | **27 passed** in 71.86 s, exit 0 |
+| Combined backend + contracts | **1159 passed** in 893.97 s, exit 0 |
+| Source verification | exit 0 |
+| Populated-database in-place downgrade | exit **1**, **expected** under the ratified invariant; preservation check exit 0 with full schema, all rows, revision, FKs and integrity unchanged |
+| Isolated legacy backup restore | exit 0 |
+
+Limitation, stated plainly: full Windows log files and per-suite counts beyond the two log
+tails above were not supplied. Only those two counts are asserted. The pre-closure Windows
+research run (**1093 passed, 9 failed, 4 skipped, 5 errors**) remains unresolved and is
+**not** rerun by the focused retest and **not** waived — see A.4.
+
+## A.3 Closure-branch local execution — exact commands, counts, exit codes
+
+Branch `arena/807e6023-cardioassist-ai` from `2a8a209…`. Linux sandbox, Python 3.11.2,
+`backend/requirements-dev.txt` + `research/audit/requirements.txt`.
+
+| # | Command | Result | Exit |
+|---|---|---|---|
+| 1 | `python -m pytest tests/backend/c1/test_c1_http_closure.py -q -W error` | **30 passed**, 0 failed, 0 skipped | 0 |
+| 2 | `python -m pytest tests/backend/c1 -q -W error` | **291 passed**, 0 failed, 0 skipped | 0 |
+| 3 | `python -m pytest tests/contracts tests/backend -q -W error` | **1189 passed**, 0 failed | 0 |
+| 4 | `python -m pytest tests/audit -q -W error` | **711 passed**, 0 failed | 0 |
+| 5 | `python -m pip check` | `No broken requirements found.` | 0 |
+| 6 | `python scripts/verify_sources.py` | 4 source hashes OK; supervisor audit 25 papers `{APPROVED_GREEN 9, MAYBE_PINK 1, MAYBE_ORANGE 6, REJECTED_RED 9}` | 0 |
+| 7 | `python -m alembic upgrade head` (fresh disposable DB) | head `20261126_06` | 0 |
+| 8 | `python -m alembic current` | `20261126_06 (head)` | 0 |
+| 9 | `python -m alembic check` | `No new upgrade operations detected.` | 0 |
+| 10 | `git diff --check` | no whitespace errors | 0 |
+
+Count arithmetic, so the numbers are auditable rather than asserted: the accepted baseline
+combined count was **1159**; this branch adds exactly **30** closure tests; `1159 + 30 =
+1189`. The C1 suite rises from **261** to **291** by the same 30. Nothing was removed,
+renamed or skipped.
+
+`tests/experiments` and `tests/uci412`: **NOT_RUN**. The research dependency set is not
+installed and this branch may not change research requirements, tolerances, fixtures or
+workflows to obtain a result. Inherited Python 3.11 research drift (B-01 / Issue #132)
+remains open.
+
+## A.4 Unresolved separate Windows RH-04 portability findings — preserved, not modified
+
+Recorded from the owner's pre-closure Windows run and left exactly as they are:
+
+* **1093 passed, 9 failed, 4 skipped, 5 errors** in the Windows research suite.
+* Failures confined to the **unchanged** RH-04 Issue #132 environment-classifier test
+  module, including invalid Windows repository-path handling and an `RTLD_NOLOAD` AST
+  assertion requiring a platform flag that does not exist on Windows.
+* Cause class: **platform portability**, not a Term 1 prototype regression.
+* Disposition: **separate unresolved research findings** on the RH-04 / Issue #132 track.
+  No waiver, no research edit, no tolerance change, no fixture change, no workflow change,
+  no AI-gate change, and no `ALL_GREEN` claim.
+
+This branch touches no file under `research/`, `tests/experiments/`, `tests/audit/`,
+`tests/uci412/`, `tests/manuscript_audit/`, `.github/` or `ai/`.
+
+## A.5 Load-bearing proof for the two fixes (negative controls)
+
+| Reverted change | Focused command | Result |
+|---|---|---|
+| `backend/app/term1/api.py` (D-01: 503 vs 500) | `pytest ... -k missing_configuration` | **11 failed**, 9 passed — the `500 text/plain` responses |
+| two response schemas (D-02: replay field) | `pytest ... -k secret_free_replays` | **1 failed** — `Additional properties are not allowed ('idempotent_replay' was unexpected)` |
+
+Both reverts were restored immediately and the tree re-verified with `git diff --check`.
+A test that passes either way would prove nothing; these do not.
+
+## A.6 Honest evidence classification
+
+| Label | Applies to |
+|---|---|
+| `SOURCE_VERIFIED` | merged SHA, merge parents, tree equality, branch head, file inventory, migration head, source hashes |
+| `GITHUB` / `API_VERIFIED` | PR #144 merged state, acceptance comment identities and timestamps, the four post-merge runs and all eight jobs at `2a8a209…` |
+| `EXECUTED_LOCALLY` | the ten commands in A.3 and the two negative controls in A.5 |
+| `OWNER_REPORTED` | the Windows table in A.2 (log tails supplied; full logs not supplied) |
+| `NOT_RUN` | `tests/experiments`, `tests/uci412`, hosted CI at this branch's head, native Windows of this branch |
+| `UNRESOLVED` | B-01 / B-09 / B-17 / B-18 research track; B-06 commit provenance |
+
+**No `ALL_GREEN` claim.** Hosted CI at this exact head is `OWNER_DISPATCH_REQUIRED`; zero
+checks is not success.
+
+---
+
+# Appendix B — Reviewer-corrected C1 closure candidate (appended 2026-11-27)
+
+Append-only. Appendix A records the first closure candidate at `b860efc`. This appendix
+records the corrected candidate produced after independent review, on the same branch and
+the same PR #145. Nothing above is edited, and no earlier `NOT_RUN` label is cleared.
+
+## B.1 What changed and why
+
+The independent review published the residual list and a **proposed, not
+runtime-executed** corrective branch (`review/term1-closure-residuals-b860efc`, head
+`f81c37b9ff0ba8d4d498fc6a5ffce1171b801e01`). Its four commits were cherry-picked onto
+`arena/807e6023-cardioassist-ai` from `b860efc`; the resulting tree was verified
+byte-identical to the reviewer's head before any further work:
+
+```
+mine:     2ea561503346345452e921ac1debdd739b67d0f4
+reviewer: 2ea561503346345452e921ac1debdd739b67d0f4
+```
+
+Then the residuals were **executed**, not assumed, and the ones that reproduced were
+corrected.
+
+## B.2 The four reviewer regressions, as executed
+
+| Test | Before correction | After correction |
+|---|---|---|
+| `test_reviewer_temporary_password_refresh_declares_exact_403` | passed (YAML already corrected) | passed |
+| `test_reviewer_duplicate_registration_declares_exact_409` | passed | passed |
+| `test_reviewer_invalid_link_identifier_declares_exact_422` | passed | passed |
+| `test_reviewer_unexpected_c1_failure_matches_declared_500` | **FAILED** — `assert None == 'no-store'`, body `text/plain`, 500 | **passed** |
+
+The 500 regression exposed the defect the reviewer predicted: an unexpected exception
+escaped to the ASGI server as a bare `text/plain` `Internal Server Error` with no
+`Cache-Control`, on all twenty C1 routes, because every handler caught `ApiError` alone
+and `main.py`'s generic converter is scoped to the legacy routes. See
+`TERM1_C1_HTTP_CLOSURE_EVIDENCE.md` Appendix A §A.2.
+
+## B.3 Full verification of the corrected candidate
+
+Linux sandbox, Python 3.11.2, `backend/requirements-dev.txt` + `research/audit/requirements.txt`.
+
+| # | Command | Result | Exit |
+|---|---|---|---|
+| 1 | `pytest tests/backend/c1/test_c1_http_closure.py -q -W error` | **39 passed** (30 original + 9 reviewer) | 0 |
+| 2 | `pytest tests/backend/c1 -q -W error` | **300 passed** | 0 |
+| 3 | `pytest tests/contracts tests/backend -q -W error` | **1198 passed** | 0 |
+| 4 | `pytest tests/audit -q -W error` | **711 passed** | 0 |
+| 5 | `pip check` | `No broken requirements found.` | 0 |
+| 6 | `python scripts/verify_sources.py` | 4 source hashes OK; 25-paper supervisor audit | 0 |
+| 7 | `alembic upgrade head` / `current` / `check` (fresh disposable DB) | head `20261126_06`; no new upgrade operations | 0 |
+| 8 | `git diff --check` | clean | 0 |
+
+Auditable arithmetic: first candidate 30 closure tests → 39 (+9 reviewer regressions);
+C1 suite 291 → 300 (+9); combined 1189 → 1198 (+9). Nothing was removed, renamed, skipped
+or marked xfail to obtain these numbers.
+
+## B.4 Negative controls — the corrections are load-bearing
+
+| Reverted change | Focused command | Result |
+|---|---|---|
+| `backend/app/term1/api.py` (the unexpected-failure boundary) | `-k reviewer` | **1 failed, 8 passed** — the 500 regression returns to `text/plain` with no `no-store` |
+| (same, reverted) | `-k missing_configuration` | **11 failed, 9 passed** (D-01, from the first candidate) |
+| two revoke response schemas | `-k secret_free_replays` | **1 failed** — `idempotent_replay` unexpected (D-02) |
+
+Each revert was restored immediately and the tree re-verified.
+
+## B.5 One existing test was updated — and nothing was weakened
+
+`tests/backend/c1/test_c1_enrollment_assignments.py::test_registration_rolls_back_completely_on_a_mid_transaction_failure`
+previously asserted that a deliberately injected `RuntimeError` **propagated out of the
+test client** (`with pytest.raises(RuntimeError)`). That assertion encoded the very defect
+under review: propagation to the ASGI server is what produced the bare non-JSON 500.
+
+It now asserts the corrected contract **and keeps every rollback assertion unchanged**:
+
+```python
+assert response.status_code == 500
+assert response.headers["cache-control"] == "no-store"
+assert response.json()["error"]["code"] == "internal_error"
+assert "simulated persistence failure" not in response.text
+```
+
+The six orphan-table count assertions and the invitation-consumption assertion that
+follow it were not touched. So the test now proves *more* than before: the fault is
+reported as the declared redacted envelope **and** the transaction still rolled back
+completely. No assertion was deleted, relaxed or skipped.
+
+## B.6 Reachability audit
+
+Codes were audited through the real call graph (AST call edges, raise sites only, transitive
+closure from each C1 entry point), not from a sampled probe set:
+
+**20 routes, 20 implementations, 0 reachable-but-undeclared codes.**
+
+Honest limit: this is a **static over-approximation of reachability**. It answers "is any
+code the code can raise missing from the served contract?" — the direction requested. It
+does **not** claim every reachable code has been empirically observed, and no exhaustive
+runtime-reachability claim is made. Two false-positive classes found while building the
+audit (a code that was only *compared*, never raised; a code reached via a session helper)
+are recorded in the closure evidence Appendix A §A.3 so the method can be reviewed.
+
+## B.7 Still not claimed
+
+* **No hosted CI at this HEAD** — B-15 unchanged; `OWNER_DISPATCH_REQUIRED`. Zero checks is
+  not success.
+* **No native Windows run of this branch** — B-16 unchanged.
+* **`tests/experiments` and `tests/uci412`: `NOT_RUN`** — B-17 unchanged.
+* **Windows RH-04 research failures stay unresolved** — B-18 unchanged, untouched.
+* **No `ALL_GREEN` claim.** No C2 implementation, no model work, no AI gate change.
+
+---
+
+# Appendix C — Exception-log redaction verification (appended 2026-11-27)
+
+Append-only. Appendix B recorded the reviewer-corrected candidate at `c9026a1`. This
+appendix records the focused logging correction applied after that review. The reviewer's
+three commits (`b816861`, `06993d1`, `5ab92f8`) were cherry-picked; the resulting tree was
+verified byte-identical to the reviewer head `5ab92f8` (`78ef389306c2eca9a2e25e17f03c0e8bf9ec6f8c`)
+before anything else was run.
+
+## C.1 Commands, counts and exit codes
+
+Linux sandbox, Python 3.11.2, `backend/requirements-dev.txt` + `research/audit/requirements.txt`.
+
+| # | Command | Result | Expected | Exit |
+|---|---|---|---|---|
+| 1 | `pytest tests/backend/c1/test_c1_http_closure.py -q -W error` | **39 passed**, 0 failed, 0 skipped | 39 | 0 |
+| 2 | `pytest tests/contracts tests/backend -q -W error` | **1198 passed**, 0 failed | 1198 | 0 |
+| 3 | `pytest tests/audit -q -W error` | **711 passed**, 0 failed | 711 | 0 |
+| 4 | `pip check` | `No broken requirements found.` | clean | 0 |
+| 5 | `python scripts/verify_sources.py` | 4 source hashes OK; 25-paper supervisor audit | clean | 0 |
+| 6 | `alembic upgrade head` / `current` / `check` (fresh disposable DB) | head `20261126_06`; no new upgrade operations | unchanged | 0 |
+| 7 | `git diff --check` | clean | clean | 0 |
+
+All three expected counts held exactly. **No additional regression test was introduced**,
+so no count was justified upward: the strengthened assertions were added to an existing
+fault-injection test rather than as a new test, and the totals are unchanged at 39 / 1198 /
+711.
+
+## C.2 Negative controls
+
+| Reverted change | Focused command | Result |
+|---|---|---|
+| only the metadata-only log call (`logger.error(...)` → `logger.exception(..., exc_info=error)`) | `-k unexpected_c1_failure` | **1 failed** — the log assertion catches the exception payload |
+| the whole unexpected-failure boundary (`api.py` from the previous candidate) | `-k reviewer` | **1 failed, 8 passed** (from Appendix B §B.4) |
+| `api.py` D-01 fix | `-k missing_configuration` | **11 failed, 9 passed** |
+| two revoke response schemas | `-k secret_free_replays` | **1 failed** |
+
+Every revert was restored immediately and the tree re-verified with `git diff --check`.
+
+## C.3 Scope containment
+
+`git diff --name-only c9026a1..HEAD` touches exactly three paths:
+`backend/app/term1/api.py`, `docs/term1/TERM1_C1_HTTP_CLOSURE_EVIDENCE.md`,
+`tests/backend/c1/test_c1_http_closure.py` (plus this appendix). No path under `research/`,
+`tests/experiments/`, `tests/audit/`, `tests/uci412/`, `tests/manuscript_audit/`, `ai/`,
+`.github/`, `frontend/`, `infra/` or `prompts/`. No migration. Legacy
+`shared/contracts/openapi.yaml` unchanged. No contract declaration changed by this
+appendix — the corrections landed at `c9026a1` and are untouched here.
+
+## C.4 Still not claimed
+
+No hosted CI at this HEAD (**B-15**, owner dispatch; zero checks is not success). No native
+Windows run of this branch (**B-16**). `tests/experiments` / `tests/uci412` **`NOT_RUN`**
+(**B-17**). Windows RH-04 findings untouched (**B-18**). The logging assertion covers one
+logger and one event, not every logging channel (§B.5). **No `ALL_GREEN` claim.**

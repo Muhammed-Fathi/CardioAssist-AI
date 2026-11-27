@@ -38,18 +38,29 @@ operations:
       request_schema: term1_auth_login_request.schema.json
     responses:
       - status: 200
-        description: Success
-        body: "{session_token once, expires_at, role, user_id, profile_id, password_change_required, session_id, contract_version}"
+        description: "Success"
         response_schema: term1_auth_login_response.schema.json
-      - status: 401
-        code: invalid_credentials
-        description: "Wrong credentials, unknown account, SUSPENDED, DISABLED (identical shape; no account existence oracle)"
-      - status: 429
-        code: rate_limited
-        description: Lockout + Retry-After
       - status: 400
-        code: malformed_request
-        description: Malformed
+        codes: [malformed_request]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [invalid_credentials]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 422
+        codes: [validation_failed]
+        description: "Semantically complete but inadmissible values"
+      - status: 429
+        codes: [rate_limited]
+        description: "Lockout; Retry-After is present"
+      - status: 409
+        codes: [identity_key_material_mismatch, identity_key_replacement_unsupported]
+        description: "The shared identity-key binding refused: configured material does not match the stored key check"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: A2
     method: POST
     path: /v1/auth/logout
@@ -64,11 +75,18 @@ operations:
       - status: 200
         description: "{revoked_at, contract_version}"
         response_schema: term1_auth_logout_response.schema.json
-      - status: 401
-        code: invalid_session
-        description: "Second call with same token is 401 (session already gone); never resurrects it"
       - status: 400
-        code: malformed_request
+        codes: [malformed_request]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: A3
     method: GET
     path: /v1/auth/me
@@ -82,7 +100,14 @@ operations:
         description: "{user_id, role, profile_id, email, display_name, status, password_change_required, contract_version}"
         response_schema: term1_auth_me_response.schema.json
       - status: 401
-        code: authentication_required
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: A4
     method: POST
     path: /v1/auth/refresh
@@ -95,13 +120,23 @@ operations:
       note: "empty or absent body accepted"
     responses:
       - status: 200
-        description: Success (one new session, previous revoked)
+        description: "Success (one new session, previous revoked)"
         response_schema: term1_auth_refresh_response.schema.json
-      - status: 401
-        code: invalid_session
-        description: "Revoked, expired or idle-expired token; creates no session"
       - status: 400
-        code: malformed_request
+        codes: [malformed_request]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [password_change_required]
+        description: "Temporary password must be changed before refresh"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: A5
     method: POST
     path: /v1/me/password
@@ -116,19 +151,27 @@ operations:
       - status: 200
         description: "{changed_at, revoked_other_sessions, contract_version}"
         response_schema: term1_me_password_response.schema.json
-      - status: 401
-        code: invalid_credentials
-        description: Wrong current password
-      - status: 403
-        code: password_change_required
-      - status: 422
-        code: password_unchanged
-        description: "New value equals current"
-      - status: 422
-        code: password_policy_violation
-        description: "Outside 12–128 UTF-8 bytes or containing control characters"
       - status: 400
-        code: malformed_request
+        codes: [malformed_request]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session, invalid_credentials]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 422
+        codes: [validation_failed, password_policy_violation, password_unchanged]
+        description: "Semantically complete but inadmissible values"
+      - status: 429
+        codes: [rate_limited]
+        description: "Lockout; Retry-After is present"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: A6
     method: GET
     path: /v1/me/sessions
@@ -142,7 +185,17 @@ operations:
         description: "{sessions: [{session_id, created_at, last_seen_at, expires_at, revoked_at, current}], contract_version}"
         response_schema: term1_me_sessions_response.schema.json
       - status: 401
-        code: authentication_required
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
   - id: A7
     method: DELETE
     path: /v1/me/sessions/{session_id}
@@ -156,9 +209,17 @@ operations:
         description: "{session_id, revoked_at, contract_version}"
         response_schema: term1_auth_session_revoke_response.schema.json
       - status: 401
-        code: authentication_required
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
       - status: 404
-        code: not_found
-        description: "Another account's session id or nonexistent id; no enumeration oracle"
-      - status: 400
-        code: malformed_request
+        codes: [not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"

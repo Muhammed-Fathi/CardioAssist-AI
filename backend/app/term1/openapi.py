@@ -276,11 +276,14 @@ def _operation_object(
         }
     }
     # Error statuses come from the remaining (non-2xx) responses declared in YAML.
+    # The closed-catalogue codes each status may carry are carried across from the
+    # contract source as the `x-error-codes` vendor extension, so the served
+    # document, the conformance tests and errors.yaml cannot drift apart.
     for entry in responses:
         status = str(entry.get("status", ""))
         if status.startswith("2"):
             continue
-        operation["responses"][status] = {
+        served: dict[str, Any] = {
             "description": entry.get("description", "C1 error."),
             "content": {
                 "application/json": {
@@ -290,6 +293,10 @@ def _operation_object(
                 }
             },
         }
+        error_codes = [str(code) for code in entry.get("codes", []) or []]
+        if error_codes:
+            served["x-error-codes"] = error_codes
+        operation["responses"][status] = served
     return operation
 
 

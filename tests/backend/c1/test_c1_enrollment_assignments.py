@@ -255,18 +255,25 @@ def test_registration_rolls_back_completely_on_a_mid_transaction_failure(client,
         raise RuntimeError("simulated persistence failure after flush")
 
     monkeypatch.setattr(enrollment, "_consume_invitation", explode)
-    with pytest.raises(RuntimeError):
-        client.post(
-            "/v1/patients/register",
-            headers={"Idempotency-Key": "explode"},
-            json={
-                "access_code": chain["invitation"]["access_code"],
-                "identifier": DEMO_ID_A,
-                "email": PATIENT_EMAIL,
-                "password": PATIENT_PASSWORD,
-                "consent_ack": True,
-            },
-        )
+    response = client.post(
+        "/v1/patients/register",
+        headers={"Idempotency-Key": "explode"},
+        json={
+            "access_code": chain["invitation"]["access_code"],
+            "identifier": DEMO_ID_A,
+            "email": PATIENT_EMAIL,
+            "password": PATIENT_PASSWORD,
+            "consent_ack": True,
+        },
+    )
+    # An unexpected fault is answered with the declared, redacted 500 envelope
+    # (never a bare ASGI error, never a success). The rollback assertions below
+    # still prove the transaction did not commit; the fault is reported, not
+    # swallowed.
+    assert response.status_code == 500
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json()["error"]["code"] == "internal_error"
+    assert "simulated persistence failure" not in response.text
     with app.state.database.engine.connect() as connection:
         for table in (
             "user_account",
