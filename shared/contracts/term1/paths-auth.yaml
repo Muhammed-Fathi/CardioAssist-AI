@@ -125,6 +125,9 @@ operations:
       - status: 401
         codes: [authentication_required, invalid_session]
         description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [password_change_required]
+        description: "Temporary password must be changed before refresh"
       - status: 500
         codes: [internal_error]
         description: "Unexpected failure; no internal detail is disclosed"
