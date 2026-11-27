@@ -1246,8 +1246,10 @@ def test_every_failure_response_uses_a_declared_status_and_code():
             doctor_token=chain_data["doctor_token"],
             patient_token=chain_data["patient_token"],
         )
-        probed_operations = {(probe.method, probe.path.split("/")[0]) for probe in probes}
-        assert probed_operations  # not empty
+        planned = {(probe.method, _template_for(probe.path)) for probe in probes}
+        assert planned == set(openapi.C1_OPERATIONS), sorted(
+            planned ^ set(openapi.C1_OPERATIONS)
+        )
 
         seen: set[tuple[str, str, int]] = set()
         for probe in probes:
@@ -1267,19 +1269,10 @@ def test_every_failure_response_uses_a_declared_status_and_code():
             _assert_schema(chain, record, label=probe.label)
             seen.add((probe.method, probe.path, record.status))
 
-        # Every declared C1 operation received at least one failure probe.
-        covered = {path for _m, path, _s in seen}
-        declared_paths = {path for _m, path in openapi.C1_OPERATIONS}
-        # Path templates in the served document must be matched back.
-        materialized = {}
-        for method, path in openapi.C1_OPERATIONS:
-            for segment in ("user_id", "invitation_id", "visit_id", "assignment_id", "session_id"):
-                path = path.replace("{" + segment + "}", "00000000-0000-0000-0000-000000000000")
-            materialized[path] = method
-        assert set(covered) == set(materialized), {
-            "missing": sorted(set(materialized) - covered),
-            "unexpected": sorted(set(covered) - set(materialized)),
-        }
+        covered = {(method, _template_for(path)) for method, path, _status in seen}
+        assert covered == set(openapi.C1_OPERATIONS), sorted(
+            covered ^ set(openapi.C1_OPERATIONS)
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1484,3 +1477,87 @@ def test_served_document_declares_a_response_for_every_observed_status():
                 assert reference.startswith("#/components/schemas/"), reference
                 if not status.startswith("2"):
                     assert entry.get("x-error-codes"), (method, path, status)
+
+
+def test_reviewer_temporary_password_refresh_declares_exact_403(app, client):
+    bootstrap_admin(app)
+    chain = Chain(app, client)
+    admin = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
+    created = chain.call(
+        "post", "/v1/admin/doctors", token=admin,
+        idempotency_key="review-closure-refresh-doctor",
+        json_body={"email": "refresh.demo@cardioassist.local",
+                   "display_name": "Synthetic Doctor",
+                   "temp_password_policy": "one_time_secret"},
+        expect=201,
+    )
+    temporary = login(client, "refresh.demo@cardioassist.local",
+                      created.body["temp_secret"])["session_token"]
+    response = chain.call("post", "/v1/auth/refresh", token=temporary, expect=403)
+    assert response.body["error"]["code"] == "password_change_required"
+    _assert_error_catalogue(chain, response, label="temporary-refresh")
+    _assert_schema(chain, response, label="temporary-refresh")
+
+
+def test_reviewer_duplicate_registration_declares_exact_409(app, client):
+    chain = Chain(app, client)
+    setup = setup_doctor_with_invitation(app, client)
+    response = chain.call(
+        "post", "/v1/patients/register",
+        idempotency_key="review-closure-duplicate-account",
+        json_body={"access_code": setup["invitation"]["access_code"],
+                   "identifier": DEMO_ID_A, "email": ADMIN_EMAIL,
+                   "password": "synthetic duplicate password 1", "consent_ack": True},
+        expect=409,
+    )
+    assert response.body["error"]["code"] == "account_registration_unavailable"
+    _assert_error_catalogue(chain, response, label="duplicate-registration")
+    _assert_schema(chain, response, label="duplicate-registration")
+
+
+def test_reviewer_invalid_link_identifier_declares_exact_422(app, client):
+    from .factories import register_patient
+
+    setup = setup_doctor_with_invitation(app, client)
+    registered = register_patient(client, setup["invitation"]["access_code"])
+    _, invitation = setup["fresh_visit"](seq=1)
+    chain = Chain(app, client)
+    response = chain.call(
+        "post", "/v1/patients/link", token=registered["session_token"],
+        idempotency_key="review-closure-invalid-identifier",
+        json_body={"access_code": invitation["access_code"],
+                   "identifier": "NOT-A-DEMO-IDENTIFIER", "accept_linking": True},
+        expect=422,
+    )
+    assert response.body["error"]["code"] == "invalid_demo_identifier"
+    _assert_error_catalogue(chain, response, label="invalid-link-identifier")
+    _assert_schema(chain, response, label="invalid-link-identifier")
+
+
+def test_reviewer_unexpected_c1_failure_matches_declared_500(app_factory, monkeypatch):
+    """Fault injection: fail before business completion, never leak exception text."""
+    from backend.app.term1 import api
+
+    app = app_factory()
+    with TestClient(app, raise_server_exceptions=False) as client:
+        bootstrap_admin(app)
+        chain = Chain(app, client)
+        admin = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
+
+        def injected_failure(*args, **kwargs):
+            raise RuntimeError("SYNTHETIC_FAULT_MUST_NOT_LEAK")
+
+        monkeypatch.setattr(api, "create_doctor", injected_failure)
+        response = chain.call(
+            "post", "/v1/admin/doctors", token=admin,
+            idempotency_key="review-closure-injected-failure",
+            json_body={"email": "fault.demo@cardioassist.local",
+                       "display_name": "Synthetic Fault",
+                       "temp_password_policy": "one_time_secret"},
+            expect=500,
+        )
+        assert response.headers.get("cache-control") == "no-store"
+        assert "SYNTHETIC_FAULT_MUST_NOT_LEAK" not in response.text
+        _assert_error_catalogue(chain, response, label="unexpected-failure")
+        assert response.body["error"]["code"] == "internal_error"
+        _assert_schema(chain, response, label="unexpected-failure")
