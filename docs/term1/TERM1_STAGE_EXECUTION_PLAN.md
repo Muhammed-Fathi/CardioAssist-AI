@@ -184,3 +184,7 @@ HOSTED_CI=OWNER_DISPATCH_REQUIRED
 ## 9. Completion report cross-reference
 
 The stage completion report returned with this package contains exact SHAs, changed-file list, diff/stat, R-resolution matrix, final ERD/API inventory, pending decisions, A/B proposals, CI links, Windows baseline block, unresolved blockers and C1 readiness. No stage is marked VERIFIED by this document.
+
+## 10. Dated C2–C4 delivery amendment pointer (2026-11-27)
+
+[Delivery plan amendment](TERM1_DELIVERY_PLAN_AMENDMENT_REAL_AI_OCR_20261127.md) records the intended Candidate A reuse, bounded fabricated report attachments/OCR, revised A/B decision route and execution/acceptance schedule to 2026-12-03. This is documentation-only until exact-head owner ratification; once ratified it supersedes only the named candidate/remaining-stage scope, preserving the stage Draft PR policy and C0/C1 accepted implementation. Do not initiate old Candidate B training. Safe C2 implementation and operational model/display/OCR provenance permissions remain separately gated. All newly proposed contract details must be reviewed before dependent code.

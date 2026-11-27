@@ -141,3 +141,7 @@ Deliverable: one draft PR, implementation evidence register, README local Window
 4. Confirm clinician-attested synthetic visit + national-ID-bound invitation semantics are acceptable for educational demo; real identification requires separate validation and privacy review.
 
 The draft plan/branch/PR are **not** any of these ratifications.
+
+## 12. Dated delivery-scope amendment (2026-11-27; proposed for exact-head acceptance)
+
+See [Term 1 real-model reuse and bounded OCR delivery plan](TERM1_DELIVERY_PLAN_AMENDMENT_REAL_AI_OCR_20261127.md) for the owner-directed intended delivery scope, preservation of accepted C0/C1, exact main reuse inventory, new bounded document/OCR slice, real-data-trained Candidate A preference, local admission and patient-display gates, remaining stage sequence and handoff checklist. Once separately ratified and merged, it governs only the explicitly amended scope. The original plan is retained for audit history. General clinical OCR/rich uploads remain deferred; the new scope is fabricated fixed-template reports only. No operational authorization is granted by this pointer.
