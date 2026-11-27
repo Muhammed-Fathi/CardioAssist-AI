@@ -60,7 +60,13 @@ def test_database_rejects_outdated_or_unknown_alembic_revision(database_url, rev
     try:
         with pytest.raises(RuntimeError, match="Alembic revision mismatch") as error:
             database.verify_schema()
-        assert "20261017_01" in str(error.value)
+        # The message names the expected head(s) and the found revision. Both
+        # the legacy revision and the current head are expected at C1, so the
+        # assertion checks the actual head set instead of one fixed id.
+        from backend.app.storage.database import _expected_migration_heads
+
+        for head in _expected_migration_heads():
+            assert head in str(error.value)
         assert revision in str(error.value)
     finally:
         database.dispose()
@@ -282,11 +288,28 @@ def test_fresh_migration_creates_expected_tables_indexes_and_foreign_keys(databa
     engine = create_engine(database_url)
     try:
         inspector = inspect(engine)
+        # Legacy three tables plus the exact C1 inventory (no C2/C3 table).
         assert set(inspector.get_table_names()) == {
             "alembic_version",
             "monitoring_observation",
             "monitoring_metric",
             "audit_event",
+            "user_account",
+            "doctor_profile",
+            "patient_identity",
+            "patient_profile",
+            "identity_key_check",
+            "session",
+            "login_attempt",
+            "verified_visit",
+            "patient_invitation",
+            "invitation_attempt",
+            "doctor_patient_assignment",
+            "consent_record",
+            "invitation_redemption",
+            "durable_idempotency",
+            "workflow_audit_event",
+            "admin_bootstrap_record",
         }
         assert {item["name"] for item in inspector.get_indexes("monitoring_observation")} == {
             "ix_monitoring_observation_public_id",

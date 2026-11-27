@@ -21,6 +21,19 @@ Recorded counts from prior independent reviewer log access (`AGENT_REPORTED` for
 
 Issue #132 remains OPEN. No Golden fixture, tolerance, research test, workflow, PR #141 or Issue #132 change is authorized. No `ALL_GREEN` claim.
 
+### Post-merge re-verification at accepted baseline SHA `310534e1e334ba3be4f308f5a66d88c22b5842e0`
+
+The independent reviewer verified that all four post-merge C0 workflow runs completed successfully at the accepted prototype baseline:
+
+| Workflow | Run | Conclusion | Notes |
+|---|---|---|---|
+| backend-ci | [45701993590](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45701993590) | SUCCESS | Backend tests at baseline SHA |
+| contracts-ci | [45701995312](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45701995312) | SUCCESS | Contract validation at baseline SHA |
+| audit-ci | [45701993465](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45701993465) | SUCCESS | Audit tests at baseline SHA |
+| experiment-runner-ci | [45701993785](https://github.com/Muhammed-Fathi/CardioAssist-AI/actions/runs/45701993785) | SUCCESS | Synthetic experiments at baseline SHA |
+
+These runs are appended to the ledger without erasing the earlier C0 baseline runs in §1. This successful re-verification does not establish that the intermittent Python 3.11 research issue (§1, blocker B-01) has been resolved.
+
 ## 2. Test strategy by stage
 
 | Stage | Positive tests | Negative tests | Evidence required |
@@ -60,3 +73,33 @@ The four existing validation workflows with `workflow_dispatch` (`mock-backend-v
 `HOSTED_CI=OWNER_DISPATCH_REQUIRED`. The owner will dispatch these four workflows on the final reviewed published SHA using their own authorized GitHub account: `backend-ci.yml`, `contracts-ci.yml`, `audit-ci.yml`, `experiment-runner-ci.yml`.
 
 Evidence fields the owner/reviewer must report: run URL, workflow file, requested ref, exact run head SHA, checkout revision shown in the job, job conclusion, available log excerpts/counts, and reviewer classification of any failure against the known baseline. Zero checks is not success; no result is claimed here. The inherited Python 3.11 research failure remains in §1 and blocker B-01.
+
+## 6. Local execution evidence (arena branch `arena/2b22dd7d-cardioassist-ai`)
+
+Counts below are from local execution on this branch only. They do not alter the hosted-CI baseline in §1, the NOT_RUN labels in §3–§5, or the Windows 3.12 NOT_RUN status (owner-dispatched; dispatch attempts returned 403 and are not retried).
+
+| Suite | Command | Result |
+|---|---|---|
+| C1 behavioral + contracts (relocated to `tests/backend/c1/` per C1-R08; collected exactly once by the existing backend command) | `python -m pytest tests/backend/c1 -q -W error` | 213 passed, 0 failed, 0 skipped — C1 revision complete: C1-R01 canonical contract composition from modular YAML source with operation-specific schemas + runtime enforcement; C1-R02 temporary-password enforcement on all authenticated C1 operations (incl. session listing/revocation); refresh preserves absolute lifetime; duplicate Authorization rejected; non-ASCII bearer safe; C1-R03 durable idempotency expiration lifecycle (flush expired row before replacement insert); C1-R04 independent source-based enrollment rate limiting; Non-ASCII access codes safe at `invitation_verifier()`; C1-R05 single authoritative login transaction with constant-time password-verification work; C1-R06 read-only fail-closed startup key verification (`invitation_attempt` probe; exactly-one active key-check row per purpose); C1-R07 invitation expiry at the consumption boundary and doctor suspension/disabling effect |
+| Legacy backend + contracts | `python -m pytest tests/contracts tests/backend -q -W error` | 898 passed, 0 failed (unchanged from baseline; warnings-as-errors clean) |
+| Audit | `python -m pytest tests/audit -q -W error` | 711 passed, 0 failed |
+| Experiments | `python -m pytest tests/experiments -q -W error` | NOT_RUN — 30 collection errors; `ModuleNotFoundError: No module named 'numpy'`; research dependencies (`research/experiments/requirements.txt`) not installed |
+| UCI-412 | `python -m pytest tests/uci412 -q -W error` | NOT_RUN — `ImportError` in conftest; `No module named 'numpy'`; research dependencies (`research/uci412/requirements.txt`) not installed |
+| pip check | `python -m pip check` | Pass — no broken requirements |
+| verify_sources | `python scripts/verify_sources.py` | Pass — exit 0 |
+| Alembic | `alembic upgrade head / current / check` | Pass — head `20261126_05`; "No new upgrade operations detected" |
+| Migration preservation | Disposable DB: downgrade to base, re-upgrade to head | Pass — current == head == `20261126_05` |
+| git diff --check | `git diff --check` | Pass — exit 0 (no whitespace errors) |
+
+Combined local total for runnable suites: C1 213 + legacy 898 + audit 711 = 1,822 passed, 0 failed.
+
+Research suites (experiments, uci412) are NOT_RUN pending research dependency installation; no research code, test, Golden fixture, tolerance or CI was changed to obtain a result.
+
+Counts below are from local execution on this branch only. They do not alter the hosted-CI baseline in §1, the NOT_RUN labels in §3–§5, or the Windows 3.12 NOT_RUN status (owner-dispatched; dispatch attempts returned 403 and are not retried).
+
+| Suite | Command | Result |
+|---|---|---|
+| C1 behavioral + contracts (relocated to `tests/backend/c1/` per C1-R08) | `python -m pytest tests/backend/c1 -q` | 205 passed, 0 failed, 0 skipped (C1 revision complete: C1-R01..C1-R09 applied) |
+| Legacy backend + contracts | `python -m pytest tests/contracts tests/backend -q -W error` | 898 passed (unchanged from baseline; warnings-as-errors clean) |
+
+Combined local total for this branch: 1,103 passed, 0 failed.

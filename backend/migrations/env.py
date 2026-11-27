@@ -12,6 +12,11 @@ from sqlalchemy.pool import NullPool
 from backend.app.storage.database import DEFAULT_DATABASE_URL, build_engine
 from backend.app.storage.models import Base
 
+# Importing the C1 mappings registers the Term 1 tables on the same metadata so
+# that `alembic check` (and read-only startup verification) compares the full
+# expected schema, not only the legacy monitoring tables.
+from backend.app.term1 import models as _term1_models  # noqa: F401  (side effect)
+
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)

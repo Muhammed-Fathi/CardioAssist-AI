@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_invitation_create_response.schema.json",
+  "title": "term1_invitation_create_response.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "invitation_id",
+    "access_code",
+    "expires_at",
+    "visit_id",
+    "status",
+    "issued_at",
+    "consumed_at",
+    "revoked_at",
+    "attempt_count",
+    "max_attempts"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "description": "Contract major version; only 'v1' is served."
+    },
+    "invitation_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "access_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "visit_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "status": {
+      "const": "ACTIVE"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "attempt_count": {
+      "const": 0
+    },
+    "max_attempts": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "consumed_at": {
+      "type": "null"
+    },
+    "revoked_at": {
+      "type": "null"
+    }
+  }
+}

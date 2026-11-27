@@ -1,0 +1,69 @@
+# Term 1 · C1 contract source — paths (administration)
+# Valid machine-readable YAML.
+status: "PROPOSED — NOT APPROVED, NOT DEPLOYED"
+server: "/v1"
+content_type: "application/json"
+contract_version: "v1"
+synthetic_data_only: true
+description: |
+  Both operations below require a live ADMIN bearer session and a valid
+  Idempotency-Key header. There is no HTTP route that creates the first
+  administrator: bootstrap is an operator CLI step (backend/app/term1/cli.py)
+  guarded by CARDIOASSIST_ADMIN_BOOTSTRAP_SECRET and a single-row
+  admin_bootstrap_record that makes a second bootstrap impossible.
+cross_cutting_rules:
+  authentication: "Authorization: Bearer <session_token> (ADMIN role required)"
+  idempotency: "Exactly one Idempotency-Key request header on every mutating operation listed in IDEMPOTENT_C1"
+operations:
+  - id: AD1
+    method: POST
+    path: /v1/admin/doctors
+    authenticated: true
+    idempotent: true
+    summary: "Provision a doctor account; issues a one-time temp_secret."
+    request:
+      fields: [email, display_name, temp_password_policy]
+      body: required
+      request_schema: term1_admin_doctors_request.schema.json
+    responses:
+      - status: 201
+        description: "{doctor_id, user_id, temp_secret once, display_name, role, contract_version}"
+        response_schema: term1_admin_doctors_response.schema.json
+      - status: 409
+        code: secret_not_redisclosable
+        description: "Replay of the same key — the temporary secret is never re-emitted"
+      - status: 409
+        code: account_registration_unavailable
+        description: "Duplicate normalized email (generic; no account enumeration)"
+      - status: 403
+        code: forbidden
+        description: Non-admin caller
+      - status: 400
+        code: idempotency_key_required
+        description: Missing or duplicate header
+  - id: AD2
+    method: PATCH
+    path: /v1/admin/accounts/{user_id}/status
+    authenticated: true
+    idempotent: true
+    summary: "Patch account status; last-administrator protection applies."
+    request:
+      fields: [status, reason_code]
+      body: required
+      request_schema: term1_admin_status_request.schema.json
+    path_parameters: [user_id]
+    responses:
+      - status: 200
+        description: Success
+        response_schema: term1_admin_status_response.schema.json
+      - status: 403
+        code: last_administrator_protected
+      - status: 404
+        code: account_not_found
+        description: Not found or not owned by the caller
+      - status: 409
+        code: account_status_conflict
+      - status: 400
+        code: idempotency_key_required
+      - status: 400
+        code: malformed_request

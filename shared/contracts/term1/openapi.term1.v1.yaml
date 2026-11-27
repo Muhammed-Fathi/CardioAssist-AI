@@ -1,0 +1,162 @@
+# Term 1 · C1 contract source — operation inventory, headers and composition
+# Valid machine-readable YAML.
+status: "PROPOSED — NOT APPROVED, NOT DEPLOYED"
+contract_version: "v1"
+source: "backend/app/term1/openapi.py"
+legacy_file: "shared/contracts/openapi.yaml"
+legacy_file_treatment: "byte-for-byte unchanged; legacy contract of record"
+served_document: "/openapi.json"
+composition_rule: |
+  Exactly one document is served at /openapi.json, deterministically composed by
+  backend/app/term1/openapi.py from: (1) the bundled legacy document (unchanged
+  schemas; 422 declared for the two legacy operations), (2) the C1 operation
+  inventory below appended in frozen order, (3) components.schemas from
+  shared/contracts/term1/schemas/*.json. No other operation is served.
+served_count: 22
+legacy_count: 2
+c1_count: 20
+idempotent_c1_count: 10
+authenticated_c1_count: 18
+methods_separate: true
+note: "GET and PATCH are separate entries; /v1/admin/accounts/{user_id}/status cannot be widened by a method alias."
+legacy_operations:
+  - method: POST
+    path: /v1/predictions/cad-tabular
+  - method: POST
+    path: /v1/monitoring/observations
+c1_operations:
+  - id: A1
+    method: POST
+    path: /v1/auth/login
+    authenticated: false
+    idempotent: false
+    role: anonymous
+  - id: A2
+    method: POST
+    path: /v1/auth/refresh
+    authenticated: true
+    idempotent: false
+    role: any
+  - id: A3
+    method: GET
+    path: /v1/auth/me
+    authenticated: true
+    idempotent: false
+    role: any
+  - id: A4
+    method: POST
+    path: /v1/auth/logout
+    authenticated: true
+    idempotent: false
+    role: any
+  - id: A5
+    method: POST
+    path: /v1/me/password
+    authenticated: true
+    idempotent: false
+    role: any
+  - id: A6
+    method: GET
+    path: /v1/me/sessions
+    authenticated: true
+    idempotent: false
+    role: any
+  - id: A7
+    method: DELETE
+    path: /v1/me/sessions/{session_id}
+    authenticated: true
+    idempotent: false
+    role: any_own_only
+  - id: AD1
+    method: POST
+    path: /v1/admin/doctors
+    authenticated: true
+    idempotent: true
+    role: ADMIN
+  - id: AD2
+    method: PATCH
+    path: /v1/admin/accounts/{user_id}/status
+    authenticated: true
+    idempotent: true
+    role: ADMIN
+  - id: V1
+    method: POST
+    path: /v1/doctor/verified-visits
+    authenticated: true
+    idempotent: true
+    role: DOCTOR
+  - id: V2
+    method: GET
+    path: /v1/doctor/verified-visits/{visit_id}
+    authenticated: true
+    idempotent: false
+    role: DOCTOR_owner
+  - id: I1
+    method: POST
+    path: /v1/doctor/verified-visits/{visit_id}/invitations
+    authenticated: true
+    idempotent: true
+    role: DOCTOR_owner
+  - id: I2
+    method: POST
+    path: /v1/doctor/invitations/{invitation_id}/revoke
+    authenticated: true
+    idempotent: true
+    role: DOCTOR_owner
+  - id: I3
+    method: GET
+    path: /v1/doctor/invitations/{invitation_id}
+    authenticated: true
+    idempotent: false
+    role: DOCTOR_owner
+  - id: E1
+    method: POST
+    path: /v1/patients/register
+    authenticated: false
+    idempotent: true
+    role: anonymous
+  - id: E2
+    method: POST
+    path: /v1/patients/link
+    authenticated: true
+    idempotent: true
+    role: PATIENT
+  - id: S1
+    method: GET
+    path: /v1/me/assignments
+    authenticated: true
+    idempotent: false
+    role: PATIENT
+  - id: E5
+    method: POST
+    path: /v1/doctor/assignments/{assignment_id}/revoke
+    authenticated: true
+    idempotent: true
+    role: DOCTOR_owner
+  - id: E6
+    method: POST
+    path: /v1/me/assignments/{assignment_id}/revoke
+    authenticated: true
+    idempotent: true
+    role: PATIENT_owner
+  - id: E7
+    method: POST
+    path: /v1/me/consent/synthetic-demo/revoke
+    authenticated: true
+    idempotent: true
+    role: PATIENT
+response_headers:
+  content_type: "application/json"
+  cache_control: "no-store"
+  pragma: "no-cache"
+  retry_after: "429 responses only"
+note: "The contract version is carried in the body (contract_version: 'v1'), not in a response header."
+absent_by_design:
+  - "No HTTP route for account self-registration (/v1/auth/register, /v1/admin/bootstrap, /v1/auth/admin)"
+  - "No listing of accounts"
+  - "No reading of audit rows"
+  - "No triggering inference on behalf of a client"
+  - "No patient-facing score display"
+  - "POST /v1/admin/bootstrap and GET /v1/audit return 404"
+  - "/docs and /redoc are not served"
+admin_bootstrap: "Operator CLI action: python -m backend.app.term1.cli bootstrap-admin, gated by CARDIOASSIST_ADMIN_BOOTSTRAP_SECRET and a single-row admin_bootstrap_record guard (a second attempt is refused, not silently accepted)."

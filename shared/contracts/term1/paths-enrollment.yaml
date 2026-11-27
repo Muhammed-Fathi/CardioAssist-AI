@@ -1,0 +1,125 @@
+# Term 1 · C1 contract source — paths (verified visits and invitations)
+# Valid machine-readable YAML.
+status: "PROPOSED — NOT APPROVED, NOT DEPLOYED"
+server: "/v1"
+content_type: "application/json"
+contract_version: "v1"
+synthetic_data_only: true
+demo_invitation_id: "DEMO-ID-nnn"
+demo_visit_id: "PRIOR_IN_PERSON_VISIT_DEMO"
+description: |
+  Verified-visit creation and retrieval, invitation issue/revoke/status, and
+  attempt accounting. One live invitation per visit at a time; attempts are
+  accounted per invitation (try-5 then attempts_exhausted).
+cross_cutting_rules:
+  authentication: "Authorization: Bearer <session_token> (DOCTOR role required; owner only)"
+  idempotency: "Exactly one Idempotency-Key request header on every mutating operation listed in IDEMPOTENT_C1"
+operations:
+  - id: V1
+    method: POST
+    path: /v1/doctor/verified-visits
+    authenticated: true
+    idempotent: true
+    summary: "Create a verified visit for the doctor's own patient."
+    request:
+      fields: [visit_ref, subject_identifier, asserted_visit_at, attestation_code]
+      body: required
+      request_schema: term1_visit_create_request.schema.json
+    responses:
+      - status: 201
+        description: Success
+        response_schema: term1_visit_create_response.schema.json
+      - status: 409
+        code: idempotency_key_conflict
+      - status: 403
+        code: forbidden
+      - status: 400
+        code: idempotency_key_required
+      - status: 400
+        code: malformed_request
+  - id: V2
+    method: GET
+    path: /v1/doctor/verified-visits/{visit_id}
+    authenticated: true
+    idempotent: false
+    summary: "Retrieve a verified visit; owner doctor only."
+    path_parameters: [visit_id]
+    request:
+      body: absent
+    responses:
+      - status: 200
+        description: Success
+        response_schema: term1_visit_get_response.schema.json
+      - status: 404
+        code: visit_not_found
+      - status: 403
+        code: forbidden
+      - status: 401
+        code: authentication_required
+  - id: I1
+    method: POST
+    path: /v1/doctor/verified-visits/{visit_id}/invitations
+    authenticated: true
+    idempotent: true
+    summary: "Issue an invitation (access_code emitted once). One live invitation per visit."
+    path_parameters: [visit_id]
+    request:
+      fields: [subject_identifier, ttl_seconds]
+      body: required
+      request_schema: term1_invitation_create_request.schema.json
+    responses:
+      - status: 201
+        description: "{invitation_id, access_code once, expires_at, contract_version}"
+        response_schema: term1_invitation_create_response.schema.json
+      - status: 409
+        code: invitation_already_active
+      - status: 404
+        code: visit_not_found
+      - status: 400
+        code: idempotency_key_required
+      - status: 400
+        code: malformed_request
+  - id: I2
+    method: POST
+    path: /v1/doctor/invitations/{invitation_id}/revoke
+    authenticated: true
+    idempotent: true
+    summary: "Revoke an invitation owned by the calling doctor."
+    path_parameters: [invitation_id]
+    request:
+      fields: [reason_code]
+      body: required
+      request_schema: term1_invitation_revoke_request.schema.json
+    responses:
+      - status: 200
+        description: Success
+        response_schema: term1_invitation_revoke_response.schema.json
+      - status: 404
+        code: invitation_not_found
+      - status: 403
+        code: forbidden
+      - status: 400
+        code: idempotency_key_required
+  - id: I3
+    method: GET
+    path: /v1/doctor/invitations/{invitation_id}
+    authenticated: true
+    idempotent: false
+    summary: "Retrieve an invitation; owner doctor only."
+    path_parameters: [invitation_id]
+    request:
+      body: absent
+    responses:
+      - status: 200
+        description: Success
+        response_schema: term1_invitation_get_response.schema.json
+      - status: 404
+        code: invitation_not_found
+      - status: 403
+        code: forbidden
+      - status: 401
+        code: authentication_required
+attempt_accounting:
+  try_limit: 5
+  exhausted_code: attempts_exhausted
+  unknown_code_rows: "unknown invitation codes produce FK NULL attempt rows (no enumeration oracle)"

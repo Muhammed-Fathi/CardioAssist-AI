@@ -1,0 +1,155 @@
+# Term 1 · C1 contract source — paths (patient enrollment, assignments, consent)
+# Valid machine-readable YAML.
+status: "PROPOSED — NOT APPROVED, NOT DEPLOYED"
+server: "/v1"
+content_type: "application/json"
+contract_version: "v1"
+synthetic_data_only: true
+description: |
+  Patient registration via invitation, linking an existing patient to a doctor,
+  assignment listing, single-assignment revocation (doctor and patient sides),
+  and patient-wide synthetic-demo consent revocation.
+
+  SYNTHETIC DEMO DATA ONLY. Real email domains, real names, phone numbers,
+  addresses and national identifiers are rejected.
+cross_cutting_rules:
+  authentication: "Authorization: Bearer <session_token> where bearer required; never accepted in a body, query or cookie"
+  idempotency: "Exactly one Idempotency-Key request header on every mutating operation listed in IDEMPOTENT_C1"
+operations:
+  - id: E1
+    method: POST
+    path: /v1/patients/register
+    authenticated: false
+    idempotent: true
+    summary: "Anonymous atomic patient registration against a live invitation."
+    request:
+      fields: [access_code, identifier, email, password, consent_ack]
+      body: required
+      request_schema: term1_patient_register_request.schema.json
+    responses:
+      - status: 201
+        description: "{user_id, patient_id, assignment_id, session_id, session_token once, expires_at, subject_label, contract_version}"
+        response_schema: term1_patient_register_response.schema.json
+      - status: 401
+        code: invalid_invitation
+        description: "Not live / expired / revoked / consumed / attempts exhausted; wrong identifier HMAC; attempt row written, no account"
+      - status: 409
+        code: subject_identity_conflict
+        description: Identity already exists; client should use E2 while logged in
+      - status: 422
+        code: validation_failed
+        description: consent_ack not true or email not a local demo address
+      - status: 422
+        code: password_policy_violation
+        description: "Outside 12–128 byte policy"
+      - status: 400
+        code: idempotency_key_required
+      - status: 400
+        code: malformed_request
+  - id: E2
+    method: POST
+    path: /v1/patients/link
+    authenticated: true
+    idempotent: true
+    summary: "Attach an existing patient to the inviting doctor; creates one ACTIVE assignment."
+    request:
+      fields: [access_code, identifier, accept_linking]
+      body: required
+      request_schema: term1_patient_link_request.schema.json
+    responses:
+      - status: 200
+        description: "{assignment_id, doctor_label, patient_id, contract_version}"
+        response_schema: term1_patient_link_response.schema.json
+      - status: 401
+        code: invalid_invitation
+        description: "Cross-key HMAC equality fails"
+      - status: 403
+        code: forbidden
+        description: Not a PATIENT session
+      - status: 400
+        code: idempotency_key_required
+  - id: E3
+    method: GET
+    path: /v1/me/assignments
+    authenticated: true
+    idempotent: false
+    summary: "List the caller's own active assignments (PATIENT only)."
+    request:
+      body: absent
+    responses:
+      - status: 200
+        description: "{assignments: [{assignment_id, doctor_label, assigned_at, consent_active}], contract_version}"
+        response_schema: term1_me_assignments_response.schema.json
+      - status: 403
+        code: forbidden
+        description: Doctor or admin caller
+      - status: 401
+        code: authentication_required
+  - id: E4
+    method: POST
+    path: /v1/doctor/assignments/{assignment_id}/revoke
+    authenticated: true
+    idempotent: true
+    summary: "Doctor revokes an assignment it owns; affects only that doctor-patient pair."
+    path_parameters: [assignment_id]
+    request:
+      fields: [reason_code]
+      body: required
+      request_schema: term1_assignment_doctor_revoke_request.schema.json
+    responses:
+      - status: 200
+        description: "{assignment_id, revoked_at, contract_version}"
+        response_schema: term1_assignment_doctor_revoke_response.schema.json
+      - status: 409
+        code: assignment_already_revoked
+        description: Second revoke with a new key
+      - status: 404
+        code: assignment_not_found
+        description: Cross-owner id
+      - status: 403
+        code: forbidden
+      - status: 400
+        code: idempotency_key_required
+  - id: E5
+    method: POST
+    path: /v1/me/assignments/{assignment_id}/revoke
+    authenticated: true
+    idempotent: true
+    summary: "Patient revokes a single assignment it owns."
+    path_parameters: [assignment_id]
+    request:
+      fields: [reason_code]
+      body: required
+      request_schema: term1_assignment_patient_revoke_request.schema.json
+    responses:
+      - status: 200
+        description: "{assignment_id, revoked_at, contract_version}"
+        response_schema: term1_assignment_patient_revoke_response.schema.json
+      - status: 404
+        code: assignment_not_found
+        description: Cross-patient id
+      - status: 403
+        code: forbidden
+      - status: 400
+        code: idempotency_key_required
+  - id: E6
+    method: POST
+    path: /v1/me/consent/synthetic-demo/revoke
+    authenticated: true
+    idempotent: true
+    summary: "Withdraw the patient-wide synthetic-demo consent (checked again at inference completion)."
+    request:
+      fields: [reason_code]
+      body: required
+      request_schema: term1_consent_revoke_request.schema.json
+    responses:
+      - status: 200
+        description: "{consent_id, revoked_at, contract_version}"
+        response_schema: term1_consent_revoke_response.schema.json
+      - status: 404
+        code: consent_not_found
+        description: Second call (already revoked)
+      - status: 403
+        code: forbidden
+      - status: 400
+        code: idempotency_key_required
