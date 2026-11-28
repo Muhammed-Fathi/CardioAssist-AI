@@ -112,8 +112,15 @@ async def _read_bounded_body(request: Request, cap: int) -> bytes:
     return b"".join(chunks)
 
 
+# Exact DOC1 multipart contract (T2-R5): precisely these three text fields and
+# one file part named ``file``. Any extra/unknown field or a differently named
+# file part is refused — no silent acceptance of unexpected parts.
+_DOC1_FIELDS = frozenset({"contract_version", "document_kind", "fixture_template_id"})
+_DOC1_FILE_PART = "file"
+
+
 def _parse_multipart(body: bytes, content_type: str) -> tuple[dict[str, str], bytes, str]:
-    """Bounded multipart parse: <= 4 fields, 1 file, <= 64 KiB metadata."""
+    """Bounded multipart parse: exact field set, 1 file named ``file``."""
     if not content_type.lower().startswith("multipart/form-data"):
         raise doc_api_error("malformed_request")
     fields: dict[str, str] = {}
@@ -131,11 +138,16 @@ def _parse_multipart(body: bytes, content_type: str) -> tuple[dict[str, str], by
             raise doc_api_error("malformed_request")
         if name in fields:
             raise doc_api_error("malformed_request")  # duplicate form field
+        if name not in _DOC1_FIELDS:
+            raise doc_api_error("malformed_request")  # unexpected/extra field
         fields[name] = value.decode("utf-8", errors="strict")
 
     def on_file(file) -> None:
         if len(files) >= C.MAX_FILE_PARTS:
             raise doc_api_error("malformed_request")  # more than one file part
+        part_name = (file.field_name or b"").decode("utf-8", errors="strict")
+        if part_name != _DOC1_FILE_PART:
+            raise doc_api_error("malformed_request")  # exact file-part name required
         file_object = file.file_object
         # The parser leaves the spooled file cursor at EOF; rewind before read.
         if hasattr(file_object, "seek"):
@@ -155,8 +167,7 @@ def _parse_multipart(body: bytes, content_type: str) -> tuple[dict[str, str], by
         raise doc_api_error("malformed_request") from error
     if len(files) != 1:
         raise doc_api_error("malformed_request")
-    required = {"contract_version", "document_kind", "fixture_template_id"}
-    if not required.issubset(fields):
+    if set(fields) != _DOC1_FIELDS:
         raise doc_api_error("validation_failed")
     if fields.get("contract_version") != C.CONTRACT_VERSION:
         raise doc_api_error("malformed_request")
@@ -290,16 +301,25 @@ def register_document_routes(app: FastAPI, *, handler: DocumentHandler) -> None:
         actor = handler.authenticate(request, operation=C.OP_DOC7_CONFIRM)
         key = handler.idempotency_key(request)
         body = await _read_json_body(request)
+        # Exact DOC7 schema (T2-R5): every field is explicit; missing mappings
+        # are NOT silently defaulted to {} and unknown keys are refused.
+        required = {
+            "contract_version", "extraction_id", "extraction_version",
+            "confirmed_inputs", "units", "missing_reasons",
+            "confirm_fabricated_demo_inputs",
+        }
+        if set(body) != required:
+            raise doc_api_error("malformed_request")
         service = handler.service()
         result = await run_in_threadpool(
             service.confirm,
             actor=actor, document_id=document_id,
-            extraction_id=body.get("extraction_id"),
-            extraction_version=body.get("extraction_version"),
-            confirmed_inputs=body.get("confirmed_inputs") or {},
-            units=body.get("units") or {},
-            missing_reasons=body.get("missing_reasons") or {},
-            confirm_fabricated_demo_inputs=body.get("confirm_fabricated_demo_inputs"),
+            extraction_id=body["extraction_id"],
+            extraction_version=body["extraction_version"],
+            confirmed_inputs=body["confirmed_inputs"],
+            units=body["units"],
+            missing_reasons=body["missing_reasons"],
+            confirm_fabricated_demo_inputs=body["confirm_fabricated_demo_inputs"],
             idempotency_key=key,
         )
         return _json(200, result)
@@ -322,7 +342,8 @@ async def _read_json_body(request: Request) -> dict[str, Any]:
     media_type = request.headers.get("content-type", "").partition(";")[0].strip().lower()
     if media_type != "application/json":
         raise doc_api_error("malformed_request")
-    raw = await request.body()
+    # Bounded JSON request body (T2-R5): reject before buffering an unbounded body.
+    raw = await _read_bounded_body(request, C.JSON_BODY_CAP_BYTES)
     if not raw.strip():
         raise doc_api_error("malformed_request")
     try:
@@ -338,6 +359,20 @@ async def _read_json_body(request: Request) -> dict[str, Any]:
 
 
 async def _expect_empty_json(request: Request) -> None:
-    raw = await request.body()
+    raw = await _read_bounded_body(request, C.JSON_BODY_CAP_BYTES)
     if raw.strip():
-        await _read_json_body(request)  # validates contract_version if a body is sent
+        # A non-empty DOC5 body must still be a bounded, contract-versioned JSON
+        # object; re-parse the already-bounded buffer rather than re-reading.
+        import json
+
+        from ..main_helpers import finite_float, reject_constant, unique_object
+
+        try:
+            parsed = json.loads(
+                raw.decode("utf-8"), object_pairs_hook=unique_object,
+                parse_float=finite_float, parse_constant=reject_constant,
+            )
+        except (ValueError, UnicodeError, RecursionError) as error:
+            raise doc_api_error("malformed_request") from error
+        if not isinstance(parsed, dict) or parsed.get("contract_version") != C.CONTRACT_VERSION:
+            raise doc_api_error("malformed_request")

@@ -7,6 +7,22 @@ validation outside the DB lock -> atomic ``STORED`` promotion), genuine
 extraction, explicit patient confirmation with immutable versions, and safe
 crash recovery that never promotes unverified or unauthorized content.
 
+Corrections round (reviewer REQUEST CHANGES #7233518509):
+
+* T2-R1 — every mutating operation durably reserves its complete C1 idempotency
+  identity with a lease owner/expiry and a monotonic fence token in the SAME
+  transaction as the guarded effect. Simultaneous same-key requests collide on
+  the unique replay identity (one document, never two). DOC5 checks live consent
+  and the durable replay record BEFORE dispatching the worker. Recovery takes
+  over only an EXPIRED lease (ownership, not age/startup), re-checks consent /
+  SHA / manifest / quota, and publishes atomically while reconstructing the
+  ORIGINAL replay identity for ``remember()`` plus the original ``UPLOADED``
+  event and audit. No DB lock is held across OCR.
+* T2-R2 — confirmation persists the exact canonical envelope and typed per-field
+  units/reasons/provenance for the COMPLETE field set; the digest is verified on
+  confirmed reads and assessment binding; bindings reference verified bytes and
+  the exact confirmed extraction identity.
+
 No method here dispatches an assessment, writes an ``inference_result`` row,
 reads a private AI bundle, or falls back to a mock provider. Patient
 confirmation is not clinician verification and is not assessment submission.
@@ -22,10 +38,12 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError as SqlIntegrityError
 from sqlalchemy.orm import Session
 
 from ..term1 import constants as c1
 from ..term1.idempotency import (
+    ReplayKey,
     RequestIdentity,
     build_identity,
     precheck,
@@ -33,7 +51,7 @@ from ..term1.idempotency import (
     user_scope,
 )
 from ..term1.models import ConsentRecord, PatientProfile
-from ..term1.timeutil import Clock
+from ..term1.timeutil import Clock, from_iso
 from ..term1.tx import read_transaction, write_transaction
 from . import constants as C
 from . import audit as doc_audit
@@ -44,6 +62,7 @@ from .fixture_manifest import FixtureManifest
 from .models import (
     AssessmentDocument,
     DocumentExtraction,
+    DocumentInflightOperation,
     ExtractionEvent,
     ExtractionField,
     MedicalDocument,
@@ -79,6 +98,35 @@ def sanitize_filename(name: str) -> str:
     base = name.replace("\\", "/").split("/")[-1]
     base = _FILENAME_SAFE.sub("_", base).strip("._") or "document"
     return base[:128]
+
+
+def confirmation_envelope(field_rows) -> dict[str, Any]:
+    """Canonical confirmation envelope reconstructible from persisted children.
+
+    The exact normalized document digested by ``confirmed_values_sha256``. It is
+    built identically at confirmation time and at verification time, so any
+    tampering with a persisted child value/unit/reason/provenance breaks the
+    digest (T2-R2).
+    """
+    by_name = {f.field_name: f for f in field_rows}
+    inputs: dict[str, Any] = {}
+    units: dict[str, Any] = {}
+    reasons: dict[str, Any] = {}
+    provenance: dict[str, Any] = {}
+    for name in C.PANEL_FIELD_ORDER:
+        field = by_name.get(name)
+        if field is None:
+            continue
+        inputs[name] = field.confirmed_value_json
+        if field.confirmed_unit is not None:
+            units[name] = field.confirmed_unit
+        if field.missing_reason is not None:
+            reasons[name] = field.missing_reason
+        provenance[name] = field.field_provenance
+    return {
+        "confirmed_inputs": inputs, "units": units,
+        "missing_reasons": reasons, "field_provenance": provenance,
+    }
 
 
 class DocumentService:
@@ -163,6 +211,95 @@ class DocumentService:
             public_response=public_response,
         )
 
+    # --- durable in-flight lease / fence (T2-R1) ----------------------------
+    def _inflight_for(self, session: Session, identity: RequestIdentity) -> DocumentInflightOperation | None:
+        key = identity.replay_key
+        return session.execute(
+            select(DocumentInflightOperation).where(
+                DocumentInflightOperation.replay_scope == key.replay_scope,
+                DocumentInflightOperation.key_hash == key.key_hash,
+                DocumentInflightOperation.actor_binding == key.actor_binding,
+                DocumentInflightOperation.operation == key.operation,
+                DocumentInflightOperation.target_ref == key.target_ref,
+            )
+        ).scalar_one_or_none()
+
+    def _acquire_lease(
+        self, session: Session, *, identity: RequestIdentity, actor_user_id: str,
+        patient_id: str, document_id: str,
+    ) -> tuple[DocumentInflightOperation, str, int]:
+        """Reserve or take over the durable lease; return (row, owner, fence).
+
+        A live lease held by another attempt yields ``409 concurrency_conflict``;
+        an expired lease or a FAILED attempt is fenced (token incremented) and
+        taken over. A changed request fingerprint under the same key is a
+        ``409 idempotency_key_conflict``.
+        """
+        now = self.clock.now()
+        owner = str(uuid.uuid4())
+        row = self._inflight_for(session, identity)
+        key = identity.replay_key
+        if row is None:
+            row = DocumentInflightOperation(
+                inflight_id=str(uuid.uuid4()), replay_scope=key.replay_scope,
+                key_hash=key.key_hash, actor_binding=key.actor_binding,
+                operation=key.operation, target_ref=key.target_ref,
+                request_fingerprint=identity.request_fingerprint,
+                actor_user_id=actor_user_id, patient_id=patient_id, document_id=document_id,
+                state=C.INFLIGHT_STATE_IN_FLIGHT, fence_token=1, lease_owner=owner,
+                lease_expires_at=self.clock.plus(C.INFLIGHT_LEASE_SECONDS),
+                attempt_count=1, failure_code=None,
+                created_at=self.clock.now_iso(), updated_at=self.clock.now_iso(),
+            )
+            session.add(row)
+            try:
+                session.flush()
+            except SqlIntegrityError as error:
+                # Another key already holds this document/operation.
+                raise doc_api_error("concurrency_conflict") from error
+            return row, owner, 1
+        if row.request_fingerprint != identity.request_fingerprint:
+            raise doc_api_error("idempotency_key_conflict")
+        live = row.state == C.INFLIGHT_STATE_IN_FLIGHT and from_iso(row.lease_expires_at) > now
+        if live:
+            raise doc_api_error("concurrency_conflict")
+        row.fence_token += 1
+        row.lease_owner = owner
+        row.lease_expires_at = self.clock.plus(C.INFLIGHT_LEASE_SECONDS)
+        row.state = C.INFLIGHT_STATE_IN_FLIGHT
+        row.attempt_count += 1
+        row.failure_code = None
+        row.updated_at = self.clock.now_iso()
+        session.flush()
+        return row, owner, row.fence_token
+
+    def _assert_lease(self, session: Session, inflight_id: str, owner: str, fence: int) -> DocumentInflightOperation:
+        row = session.get(DocumentInflightOperation, inflight_id)
+        if row is None or row.lease_owner != owner or row.fence_token != fence \
+                or row.state != C.INFLIGHT_STATE_IN_FLIGHT:
+            raise doc_api_error("concurrency_conflict")
+        return row
+
+    def _release_lease_failed(self, session: Session, inflight_id: str, owner: str,
+                              fence: int, code: str) -> None:
+        row = session.get(DocumentInflightOperation, inflight_id)
+        if row is not None and row.lease_owner == owner and row.fence_token == fence:
+            row.state = C.INFLIGHT_STATE_FAILED
+            row.failure_code = code
+            row.updated_at = self.clock.now_iso()
+
+    def _identity_from_inflight(self, row: DocumentInflightOperation) -> RequestIdentity:
+        """Reconstruct the ORIGINAL replay identity for recovery ``remember()``."""
+        return RequestIdentity(
+            replay_key=ReplayKey(
+                replay_scope=row.replay_scope, key_hash=row.key_hash,
+                actor_binding=row.actor_binding, operation=row.operation,
+                target_ref=row.target_ref,
+            ),
+            request_fingerprint=row.request_fingerprint,
+            secret_fingerprints={}, secret_disclosed=False, public_body={},
+        )
+
     # --- DOC1 upload --------------------------------------------------------
     def upload(
         self,
@@ -190,105 +327,157 @@ class DocumentService:
             "declared_media_type": admission.media_type,
             "byte_size": admission.byte_size,
         }
+        identity = self._identity(
+            actor=actor, operation=C.OP_DOC1_UPLOAD, target_ref="none",
+            raw_key=idempotency_key, public_fields=public_fields,
+        )
 
-        # Phase 1: durable quota reservation under BEGIN IMMEDIATE.
+        # Phase 1: durable reservation (document + lease) under BEGIN IMMEDIATE.
         with write_transaction(self.database) as session:
             patient_id = self._patient_id(session, actor)
-            identity = self._identity(
-                actor=actor, operation=C.OP_DOC1_UPLOAD, target_ref="none",
-                raw_key=idempotency_key, public_fields=public_fields,
-            )
             decision = precheck(session, clock=self.clock, identity=identity)
             if decision.is_replay:
                 self._require_consent(session, patient_id)  # live reauthorization
                 return decision.body()
             self._require_consent(session, patient_id)
-            # Stale PENDING_SCAN reservations count against quota (fail closed)
-            # until crash recovery reclaims them; recovery never runs inside
-            # this lock because it performs worker I/O.
-            self._check_quota(session, patient_id, admission.byte_size)
 
-            document_id = str(uuid.uuid4())
-            storage_key = make_storage_key(patient_id, document_id)
-            now = self.clock.now_iso()
-            session.add(MedicalDocument(
-                document_id=document_id, patient_id=patient_id,
-                uploaded_by_user_id=actor.user_id, document_kind=admission.document_kind,
-                fixture_template_id=admission.template_id,
-                fixture_file_sha256=admission.content_sha256,
-                original_filename_sanitized=sanitize_filename(original_filename),
-                declared_media_type=admission.media_type, byte_size=admission.byte_size,
-                page_count=0, content_sha256=None, storage_key=storage_key,
-                upload_status=C.UPLOAD_PENDING_SCAN, created_at=now,
-            ))
-            session.flush()
+            existing = self._inflight_for(session, identity)
+            if existing is not None:
+                # Same-key retry / recovery takeover of an existing reservation.
+                inflight, owner, fence = self._acquire_lease(
+                    session, identity=identity, actor_user_id=actor.user_id,
+                    patient_id=patient_id, document_id=existing.document_id,
+                )
+                document_id = existing.document_id
+                row = session.get(MedicalDocument, document_id)
+                if row.upload_status == C.UPLOAD_STORED:
+                    # Already finalized but the replay record was lost: rebuild it.
+                    response = self._document_projection(row)
+                    remember(session, clock=self.clock, identity=identity, status_code=201,
+                             public_response=response, secret_disclosed=False)
+                    session.delete(inflight)
+                    return response
+                # Re-arm a FAILED/PENDING reservation for a fresh bounded attempt.
+                self._check_quota(session, patient_id, admission.byte_size)
+                row.upload_status = C.UPLOAD_PENDING_SCAN
+                row.staging_key = None
+                row.reclaim_at = None
+                row.content_sha256 = None
+                row.validated_at = None
+                row.page_count = 0
+                row.pixel_width = None
+                row.pixel_height = None
+            else:
+                self._check_quota(session, patient_id, admission.byte_size)
+                document_id = str(uuid.uuid4())
+                storage_key = make_storage_key(patient_id, document_id)
+                row = MedicalDocument(
+                    document_id=document_id, patient_id=patient_id,
+                    uploaded_by_user_id=actor.user_id, document_kind=admission.document_kind,
+                    fixture_template_id=admission.template_id,
+                    fixture_file_sha256=admission.content_sha256,
+                    original_filename_sanitized=sanitize_filename(original_filename),
+                    declared_media_type=admission.media_type, byte_size=admission.byte_size,
+                    page_count=0, content_sha256=None, storage_key=storage_key,
+                    upload_status=C.UPLOAD_PENDING_SCAN, created_at=self.clock.now_iso(),
+                )
+                session.add(row)
+                session.flush()
+                inflight, owner, fence = self._acquire_lease(
+                    session, identity=identity, actor_user_id=actor.user_id,
+                    patient_id=patient_id, document_id=document_id,
+                )
+            storage_key = row.storage_key
+            inflight_id = inflight.inflight_id
 
         # Phase 2: stage + bounded worker validation OUTSIDE the DB lock.
         staging_key = self.store.stage(data, storage_key)
+        with write_transaction(self.database) as session:
+            row = session.get(MedicalDocument, document_id)
+            row.staging_key = staging_key
         try:
-            with write_transaction(self.database) as session:
-                row = session.get(MedicalDocument, document_id)
-                row.staging_key = staging_key
             structure = self.worker.validate(
                 storage_key=staging_key, content_sha256=admission.content_sha256,
                 byte_size=admission.byte_size, media_type=admission.media_type,
+                fixture_file_sha256=admission.content_sha256,
             )
         except AdmissionRejection as error:
-            self._fail_upload(document_id, staging_key, error.code)
+            self._fail_upload(document_id, inflight_id, owner, fence, staging_key, error.code)
             raise doc_api_error(error.code) from error
         except DocumentIntegrityMismatch as error:
-            self._fail_upload(document_id, staging_key, "document_integrity_mismatch")
+            self._fail_upload(document_id, inflight_id, owner, fence, staging_key,
+                              "document_integrity_mismatch")
             raise doc_api_error("document_integrity_mismatch") from error
         except WorkerUnavailableError as error:
-            self._fail_upload(document_id, staging_key, "worker_unavailable")
+            self._fail_upload(document_id, inflight_id, owner, fence, staging_key,
+                              "worker_unavailable")
             raise doc_api_error("worker_unavailable") from error
         except BaseException:
-            self._fail_upload(document_id, staging_key, "internal_error")
+            self._fail_upload(document_id, inflight_id, owner, fence, staging_key, "internal_error")
             raise
 
-        # Phase 3: atomic promotion + idempotency + audit.
+        # Phase 3: atomic promotion + idempotency + audit (fence-checked).
         with write_transaction(self.database) as session:
+            self._assert_lease(session, inflight_id, owner, fence)
             patient_id = self._patient_id(session, actor)
             self._require_consent(session, patient_id)  # re-check at finalize
             row = session.get(MedicalDocument, document_id)
             if row is None or row.upload_status != C.UPLOAD_PENDING_SCAN:
                 raise doc_api_error("concurrency_conflict")
             self.store.promote(staging_key, storage_key)
-            now = self.clock.now_iso()
-            row.upload_status = C.UPLOAD_STORED
-            row.content_sha256 = admission.content_sha256
-            row.page_count = structure.page_count
-            row.staging_key = None
-            row.validated_at = now
-            response = self._document_projection(row)
-            identity = self._identity(
-                actor=actor, operation=C.OP_DOC1_UPLOAD, target_ref="none",
-                raw_key=idempotency_key, public_fields=public_fields,
-                public_response=response,
+            response = self._publish_stored(
+                session, row, structure.page_count, structure.pixel_width,
+                structure.pixel_height, identity=identity,
+                event_actor=actor.user_id, event_role=actor.role,
+                audit_event=C.AUDIT_EVENT_DOCUMENT_UPLOADED,
             )
-            remember(session, clock=self.clock, identity=identity, status_code=201,
-                     public_response=response, secret_disclosed=False)
-            session.add(ExtractionEvent(
-                event_id=str(uuid.uuid4()), document_id=document_id, extraction_id=None,
-                extraction_version=None, event_type=C.EVENT_UPLOADED,
-                actor_user_id=actor.user_id, actor_role=actor.role,
-                field_diffs_json={"byte_size": admission.byte_size,
-                                  "page_count": structure.page_count},
-                recorded_at=now,
-            ))
-            doc_audit.record_document_event(
-                session, clock=self.clock, event_type=C.AUDIT_EVENT_DOCUMENT_UPLOADED,
-                outcome=c1.OUTCOME_SUCCESS, subject_type=C.AUDIT_SUBJECT_MEDICAL_DOCUMENT,
-                subject_id=document_id, actor_user_id=actor.user_id,
-                payload={"document_kind": admission.document_kind,
-                         "media_type": admission.media_type, "byte_size": admission.byte_size},
-            )
+            session.delete(session.get(DocumentInflightOperation, inflight_id))
         return response
 
-    def _fail_upload(self, document_id: str, staging_key: str | None, code: str) -> None:
+    def _publish_stored(
+        self, session: Session, row: MedicalDocument, page_count: int,
+        pixel_width: int | None, pixel_height: int | None, *, identity: RequestIdentity,
+        event_actor: str, event_role: str, audit_event: str,
+    ) -> dict[str, Any]:
+        """Atomically mark STORED + remember + UPLOADED event + audit (T2-R1).
+
+        Shared by the live finalize path and crash recovery so both produce the
+        identical durable replay record, original event and audit association.
+        """
+        now = self.clock.now_iso()
+        row.upload_status = C.UPLOAD_STORED
+        row.content_sha256 = row.fixture_file_sha256
+        row.page_count = page_count
+        row.pixel_width = pixel_width
+        row.pixel_height = pixel_height
+        row.staging_key = None
+        row.validated_at = now
+        session.flush()
+        response = self._document_projection(row)
+        remember(session, clock=self.clock, identity=identity, status_code=201,
+                 public_response=response, secret_disclosed=False)
+        session.add(ExtractionEvent(
+            event_id=str(uuid.uuid4()), document_id=row.document_id, extraction_id=None,
+            extraction_version=None, event_type=C.EVENT_UPLOADED,
+            actor_user_id=event_actor, actor_role=event_role,
+            field_diffs_json={"byte_size": row.byte_size, "page_count": page_count},
+            recorded_at=now,
+        ))
+        doc_audit.record_document_event(
+            session, clock=self.clock, event_type=audit_event,
+            outcome=c1.OUTCOME_SUCCESS, subject_type=C.AUDIT_SUBJECT_MEDICAL_DOCUMENT,
+            subject_id=row.document_id, actor_user_id=event_actor,
+            payload={"document_kind": row.document_kind,
+                     "media_type": row.declared_media_type, "byte_size": row.byte_size},
+        )
+        return response
+
+    def _fail_upload(self, document_id: str, inflight_id: str, owner: str, fence: int,
+                     staging_key: str | None, code: str) -> None:
         if staging_key:
             self.store.discard_staging(staging_key)
         with write_transaction(self.database) as session:
+            self._release_lease_failed(session, inflight_id, owner, fence, code)
             row = session.get(MedicalDocument, document_id)
             if row is not None and row.upload_status == C.UPLOAD_PENDING_SCAN:
                 row.upload_status = C.UPLOAD_FAILED
@@ -311,7 +500,6 @@ class DocumentService:
             rows = session.execute(query).scalars().all()
         items = [self._document_projection(row, latest=self._latest_summary(row.document_id))
                  for row in rows]
-        # Simple opaque cursor over the ordered list.
         start = 0
         if cursor:
             start = int(cursor)
@@ -358,41 +546,53 @@ class DocumentService:
     # --- DOC5 extract -------------------------------------------------------
     def extract(self, *, actor: Actor, document_id: str, idempotency_key: str) -> dict[str, Any]:
         public_fields = {"document_id": document_id}
-        with read_transaction(self.database) as session:
+        identity = self._identity(
+            actor=actor, operation=C.OP_DOC5_EXTRACT, target_ref=document_id,
+            raw_key=idempotency_key, public_fields=public_fields,
+        )
+        # Phase 1: live authorization + replay BEFORE any worker dispatch (T2-R1).
+        with write_transaction(self.database) as session:
             patient_id = self._patient_id(session, actor)
             row = self._owned_document(session, patient_id, document_id)
             if row.upload_status != C.UPLOAD_STORED or row.content_sha256 is None:
                 raise doc_api_error("document_not_found")
+            self._require_consent(session, patient_id)
+            decision = precheck(session, clock=self.clock, identity=identity)
+            if decision.is_replay:
+                return decision.body()  # remembered result; worker NOT dispatched
+            inflight, owner, fence = self._acquire_lease(
+                session, identity=identity, actor_user_id=actor.user_id,
+                patient_id=patient_id, document_id=document_id,
+            )
             storage_key, sha, size = row.storage_key, row.content_sha256, row.byte_size
             media_type, template_id = row.declared_media_type, row.fixture_template_id
+            fixture_sha = row.fixture_file_sha256
+            inflight_id = inflight.inflight_id
 
-        # Genuine extraction outside the DB lock.
+        # Phase 2: genuine extraction outside the DB lock.
         try:
             raw = self.worker.extract(
                 document_id=document_id, storage_key=storage_key, content_sha256=sha,
                 byte_size=size, media_type=media_type, fixture_template_id=template_id,
+                fixture_file_sha256=fixture_sha,
             )
         except DocumentIntegrityMismatch as error:
+            self._fail_extract(inflight_id, owner, fence, "document_integrity_mismatch")
             raise doc_api_error("document_integrity_mismatch") from error
         except WorkerUnavailableError as error:
+            self._fail_extract(inflight_id, owner, fence, "worker_unavailable")
             raise doc_api_error("worker_unavailable") from error
         except AdmissionRejection as error:
+            self._fail_extract(inflight_id, owner, fence, error.code)
             raise doc_api_error(error.code) from error
 
         parsed = parse(raw, template_id)
+        # Phase 3: persist extraction + complete field set + replay (fence-checked).
         with write_transaction(self.database) as session:
+            self._assert_lease(session, inflight_id, owner, fence)
             patient_id = self._patient_id(session, actor)
-            self._require_consent(session, patient_id)
+            self._require_consent(session, patient_id)  # re-check after worker
             row = self._owned_document(session, patient_id, document_id)
-            identity = self._identity(
-                actor=actor, operation=C.OP_DOC5_EXTRACT, target_ref=document_id,
-                raw_key=idempotency_key, public_fields=public_fields,
-            )
-            decision = precheck(session, clock=self.clock, identity=identity)
-            if decision.is_replay:
-                self._require_consent(session, patient_id)
-                return decision.body()
-            # Re-verify the stored digest has not changed since extraction.
             if row.content_sha256 != sha:
                 raise doc_api_error("document_integrity_mismatch")
             version = self._next_extraction_version(session, document_id)
@@ -405,7 +605,8 @@ class DocumentService:
                 template_version=C.TEMPLATE_VERSION if parsed.template_matched else None,
                 engine_name=raw.engine_name, engine_version=raw.engine_version,
                 extraction_status=parsed.extraction_status, is_confirmed=False,
-                confirmed_values_sha256=None, extracted_text_bytes=raw.extracted_text_bytes,
+                confirmed_values_sha256=None, confirmed_envelope_json=None,
+                extracted_text_bytes=raw.extracted_text_bytes,
                 raw_text_sha256=raw.raw_text_sha256,
                 raw_text_excerpt_json=self._raw_excerpt(raw), created_at=now,
             )
@@ -426,10 +627,6 @@ class DocumentService:
                 recorded_at=now,
             ))
             response = self._extraction_projection(extraction, field_rows)
-            identity = self._identity(
-                actor=actor, operation=C.OP_DOC5_EXTRACT, target_ref=document_id,
-                raw_key=idempotency_key, public_fields=public_fields, public_response=response,
-            )
             remember(session, clock=self.clock, identity=identity, status_code=200,
                      public_response=response, secret_disclosed=False)
             doc_audit.record_document_event(
@@ -438,7 +635,12 @@ class DocumentService:
                 subject_id=extraction_id, actor_user_id=actor.user_id,
                 payload={"extraction_status": parsed.extraction_status, "mode": raw.mode},
             )
+            session.delete(session.get(DocumentInflightOperation, inflight_id))
         return response
+
+    def _fail_extract(self, inflight_id: str, owner: str, fence: int, code: str) -> None:
+        with write_transaction(self.database) as session:
+            self._release_lease_failed(session, inflight_id, owner, fence, code)
 
     # --- DOC6 read extraction -----------------------------------------------
     def read_extraction(self, *, actor: Actor, document_id: str) -> dict[str, Any]:
@@ -454,7 +656,25 @@ class DocumentService:
             fields = session.execute(
                 select(ExtractionField).where(ExtractionField.extraction_id == extraction.extraction_id)
             ).scalars().all()
+            self._verify_confirmed_integrity(session, extraction, fields, actor.user_id)
             return self._extraction_projection(extraction, fields)
+
+    def _verify_confirmed_integrity(self, session: Session, extraction: DocumentExtraction,
+                                    fields, actor_user_id: str) -> None:
+        """Reconstruct and verify the confirmation digest on read/bind (T2-R2)."""
+        if not extraction.is_confirmed:
+            return
+        rebuilt = confirmation_envelope(fields)
+        digest = _sha256_text(rebuilt)
+        if digest != extraction.confirmed_values_sha256 or rebuilt != extraction.confirmed_envelope_json:
+            with write_transaction(self.database) as audit_session:
+                doc_audit.record_document_event(
+                    audit_session, clock=self.clock,
+                    event_type=C.AUDIT_EVENT_DOCUMENT_INTEGRITY_MISMATCH,
+                    outcome=c1.OUTCOME_CONFLICT, subject_type=C.AUDIT_SUBJECT_DOCUMENT_EXTRACTION,
+                    subject_id=extraction.extraction_id, actor_user_id=actor_user_id,
+                )
+            raise doc_api_error("document_integrity_mismatch")
 
     # --- DOC7 confirm -------------------------------------------------------
     def confirm(
@@ -496,7 +716,6 @@ class DocumentService:
             )
             decision = precheck(session, clock=self.clock, identity=identity)
             if decision.is_replay:
-                self._require_consent(session, patient_id)
                 return decision.body()
             if row.fixture_template_id != C.TEMPLATE_RESTING:
                 raise doc_api_error("unsupported_template_for_intake")
@@ -516,28 +735,32 @@ class DocumentService:
 
             now = self.clock.now_iso()
             diffs: dict[str, Any] = {}
+            # Update the COMPLETE field set (no missing row skipped) while the
+            # parent is still unconfirmed; the child trigger permits exactly this
+            # confirmation transition and freezes everything afterwards.
             for name in C.PANEL_FIELD_ORDER:
                 field = field_map.get(name)
                 if field is None:
-                    continue
+                    raise doc_api_error("document_integrity_mismatch")
                 new_value = validated["inputs"].get(name)
                 old_value = field.parsed_value_json
                 edited = new_value != old_value
                 field.confirmed_value_json = new_value
+                field.confirmed_unit = validated["units"].get(name)
+                field.missing_reason = validated["missing_reasons"].get(name)
                 if edited:
                     field.field_provenance = C.PROV_PATIENT_FROM_DRAFT
                     diffs[name] = {"from": old_value, "to": new_value}
                 else:
                     field.field_provenance = C.PROV_OCR_CONFIRMED
-            confirmed_doc = {
-                "confirmed_inputs": validated["inputs"], "units": validated["units"],
-                "missing_reasons": validated["missing_reasons"],
-                "field_provenance": {n: field_map[n].field_provenance for n in field_map},
-            }
-            confirmed_sha = _sha256_text(confirmed_doc)
+            session.flush()
+            # Persist the exact canonical envelope reconstructed from children.
+            envelope = confirmation_envelope(field_rows)
+            confirmed_sha = _sha256_text(envelope)
             extraction.is_confirmed = True
             extraction.extraction_status = C.STATUS_CONFIRMED
             extraction.confirmed_values_sha256 = confirmed_sha
+            extraction.confirmed_envelope_json = envelope
             extraction.confirmed_at = now
             event_type = C.EVENT_EDITED_AND_CONFIRMED if diffs else C.EVENT_PATIENT_CONFIRMED
             session.add(ExtractionEvent(
@@ -590,7 +813,6 @@ class DocumentService:
             value = inputs.get(name)
             if isinstance(value, bool):
                 raise doc_api_error("invalid_panel_input")
-            # Null, or a measured trestbps of 0, means unavailable (ED-DA-A2-01).
             unavailable = value is None or (
                 name in C.ZERO_IS_UNAVAILABLE_FIELDS
                 and isinstance(value, int) and value == 0
@@ -630,6 +852,14 @@ class DocumentService:
         row = self._owned_document(session, patient_id, document_id)
         if row.upload_status != C.UPLOAD_STORED or row.content_sha256 is None:
             raise doc_api_error("document_not_found")
+        # Bind VERIFIED bytes (T2-R2): re-read and verify the complete buffer
+        # against the recorded digest before recording the binding identity.
+        try:
+            self.store.read_verified(
+                row.storage_key, expected_sha256=row.content_sha256, expected_size=row.byte_size
+            )
+        except IntegrityError as error:
+            raise doc_api_error("document_integrity_mismatch") from error
         if attachment_role == C.ROLE_OCR_SOURCE:
             if extraction_id is None or extraction_version is None:
                 raise doc_api_error("validation_failed")
@@ -640,6 +870,10 @@ class DocumentService:
                 raise doc_api_error("document_not_confirmed")
             if extraction.extraction_version != extraction_version:
                 raise doc_api_error("extraction_version_conflict")
+            fields = session.execute(
+                select(ExtractionField).where(ExtractionField.extraction_id == extraction_id)
+            ).scalars().all()
+            self._verify_confirmed_integrity(session, extraction, fields, row.uploaded_by_user_id)
         binding = AssessmentDocument(
             binding_id=str(uuid.uuid4()), assessment_id=assessment_id,
             patient_id=patient_id, document_id=document_id, extraction_id=extraction_id,
@@ -651,72 +885,102 @@ class DocumentService:
 
     # --- crash recovery -----------------------------------------------------
     def recover_pending(self, *, startup: bool = False) -> int:
-        """Reconcile abandoned ``PENDING_SCAN`` reservations.
+        """Reconcile abandoned ``PENDING_SCAN`` reservations by lease ownership.
 
-        Worker validation runs OUTSIDE the DB write lock. Each candidate is then
-        re-checked and transitioned atomically; a live upload that finalized in
-        the meantime is left untouched (ownership/lease recheck), so recovery
-        never races a live reservation.
+        Eligibility is an EXPIRED durable lease (T2-R1), never age alone or a
+        startup boolean. Worker validation runs OUTSIDE the DB write lock. Each
+        candidate is fenced (token incremented) before validation and re-checked
+        at publish, so a live attempt that finalizes in the meantime is never
+        raced. Recovery reconstructs the ORIGINAL replay identity and emits the
+        original ``UPLOADED`` event + audit atomically with the STORED promotion.
         """
-        from ..term1.timeutil import from_iso
-
         with read_transaction(self.database) as session:
             rows = session.execute(
                 select(MedicalDocument).where(
                     MedicalDocument.upload_status == C.UPLOAD_PENDING_SCAN)
             ).scalars().all()
-            candidates = [
-                {
+            candidates = []
+            now = self.clock.now()
+            for row in rows:
+                inflight = session.execute(
+                    select(DocumentInflightOperation).where(
+                        DocumentInflightOperation.document_id == row.document_id,
+                        DocumentInflightOperation.operation == C.OP_DOC1_UPLOAD,
+                    )
+                ).scalar_one_or_none()
+                if inflight is None:
+                    continue  # no durable ownership record; nothing to recover
+                if from_iso(inflight.lease_expires_at) > now:
+                    continue  # a live attempt owns this reservation
+                candidates.append({
                     "document_id": row.document_id, "patient_id": row.patient_id,
                     "storage_key": row.storage_key, "staging_key": row.staging_key,
                     "sha": row.fixture_file_sha256, "size": row.byte_size,
                     "media_type": row.declared_media_type,
                     "uploaded_by": row.uploaded_by_user_id,
-                    "age": (self.clock.now() - from_iso(row.created_at)).total_seconds(),
-                }
-                for row in rows
-            ]
+                    "inflight_id": inflight.inflight_id,
+                })
         recovered = 0
         for candidate in candidates:
-            if not startup and candidate["age"] < C.PENDING_SCAN_RECOVERY_AGE_SECONDS:
-                continue  # never race a live reservation
-            # Validate outside the lock (worker I/O).
-            structure = self._validate_recovery_candidate(candidate)
+            # Take over the expired lease (fence) before any worker I/O.
             with write_transaction(self.database) as session:
                 row = session.get(MedicalDocument, candidate["document_id"])
                 if row is None or row.upload_status != C.UPLOAD_PENDING_SCAN:
-                    continue  # finalized or reclaimed by another path
+                    continue
+                inflight = session.get(DocumentInflightOperation, candidate["inflight_id"])
+                if inflight is None or from_iso(inflight.lease_expires_at) > self.clock.now():
+                    continue
+                owner = str(uuid.uuid4())
+                inflight.fence_token += 1
+                inflight.lease_owner = owner
+                inflight.lease_expires_at = self.clock.plus(C.INFLIGHT_LEASE_SECONDS)
+                inflight.state = C.INFLIGHT_STATE_IN_FLIGHT
+                inflight.updated_at = self.clock.now_iso()
+                fence = inflight.fence_token
+                identity = self._identity_from_inflight(inflight)
+                inflight_id = inflight.inflight_id
+            structure = self._validate_recovery_candidate(candidate)
+            with write_transaction(self.database) as session:
+                try:
+                    self._assert_lease(session, inflight_id, owner, fence)
+                except Exception:
+                    continue  # another path took over; leave it untouched
+                row = session.get(MedicalDocument, candidate["document_id"])
+                if row is None or row.upload_status != C.UPLOAD_PENDING_SCAN:
+                    continue
                 consent = session.execute(
                     select(ConsentRecord.consent_id).where(
                         ConsentRecord.patient_id == row.patient_id,
+                        ConsentRecord.kind == c1.CONSENT_KIND_SYNTHETIC_DEMO,
                         ConsentRecord.revoked_at.is_(None),
                     )
                 ).first()
                 if consent is None:
                     self._mark_failed(session, row, "consent_required")
+                    self._release_lease_failed(session, inflight_id, owner, fence, "consent_required")
                     recovered += 1
                     continue
                 if structure is None:
                     self._mark_failed(session, row, "invalid_document_content")
+                    self._release_lease_failed(session, inflight_id, owner, fence,
+                                               "invalid_document_content")
                     recovered += 1
                     continue
-                final_present = self.store.exists(row.storage_key)
-                if not final_present:
+                if not self.store.exists(row.storage_key):
                     if row.staging_key is None:
                         self._mark_failed(session, row, "invalid_document_content")
+                        self._release_lease_failed(session, inflight_id, owner, fence,
+                                                   "invalid_document_content")
                         recovered += 1
                         continue
                     self.store.promote(row.staging_key, row.storage_key)
-                row.upload_status = C.UPLOAD_STORED
-                row.content_sha256 = row.fixture_file_sha256
-                row.page_count = structure.page_count
-                row.staging_key = None
-                row.validated_at = self.clock.now_iso()
-                doc_audit.record_document_event(
-                    session, clock=self.clock, event_type=C.AUDIT_EVENT_DOCUMENT_RECOVERED,
-                    outcome=c1.OUTCOME_SUCCESS, subject_type=C.AUDIT_SUBJECT_MEDICAL_DOCUMENT,
-                    subject_id=row.document_id, actor_user_id=row.uploaded_by_user_id,
+                self._publish_stored(
+                    session, row, structure.page_count, structure.pixel_width,
+                    structure.pixel_height, identity=identity,
+                    event_actor=row.uploaded_by_user_id, event_role=c1.ROLE_PATIENT,
+                    audit_event=C.AUDIT_EVENT_DOCUMENT_RECOVERED,
                 )
+                session.delete(session.get(DocumentInflightOperation, inflight_id))
                 recovered += 1
         return recovered
 
@@ -738,33 +1002,36 @@ class DocumentService:
             return self.worker.validate(
                 storage_key=key, content_sha256=candidate["sha"],
                 byte_size=candidate["size"], media_type=candidate["media_type"],
+                fixture_file_sha256=candidate["sha"],
             )
         except (AdmissionRejection, DocumentIntegrityMismatch, WorkerUnavailableError):
             return None
 
     def sweep_orphans(self) -> int:
-        """Remove private blobs with no owning ``STORED``/``PENDING_SCAN`` row.
+        """Remove private blobs with no owning live reservation.
 
-        Staging files older than the recovery grace period whose reservation no
-        longer exists (crash between ``stage`` and the staging-key write) and
-        final blobs whose row was never promoted are reclaimed. Live
-        reservations are never touched.
+        Ownership is re-checked fresh per candidate (T2-R1): a staging blob whose
+        document row still holds a live lease, or any STORED/PENDING_SCAN final
+        blob, is never touched. Only truly orphaned staging older than the grace
+        period and unowned final blobs are reclaimed, and a blob is counted only
+        after a successful unlink.
         """
         import time as _time
 
-        with read_transaction(self.database) as session:
-            rows = session.execute(select(MedicalDocument)).scalars().all()
-            live_staging = {row.staging_key for row in rows if row.staging_key}
-            owned_final = {
-                row.storage_key for row in rows
-                if row.upload_status in (C.UPLOAD_STORED, C.UPLOAD_PENDING_SCAN)
-            }
         now = _time.time()
         removed = 0
         for key, path in self.store.iter_files():
             if ".tmp-" in key:
-                if key in live_staging:
-                    continue  # a live reservation owns this staging blob
+                final_key = key[: key.find(".bin.tmp-") + len(".bin")]
+                document_id = final_key.split("/")[1][: -len(".bin")]
+                with read_transaction(self.database) as session:
+                    row = session.get(MedicalDocument, document_id)
+                    if row is not None and row.staging_key == key:
+                        continue  # a reservation owns this staging blob
+                    if row is not None and row.upload_status in (
+                        C.UPLOAD_STORED, C.UPLOAD_PENDING_SCAN
+                    ):
+                        continue  # live/owned; leave for finalize/recovery
                 try:
                     age = now - path.stat().st_mtime
                 except OSError:
@@ -772,10 +1039,18 @@ class DocumentService:
                 if age < C.PENDING_SCAN_RECOVERY_AGE_SECONDS:
                     continue
                 self.store.discard_staging(key)
-                removed += 1
+                if not path.exists():
+                    removed += 1
             else:
-                if key not in owned_final:
-                    self.store.remove(key)
+                document_id = key.split("/")[1][: -len(".bin")]
+                with read_transaction(self.database) as session:
+                    row = session.get(MedicalDocument, document_id)
+                    if row is not None and row.upload_status in (
+                        C.UPLOAD_STORED, C.UPLOAD_PENDING_SCAN
+                    ):
+                        continue
+                self.store.remove(key)
+                if not path.exists():
                     removed += 1
         return removed
 
@@ -800,8 +1075,6 @@ class DocumentService:
         return (current or 0) + 1
 
     def _raw_excerpt(self, raw: RawExtraction) -> dict[str, Any]:
-        # Bounded line metadata only; never logged. Full raw text is preserved by
-        # its digest; the excerpt keeps the first lines for patient review.
         return {
             "mode": raw.mode,
             "line_count": len(raw.lines),
@@ -817,6 +1090,7 @@ class DocumentService:
             parsed_value_json=field.typed_value, confirmed_value_json=None,
             unit=field.unit, confidence=field.confidence, parse_status=field.parse_status,
             conflict_flag=field.conflict_flag, field_provenance=field.field_provenance,
+            confirmed_unit=None, missing_reason=field.missing_reason,
         )
 
     def _latest_summary(self, document_id: str) -> dict[str, Any] | None:
@@ -841,6 +1115,7 @@ class DocumentService:
             "fixture_template_id": row.fixture_template_id,
             "declared_media_type": row.declared_media_type, "byte_size": row.byte_size,
             "page_count": row.page_count, "content_sha256": row.content_sha256,
+            "pixel_width": row.pixel_width, "pixel_height": row.pixel_height,
             "created_at": row.created_at,
         }
         if latest is not None:
@@ -856,7 +1131,9 @@ class DocumentService:
                 "field_name": field.field_name, "raw_text": field.raw_value_text,
                 "typed_value_json": field.parsed_value_json,
                 "confirmed_value_json": field.confirmed_value_json,
-                "unit": field.unit, "confidence": field.confidence,
+                "unit": field.unit, "confirmed_unit": field.confirmed_unit,
+                "missing_reason": field.missing_reason,
+                "confidence": field.confidence,
                 "conflict_flag": field.conflict_flag, "parse_status": field.parse_status,
                 "provenance_kind": field.field_provenance,
             })
