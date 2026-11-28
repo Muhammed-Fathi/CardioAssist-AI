@@ -743,15 +743,13 @@ class OofLogisticCalibrator:
             return nll + reg, np.array([grad_a, grad_b], dtype=np.float64)
 
         if solver == DETERMINISTIC_CALIBRATION_SOLVER:
-            a_fit, b_fit = deterministic_logistic_fit(
+            fitted_parameters = deterministic_logistic_fit(
                 y,
                 logits,
                 l2_anchor=l2_anchor,
                 lower=CALIBRATION_LOWER_BOUNDS,
                 upper=CALIBRATION_UPPER_BOUNDS,
             )
-            intercept = float(a_fit) if np.isfinite(a_fit) else 0.0
-            slope = float(b_fit) if (np.isfinite(b_fit) and b_fit >= 0.0) else 1.0
         else:
             opt = minimize(
                 lambda theta: objective(theta)[0],
@@ -760,8 +758,51 @@ class OofLogisticCalibrator:
                 method="L-BFGS-B",
                 bounds=[(-15.0, 15.0), (0.01, 15.0)],
             )
-            intercept = float(opt.x[0]) if np.isfinite(opt.x[0]) else 0.0
-            slope = float(opt.x[1]) if (np.isfinite(opt.x[1]) and opt.x[1] >= 0.0) else 1.0
+            success = getattr(opt, "success", None)
+            status = getattr(opt, "status", None)
+            if (
+                not isinstance(success, (bool, np.bool_))
+                or not bool(success)
+                or not isinstance(status, (int, np.integer))
+                or isinstance(status, (bool, np.bool_))
+                or status != 0
+            ):
+                raise CalibrationIntegrityError(
+                    "calibration_optimizer_failed",
+                    "The calibration optimizer did not report successful termination.",
+                )
+            fitted_parameters = getattr(opt, "x", None)
+
+        # Validate before coercion and never silently replace fitted parameters.
+        # The intentional constant/dummy fallback above is a separate path.
+        if (
+            not isinstance(fitted_parameters, (tuple, np.ndarray))
+            or (isinstance(fitted_parameters, np.ndarray) and fitted_parameters.shape != (2,))
+        ):
+            raise CalibrationIntegrityError(
+                "invalid_fitted_calibration_parameters",
+                "The calibration optimizer returned invalid parameters.",
+            )
+        if len(fitted_parameters) != 2 or any(
+            not isinstance(value, (int, float, np.integer, np.floating))
+            or isinstance(value, (bool, np.bool_))
+            for value in fitted_parameters
+        ):
+            raise CalibrationIntegrityError(
+                "invalid_fitted_calibration_parameters",
+                "The calibration optimizer returned invalid parameters.",
+            )
+        if any(
+            not lower <= value <= upper
+            for value, lower, upper in zip(
+                fitted_parameters, CALIBRATION_LOWER_BOUNDS, CALIBRATION_UPPER_BOUNDS
+            )
+        ):
+            raise CalibrationIntegrityError(
+                "invalid_fitted_calibration_parameters",
+                "The calibration optimizer returned invalid parameters.",
+            )
+        intercept, slope = (float(value) for value in fitted_parameters)
         calibrated = expit(intercept + slope * logits)
         brier_after = float(brier_score_loss(y.astype(np.int64), calibrated))
 

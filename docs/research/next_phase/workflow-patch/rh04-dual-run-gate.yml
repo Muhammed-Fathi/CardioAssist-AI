@@ -1,0 +1,573 @@
+name: rh04-dual-run-gate
+
+# RH-04 V2 dual-run window (CAI-RH04-DUALROLLBACK-v3, V2-05).
+#
+# PROPERTY THAT MATTERS MOST: every stage publishes its own result even when
+# another stage fails, and a mandatory failure is never suppressed. Independence
+# is implemented by giving each stage `if: always()` and having it record its own
+# exit code, then having the final gate step read those codes and fail if any
+# *mandatory* stage failed. Nothing is retried, skipped or tolerated into green.
+#
+# Lane A divergence is a *classified finding*, not a pass: training failure,
+# missing evidence and invalid output are failures. Lane B is exact, with no
+# numeric tolerance.
+#
+# ROUND 16: the previous version of this file ran one default execution per Python
+# version. That is a single dispatch class, so "cross-environment" was not tested.
+# The matrix is now 4 dispatch classes x 2 Python versions = 8 independent runs:
+#   prescott, nehalem, sandybridge, haswell (forced, and verified resident)
+#   plus `host` (unforced) in a separate job for the two Python versions.
+# OPENBLAS_CORETYPE is only a *request*; each run reads threadpoolctl after the
+# numerical libraries are loaded and fails if the resident class is not the class
+# it will be recorded under.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rh04-dual-run-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dual-run:
+    name: RH-04 dual-run (${{ matrix.dispatch-class }} / Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
+      OPENBLAS_CORETYPE: ${{ matrix.dispatch-class }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+        dispatch-class: ['prescott', 'nehalem', 'sandybridge', 'haswell']
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Fetch trusted base reference
+        run: |
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          echo "checkout_head=$(git rev-parse HEAD)"
+          echo "base_ref=$(git rev-parse refs/remotes/origin/main)"
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            -r research/experiments/requirements.txt \
+            -r research/audit/requirements.txt \
+            -r research/uci412/requirements.txt \
+            -r tests/contracts/requirements.txt
+          # The independent oracle is required evidence. Without it the oracle
+          # test fails closed by design; installing it is not a relaxation.
+          python -m pip install -r research/experiments/requirements-oracle.txt
+          python -m pip check
+
+      - name: Record resident environment identity
+        run: |
+          python - <<'PY'
+          import importlib.metadata as m, json, subprocess
+          import numpy as np
+          # Resolve dispatch before reading it: threadpool_info() before the first
+          # BLAS call reports the library but not the kernel actually in use.
+          matrix = np.random.default_rng(0).normal(size=(256, 256))
+          matrix @ matrix.T
+          from threadpoolctl import threadpool_info
+          names = ("numpy","scipy","scikit-learn","mpmath","pytest","openpyxl","threadpoolctl")
+          payload = {}
+          for n in names:
+              try: payload[n] = m.version(n)
+              except Exception: payload[n] = None
+          payload["python"] = subprocess.check_output(["python","-c","import sys;print(sys.version.split()[0])"]).decode().strip()
+          payload["head"] = subprocess.check_output(["git","rev-parse","HEAD"]).decode().strip()
+          try:
+              payload["base_ref"] = subprocess.check_output(["git","rev-parse","refs/remotes/origin/main"]).decode().strip()
+          except Exception:
+              payload["base_ref"] = None
+          # Resident, not requested: OPENBLAS_CORETYPE is a request that may be
+          # silently ignored, so the linked kernels are read at runtime.
+          payload["resident_libraries"] = [
+              {k: v for k, v in e.items() if k in
+               ("internal_api","user_api","version","prefix","filepath","architecture","num_threads")}
+              for e in threadpool_info()
+          ]
+          print(json.dumps(payload, indent=2, sort_keys=True))
+          # Fail closed if the request was not honoured.
+          requested = "${{ matrix.dispatch-class }}".lower()
+          resident = [e.get("architecture") for e in threadpool_info() if e.get("architecture")]
+          observed = resident[0].lower() if resident else "unknown"
+          print(f"requested_dispatch_class={requested}")
+          print(f"resident_dispatch_class={observed}")
+          if observed != requested:
+              raise SystemExit(
+                  f"dispatch request not honoured: requested {requested!r}, "
+                  f"resident {observed!r}. A run recorded under the wrong class "
+                  "is false evidence, so it is refused."
+              )
+          PY
+
+      # ------------------------------------------------------------------ #
+      # Stage 1 — V1 scoped verification (MANDATORY)
+      # ------------------------------------------------------------------ #
+      - name: "Stage 1 - V1 scoped verification (mandatory)"
+        id: v1
+        if: always()
+        run: |
+          set +e
+          python -m pytest \
+            tests/experiments/test_offline_fixture_pack.py \
+            tests/experiments/test_research_facade.py \
+            tests/contracts -q -W error
+          code=$?
+          echo "stage1_exit=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # ------------------------------------------------------------------ #
+      # Stage 2 — Lane A regeneration and replay identity (MANDATORY)
+      # ------------------------------------------------------------------ #
+      - name: "Stage 2 - Lane A regeneration and replay identity (mandatory)"
+        id: lane_a
+        if: always()
+        run: |
+          set +e
+          mkdir -p lane-a
+          # Two independent regenerations. Each run drives the registered
+          # regeneration path and records the model, calibration and replay
+          # identities, not just a convergence summary. Repeated fits in one
+          # environment are the strictest same-environment identity test available.
+          for run in 1 2; do
+            python -m research.intake.rh04_v2_lane_a_report "${{ matrix.dispatch-class }}" lane-a \
+              > "lane-a/run${run}.json"
+            echo "lane_a_run${run}_exit=$?"
+          done
+          python - <<'PY'
+          import json, pathlib
+          first = json.loads(pathlib.Path("lane-a/run1.json").read_text())
+          second = json.loads(pathlib.Path("lane-a/run2.json").read_text())
+
+          def identities(document):
+              # Every regenerated identity, per route, so the comparison is over
+              # real model/calibration/replay identities rather than over a
+              # convergence hash.
+              out = {}
+              for route, value in document["routes"].items():
+                  regen = value["regeneration"]
+                  out[route] = {
+                      "model": regen["model_identity_sha256"],
+                      "calibration": regen["calibration_identity_sha256"],
+                      "replay": regen["replay_identity_sha256"],
+                      # The ACTUAL regenerated parameter identity, digested.
+                      # Within-environment: identical between two regenerations
+                      # in one class, and EXPECTED to differ between classes.
+                      "parameter_identity": regen["regenerated_parameters"][
+                          "parameter_identity"
+                      ]["regenerated_parameters_sha256"],
+                      "provenance_spec_sha256": regen["regenerated_parameters"][
+                          "source_provenance"
+                      ]["producer_spec_sha256"],
+                      # Measured equality against the archive. Recorded, never
+                      # required: under V2-04a a false here is a finding.
+                      "equality_exact": regen["regenerated_parameters"][
+                          "archived_parameter_equality"
+                      ]["exact"],
+                      "equality_classification": regen["regenerated_parameters"][
+                          "archived_parameter_equality"
+                      ]["classification"],
+                      "equality_max_delta": regen["regenerated_parameters"][
+                          "archived_parameter_equality"
+                      ].get(
+                          "coefficient_max_abs_delta",
+                          regen["regenerated_parameters"]["archived_parameter_equality"].get(
+                              "max_float_delta"
+                          ),
+                      ),
+                      "provenance_lineage_valid": regen["regenerated_parameters"][
+                          "provenance_lineage_valid"
+                      ]["valid"],
+                      "selected_family": regen["model_identity"]["selected_family"],
+                      "selected_hyperparameters": regen["model_identity"]["selected_hyperparameters"],
+                      "intercept": regen["calibration_identity"]["intercept"],
+                      "slope": regen["calibration_identity"]["slope"],
+                      "convergence": value["convergence_evidence_sha256"],
+                  }
+              return out
+
+          first_ids = identities(first)
+          second_ids = identities(second)
+          report = {
+              "protocol_id": first["protocol_id"],
+              "requested_dispatch_class": first["requested_dispatch_class"],
+              "observed_dispatch_class": first["observed_dispatch_class"],
+              "resident_dispatch": first["resident_dispatch"],
+              "python": first["identity"]["python"],
+              "libraries": first["identity"]["libraries"],
+              "n_library_entries": first["identity"]["n_entries"],
+              "regeneration_identical": first_ids == second_ids,
+              "replay_responses_identical": (
+                  first["replay_response_identity"] == second["replay_response_identity"]
+              ),
+              "replay_responses_sha256": first["replay_response_identity"][
+                  "replay_responses_sha256"
+              ],
+              "identities_run1": first_ids,
+              "identities_run2": second_ids,
+              "any_failure": first["any_failure"] or second["any_failure"],
+          }
+          pathlib.Path("lane-a/identity.json").write_text(json.dumps(report, indent=2, sort_keys=True))
+          print(json.dumps(report, indent=2, sort_keys=True))
+          # An empty resident list is not evidence.
+          if not report["libraries"]:
+              raise SystemExit("no resident numerical libraries were recorded")
+          # Same-environment regeneration must be bit-identical. This is not a
+          # tolerance: it is the property that makes the identity claim meaningful.
+          if not report["regeneration_identical"]:
+              raise SystemExit("Lane A did not regenerate identically within one environment")
+          if not report["replay_responses_identical"]:
+              raise SystemExit("Lane A replay responses differed between two runs")
+          # V2-04a: validity, not equality. A converged regeneration whose
+          # parameters differ from the archive by float noise is a diagnostic
+          # FINDING and must not fail the gate; missing evidence, broken
+          # provenance or a failed fit must. The module decides and this reads its
+          # verdict rather than re-deriving one, so the two cannot drift apart.
+          validity = first.get("validity") or {}
+          if validity.get("valid") is not True:
+              raise SystemExit(
+                  "Lane A evidence is invalid: "
+                  + "; ".join(validity.get("failures") or ["no validity record"])
+              )
+          for route, value in report["identities_run1"].items():
+              if value["provenance_lineage_valid"] is not True:
+                  raise SystemExit(f"{route}: provenance lineage is not established")
+          findings = validity.get("findings") or []
+          if findings:
+              print("Lane A findings (measured differences, not failures):")
+              for finding in findings:
+                  print("  - " + finding)
+          if report["any_failure"]:
+              raise SystemExit("Lane A reported a convergence failure")
+          PY
+          code=$?
+          echo "stage2_exit=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # ------------------------------------------------------------------ #
+      # Stage 3 — Lane B exact replay against the fixed reference (MANDATORY)
+      # ------------------------------------------------------------------ #
+      - name: "Stage 3 - Lane B exact replay vs fixed reference (mandatory)"
+        id: lane_b
+        if: always()
+        run: |
+          set +e
+          mkdir -p lane-b
+          # Done in its own process through the unified verification path. Lane B
+          # records its OWN resident library identity here: the replay process
+          # loads its libraries independently of Lane A's process, so one cannot
+          # evidence the other.
+          python -m research.intake.rh04_v2_lane_a_report \
+            "${{ matrix.dispatch-class }}" lane-b \
+            research/intake/fixtures/rh04_v2_portable > lane-b/observed.json
+          echo "lane_b_exit=$?"
+          python - <<'PY'
+          import json, pathlib
+          observed = json.loads(pathlib.Path("lane-b/observed.json").read_text())
+          expected_digest = "891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8"
+          record = {
+              "observed_digest": observed["observed_digest"],
+              "reference_digest": observed["reference_digest"],
+              "expected_digest": expected_digest,
+              "matches_reference": observed["matches_reference"],
+              "n_cases": observed["n_cases"],
+              "statuses": observed["statuses"],
+              "statuses_sha256": observed["statuses_sha256"],
+              "observed_dispatch_class": observed["observed_dispatch_class"],
+              "resident_dispatch": observed["resident_dispatch"],
+              "n_library_entries": observed["identity"]["n_entries"],
+              "verdict": observed["verdict"],
+          }
+          pathlib.Path("lane-b/identity.json").write_text(json.dumps(record, indent=2, sort_keys=True))
+          print(json.dumps(record, indent=2, sort_keys=True))
+          # The digest is compared exactly. It is never regenerated to fit, and the
+          # observed value is what gets recorded -- not merely "the expected digest
+          # appeared somewhere in the output".
+          if observed["observed_digest"] != expected_digest:
+              raise SystemExit(
+                  f"Lane B digest mismatch: observed {observed['observed_digest']}, "
+                  f"expected {expected_digest}"
+              )
+          if observed["reference_digest"] != expected_digest:
+              raise SystemExit("the pinned reference digest is not the agreed digest")
+          if observed["n_cases"] != 29:
+              raise SystemExit(f"expected 29 registered cases, replayed {observed['n_cases']}")
+          if observed["verdict"] != "ACCEPTED":
+              raise SystemExit("Lane B verdict is not ACCEPTED")
+          if not observed["identity"]["libraries"]:
+              raise SystemExit("Lane B recorded no resident library identity")
+          PY
+          code=$?
+          echo "stage3_exit=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # ------------------------------------------------------------------ #
+      # Stage 4 — targeted regression incl. negative tests (MANDATORY)
+      # ------------------------------------------------------------------ #
+      - name: "Stage 4 - targeted regression and negative tests (mandatory)"
+        id: regression
+        if: always()
+        run: |
+          set +e
+          # The previous filter selected only v2_02/v2_03/v2_07/lane_a/convergence.
+          # Seven tests asserting the same cross-host-equality contradiction were
+          # never selected, so the gate could not see them while a developer running
+          # the file directly hit all seven. The selection is now explicit about the
+          # families it must cover, including the V2-04a negatives and the portable
+          # lane diagnostics.
+          python -m pytest \
+            tests/experiments/test_rh04_v2_reference.py \
+            -q -W error \
+            -k "v2_02 or v2_03 or v2_04a or v2_05 or v2_07 or v2_08 or lane_a or lane_b or convergence or portable_lane or manifest_builder or producer_lineage or never_deserializes or never_reads_the_producer or calibration_input"
+          code=$?
+          echo "stage4_exit=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # ------------------------------------------------------------------ #
+      # Stage 5 — security checks (MANDATORY)
+      # ------------------------------------------------------------------ #
+      - name: "Stage 5 - security checks (mandatory)"
+        id: security
+        if: always()
+        run: |
+          set +e
+          # No raw artefact data may reach the repository from this gate.
+          leaked=$(git status --porcelain | grep -Ev '^\?\? (lane-a|lane-b)/' | wc -l)
+          echo "unexpected_worktree_changes=$leaked"
+          # The gate must not modify the frozen V1 surface.
+          git diff --exit-code --stat -- ai/training.py ai/calibration.py
+          frozen=$?
+          # No credentials or absolute host paths in the produced evidence.
+          if grep -RIlE '/(home|Users)/[A-Za-z0-9._-]+|BEGIN [A-Z ]*PRIVATE KEY' lane-a lane-b 2>/dev/null; then
+            paths=1
+          else
+            paths=0
+          fi
+          if [ "$leaked" -ne 0 ] || [ "$frozen" -ne 0 ] || [ "$paths" -ne 0 ]; then
+            code=1
+          else
+            code=0
+          fi
+          echo "stage5_exit=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # ------------------------------------------------------------------ #
+      # Stage 6 — classified Lane A differences (REPORTING, NOT A PASS GATE)
+      # ------------------------------------------------------------------ #
+      - name: "Stage 6 - classified Lane A differences (reporting)"
+        id: classify
+        if: always()
+        run: |
+          set +e
+          python - <<'PY'
+          import json, pathlib
+          report = json.loads(pathlib.Path("lane-a/identity.json").read_text())
+          record = {
+              "dispatch_class": report["observed_dispatch_class"],
+              "python": report["python"],
+              # `identities_run1` is what Stage 2 writes; `run1_digests` never
+              # existed, which is why every forced-dispatch job raised KeyError
+              # here instead of classifying its differences.
+              "digests": report["identities_run1"],
+              "regeneration_identical": report["regeneration_identical"],
+              "note": (
+                  "a Lane A digest differing between two dispatch classes is a "
+                  "classified numerical variation, reported here; it is not a "
+                  "failure and it is not acceptance. A digest differing between two "
+                  "regenerations inside one class would be a failure, and is caught "
+                  "in Stage 2."
+              ),
+          }
+          pathlib.Path("lane-a/classified.json").write_text(json.dumps(record, indent=2, sort_keys=True))
+          print(json.dumps(record, indent=2, sort_keys=True))
+          PY
+          code=$?
+          echo "stage6_exit=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # ------------------------------------------------------------------ #
+      # Aggregate — fails if ANY mandatory stage failed
+      # ------------------------------------------------------------------ #
+      - name: "Aggregate - fail if any mandatory stage failed"
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          stages = {
+              "v1": "${{ steps.v1.outputs.stage1_exit }}",
+              "lane_a": "${{ steps.lane_a.outputs.stage2_exit }}",
+              "lane_b": "${{ steps.lane_b.outputs.stage3_exit }}",
+              "regression": "${{ steps.regression.outputs.stage4_exit }}",
+              "security": "${{ steps.security.outputs.stage5_exit }}",
+              "classify": "${{ steps.classify.outputs.stage6_exit }}",
+          }
+          mandatory = ("v1", "lane_a", "lane_b", "regression", "security")
+          failures = []
+          for name, value in stages.items():
+              if name not in mandatory:
+                  continue
+              # An empty value means the step never recorded a result. That is a
+              # failure, not a skip: a stage that did not run produced no evidence.
+              if value is None or value.strip() == "":
+                  failures.append(f"{name}: NO_RESULT_RECORDED")
+              elif value.strip() != "0":
+                  failures.append(f"{name}: exit {value}")
+          summary = {
+              "python": "${{ matrix.python-version }}",
+              "dispatch_class": "${{ matrix.dispatch-class }}",
+              "stages": stages,
+              "mandatory_failures": failures,
+              "verdict": "PASS" if not failures else "FAIL",
+          }
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          pathlib.Path("gate-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+          if failures:
+              raise SystemExit("mandatory stages failed: " + "; ".join(failures))
+          PY
+
+      - name: Publish per-class summary
+        if: always()
+        run: |
+          {
+            echo "## RH-04 dual-run - ${{ matrix.dispatch-class }} / Python ${{ matrix.python-version }}"
+            echo
+            echo "| Stage | Exit |"
+            echo "| --- | --- |"
+            echo "| V1 scoped verification | ${{ steps.v1.outputs.stage1_exit }} |"
+            echo "| Lane A regeneration identity | ${{ steps.lane_a.outputs.stage2_exit }} |"
+            echo "| Lane B exact replay | ${{ steps.lane_b.outputs.stage3_exit }} |"
+            echo "| Targeted regression | ${{ steps.regression.outputs.stage4_exit }} |"
+            echo "| Security checks | ${{ steps.security.outputs.stage5_exit }} |"
+            echo "| Classified differences (reporting) | ${{ steps.classify.outputs.stage6_exit }} |"
+            echo
+            echo '```json'
+            cat lane-b/identity.json 2>/dev/null || echo '{"lane_b": "no evidence produced"}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rh04-gate-${{ matrix.dispatch-class }}-py${{ matrix.python-version }}
+          path: |
+            lane-a/
+            lane-b/
+            gate-summary.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ---------------------------------------------------------------------- #
+  # Unforced host dispatch: what this runner does with no coretype request.  #
+  # Kept separate so the forced classes above cannot be mistaken for it.     #
+  # ---------------------------------------------------------------------- #
+  host-dispatch:
+    name: RH-04 host dispatch (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      BLIS_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      VECLIB_MAXIMUM_THREADS: '1'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            -r research/experiments/requirements.txt \
+            -r research/audit/requirements.txt \
+            -r research/uci412/requirements.txt \
+            -r tests/contracts/requirements.txt \
+            -r research/experiments/requirements-oracle.txt
+          python -m pip check
+
+      - name: Lane A under host dispatch
+        run: |
+          # env -u so the job-level env cannot leak a coretype request in.
+          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host lane-a \
+            | tee lane-a-host.json
+          python -c "
+          import json
+          doc = json.load(open('lane-a-host.json'))
+          print('host resident classes:', doc['resident_dispatch']['blas_architectures'])
+          assert doc['identity']['libraries'], 'no resident library identity recorded'
+          assert doc['any_failure'] is False, doc
+          for route, value in doc['routes'].items():
+              regen = value['regeneration']
+              print(route, regen['model_identity']['selected_family'], regen['model_identity_sha256'][:12])
+          "
+
+      - name: Lane B under host dispatch
+        run: |
+          env -u OPENBLAS_CORETYPE python -m research.intake.rh04_v2_lane_a_report host lane-b \
+            research/intake/fixtures/rh04_v2_portable | tee lane-b-host.json
+          python -c "
+          import json
+          doc = json.load(open('lane-b-host.json'))
+          expected = '891d9e3b2a332c6efc251d97fee25ed46a627ed25b2a089594057b4c9896cdc8'
+          print('host Lane B observed:', doc['observed_digest'], doc['verdict'])
+          print('host Lane B resident classes:', doc['resident_dispatch']['blas_architectures'])
+          assert doc['observed_digest'] == expected, doc['observed_digest']
+          assert doc['verdict'] == 'ACCEPTED'
+          assert doc['identity']['libraries'], 'no resident library identity recorded'
+          "
+
+      - name: Upload host evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rh04-gate-host-py${{ matrix.python-version }}
+          path: |
+            lane-a-host.json
+            lane-b-host.json
+          if-no-files-found: warn
+          retention-days: 14
