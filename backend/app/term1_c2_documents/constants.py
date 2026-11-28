@@ -246,6 +246,23 @@ PDF_MAX_DECOMPRESSED_BYTES: Final = 32 * 1024 * 1024     # 32 MiB decompressed s
 # Recovery: a PENDING_SCAN row older than this is eligible for crash recovery.
 PENDING_SCAN_RECOVERY_AGE_SECONDS: Final = 60
 
+# --- durable in-flight ownership / lease / fence (T2-R1) ----------------------
+# A live upload/extraction attempt holds a durable lease on its idempotency
+# identity. The lease outlives the worst-case bounded processing window so a live
+# attempt is never reclaimed mid-flight; only an expired lease may be fenced and
+# taken over by crash recovery or a same-key retry.
+INFLIGHT_LEASE_SECONDS: Final = 90
+INFLIGHT_STATE_IN_FLIGHT: Final = "IN_FLIGHT"
+INFLIGHT_STATE_FAILED: Final = "FAILED"
+INFLIGHT_STATES: Final[tuple[str, ...]] = (INFLIGHT_STATE_IN_FLIGHT, INFLIGHT_STATE_FAILED)
+
+# --- worker / IPC resource boundaries (T2-R4) ---------------------------------
+WORKER_MAX_CONCURRENCY: Final = 2          # bounded simultaneous parser jobs
+WORKER_READ_TIMEOUT_SECONDS: Final = 10.0  # per-socket read deadline
+JSON_BODY_CAP_BYTES: Final = 64 * 1024     # 64 KiB DOC5/DOC7 JSON request cap
+IPC_VALIDATE_PATH: Final = "/internal/ocr/v1/validate"
+IPC_EXTRACT_PATH: Final = "/internal/ocr/v1/extract"
+
 # --- DOC operation identities (exact method + path template) ------------------
 OP_DOC1_UPLOAD: Final = "POST /v1/me/documents"
 OP_DOC2_LIST: Final = "GET /v1/me/documents"
