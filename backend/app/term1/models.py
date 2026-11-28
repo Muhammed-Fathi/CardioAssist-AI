@@ -550,9 +550,24 @@ class AssessmentSnapshot(Base):
             name="fk_assessment_snapshot_profile",
         ),
         UniqueConstraint("snapshot_id", "patient_id", name="ux_snapshot_id_patient"),
+        UniqueConstraint(
+            "snapshot_id", "health_profile_id", "patient_id",
+            name="ux_snapshot_id_profile_patient",
+        ),
         CheckConstraint(
             "source_kind IN ('synthetic_demo_patient_manual','synthetic_demo_ocr_confirmed')",
             name="ck_snapshot_source_kind",
+        ),
+        CheckConstraint(
+            "json_valid(snapshot_json)", name="ck_snapshot_json_valid"
+        ),
+        CheckConstraint(
+            "panel_id = 'da_a2_resting_v1' AND panel_version = '1.0.0' "
+            "AND panel_contract_sha256 = "
+            "'c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8' "
+            "AND schema_version = 'term1.c2.snapshot/v1' "
+            "AND source_contract_version = 'term1.c2.intake/v1'",
+            name="ck_snapshot_contract_identity",
         ),
     )
 
@@ -589,10 +604,14 @@ class Assessment(Base):
             name="fk_assessment_health_profile",
         ),
         ForeignKeyConstraint(
-            ["snapshot_id", "patient_id"],
-            ["assessment_snapshot.snapshot_id", "assessment_snapshot.patient_id"],
+            ["snapshot_id", "health_profile_id", "patient_id"],
+            [
+                "assessment_snapshot.snapshot_id",
+                "assessment_snapshot.health_profile_id",
+                "assessment_snapshot.patient_id",
+            ],
             ondelete="RESTRICT",
-            name="fk_assessment_snapshot",
+            name="fk_assessment_snapshot_profile_patient",
         ),
         ForeignKeyConstraint(
             ["assignment_id"],
@@ -621,14 +640,34 @@ class Assessment(Base):
         UniqueConstraint("active_attempt_id", name="ux_assessment_active_attempt"),
         UniqueConstraint("current_result_id", name="ux_assessment_current_result"),
         CheckConstraint(
+            "(reassessment_of_id IS NULL AND reassessment_reason IS NULL) OR "
+            "(reassessment_of_id IS NOT NULL AND reassessment_reason IS NOT NULL)",
+            name="ck_assessment_reassessment_pair",
+        ),
+        CheckConstraint(
+            "panel_id = 'da_a2_resting_v1' AND panel_version = '1.0.0' "
+            "AND source_contract_version = 'term1.c2.intake/v1' "
+            "AND source_kind IN ('synthetic_demo_patient_manual',"
+            "'synthetic_demo_ocr_confirmed')",
+            name="ck_assessment_contract_identity",
+        ),
+        CheckConstraint("current_generation >= 0", name="ck_assessment_generation"),
+        CheckConstraint("review_version >= 0", name="ck_assessment_review_version"),
+        CheckConstraint(
             "status IN ('DRAFT','INPUT_VALIDATED','INFERENCE_RUNNING',"
             "'INFERENCE_SUCCEEDED','PENDING_REVIEW','INFERENCE_ABSTAINED',"
             "'INFERENCE_UNAVAILABLE','INFERENCE_ERROR')",
             name="ck_assessment_status",
         ),
         CheckConstraint(
-            "((status IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR') "
-            "AND reason_code IS NOT NULL) OR "
+            "((status = 'INFERENCE_ABSTAINED' "
+            "AND reason_code = 'optional_panel_field_missing' "
+            "AND stage_complete = 0) OR "
+            "(status = 'INFERENCE_UNAVAILABLE' "
+            "AND reason_code IN ('real_ai_not_authorized','authorization_withdrawn')) OR "
+            "(status = 'INFERENCE_ERROR' "
+            "AND reason_code IN ('lease_expired','worker_error',"
+            "'malformed_worker_response','artifact_integrity_failed')) OR "
             "(status NOT IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR') "
             "AND reason_code IS NULL))",
             name="ck_assessment_status_reason",
@@ -682,6 +721,29 @@ class InferenceAttempt(Base):
             ["assessment.assessment_id"],
             ondelete="RESTRICT",
             name="fk_inference_attempt_assessment",
+        ),
+        CheckConstraint("generation >= 0", name="ck_inference_attempt_generation"),
+        CheckConstraint("lease_until > leased_at", name="ck_inference_attempt_lease_order"),
+        CheckConstraint(
+            "state IN ('INFERENCE_RUNNING','INFERENCE_SUCCEEDED','INFERENCE_ABSTAINED',"
+            "'INFERENCE_UNAVAILABLE','INFERENCE_ERROR')",
+            name="ck_inference_attempt_state",
+        ),
+        CheckConstraint(
+            "(state = 'INFERENCE_RUNNING' AND reason_code IS NULL AND completed_at IS NULL) "
+            "OR (state = 'INFERENCE_SUCCEEDED' AND reason_code IS NULL "
+            "AND completed_at IS NOT NULL) "
+            "OR (state = 'INFERENCE_ABSTAINED' "
+            "AND reason_code = 'optional_panel_field_missing' "
+            "AND completed_at IS NOT NULL) "
+            "OR (state = 'INFERENCE_UNAVAILABLE' "
+            "AND reason_code IN ('real_ai_not_authorized','authorization_withdrawn') "
+            "AND completed_at IS NOT NULL) "
+            "OR (state = 'INFERENCE_ERROR' "
+            "AND reason_code IN ('lease_expired','worker_error',"
+            "'malformed_worker_response','artifact_integrity_failed') "
+            "AND completed_at IS NOT NULL)",
+            name="ck_inference_attempt_state_reason",
         ),
         UniqueConstraint(
             "assessment_id", "generation", name="ux_inference_attempt_assessment_gen"
@@ -743,6 +805,7 @@ class InferenceResult(Base):
             ondelete="RESTRICT",
             name="fk_inference_result_snapshot",
         ),
+        CheckConstraint("generation >= 0", name="ck_inference_result_generation"),
         UniqueConstraint("attempt_id", name="ux_inference_result_attempt"),
         UniqueConstraint(
             "assessment_id", "snapshot_id", "result_id",

@@ -24,10 +24,10 @@ from . import constants
 from .audit import record
 from .c2_authz import require_active_consent, require_clinical_patient
 from .crypto import sha256_hex
-from .errors import api_error
+from .errors import ApiError, api_error
 from .idempotency import canonical_public
 from .models import HealthProfile, UserAccount
-from .panel import normalize_panel_fields, panel_contract_ok
+from .panel import MANDATORY_FIELDS, normalize_panel_fields, panel_contract_ok
 from .timeutil import Clock
 
 # Top-level request keys a client may never supply (manual-only provenance).
@@ -71,16 +71,60 @@ def profile_sha256(
 
 
 def verify_profile_digest(row: HealthProfile) -> None:
-    """Recompute the stored digest; a mismatch fails closed (500)."""
-    expected = profile_sha256(
-        panel_id=row.panel_id,
-        panel_version=row.panel_version,
-        schema_version=row.schema_version,
-        fields_json=row.fields_json,
-        provenance_json=row.provenance_json,
-    )
-    if expected != row.profile_sha256:
-        raise api_error("internal_error")
+    """Verify the stored canonical profile document before it is trusted.
+
+    The digest is necessary but not sufficient: an internally consistent hash
+    over an invalid envelope must not make an invalid profile authoritative.
+    """
+    try:
+        if (
+            row.panel_id != constants.PANEL_ID
+            or row.panel_version != constants.PANEL_VERSION
+            or row.schema_version != constants.PROFILE_SCHEMA_VERSION
+            or not isinstance(row.fields_json, dict)
+            or set(row.fields_json) != {"inputs", "units", "missing_reasons"}
+            or row.provenance_json != {
+                "source_contract_version": constants.SOURCE_CONTRACT_VERSION,
+                "source_kind": constants.SOURCE_KIND_MANUAL,
+            }
+        ):
+            raise ValueError("profile envelope mismatch")
+        normalized = normalize_panel_fields(
+            row.fields_json["inputs"],
+            row.fields_json["units"],
+            row.fields_json["missing_reasons"],
+            allow_absent_mandatory=True,
+            strict_reasons=False,
+            allow_structural_null=True,
+        )
+        expected_fields = {
+            "inputs": normalized[0],
+            "units": normalized[1],
+            "missing_reasons": normalized[2],
+        }
+        if expected_fields != row.fields_json:
+            raise ValueError("profile fields are not normalized")
+        expected_status = (
+            constants.HEALTH_PROFILE_COMPLETE
+            if all(normalized[0].get(field) is not None for field in MANDATORY_FIELDS)
+            else constants.HEALTH_PROFILE_DRAFT
+        )
+        if row.superseded_at is None:
+            if row.status != expected_status:
+                raise ValueError("profile status mismatch")
+        elif row.status != constants.HEALTH_PROFILE_SUPERSEDED:
+            raise ValueError("profile supersession mismatch")
+        expected_digest = profile_sha256(
+            panel_id=row.panel_id,
+            panel_version=row.panel_version,
+            schema_version=row.schema_version,
+            fields_json=row.fields_json,
+            provenance_json=row.provenance_json,
+        )
+        if expected_digest != row.profile_sha256:
+            raise ValueError("profile digest mismatch")
+    except (ApiError, TypeError, ValueError, OverflowError, RecursionError):
+        raise api_error("internal_error") from None
 
 
 def profile_projection(row: HealthProfile) -> dict[str, Any]:
@@ -153,6 +197,10 @@ def patch_health_profile(
         current is None or current.version_number != expected_version
     ):
         raise api_error("concurrency_conflict")
+    if current is not None:
+        # Verify the immutable source before using any of its values as merge
+        # input; a corrupt row must not be laundered into a fresh digest.
+        verify_profile_digest(current)
 
     old_fields = (
         current.fields_json
@@ -170,13 +218,24 @@ def patch_health_profile(
     merged_reasons = dict(old_fields["missing_reasons"])
     merged_reasons.update(patch_reasons)
 
-    # A reason resent for a field that is (or becomes) present is a client
-    # error, not something to silently drop.
+    # Explicit null is an affirmative measurement-missing assertion. It must
+    # carry a fresh measurement reason; never inherit a previous reason (which
+    # may have described a different observation). The normalizer rejects the
+    # missing reason and the structural `not_provided` reason for null values.
+    for field, value in patch_inputs.items():
+        if value is None and field not in patch_reasons:
+            merged_reasons.pop(field, None)
+        if value is None and field in old_fields["units"] and field not in patch_units:
+            merged_units.pop(field, None)
+
+    # A reason paired with a non-null value in this request is contradictory.
+    # A reason resent for an inherited, already-present value is stale metadata
+    # and is dropped by the non-strict merge normalizer below.
     for field in patch_reasons:
-        if field in merged_inputs and merged_inputs[field] is not None:
+        if field in patch_inputs and patch_inputs[field] is not None:
             raise api_error("missing_reason_mismatch")
 
-    inputs, units, missing_reasons, stage_complete = normalize_panel_fields(
+    inputs, units, missing_reasons, _stage_complete = normalize_panel_fields(
         merged_inputs,
         merged_units,
         merged_reasons,
@@ -218,7 +277,7 @@ def patch_health_profile(
         version_number=version_number,
         status=(
             constants.HEALTH_PROFILE_COMPLETE
-            if stage_complete
+            if all(inputs.get(field) is not None for field in MANDATORY_FIELDS)
             else constants.HEALTH_PROFILE_DRAFT
         ),
         superseded_at=None,

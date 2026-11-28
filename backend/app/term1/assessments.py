@@ -32,7 +32,7 @@ from .c2_authz import (
     require_owned_assignment,
 )
 from .crypto import sha256_hex
-from .errors import api_error
+from .errors import ApiError, api_error
 from .health_profile import canonical_bytes, verify_profile_digest
 from .idempotency import canonical_public
 from .models import (
@@ -87,9 +87,26 @@ _SNAPSHOT_SCHEMA_DEFINITION: dict[str, Any] = {
         },
         "source_contract_version": {"const": constants.SOURCE_CONTRACT_VERSION},
         "source_kind": {"enum": list(constants.SOURCE_KINDS)},
-        "inputs": {"type": "panel-field-map"},
-        "units": {"type": "unit-map"},
-        "missing_reasons": {"type": "missing-reason-map"},
+        "inputs": {
+            "type": "object",
+            "required": ["age", "sex", "cp", "trestbps", "restecg"],
+            "field_order": ["age", "sex", "cp", "trestbps", "restecg"],
+            "nullable_fields": ["trestbps", "restecg"],
+        },
+        "units": {
+            "type": "object",
+            "allowed_fields": ["age", "trestbps"],
+            "tokens": {"age": "years", "trestbps": "mmHg"},
+            "present_numerical_fields_only": True,
+        },
+        "missing_reasons": {
+            "type": "object",
+            "allowed_fields": ["age", "sex", "cp", "trestbps", "restecg"],
+            "enum": sorted(
+                ["not_measured", "not_available_at_time", "unknown", "not_provided"]
+            ),
+            "explicit_null_excludes": ["not_provided"],
+        },
         "provenance": {
             "keys": {
                 "source_contract_version": {"const": constants.SOURCE_CONTRACT_VERSION},
@@ -98,13 +115,18 @@ _SNAPSHOT_SCHEMA_DEFINITION: dict[str, Any] = {
                 "health_profile_sha256": {"type": "sha256-hex"},
                 "provenance_fields": {
                     "type": "map",
+                    "keys": ["age", "sex", "cp", "trestbps", "restecg"],
                     "value_enum": ["patient_manual", "ocr_confirmed"],
+                    "keys_match_non_null_inputs": True,
+                    "value_matches_source_kind": True,
                 },
                 "confirmed_values_sha256": {"type": "sha256-hex"},
             }
         },
         "attached_documents": {
             "type": "array",
+            "max_items": 5,
+            "unique_by": ["document_id", "binding_id"],
             "sort_keys": ["document_id", "binding_id"],
             "item_keys": [
                 "binding_id",
@@ -116,6 +138,17 @@ _SNAPSHOT_SCHEMA_DEFINITION: dict[str, Any] = {
                 "extraction_confirmed_at",
                 "confirmed_values_sha256",
             ],
+            "item": {
+                "binding_id": {"type": "uuid"},
+                "document_id": {"type": "uuid"},
+                "attachment_role": {"enum": list(constants.ATTACHMENT_ROLES)},
+                "extraction_id": {"type": ["uuid", "null"]},
+                "extraction_version": {"type": ["positive-integer", "null"]},
+                "document_sha256_at_bind": {"type": "sha256-hex"},
+                "extraction_confirmed_at": {"type": ["utc-iso8601", "null"]},
+                "confirmed_values_sha256": {"type": ["sha256-hex", "null"]},
+                "extraction_pair": "both-null-or-both-present",
+            },
         },
     },
 }
@@ -229,8 +262,33 @@ def snapshot_digest(envelope: dict[str, Any]) -> str:
     return sha256_hex(canonical_public(envelope))
 
 
+def _canonical_uuid(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        return str(uuid.UUID(value)) == value
+    except (ValueError, AttributeError):
+        return False
+
+
+def _sha256_hex(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def _verify_snapshot_integrity(session: Session, assessment: Assessment) -> AssessmentSnapshot:
-    """Recompute the stored snapshot digest on S2/S3 reads (fail closed)."""
+    """Verify the full pinned envelope, row identity and canonical digests.
+
+    This runs on every S2/S3 read and immediately before dispatch. A matching
+    outer hash is not enough: all envelope identities, profile provenance,
+    panel values, stage completeness and the schema-definition digest are
+    checked independently so a self-consistent but wrong document fails closed.
+    Track 1 has no migration-08 document tables, so its only valid attachment
+    list is the empty list.
+    """
     snapshot = session.execute(
         select(AssessmentSnapshot).where(
             AssessmentSnapshot.snapshot_id == assessment.snapshot_id,
@@ -239,8 +297,163 @@ def _verify_snapshot_integrity(session: Session, assessment: Assessment) -> Asse
     ).scalar_one_or_none()
     if snapshot is None:
         raise api_error("internal_error")
-    if snapshot_digest(snapshot.snapshot_json) != snapshot.snapshot_sha256:
-        raise api_error("internal_error")
+
+    try:
+        envelope = snapshot.snapshot_json
+        if not isinstance(envelope, dict) or set(envelope) != {
+            "schema_version",
+            "schema_sha256",
+            "assessment_id",
+            "patient_id",
+            "assignment_id",
+            "consent_id",
+            "health_profile_id",
+            "panel",
+            "source_contract_version",
+            "source_kind",
+            "inputs",
+            "units",
+            "missing_reasons",
+            "provenance",
+            "attached_documents",
+        }:
+            raise ValueError("snapshot envelope keys mismatch")
+        if (
+            not _canonical_uuid(assessment.assessment_id)
+            or not _canonical_uuid(assessment.patient_id)
+            or not _canonical_uuid(assessment.assignment_id)
+            or not _canonical_uuid(assessment.consent_id)
+            or not _canonical_uuid(assessment.health_profile_id)
+            or not _canonical_uuid(snapshot.snapshot_id)
+            or envelope["assessment_id"] != assessment.assessment_id
+            or envelope["patient_id"] != assessment.patient_id
+            or envelope["assignment_id"] != assessment.assignment_id
+            or envelope["consent_id"] != assessment.consent_id
+            or envelope["health_profile_id"] != assessment.health_profile_id
+            or snapshot.health_profile_id != assessment.health_profile_id
+        ):
+            raise ValueError("snapshot identity mismatch")
+        if (
+            envelope["schema_version"] != constants.SNAPSHOT_SCHEMA_VERSION
+            or not _sha256_hex(envelope["schema_sha256"])
+            or envelope["schema_sha256"] != snapshot_schema_sha256()
+            or snapshot.schema_version != constants.SNAPSHOT_SCHEMA_VERSION
+            or snapshot.schema_sha256 != envelope["schema_sha256"]
+        ):
+            raise ValueError("snapshot schema mismatch")
+
+        panel = envelope["panel"]
+        if not isinstance(panel, dict) or set(panel) != {
+            "panel_id",
+            "panel_version",
+            "panel_contract_sha256",
+        }:
+            raise ValueError("snapshot panel keys mismatch")
+        if (
+            panel["panel_id"] != constants.PANEL_ID
+            or panel["panel_version"] != constants.PANEL_VERSION
+            or panel["panel_contract_sha256"] != constants.PANEL_CONTRACT_SHA256
+            or snapshot.panel_id != panel["panel_id"]
+            or snapshot.panel_version != panel["panel_version"]
+            or snapshot.panel_contract_sha256 != panel["panel_contract_sha256"]
+            or assessment.panel_id != panel["panel_id"]
+            or assessment.panel_version != panel["panel_version"]
+        ):
+            raise ValueError("snapshot panel identity mismatch")
+
+        source_kind = envelope["source_kind"]
+        if (
+            source_kind not in constants.SOURCE_KINDS
+            or envelope["source_contract_version"] != constants.SOURCE_CONTRACT_VERSION
+            or snapshot.source_contract_version != envelope["source_contract_version"]
+            or snapshot.source_kind != source_kind
+            or assessment.source_contract_version != envelope["source_contract_version"]
+            or assessment.source_kind != source_kind
+        ):
+            raise ValueError("snapshot source identity mismatch")
+
+        inputs, units, missing_reasons, stage_complete = normalize_panel_fields(
+            envelope["inputs"],
+            envelope["units"],
+            envelope["missing_reasons"],
+            allow_absent_mandatory=False,
+            strict_reasons=True,
+            allow_structural_null=True,
+        )
+        if (
+            inputs != envelope["inputs"]
+            or units != envelope["units"]
+            or missing_reasons != envelope["missing_reasons"]
+            or bool(assessment.stage_complete) is not stage_complete
+        ):
+            raise ValueError("snapshot panel payload mismatch")
+
+        profile = session.execute(
+            select(HealthProfile).where(
+                HealthProfile.health_profile_id == snapshot.health_profile_id,
+                HealthProfile.patient_id == snapshot.patient_id,
+            )
+        ).scalar_one_or_none()
+        if profile is None:
+            raise ValueError("pinned profile missing")
+        verify_profile_digest(profile)
+        if (
+            profile.status == constants.HEALTH_PROFILE_DRAFT
+            or not all(
+                profile.fields_json["inputs"].get(field) is not None
+                for field in ("age", "sex", "cp")
+            )
+        ):
+            raise ValueError("pinned profile is incomplete")
+
+        provenance = envelope["provenance"]
+        if not isinstance(provenance, dict) or set(provenance) != {
+            "source_contract_version",
+            "source_kind",
+            "health_profile_id",
+            "health_profile_sha256",
+            "provenance_fields",
+            "confirmed_values_sha256",
+        }:
+            raise ValueError("snapshot provenance keys mismatch")
+        expected_source = (
+            "patient_manual"
+            if source_kind == constants.SOURCE_KIND_MANUAL
+            else "ocr_confirmed"
+        )
+        expected_fields = {
+            field: expected_source
+            for field in sorted(inputs)
+            if inputs[field] is not None
+        }
+        if (
+            provenance["source_contract_version"] != constants.SOURCE_CONTRACT_VERSION
+            or provenance["source_kind"] != source_kind
+            or provenance["health_profile_id"] != profile.health_profile_id
+            or provenance["health_profile_sha256"] != profile.profile_sha256
+            or not _sha256_hex(provenance["health_profile_sha256"])
+            or provenance["provenance_fields"] != expected_fields
+            or not _sha256_hex(provenance["confirmed_values_sha256"])
+            or provenance["confirmed_values_sha256"]
+            != _confirmed_values_sha256(
+                inputs=inputs,
+                units=units,
+                missing_reasons=missing_reasons,
+                provenance_fields=expected_fields,
+            )
+        ):
+            raise ValueError("snapshot provenance mismatch")
+
+        attachments = envelope["attached_documents"]
+        if not isinstance(attachments, list) or attachments:
+            raise ValueError("Track 1 snapshot must not carry documents")
+        if (
+            not _sha256_hex(snapshot.snapshot_sha256)
+            or snapshot_digest(envelope) != snapshot.snapshot_sha256
+        ):
+            raise ValueError("snapshot digest mismatch")
+    except (ApiError, KeyError, TypeError, ValueError, OverflowError, RecursionError):
+        raise api_error("internal_error") from None
     return snapshot
 
 
@@ -409,6 +622,12 @@ def submit_assessment(
     )
     session.add(assessment)
     session.flush()
+
+    # Re-read and validate the persisted canonical envelope before any
+    # inference lifecycle transition. This catches serialization/identity drift
+    # between the in-memory builder and the database dispatch record.
+    persisted_snapshot = _verify_snapshot_integrity(session, assessment)
+    snapshot_sha256 = persisted_snapshot.snapshot_sha256
 
     # SAFE_SCOPE: durable attempt -> terminal unavailable, no dispatch.
     attempt = inference_lifecycle.begin_attempt(

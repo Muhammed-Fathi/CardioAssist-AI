@@ -149,9 +149,15 @@ def _fenced(
     return attempt, assessment
 
 
-def _authorization_withdrawn(
+def _authorization_is_active(
     session: Session, assessment: Assessment
 ) -> bool:
+    """Validate the exact persisted assignment and consent pins.
+
+    Missing rows, cross-patient references, revoked assignments/consents, and
+    unexpected consent kind/scope/version all fail closed. The checks use the
+    immutable IDs stored on this assessment, never a replacement active row.
+    """
     assignment = session.execute(
         select(DoctorPatientAssignment).where(
             DoctorPatientAssignment.assignment_id == assessment.assignment_id
@@ -163,8 +169,17 @@ def _authorization_withdrawn(
         )
     ).scalar_one_or_none()
     return bool(
-        (assignment is not None and assignment.revoked_at is not None)
-        or (consent is not None and consent.revoked_at is not None)
+        assignment is not None
+        and assignment.assignment_id == assessment.assignment_id
+        and assignment.patient_id == assessment.patient_id
+        and assignment.revoked_at is None
+        and consent is not None
+        and consent.consent_id == assessment.consent_id
+        and consent.patient_id == assessment.patient_id
+        and consent.kind == constants.CONSENT_KIND_SYNTHETIC_DEMO
+        and consent.scope == constants.CONSENT_SCOPE_PATIENT_WIDE
+        and consent.contract_version == constants.CONSENT_CONTRACT_VERSION
+        and consent.revoked_at is None
     )
 
 
@@ -177,13 +192,24 @@ def _terminalize(
     state: str,
     reason_code: str,
     actor_user_id: str | None,
+    increment_generation: bool = False,
 ) -> None:
-    """Mandatory terminal write order: assessment pointer first, then attempt."""
+    """Terminalize atomically after exact authorization revalidation.
+
+    Revoked, missing, cross-patient or wrong-scope authorization changes every
+    attempted outcome into ``INFERENCE_UNAVAILABLE / authorization_withdrawn``.
+    Recovery increments the generation once before the attempt is terminalized.
+    """
+    if not _authorization_is_active(session, assessment):
+        state = constants.ATTEMPT_STATE_UNAVAILABLE
+        reason_code = constants.REASON_AUTHORIZATION_WITHDRAWN
     now = clock.now_iso()
     assessment.status = state
     assessment.reason_code = reason_code
     assessment.active_attempt_id = None
     assessment.current_result_id = None
+    if increment_generation:
+        assessment.current_generation += 1
     assessment.updated_at = now
     session.flush()
     attempt.state = state
@@ -203,6 +229,8 @@ def _terminalize(
             "state": state,
             "reason_code": reason_code,
             "generation": attempt.generation,
+            "current_generation": assessment.current_generation,
+            "recovery": increment_generation,
         },
     )
 
@@ -219,10 +247,11 @@ def complete_unavailable(
 ) -> InferenceAttempt:
     """Terminal INFERENCE_UNAVAILABLE with mid-flight revocation precedence.
 
-    If the assignment or the referenced consent was revoked while the attempt
-    was running, ``reason_code`` becomes ``authorization_withdrawn``.
+    If the exact assignment or referenced consent is unavailable or no longer
+    valid, the terminal state is ``authorization_withdrawn`` regardless of the
+    caller's requested reason.
     """
-    if reason_code not in constants.REASON_CODES:
+    if reason_code != constants.REASON_REAL_AI_NOT_AUTHORIZED:
         raise api_error("validation_failed")
     attempt, assessment = _fenced(
         session,
@@ -231,16 +260,13 @@ def complete_unavailable(
         worker_id=worker_id,
         fence_token=fence_token,
     )
-    effective = reason_code
-    if _authorization_withdrawn(session, assessment):
-        effective = constants.REASON_AUTHORIZATION_WITHDRAWN
     _terminalize(
         session,
         clock=clock,
         attempt=attempt,
         assessment=assessment,
         state=constants.ATTEMPT_STATE_UNAVAILABLE,
-        reason_code=effective,
+        reason_code=reason_code,
         actor_user_id=actor_user_id,
     )
     return attempt
@@ -263,6 +289,8 @@ def complete_abstained(
         worker_id=worker_id,
         fence_token=fence_token,
     )
+    if assessment.stage_complete:
+        raise api_error("validation_failed")
     _terminalize(
         session,
         clock=clock,
@@ -312,12 +340,12 @@ def complete_error(
 
 
 def recover_expired(session: Session, *, clock: Clock) -> int:
-    """Lease-expiry recovery: terminalize every expired running attempt.
+    """Recover expired running attempts once using the strict lease boundary.
 
-    Sets ``assessment.status = INFERENCE_ERROR`` /
-    ``reason_code = lease_expired``, clears the pointer, increments
-    ``current_generation`` exactly once, and marks the attempt
-    ``INFERENCE_ERROR``. Returns the number of recovered attempts.
+    Rows with a stale pointer, assessment status or generation are not counted
+    or mutated. A recovered attempt increments the assessment generation once;
+    if its exact authorization is no longer valid it ends unavailable with
+    ``authorization_withdrawn`` rather than an ordinary lease error.
     """
     now_iso = clock.now_iso()
     expired = session.execute(
@@ -326,37 +354,29 @@ def recover_expired(session: Session, *, clock: Clock) -> int:
             InferenceAttempt.lease_until <= now_iso,
         )
     ).scalars().all()
+    recovered = 0
     for attempt in expired:
         assessment = session.execute(
             select(Assessment).where(
                 Assessment.assessment_id == attempt.assessment_id
             )
-        ).scalar_one()
-        if assessment.active_attempt_id != attempt.attempt_id:
-            continue  # a concurrent writer already owns the pointer
-        assessment.status = constants.ASSESSMENT_INFERENCE_ERROR
-        assessment.reason_code = constants.REASON_LEASE_EXPIRED
-        assessment.active_attempt_id = None
-        assessment.current_result_id = None
-        assessment.current_generation += 1
-        assessment.updated_at = now_iso
-        session.flush()
-        attempt.state = constants.ATTEMPT_STATE_ERROR
-        attempt.reason_code = constants.REASON_LEASE_EXPIRED
-        attempt.completed_at = now_iso
-        session.flush()
-        record(
+        ).scalar_one_or_none()
+        if (
+            assessment is None
+            or assessment.active_attempt_id != attempt.attempt_id
+            or assessment.status != constants.ASSESSMENT_INFERENCE_RUNNING
+            or assessment.current_generation != attempt.generation
+        ):
+            continue
+        _terminalize(
             session,
             clock=clock,
-            event_type=constants.EVENT_INFERENCE_ATTEMPT_TERMINATED,
-            outcome=constants.OUTCOME_SUCCESS,
-            subject_type=constants.SUBJECT_INFERENCE_ATTEMPT,
-            subject_id=attempt.attempt_id,
-            payload={
-                "assessment_id": assessment.assessment_id,
-                "state": constants.ATTEMPT_STATE_ERROR,
-                "reason_code": constants.REASON_LEASE_EXPIRED,
-                "generation": attempt.generation,
-            },
+            attempt=attempt,
+            assessment=assessment,
+            state=constants.ATTEMPT_STATE_ERROR,
+            reason_code=constants.REASON_LEASE_EXPIRED,
+            actor_user_id=None,
+            increment_generation=True,
         )
-    return len(expired)
+        recovered += 1
+    return recovered

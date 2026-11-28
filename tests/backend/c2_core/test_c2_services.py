@@ -22,7 +22,7 @@ from tests.backend.c1.factories import (
     register_patient,
     setup_doctor_with_invitation,
 )
-from tests.backend.c2.conftest import both, idem
+from tests.backend.c2_core.conftest import both, idem
 
 SCHEMA_DIR = Path(__file__).resolve().parents[3] / "shared" / "contracts" / "term1" / "schemas"
 
@@ -204,7 +204,7 @@ def test_h1a_returns_the_frozen_13_key_projection(client, app):
 def test_h1a_admin_forbidden_and_doctor_forbidden(client, app):
     seeded = seed_patient(app, client)
     from tests.backend.c1.conftest import bootstrap_admin, login
-    from tests.backend.c2.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
+    from tests.backend.c2_core.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
 
     bootstrap_admin(app)
     admin_token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
@@ -261,7 +261,7 @@ def test_h1b_creates_v1_then_supersedes_into_v2_with_merge(client, app):
     body = response.json()
     assert_response_schema(body, "term1_health_profile_response.schema.json")
     assert body["version_number"] == 2
-    assert body["status"] == "DRAFT"  # restecg was nullified by the patch
+    assert body["status"] == "COMPLETE"  # mandatory history remains complete
     assert body["inputs"]["age"] == 54.0  # inherited
     assert body["inputs"]["restecg"] is None
     assert body["missing_reasons"] == {"restecg": "not_measured"}
@@ -276,7 +276,46 @@ def test_h1b_creates_v1_then_supersedes_into_v2_with_merge(client, app):
     )
     assert len(rows) == 2
     assert rows[0].status == "SUPERSEDED" and rows[0].superseded_at is not None
-    assert rows[1].status == "DRAFT" and rows[1].superseded_at is None
+    assert rows[1].status == "COMPLETE" and rows[1].superseded_at is None
+
+
+def test_h1b_explicit_null_does_not_inherit_old_missing_reason_or_unit(client, app):
+    seeded = seed_patient(app, client)
+    missing = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={"trestbps": None},
+            units={},
+            missing_reasons={"trestbps": "not_measured"},
+            expected_version_number=1,
+        ),
+    )
+    assert missing.status_code == 200, missing.text
+    assert missing.json()["inputs"]["trestbps"] is None
+    assert missing.json()["missing_reasons"]["trestbps"] == "not_measured"
+    assert missing.json()["units"] == {"age": "years"}
+
+    # Reasserting null without a new reason is invalid; the prior reason is not
+    # silently inherited, and no third version is committed.
+    invalid = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={"trestbps": None},
+            units={},
+            missing_reasons={},
+            expected_version_number=2,
+        ),
+    )
+    assert invalid.status_code == 422
+    assert invalid.json()["error"]["code"] == "missing_reason_mismatch"
+    rows = sql_rows(
+        app,
+        "SELECT version_number FROM health_profile WHERE patient_id = :pid",
+        pid=seeded["patient_id"],
+    )
+    assert [row.version_number for row in rows] == [1, 2]
 
 
 def test_h1b_expected_version_cas_conflict(client, app):
@@ -295,7 +334,7 @@ def test_h1b_expected_version_cas_conflict(client, app):
     assert len(rows) == 1
 
 
-def test_h1b_draft_status_when_mandatory_history_incomplete(client, app):
+def test_h1b_mandatory_only_history_is_complete_with_structural_optional_missingness(client, app):
     seeded = seed_patient(app, client, with_profile=False)
     response = patch_profile(
         client,
@@ -304,11 +343,27 @@ def test_h1b_draft_status_when_mandatory_history_incomplete(client, app):
     )
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["status"] == "DRAFT"
+    assert body["status"] == "COMPLETE"
+    assert body["inputs"]["age"] == 61.0
+    assert body["inputs"]["sex"] == 1
+    assert body["inputs"]["cp"] == 2
+    assert body["inputs"]["trestbps"] is None
+    assert body["inputs"]["restecg"] is None
     assert body["missing_reasons"] == {
         "trestbps": "not_provided",
         "restecg": "not_provided",
     }
+
+
+def test_h1b_draft_when_mandatory_history_is_incomplete(client, app):
+    seeded = seed_patient(app, client, with_profile=False)
+    response = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(inputs={"age": 61.0, "sex": 1}, units={"age": "years"}),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "DRAFT"
 
 
 def test_h1b_rejects_unknown_and_prohibited_panel_keys(client, app):
@@ -366,6 +421,23 @@ def test_h1b_reason_and_unit_rules(client, app):
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "invalid_panel_input"
 
+    # A reason supplied for a value inherited from the prior version is stale
+    # metadata and is dropped. It is a 422 only when the same request also sets
+    # that field to a non-null value (the first probe above).
+    response = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={},
+            units={},
+            missing_reasons={"age": "not_measured"},
+            expected_version_number=1,
+        ),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["inputs"]["age"] == FULL_INPUTS["age"]
+    assert response.json()["missing_reasons"] == {}
+
 
 def test_h1b_requires_consent_and_rejects_admin(client, app):
     seeded = seed_patient(app, client, with_profile=False)
@@ -378,9 +450,20 @@ def test_h1b_requires_consent_and_rejects_admin(client, app):
     response = patch_profile(client, seeded["token"], h1b_body())
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "consent_required"
+    denial = sql_rows(
+        app,
+        "SELECT event_type, outcome, subject_type, subject_id, actor_user_id, code "
+        "FROM workflow_audit_event WHERE event_type = 'AUTHORIZATION_DENIED' "
+        "AND code = 'consent_required'",
+    )
+    assert len(denial) == 1
+    assert denial[0].outcome == "DENIED"
+    assert denial[0].subject_type == "user_account"
+    assert denial[0].subject_id == seeded["user_id"]
+    assert denial[0].actor_user_id == seeded["user_id"]
 
     from tests.backend.c1.conftest import bootstrap_admin, login
-    from tests.backend.c2.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
+    from tests.backend.c2_core.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
 
     bootstrap_admin(app)
     admin_token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
@@ -393,14 +476,26 @@ def test_h1b_idempotent_replay_is_cached_then_revalidated(client, app):
     seeded = seed_patient(app, client, with_profile=False)
     token = seeded["token"]
     key = f"h1b-replay-{uuid.uuid4()}"
-    first = patch_profile(client, token, h1b_body(), key=key)
+    first_body = h1b_body()
+    first = patch_profile(client, token, first_body, key=key)
     assert first.status_code == 200, first.text
 
-    replay = patch_profile(client, token, h1b_body(), key=key)
+    replay = patch_profile(client, token, first_body, key=key)
     assert replay.status_code == 200
     replayed = replay.json()
     assert replayed.pop("idempotent_replay") is True  # frozen C1 replay marker
     assert replayed == first.json()
+
+    # Same idempotency key with a different explicit-null body is a conflict,
+    # not a cached success and not a merge onto the prior profile.
+    changed_body = h1b_body(
+        inputs={**first_body["inputs"], "trestbps": None},
+        units={"age": "years"},
+        missing_reasons={"trestbps": "unknown"},
+    )
+    conflict = patch_profile(client, token, changed_body, key=key)
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "idempotency_key_conflict"
 
     # After consent withdrawal the cached 2xx must NOT be served: the replay
     # path re-checks live consent inside the transaction (checkpoint §7).
@@ -410,7 +505,7 @@ def test_h1b_idempotent_replay_is_cached_then_revalidated(client, app):
         json={"reason_code": "patient_revoked_demo"},
     )
     assert revoke.status_code == 200
-    replay_after = patch_profile(client, token, h1b_body(), key=key)
+    replay_after = patch_profile(client, token, first_body, key=key)
     assert replay_after.status_code == 403
     assert replay_after.json()["error"]["code"] == "consent_required"
 
@@ -642,6 +737,15 @@ def test_s1_reassignment_revocation_gate_and_replay(client, app):
     )
     assert replay.status_code == 409
     assert replay.json()["error"]["code"] == "assignment_already_revoked"
+    denials = sql_rows(
+        app,
+        "SELECT outcome, code, subject_id FROM workflow_audit_event "
+        "WHERE event_type = 'AUTHORIZATION_DENIED' "
+        "AND code = 'assignment_already_revoked'",
+    )
+    assert len(denials) == 2
+    assert all(row.outcome == "DENIED" for row in denials)
+    assert all(row.subject_id == seeded["user_id"] for row in denials)
 
 
 def test_s1_profile_pin_states(client, app):
@@ -667,6 +771,7 @@ def test_s1_profile_pin_states(client, app):
 
     # COMPLETE profile pinned, then superseded by a new version -> 409
     complete = patch_profile(client, token, h1b_body())
+    assert complete.status_code == 200, complete.text
     complete_id = complete.json()["health_profile_id"]
     assert complete.json()["status"] == "COMPLETE"
     next_version = patch_profile(
@@ -777,7 +882,7 @@ def test_s1_reassessment_rules(client, app):
 def test_s1_admin_and_doctor_are_forbidden(client, app):
     seeded = seed_patient(app, client)
     from tests.backend.c1.conftest import bootstrap_admin, login
-    from tests.backend.c2.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
+    from tests.backend.c2_core.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
 
     bootstrap_admin(app)
     admin_token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
@@ -807,11 +912,22 @@ def test_s1_empty_body_is_malformed(client, app):
     assert response.json()["error"]["code"] == "malformed_request"
 
 
-def test_s1_stage_complete_false_is_allowed(client, app):
-    seeded = seed_patient(app, client)
+def test_s1_mandatory_only_profile_allows_incomplete_resting_panel(client, app):
+    seeded = seed_patient(app, client, with_profile=False)
+    profile_response = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={"age": 54.0, "sex": 0, "cp": 1},
+            units={"age": "years"},
+        ),
+    )
+    assert profile_response.status_code == 200, profile_response.text
+    assert profile_response.json()["status"] == "COMPLETE"
+
     response = submit_s1(
         client, seeded["token"], seeded["assignment_id"],
-        seeded["profile"]["health_profile_id"],
+        profile_response.json()["health_profile_id"],
         panel_input={
             "inputs": {"age": 54.0, "sex": 0, "cp": 1},
             "units": {"age": "years"},
@@ -819,7 +935,8 @@ def test_s1_stage_complete_false_is_allowed(client, app):
         },
     )
     assert response.status_code == 201, response.text
-    row = sql_rows(app, "SELECT stage_complete FROM assessment")[0]
+    row = sql_rows(app, "SELECT status, stage_complete FROM assessment")[0]
+    assert row.status == "INFERENCE_UNAVAILABLE"
     assert bool(row.stage_complete) is False
 
 
@@ -931,7 +1048,7 @@ def test_s2_authorization_matrix(client, app):
 
     # ADMIN -> 403 clinical-content block
     from tests.backend.c1.conftest import bootstrap_admin, login
-    from tests.backend.c2.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
+    from tests.backend.c2_core.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
 
     bootstrap_admin(app)
     admin_token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]
@@ -1126,7 +1243,7 @@ def test_s3_scoping_and_role_gates(client, app):
     assert response.json()["error"]["code"] == "forbidden"
 
     from tests.backend.c1.conftest import bootstrap_admin, login
-    from tests.backend.c2.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
+    from tests.backend.c2_core.conftest import ADMIN_EMAIL, ADMIN_PASSWORD
 
     bootstrap_admin(app)
     admin_token = login(client, ADMIN_EMAIL, ADMIN_PASSWORD)["session_token"]

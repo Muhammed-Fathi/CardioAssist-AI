@@ -159,15 +159,22 @@ def test_numerical_domains_and_units():
         "invalid_panel_input", _norm,
         dict(FULL), dict(FULL_UNITS, trestbps="cmHg"), {},
     )
-    # units for absent numerical fields are ignored and dropped
-    inputs, units, reasons, stage = _norm(
+    # Units supplied without a present numerical value are invalid.
+    _expect(
+        "invalid_panel_input",
+        _norm,
         {"age": 54.0, "sex": 0, "cp": 1},
         {"age": "years", "trestbps": "mmHg"},
         {},
     )
-    assert units == {"age": "years"}
-    assert "trestbps" not in units
-    assert stage is False
+    # Very large JSON integers must be a closed 422, not float overflow/500.
+    _expect(
+        "invalid_panel_input",
+        _norm,
+        {"age": 10**1000, "sex": 0, "cp": 1, "trestbps": 130.0, "restecg": 0},
+        dict(FULL_UNITS),
+        {},
+    )
 
 
 def test_reason_rules():
@@ -190,12 +197,14 @@ def test_reason_rules():
     )
     assert inputs["trestbps"] is None
     assert reasons == {"trestbps": "not_measured", "restecg": "not_provided"}
-    # null optional without a reason is rejected
-    _expect(
-        "missing_reason_mismatch", _norm,
-        {"age": 54.0, "sex": 0, "cp": 1, "restecg": None},
-        {"age": "years"}, {},
-    )
+    # null optional without a measurement reason is rejected. `not_provided`
+    # is reserved for structural omission and cannot describe an explicit null.
+    for reason_map in ({}, {"restecg": "not_provided"}):
+        _expect(
+            "missing_reason_mismatch", _norm,
+            {"age": 54.0, "sex": 0, "cp": 1, "restecg": None},
+            {"age": "years"}, reason_map,
+        )
 
 
 def test_unknown_panel_fields_are_invalid():

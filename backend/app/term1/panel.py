@@ -94,7 +94,11 @@ def _validate_value(field: str, value: Any) -> None:
     if field in UNIT_FIELDS:  # numerical, strictly positive, finite
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise _reject("invalid_panel_input")
-        if not math.isfinite(float(value)) or float(value) <= 0:
+        try:
+            numeric = float(value)
+        except (OverflowError, ValueError):
+            raise _reject("invalid_panel_input") from None
+        if not math.isfinite(numeric) or numeric <= 0:
             raise _reject("invalid_panel_input")
         return
     # categorical: integer codes only (0 is a valid categorical code)
@@ -111,6 +115,7 @@ def normalize_panel_fields(
     *,
     allow_absent_mandatory: bool,
     strict_reasons: bool,
+    allow_structural_null: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], bool]:
     """Validate and normalize one panel payload.
 
@@ -125,7 +130,9 @@ def normalize_panel_fields(
 
     ``allow_absent_mandatory`` permits a DRAFT profile (H1b partial progress);
     ``strict_reasons`` rejects a client-supplied reason for a field it also
-    presents (S1 payload semantics) instead of dropping it.
+    presents (S1 payload semantics) instead of dropping it. Internal canonical
+    row verification may set ``allow_structural_null`` because an omitted
+    optional value is serialized as null plus ``not_provided`` after validation.
     """
     if not isinstance(inputs, dict) or not isinstance(units, dict) or not isinstance(
         missing_reasons, dict
@@ -168,6 +175,8 @@ def normalize_panel_fields(
                 raise _reject("missing_reason_mismatch")
             if reason not in MISSING_REASONS:
                 raise _reject("invalid_panel_input")
+            if reason == MISSING_REASON_STRUCTURAL and not allow_structural_null:
+                raise _reject("missing_reason_mismatch")
             normalized_inputs[field] = None
             normalized_reasons[field] = reason
         else:  # absent key
@@ -190,7 +199,11 @@ def normalize_panel_fields(
             normalized_reasons[field] = reason
 
     # Units are derived state: exact token for every present numerical field,
-    # nothing for absent/null fields.
+    # nothing for absent/null fields. A unit supplied without its value is
+    # inconsistent input, not a value to silently discard.
+    for field in units:
+        if normalized_inputs.get(field) is None:
+            raise _reject("invalid_panel_input")
     normalized_units = {
         field: UNIT_FIELDS[field]
         for field in UNIT_FIELDS

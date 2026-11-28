@@ -28,6 +28,7 @@ from .api import (
     run_idempotent,
     unexpected_failure_json,
 )
+from .audit import record
 from .c2_authz import (
     require_active_consent,
     require_clinical_patient,
@@ -35,6 +36,49 @@ from .c2_authz import (
 )
 from .errors import ApiError
 from .tx import write_transaction
+
+_AUTHORIZATION_DENIAL_CODES = frozenset(
+    {
+        "admin_clinical_content_forbidden",
+        "consent_required",
+        "ocr_inference_not_authorized",
+        "assignment_not_found",
+        "assignment_already_revoked",
+        "role_profile_mismatch",
+        "forbidden",
+    }
+)
+
+
+def _authorization_failure_hook(
+    *,
+    handler: Term1Handler,
+    operation: str,
+    audit_context: dict[str, str | None],
+):
+    """Persist metadata-only authorization-denial evidence after savepoint rollback."""
+    def write(error: ApiError | None, session: Session | None = None) -> None:
+        actor_user_id = audit_context.get("actor_user_id")
+        if (
+            error is None
+            or error.code not in _AUTHORIZATION_DENIAL_CODES
+            or session is None
+            or actor_user_id is None
+        ):
+            return
+        record(
+            session,
+            clock=handler.clock,
+            event_type=constants.EVENT_AUTHORIZATION_DENIED,
+            outcome=constants.OUTCOME_DENIED,
+            subject_type=constants.SUBJECT_USER_ACCOUNT,
+            subject_id=actor_user_id,
+            actor_user_id=actor_user_id,
+            code=error.code,
+            payload={"operation": operation},
+        )
+
+    return write
 
 
 def register_c2_routes(app: FastAPI, *, handler: Term1Handler) -> None:
@@ -69,7 +113,10 @@ def register_c2_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+        audit_context: dict[str, str | None] = {"actor_user_id": None}
+
         def run(session: Session, actor: Actor):
+            audit_context["actor_user_id"] = actor.account.user_id
             result = health_profile.patch_health_profile(
                 session,
                 clock=handler.clock,
@@ -79,6 +126,7 @@ def register_c2_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             return result, result, False
 
         def on_replay(session: Session, actor: Actor) -> None:
+            audit_context["actor_user_id"] = actor.account.user_id
             # Live reauthorization before any cached 2xx (checkpoint §7).
             profile = require_clinical_patient(session, account=actor.account)
             require_active_consent(session, patient_id=profile.patient_id)
@@ -93,6 +141,11 @@ def register_c2_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             run=run,
             status=200,
             on_replay=on_replay,
+            failure_hook=_authorization_failure_hook(
+                handler=handler,
+                operation=constants.OP_HEALTH_PROFILE_PATCH,
+                audit_context=audit_context,
+            ),
         )
 
     @app.patch("/v1/me/health-profile")
@@ -111,7 +164,10 @@ def register_c2_routes(app: FastAPI, *, handler: Term1Handler) -> None:
         except ApiError as error:
             return error_response_json(error)
 
+        audit_context: dict[str, str | None] = {"actor_user_id": None}
+
         def run(session: Session, actor: Actor):
+            audit_context["actor_user_id"] = actor.account.user_id
             result = assessments.submit_assessment(
                 session,
                 clock=handler.clock,
@@ -121,6 +177,7 @@ def register_c2_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             return result, result, False
 
         def on_replay(session: Session, actor: Actor) -> None:
+            audit_context["actor_user_id"] = actor.account.user_id
             # Consent first, then the exact assignment — the same operation-
             # specific live scope as the first execution (checkpoint §7).
             profile = require_clinical_patient(session, account=actor.account)
@@ -141,6 +198,11 @@ def register_c2_routes(app: FastAPI, *, handler: Term1Handler) -> None:
             run=run,
             status=201,
             on_replay=on_replay,
+            failure_hook=_authorization_failure_hook(
+                handler=handler,
+                operation=constants.OP_ASSESSMENT_CREATE,
+                audit_context=audit_context,
+            ),
         )
 
     @app.post("/v1/assessments", status_code=201)

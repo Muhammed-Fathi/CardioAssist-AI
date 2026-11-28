@@ -92,11 +92,16 @@ WHEN NOT EXISTS (
         SELECT 1 FROM doctor_patient_assignment a
         WHERE a.assignment_id = NEW.assignment_id
           AND a.patient_id = NEW.patient_id
+          AND a.revoked_at IS NULL
     )
     OR NOT EXISTS (
         SELECT 1 FROM consent_record c
         WHERE c.consent_id = NEW.consent_id
           AND c.patient_id = NEW.patient_id
+          AND c.kind = 'synthetic_demo'
+          AND c.scope = 'patient_wide_synthetic_demo'
+          AND c.contract_version = 'term1-c1-v1'
+          AND c.revoked_at IS NULL
     )
     OR (NEW.reassessment_of_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM assessment p
@@ -104,26 +109,52 @@ WHEN NOT EXISTS (
           AND p.patient_id = NEW.patient_id
           AND p.assignment_id = NEW.assignment_id
     ))
+    OR NOT EXISTS (
+        SELECT 1
+        FROM assessment_snapshot s
+        JOIN health_profile h
+          ON h.health_profile_id = s.health_profile_id
+         AND h.patient_id = s.patient_id
+        WHERE s.snapshot_id = NEW.snapshot_id
+          AND s.patient_id = NEW.patient_id
+          AND s.health_profile_id = NEW.health_profile_id
+          AND s.panel_id = NEW.panel_id
+          AND s.panel_version = NEW.panel_version
+          AND s.source_contract_version = NEW.source_contract_version
+          AND s.source_kind = NEW.source_kind
+          AND s.schema_version = 'term1.c2.snapshot/v1'
+          AND s.schema_sha256 = json_extract(s.snapshot_json, '$.schema_sha256')
+          AND s.source_contract_version = json_extract(s.snapshot_json, '$.source_contract_version')
+          AND s.source_kind = json_extract(s.snapshot_json, '$.source_kind')
+          AND json_extract(s.snapshot_json, '$.assessment_id') = NEW.assessment_id
+          AND json_extract(s.snapshot_json, '$.patient_id') = NEW.patient_id
+          AND json_extract(s.snapshot_json, '$.assignment_id') = NEW.assignment_id
+          AND json_extract(s.snapshot_json, '$.consent_id') = NEW.consent_id
+          AND json_extract(s.snapshot_json, '$.health_profile_id') = NEW.health_profile_id
+          AND json_extract(s.snapshot_json, '$.panel.panel_id') = s.panel_id
+          AND json_extract(s.snapshot_json, '$.panel.panel_version') = s.panel_version
+          AND json_extract(s.snapshot_json, '$.panel.panel_contract_sha256') = s.panel_contract_sha256
+          AND json_extract(s.snapshot_json, '$.provenance.health_profile_id') = h.health_profile_id
+          AND json_extract(s.snapshot_json, '$.provenance.health_profile_sha256') = h.profile_sha256
+          AND h.status = 'COMPLETE'
+          AND h.superseded_at IS NULL
+          AND json_type(s.snapshot_json, '$.attached_documents') = 'array'
+          AND json_array_length(s.snapshot_json, '$.attached_documents') = 0
+    )
+    OR ((NEW.reassessment_of_id IS NULL) != (NEW.reassessment_reason IS NULL))
 BEGIN
     SELECT RAISE(ABORT, 'assessment_scope_invalid');
 END;""",
     """CREATE TRIGGER tr_assessment_pointer_insert
 BEFORE INSERT ON assessment
 FOR EACH ROW
-WHEN (NEW.active_attempt_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1 FROM inference_attempt a
-        WHERE a.attempt_id = NEW.active_attempt_id
-          AND a.assessment_id = NEW.assessment_id
-          AND a.generation = NEW.current_generation
-          AND a.state = 'INFERENCE_RUNNING'
-    ))
-    OR (NEW.current_result_id IS NOT NULL AND NOT EXISTS (
-        SELECT 1 FROM inference_result r
-        WHERE r.result_id = NEW.current_result_id
-          AND r.assessment_id = NEW.assessment_id
-          AND r.snapshot_id = NEW.snapshot_id
-          AND r.generation = NEW.current_generation
-    ))
+WHEN NEW.status NOT IN ('DRAFT','INPUT_VALIDATED')
+  OR NEW.reason_code IS NOT NULL
+  OR NEW.active_attempt_id IS NOT NULL
+  OR NEW.current_result_id IS NOT NULL
+  OR NEW.current_generation != 0
+  OR NEW.review_state != 'NOT_REVIEWED'
+  OR NEW.review_version != 0
 BEGIN
     SELECT RAISE(ABORT, 'assessment_pointer_invalid');
 END;""",
@@ -138,6 +169,11 @@ WHEN NEW.assessment_id != OLD.assessment_id
   OR NEW.consent_id != OLD.consent_id
   OR NEW.reassessment_of_id IS NOT OLD.reassessment_of_id
   OR NEW.reassessment_reason IS NOT OLD.reassessment_reason
+  OR NEW.panel_id != OLD.panel_id
+  OR NEW.panel_version != OLD.panel_version
+  OR NEW.source_contract_version != OLD.source_contract_version
+  OR NEW.source_kind != OLD.source_kind
+  OR NEW.stage_complete != OLD.stage_complete
   OR NEW.current_generation < OLD.current_generation
   OR (NEW.active_attempt_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM inference_attempt a
@@ -148,11 +184,249 @@ WHEN NEW.assessment_id != OLD.assessment_id
     ))
   OR (NEW.current_result_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM inference_result r
+        JOIN assessment_snapshot s ON s.snapshot_id = NEW.snapshot_id
         WHERE r.result_id = NEW.current_result_id
           AND r.assessment_id = NEW.assessment_id
           AND r.snapshot_id = NEW.snapshot_id
           AND r.generation = NEW.current_generation
+          AND r.snapshot_sha256 = s.snapshot_sha256
+          AND r.attempt_id = (
+              SELECT a.attempt_id FROM inference_attempt a
+              WHERE a.assessment_id = NEW.assessment_id
+                AND a.generation = NEW.current_generation
+          )
     ))
+  OR NOT (
+       (NEW.status = OLD.status
+        AND NEW.reason_code IS OLD.reason_code
+        AND NEW.active_attempt_id IS OLD.active_attempt_id
+        AND NEW.current_generation = OLD.current_generation
+        AND NEW.current_result_id IS OLD.current_result_id)
+    OR (OLD.status = 'DRAFT' AND NEW.status = 'INPUT_VALIDATED'
+        AND NEW.reason_code IS NULL
+        AND NEW.active_attempt_id IS NULL
+        AND NEW.current_generation = OLD.current_generation
+        AND NEW.current_result_id IS NULL)
+    OR (OLD.status = 'INPUT_VALIDATED' AND NEW.status = 'INFERENCE_RUNNING'
+        AND NEW.reason_code IS NULL
+        AND NEW.active_attempt_id IS NOT NULL
+        AND NEW.current_generation = OLD.current_generation
+        AND NEW.current_result_id IS NULL
+        AND EXISTS (
+            SELECT 1 FROM doctor_patient_assignment a
+            WHERE a.assignment_id = NEW.assignment_id
+              AND a.patient_id = NEW.patient_id AND a.revoked_at IS NULL
+        )
+        AND EXISTS (
+            SELECT 1 FROM consent_record c
+            WHERE c.consent_id = NEW.consent_id
+              AND c.patient_id = NEW.patient_id AND c.revoked_at IS NULL
+              AND c.kind = 'synthetic_demo'
+              AND c.scope = 'patient_wide_synthetic_demo'
+              AND c.contract_version = 'term1-c1-v1'
+        ))
+    OR (OLD.status = 'INFERENCE_RUNNING' AND NEW.status = 'INFERENCE_SUCCEEDED'
+        AND NEW.reason_code IS NULL
+        AND OLD.active_attempt_id IS NOT NULL
+        AND NEW.active_attempt_id IS NULL
+        AND NEW.current_generation = OLD.current_generation
+        AND NEW.current_result_id IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM inference_attempt a
+            WHERE a.attempt_id = OLD.active_attempt_id
+              AND a.assessment_id = OLD.assessment_id
+              AND a.generation = OLD.current_generation
+              AND a.state = 'INFERENCE_RUNNING'
+              AND a.lease_until > NEW.updated_at
+        )
+        AND EXISTS (
+            SELECT 1 FROM inference_result r
+            JOIN assessment_snapshot s ON s.snapshot_id = NEW.snapshot_id
+            WHERE r.result_id = NEW.current_result_id
+              AND r.assessment_id = NEW.assessment_id
+              AND r.attempt_id = OLD.active_attempt_id
+              AND r.snapshot_id = NEW.snapshot_id
+              AND r.generation = NEW.current_generation
+              AND r.snapshot_sha256 = s.snapshot_sha256
+              AND r.schema_version = 'term1.c2.result/v1'
+              AND r.panel_id = NEW.panel_id
+              AND r.panel_version = NEW.panel_version
+              AND r.panel_contract_sha256 = s.panel_contract_sha256
+              AND r.source_contract_version = NEW.source_contract_version
+              AND r.source_kind = NEW.source_kind
+        )
+        AND EXISTS (
+            SELECT 1 FROM doctor_patient_assignment a
+            WHERE a.assignment_id = NEW.assignment_id
+              AND a.patient_id = NEW.patient_id AND a.revoked_at IS NULL
+        )
+        AND EXISTS (
+            SELECT 1 FROM consent_record c
+            WHERE c.consent_id = NEW.consent_id
+              AND c.patient_id = NEW.patient_id AND c.revoked_at IS NULL
+              AND c.kind = 'synthetic_demo'
+              AND c.scope = 'patient_wide_synthetic_demo'
+              AND c.contract_version = 'term1-c1-v1'
+        ))
+    OR (OLD.status = 'INFERENCE_RUNNING'
+        AND NEW.status IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR')
+        AND OLD.active_attempt_id IS NOT NULL
+        AND NEW.active_attempt_id IS NULL
+        AND NEW.current_result_id IS NULL
+        AND EXISTS (
+            SELECT 1 FROM inference_attempt a
+            WHERE a.attempt_id = OLD.active_attempt_id
+              AND a.assessment_id = OLD.assessment_id
+              AND a.generation = OLD.current_generation
+              AND a.state = 'INFERENCE_RUNNING'
+              AND a.lease_until > NEW.updated_at
+        )
+        AND NEW.current_generation = OLD.current_generation
+        AND (
+             (NEW.status = 'INFERENCE_UNAVAILABLE'
+              AND ((NEW.reason_code = 'real_ai_not_authorized'
+                    AND EXISTS (
+                        SELECT 1 FROM doctor_patient_assignment a
+                        WHERE a.assignment_id = NEW.assignment_id
+                          AND a.patient_id = NEW.patient_id AND a.revoked_at IS NULL
+                    )
+                    AND EXISTS (
+                        SELECT 1 FROM consent_record c
+                        WHERE c.consent_id = NEW.consent_id
+                          AND c.patient_id = NEW.patient_id AND c.revoked_at IS NULL
+                          AND c.kind = 'synthetic_demo'
+                          AND c.scope = 'patient_wide_synthetic_demo'
+                          AND c.contract_version = 'term1-c1-v1'
+                    ))
+                   OR (NEW.reason_code = 'authorization_withdrawn'
+                    AND (NOT EXISTS (
+                        SELECT 1 FROM doctor_patient_assignment a
+                        WHERE a.assignment_id = NEW.assignment_id
+                          AND a.patient_id = NEW.patient_id AND a.revoked_at IS NULL
+                    ) OR NOT EXISTS (
+                        SELECT 1 FROM consent_record c
+                        WHERE c.consent_id = NEW.consent_id
+                          AND c.patient_id = NEW.patient_id AND c.revoked_at IS NULL
+                          AND c.kind = 'synthetic_demo'
+                          AND c.scope = 'patient_wide_synthetic_demo'
+                          AND c.contract_version = 'term1-c1-v1'
+                    ))))
+          OR (NEW.status = 'INFERENCE_ABSTAINED'
+              AND NEW.reason_code = 'optional_panel_field_missing'
+              AND NEW.stage_complete = 0
+              AND EXISTS (
+                    SELECT 1 FROM doctor_patient_assignment a
+                    WHERE a.assignment_id = NEW.assignment_id
+                      AND a.patient_id = NEW.patient_id AND a.revoked_at IS NULL
+              )
+              AND EXISTS (
+                    SELECT 1 FROM consent_record c
+                    WHERE c.consent_id = NEW.consent_id
+                      AND c.patient_id = NEW.patient_id AND c.revoked_at IS NULL
+                      AND c.kind = 'synthetic_demo'
+                      AND c.scope = 'patient_wide_synthetic_demo'
+                      AND c.contract_version = 'term1-c1-v1'
+              ))
+          OR (NEW.status = 'INFERENCE_ERROR'
+              AND NEW.reason_code IN ('worker_error','malformed_worker_response',
+                                      'artifact_integrity_failed')
+              AND EXISTS (
+                    SELECT 1 FROM doctor_patient_assignment a
+                    WHERE a.assignment_id = NEW.assignment_id
+                      AND a.patient_id = NEW.patient_id AND a.revoked_at IS NULL
+              )
+              AND EXISTS (
+                    SELECT 1 FROM consent_record c
+                    WHERE c.consent_id = NEW.consent_id
+                      AND c.patient_id = NEW.patient_id AND c.revoked_at IS NULL
+                      AND c.kind = 'synthetic_demo'
+                      AND c.scope = 'patient_wide_synthetic_demo'
+                      AND c.contract_version = 'term1-c1-v1'
+              ))
+        )))
+    OR (OLD.status = 'INFERENCE_RUNNING'
+        AND NEW.status IN ('INFERENCE_ERROR','INFERENCE_UNAVAILABLE')
+        AND NEW.current_generation = OLD.current_generation + 1
+        AND OLD.active_attempt_id IS NOT NULL
+        AND NEW.active_attempt_id IS NULL
+        AND NEW.current_result_id IS NULL
+        AND EXISTS (
+            SELECT 1 FROM inference_attempt a
+            WHERE a.attempt_id = OLD.active_attempt_id
+              AND a.assessment_id = OLD.assessment_id
+              AND a.generation = OLD.current_generation
+              AND a.state = 'INFERENCE_RUNNING'
+              AND a.lease_until <= NEW.updated_at
+        )
+        AND ((NEW.status = 'INFERENCE_ERROR'
+              AND NEW.reason_code = 'lease_expired'
+              AND EXISTS (
+                    SELECT 1 FROM doctor_patient_assignment a
+                    WHERE a.assignment_id = NEW.assignment_id
+                      AND a.patient_id = NEW.patient_id AND a.revoked_at IS NULL
+              )
+              AND EXISTS (
+                    SELECT 1 FROM consent_record c
+                    WHERE c.consent_id = NEW.consent_id
+                      AND c.patient_id = NEW.patient_id AND c.revoked_at IS NULL
+                      AND c.kind = 'synthetic_demo'
+                      AND c.scope = 'patient_wide_synthetic_demo'
+                      AND c.contract_version = 'term1-c1-v1'
+              ))
+          OR (NEW.status = 'INFERENCE_UNAVAILABLE'
+              AND NEW.reason_code = 'authorization_withdrawn'
+              AND (NOT EXISTS (
+                    SELECT 1 FROM doctor_patient_assignment a
+                    WHERE a.assignment_id = NEW.assignment_id
+                      AND a.patient_id = NEW.patient_id AND a.revoked_at IS NULL
+              ) OR NOT EXISTS (
+                    SELECT 1 FROM consent_record c
+                    WHERE c.consent_id = NEW.consent_id
+                      AND c.patient_id = NEW.patient_id AND c.revoked_at IS NULL
+                      AND c.kind = 'synthetic_demo'
+                      AND c.scope = 'patient_wide_synthetic_demo'
+                      AND c.contract_version = 'term1-c1-v1'
+              )))))
+    OR (OLD.status = 'INFERENCE_SUCCEEDED' AND NEW.status = 'PENDING_REVIEW'
+        AND NEW.reason_code IS NULL
+        AND NEW.active_attempt_id IS NULL
+        AND NEW.current_generation = OLD.current_generation
+        AND NEW.current_result_id IS OLD.current_result_id
+        AND NEW.current_result_id IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM inference_result r
+            JOIN inference_attempt a
+              ON a.assessment_id = r.assessment_id
+             AND a.attempt_id = r.attempt_id
+             AND a.generation = r.generation
+            WHERE r.result_id = NEW.current_result_id
+              AND r.assessment_id = NEW.assessment_id
+              AND r.snapshot_id = NEW.snapshot_id
+              AND r.generation = NEW.current_generation
+              AND a.state = 'INFERENCE_SUCCEEDED'
+        ))
+    OR (OLD.status = 'INFERENCE_ERROR' AND NEW.status = 'INPUT_VALIDATED'
+        AND NEW.reason_code IS NULL
+        AND NEW.active_attempt_id IS NULL
+        AND NEW.current_result_id IS NULL
+        AND ((OLD.reason_code = 'lease_expired'
+              AND NEW.current_generation = OLD.current_generation)
+          OR (OLD.reason_code IN ('worker_error','malformed_worker_response',
+                                  'artifact_integrity_failed')
+              AND NEW.current_generation = OLD.current_generation + 1))
+        AND EXISTS (
+            SELECT 1 FROM doctor_patient_assignment a
+            WHERE a.assignment_id = NEW.assignment_id
+              AND a.patient_id = NEW.patient_id AND a.revoked_at IS NULL
+        )
+        AND EXISTS (
+            SELECT 1 FROM consent_record c
+            WHERE c.consent_id = NEW.consent_id
+              AND c.patient_id = NEW.patient_id AND c.revoked_at IS NULL
+              AND c.kind = 'synthetic_demo'
+              AND c.scope = 'patient_wide_synthetic_demo'
+              AND c.contract_version = 'term1-c1-v1'
+        )))
 BEGIN
     SELECT RAISE(ABORT, 'assessment_pointer_update_forbidden');
 END;""",
@@ -172,9 +446,56 @@ WHEN OLD.state != 'INFERENCE_RUNNING'
   OR NEW.attempt_idempotency_hash != OLD.attempt_idempotency_hash
   OR NEW.worker_id != OLD.worker_id
   OR NEW.fence_token != OLD.fence_token
+  OR NEW.leased_at != OLD.leased_at
+  OR NEW.lease_until != OLD.lease_until
   OR (NEW.state != 'INFERENCE_RUNNING' AND EXISTS (
         SELECT 1 FROM assessment s WHERE s.active_attempt_id = OLD.attempt_id
     ))
+  OR NEW.state = 'INFERENCE_RUNNING'
+  OR NEW.completed_at IS NULL
+  OR NEW.completed_at < OLD.leased_at
+  OR NOT (
+       (NEW.state = 'INFERENCE_SUCCEEDED'
+        AND NEW.reason_code IS NULL
+        AND EXISTS (
+            SELECT 1 FROM assessment s
+            JOIN inference_result r ON r.result_id = s.current_result_id
+            WHERE s.assessment_id = OLD.assessment_id
+              AND s.status IN ('INFERENCE_SUCCEEDED','PENDING_REVIEW')
+              AND s.active_attempt_id IS NULL
+              AND s.current_generation = OLD.generation
+              AND NEW.completed_at < OLD.lease_until
+              AND r.assessment_id = OLD.assessment_id
+              AND r.attempt_id = OLD.attempt_id
+              AND r.generation = OLD.generation
+              AND r.snapshot_id = s.snapshot_id
+        ))
+    OR (NEW.state IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR')
+        AND NEW.reason_code IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM assessment s
+            WHERE s.assessment_id = OLD.assessment_id
+              AND s.status = NEW.state
+              AND s.reason_code = NEW.reason_code
+              AND s.active_attempt_id IS NULL
+              AND s.current_result_id IS NULL
+              AND (NEW.state != 'INFERENCE_ABSTAINED' OR s.stage_complete = 0)
+              AND ((s.current_generation = OLD.generation
+                    AND NEW.completed_at < OLD.lease_until)
+                OR (s.current_generation = OLD.generation + 1
+                    AND NEW.completed_at >= OLD.lease_until
+                    AND NEW.reason_code IN ('lease_expired','authorization_withdrawn')
+                    AND NEW.state IN ('INFERENCE_ERROR','INFERENCE_UNAVAILABLE')))
+        )
+        AND ((NEW.state = 'INFERENCE_ABSTAINED'
+              AND NEW.reason_code = 'optional_panel_field_missing')
+          OR (NEW.state = 'INFERENCE_UNAVAILABLE'
+              AND NEW.reason_code IN ('real_ai_not_authorized','authorization_withdrawn'))
+          OR (NEW.state = 'INFERENCE_ERROR'
+              AND NEW.reason_code IN ('lease_expired','worker_error',
+                                      'malformed_worker_response',
+                                      'artifact_integrity_failed'))))
+    )
 BEGIN
     SELECT RAISE(ABORT, 'inference_attempt_update_forbidden');
 END;""",
@@ -283,9 +604,22 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("snapshot_id"),
         sa.UniqueConstraint("snapshot_id", "patient_id", name="ux_snapshot_id_patient"),
+        sa.UniqueConstraint(
+            "snapshot_id", "health_profile_id", "patient_id",
+            name="ux_snapshot_id_profile_patient",
+        ),
         sa.CheckConstraint(
             "source_kind IN ('synthetic_demo_patient_manual','synthetic_demo_ocr_confirmed')",
             name="ck_snapshot_source_kind",
+        ),
+        sa.CheckConstraint("json_valid(snapshot_json)", name="ck_snapshot_json_valid"),
+        sa.CheckConstraint(
+            "panel_id = 'da_a2_resting_v1' AND panel_version = '1.0.0' "
+            "AND panel_contract_sha256 = "
+            "'c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8' "
+            "AND schema_version = 'term1.c2.snapshot/v1' "
+            "AND source_contract_version = 'term1.c2.intake/v1'",
+            name="ck_snapshot_contract_identity",
         ),
     )
 
@@ -326,10 +660,14 @@ def upgrade() -> None:
             name="fk_assessment_health_profile",
         ),
         sa.ForeignKeyConstraint(
-            ["snapshot_id", "patient_id"],
-            ["assessment_snapshot.snapshot_id", "assessment_snapshot.patient_id"],
+            ["snapshot_id", "health_profile_id", "patient_id"],
+            [
+                "assessment_snapshot.snapshot_id",
+                "assessment_snapshot.health_profile_id",
+                "assessment_snapshot.patient_id",
+            ],
             ondelete="RESTRICT",
-            name="fk_assessment_snapshot",
+            name="fk_assessment_snapshot_profile_patient",
         ),
         sa.ForeignKeyConstraint(
             ["assignment_id"],
@@ -359,14 +697,34 @@ def upgrade() -> None:
         sa.UniqueConstraint("active_attempt_id", name="ux_assessment_active_attempt"),
         sa.UniqueConstraint("current_result_id", name="ux_assessment_current_result"),
         sa.CheckConstraint(
+            "(reassessment_of_id IS NULL AND reassessment_reason IS NULL) OR "
+            "(reassessment_of_id IS NOT NULL AND reassessment_reason IS NOT NULL)",
+            name="ck_assessment_reassessment_pair",
+        ),
+        sa.CheckConstraint(
+            "panel_id = 'da_a2_resting_v1' AND panel_version = '1.0.0' "
+            "AND source_contract_version = 'term1.c2.intake/v1' "
+            "AND source_kind IN ('synthetic_demo_patient_manual',"
+            "'synthetic_demo_ocr_confirmed')",
+            name="ck_assessment_contract_identity",
+        ),
+        sa.CheckConstraint("current_generation >= 0", name="ck_assessment_generation"),
+        sa.CheckConstraint("review_version >= 0", name="ck_assessment_review_version"),
+        sa.CheckConstraint(
             "status IN ('DRAFT','INPUT_VALIDATED','INFERENCE_RUNNING',"
             "'INFERENCE_SUCCEEDED','PENDING_REVIEW','INFERENCE_ABSTAINED',"
             "'INFERENCE_UNAVAILABLE','INFERENCE_ERROR')",
             name="ck_assessment_status",
         ),
         sa.CheckConstraint(
-            "((status IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR') "
-            "AND reason_code IS NOT NULL) OR "
+            "((status = 'INFERENCE_ABSTAINED' "
+            "AND reason_code = 'optional_panel_field_missing' "
+            "AND stage_complete = 0) OR "
+            "(status = 'INFERENCE_UNAVAILABLE' "
+            "AND reason_code IN ('real_ai_not_authorized','authorization_withdrawn')) OR "
+            "(status = 'INFERENCE_ERROR' "
+            "AND reason_code IN ('lease_expired','worker_error',"
+            "'malformed_worker_response','artifact_integrity_failed')) OR "
             "(status NOT IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR') "
             "AND reason_code IS NULL))",
             name="ck_assessment_status_reason",
@@ -410,6 +768,29 @@ def upgrade() -> None:
             name="fk_inference_attempt_assessment",
         ),
         sa.PrimaryKeyConstraint("attempt_id"),
+        sa.CheckConstraint("generation >= 0", name="ck_inference_attempt_generation"),
+        sa.CheckConstraint("lease_until > leased_at", name="ck_inference_attempt_lease_order"),
+        sa.CheckConstraint(
+            "state IN ('INFERENCE_RUNNING','INFERENCE_SUCCEEDED','INFERENCE_ABSTAINED',"
+            "'INFERENCE_UNAVAILABLE','INFERENCE_ERROR')",
+            name="ck_inference_attempt_state",
+        ),
+        sa.CheckConstraint(
+            "(state = 'INFERENCE_RUNNING' AND reason_code IS NULL AND completed_at IS NULL) "
+            "OR (state = 'INFERENCE_SUCCEEDED' AND reason_code IS NULL "
+            "AND completed_at IS NOT NULL) "
+            "OR (state = 'INFERENCE_ABSTAINED' "
+            "AND reason_code = 'optional_panel_field_missing' "
+            "AND completed_at IS NOT NULL) "
+            "OR (state = 'INFERENCE_UNAVAILABLE' "
+            "AND reason_code IN ('real_ai_not_authorized','authorization_withdrawn') "
+            "AND completed_at IS NOT NULL) "
+            "OR (state = 'INFERENCE_ERROR' "
+            "AND reason_code IN ('lease_expired','worker_error',"
+            "'malformed_worker_response','artifact_integrity_failed') "
+            "AND completed_at IS NOT NULL)",
+            name="ck_inference_attempt_state_reason",
+        ),
         sa.UniqueConstraint(
             "assessment_id", "generation", name="ux_inference_attempt_assessment_gen"
         ),
@@ -500,6 +881,7 @@ def upgrade() -> None:
             name="fk_inference_result_snapshot",
         ),
         sa.PrimaryKeyConstraint("result_id"),
+        sa.CheckConstraint("generation >= 0", name="ck_inference_result_generation"),
         sa.UniqueConstraint("attempt_id", name="ux_inference_result_attempt"),
         sa.UniqueConstraint(
             "assessment_id", "snapshot_id", "result_id",
