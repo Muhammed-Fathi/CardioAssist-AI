@@ -43,10 +43,10 @@ LEGACY_OPERATIONS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _load_path_modules() -> list[dict[str, Any]]:
-    """Load every ``paths-*.yaml`` contract module as machine-readable YAML."""
+def _load_modules(pattern: str) -> list[dict[str, Any]]:
+    """Load every contract module matching ``pattern`` as machine-readable YAML."""
     modules = []
-    for path in sorted(TERM1_DIR.glob("paths-*.yaml")):
+    for path in sorted(TERM1_DIR.glob(pattern)):
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         assert isinstance(data, dict), f"{path.name} is not a YAML mapping"
         assert "operations" in data, f"{path.name} has no operations inventory"
@@ -54,10 +54,24 @@ def _load_path_modules() -> list[dict[str, Any]]:
     return modules
 
 
-def _contract_operations() -> list[dict[str, Any]]:
-    """Return every declared C1 operation in deterministic (path, method) order."""
+def _load_path_modules() -> list[dict[str, Any]]:
+    """Load every C1 ``paths-*.yaml`` contract module (frozen C1 source)."""
+    return _load_modules("paths-*.yaml")
+
+
+def _load_c2_path_modules() -> list[dict[str, Any]]:
+    """Load every C2 ``c2-paths-*.yaml`` contract module.
+
+    Track 1 ships ``c2-paths-assessment.yaml``; Track 2 adds
+    ``c2-paths-documents.yaml`` at integration — both compose automatically
+    without editing this file (frozen shared boundary, reconciliation §6).
+    """
+    return _load_modules("c2-paths-*.yaml")
+
+
+def _collect_operations(modules: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ops: list[dict[str, Any]] = []
-    for data in _load_path_modules():
+    for data in modules:
         for op in data["operations"]:
             assert isinstance(op["method"], str), op
             assert isinstance(op["path"], str), op
@@ -68,16 +82,32 @@ def _contract_operations() -> list[dict[str, Any]]:
     return ops
 
 
+def _contract_operations() -> list[dict[str, Any]]:
+    """Return every declared C1 operation in deterministic (path, method) order."""
+    return _collect_operations(_load_path_modules())
+
+
+def _c2_operations() -> list[dict[str, Any]]:
+    """Return every declared C2 operation in deterministic (path, method) order."""
+    return _collect_operations(_load_c2_path_modules())
+
+
 # Canonical C1 operation inventory, derived from the modular YAML source.
 # Each entry is (method, path), matching the order used by the served document.
 C1_OPERATIONS: tuple[tuple[str, str], ...] = tuple(
     (op["method"].lower(), op["path"]) for op in _contract_operations()
 )
 
+# Canonical C2 operation inventory (Track 1 core assessment operations now;
+# Track 2 document/OCR operations compose in at integration).
+C2_OPERATIONS: tuple[tuple[str, str], ...] = tuple(
+    (op["method"].lower(), op["path"]) for op in _c2_operations()
+)
+
 # Every served method/path, as an explicit allowlist (GET and PATCH are separate
 # operations). No additional operation may be served.
 SERVED_OPERATIONS: tuple[tuple[str, str], ...] = tuple(
-    sorted(LEGACY_OPERATIONS + C1_OPERATIONS, key=lambda item: (item[1], item[0]))
+    sorted(LEGACY_OPERATIONS + C1_OPERATIONS + C2_OPERATIONS, key=lambda item: (item[1], item[0]))
 )
 
 # Per-operation header requirements, derived from the YAML flags.
@@ -87,6 +117,16 @@ AUTHENTICATED_C1: frozenset[str] = frozenset(
 IDEMPOTENT_C1: frozenset[str] = frozenset(
     path for op in _contract_operations() if op["idempotent"] for path in {op["path"]}
 )
+AUTHENTICATED_C2: frozenset[str] = frozenset(
+    path for op in _c2_operations() if op["authenticated"] for path in {op["path"]}
+)
+IDEMPOTENT_C2: frozenset[str] = frozenset(
+    path for op in _c2_operations() if op["idempotent"] for path in {op["path"]}
+)
+
+# Union helpers used by the API layer for header requirements.
+AUTHENTICATED_PATHS: frozenset[str] = AUTHENTICATED_C1 | AUTHENTICATED_C2
+IDEMPOTENT_PATHS: frozenset[str] = IDEMPOTENT_C1 | IDEMPOTENT_C2
 
 
 # ---------------------------------------------------------------------------
@@ -103,10 +143,11 @@ def _build_op_schemas() -> dict[tuple[str, str], dict[str, str | None]]:
     """Build the request/response schema binding from each YAML operation.
 
     Falls back to the conventional ``term1_<opid>_<kind>.schema.json`` name when
-    a YAML binding is omitted, so the map always covers every C1 operation.
+    a YAML binding is omitted, so the map always covers every C1 and C2
+    operation.
     """
     mapping: dict[tuple[str, str], dict[str, str | None]] = {}
-    for op in _contract_operations():
+    for op in _contract_operations() + _c2_operations():
         key = (op["method"].lower(), op["path"])
         op_id = op["id"]
         request = op.get("request", {}) or {}
@@ -125,10 +166,11 @@ def _build_op_schemas() -> dict[tuple[str, str], dict[str, str | None]]:
 
 OP_SCHEMAS: dict[tuple[str, str], dict[str, str | None]] = _build_op_schemas()
 
-# Sanity check: every declared C1 operation has a schema binding.
-assert set(OP_SCHEMAS) == set(
-    (op["method"].lower(), op["path"]) for op in _contract_operations()
-), "OP_SCHEMAS does not cover every C1 operation"
+# Sanity check: every declared C1 and C2 operation has a schema binding.
+assert set(OP_SCHEMAS) == {
+    (op["method"].lower(), op["path"])
+    for op in _contract_operations() + _c2_operations()
+}, "OP_SCHEMAS does not cover every C1/C2 operation"
 
 def _load_c1_schemas() -> dict[str, dict[str, Any]]:
     """Load every operation-specific C1 JSON Schema from disk."""
@@ -181,9 +223,17 @@ def _operation_object(
     idempotent: bool,
 ) -> dict[str, Any]:
     op = next(
-        o for o in _contract_operations()
-        if o["method"].lower() == method and o["path"] == path
+        (o for o in _contract_operations()
+         if o["method"].lower() == method and o["path"] == path),
+        None,
     )
+    stage = "C1"
+    if op is None:
+        op = next(
+            o for o in _c2_operations()
+            if o["method"].lower() == method and o["path"] == path
+        )
+        stage = "C2"
     operation_id = op["id"]
     request = op.get("request", {}) or {}
     body_presence = str(request.get("body", "absent")).lower()
@@ -192,9 +242,9 @@ def _operation_object(
 
     operation: dict[str, Any] = {
         "operationId": f"{method}_{path.strip('/').replace('/', '_').replace('{', '').replace('}', '')}",
-        "tags": ["term1-c1"],
-        "summary": f"C1 {method.upper()} {path}",
-        "x-term1-stage": "C1",
+        "tags": [f"term1-{stage.lower()}"],
+        "summary": f"{stage} {method.upper()} {path}",
+        "x-term1-stage": stage,
         "x-op-id": operation_id,
     }
     parameters: list[dict[str, Any]] = []
@@ -208,6 +258,16 @@ def _operation_object(
                     "schema": {"type": "string", "minLength": 1, "maxLength": 64},
                 }
             )
+    for query in op.get("query_parameters", []) or []:
+        entry: dict[str, Any] = {
+            "name": query["name"],
+            "in": "query",
+            "required": bool(query.get("required", False)),
+            "schema": query.get("schema", {"type": "string"}),
+        }
+        if query.get("description"):
+            entry["description"] = query["description"]
+        parameters.append(entry)
     if authenticated:
         parameters.append(
             {
@@ -337,7 +397,7 @@ def compose_openapi(contracts) -> Any:
                     },
                 },
             )
-        for op in _contract_operations():
+        for op in _contract_operations() + _c2_operations():
             method = op["method"].lower()
             path = op["path"]
             paths.setdefault(path, {})[method] = _operation_object(
@@ -373,14 +433,27 @@ def compose_openapi(contracts) -> Any:
                 ),
             }
         )
+        if C2_OPERATIONS:
+            document.setdefault("tags", []).append(
+                {
+                    "name": "term1-c2",
+                    "description": (
+                        "Term 1 C2 — clinical intake, canonical assessment "
+                        "snapshots and fail-closed unavailable inference. "
+                        "SAFE_SCOPE: zero artifact access, zero inference "
+                        "dispatch, zero result rows, zero mock fallback, no "
+                        "patient scores (A3/B pending)."
+                    ),
+                }
+            )
         return document
 
     return render
 
 
 # ---------------------------------------------------------------------------
-# Error catalogue (closed, 37 codes) — kept consistent with
-# backend/app/term1/errors.py::ERROR_CATALOGUE and
+# Error catalogue (closed, 63 codes: 37 C1 + 26 additive C2) — kept consistent
+# with backend/app/term1/errors.py::ERROR_CATALOGUE and
 # shared/contracts/term1/errors.yaml.
 # ---------------------------------------------------------------------------
 
@@ -396,6 +469,9 @@ ERROR_CODES: dict[str, list[str]] = {
         "forbidden",
         "password_change_required",
         "identity_key_change_unsupported",
+        "admin_clinical_content_forbidden",
+        "consent_required",
+        "ocr_inference_not_authorized",
     ],
     "404": [
         "not_found",
@@ -404,6 +480,10 @@ ERROR_CODES: dict[str, list[str]] = {
         "invitation_not_found",
         "assignment_not_found",
         "consent_not_found",
+        "health_profile_not_found",
+        "assessment_not_found",
+        "document_not_found",
+        "extraction_not_found",
     ],
     "409": [
         "account_registration_unavailable",
@@ -420,17 +500,35 @@ ERROR_CODES: dict[str, list[str]] = {
         "idempotency_scope_conflict",
         "secret_not_redisclosable",
         "concurrency_conflict",
+        "health_profile_superseded",
+        "document_not_confirmed",
+        "document_integrity_mismatch",
+        "document_limit_reached",
+        "extraction_already_confirmed",
+        "extraction_version_conflict",
+        "stale_attempt_fenced",
     ],
+    "413": ["payload_too_large"],
+    "415": ["unsupported_media_type"],
     "422": [
         "validation_failed",
         "password_policy_violation",
         "password_unchanged",
         "invalid_attestation",
         "invalid_demo_identifier",
+        "active_pdf_content_rejected",
+        "health_profile_incomplete",
+        "invalid_document_content",
+        "invalid_panel_input",
+        "missing_mandatory_attachment",
+        "missing_reason_mismatch",
+        "prohibited_clinical_field",
+        "provenance_relabeling_forbidden",
+        "unsupported_template_for_intake",
     ],
     "429": ["rate_limited"],
     "500": ["internal_error"],
-    "503": ["identity_key_configuration_error"],
+    "503": ["identity_key_configuration_error", "worker_unavailable"],
 }
 
 # Expose per-operation request schema filename (or None) for runtime validation

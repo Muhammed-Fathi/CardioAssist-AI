@@ -63,6 +63,8 @@ BODY_REQUIRED = frozenset(
         constants.OP_ASSIGNMENT_DOCTOR_REVOKE,
         constants.OP_ASSIGNMENT_PATIENT_REVOKE,
         constants.OP_CONSENT_REVOKE,
+        constants.OP_HEALTH_PROFILE_PATCH,
+        constants.OP_ASSESSMENT_CREATE,
     }
 )
 BODY_OPTIONAL = frozenset({constants.OP_LOGOUT, constants.OP_REFRESH})
@@ -359,6 +361,7 @@ def run_idempotent(
     failure_hook: Callable[[ApiError | None, Session | None], None] | None = None,
     status: int = 200,
     scope_kind: str = "user",
+    on_replay: Callable[[Session, Actor], None] | None = None,
 ) -> JSONResponse:
     """One Idempotency-Key protected operation inside one write transaction.
 
@@ -366,6 +369,11 @@ def run_idempotent(
     secret_disclosed)``. Authentication happens first inside the transaction so
     that the replay actor binding is the authenticated user, and so that a
     concurrently revoked session cannot authorize a disclosed replay.
+
+    ``on_replay(session, actor)`` (C2, checkpoint §7) runs when a cached 2xx
+    match is about to be returned, inside the same transaction, so a replay of
+    H1b/S1 re-verifies live consent/assignment state first; it raises the
+    same ``ApiError`` the first execution would. C1 operations pass ``None``.
 
     Failure hooks are invoked INSIDE the transaction (before rollback) so that
     durable attempt evidence is written under the same ``BEGIN IMMEDIATE``
@@ -408,6 +416,8 @@ def run_idempotent(
                 )
                 decision = precheck(session, clock=handler.clock, identity=identity)
                 if decision.is_replay:
+                    if on_replay is not None:
+                        on_replay(session, actor)
                     return _response(status, envelope(**decision.body()))
                 result, redacted, disclosed = run(session, actor)
                 remember(

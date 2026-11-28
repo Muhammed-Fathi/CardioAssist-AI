@@ -1,5 +1,5 @@
 contract_version: v1
-stage: C1
+stage: C1+C2
 status: PROPOSED — NOT APPROVED, NOT DEPLOYED
 source: backend/app/term1/errors.py::ERROR_CATALOGUE
 envelope:
@@ -7,7 +7,7 @@ envelope:
   error:
     code: str
     message: str
-description: "# Term 1 · C1 contract source — closed error catalogue\n\n> **STATUS: PROPOSED — NOT APPROVED, NOT DEPLOYED.** Generated from\n> `backend/app/term1/errors.py::ERROR_CATALOGUE`; the contract test\n> `tests/c1/test_c1_contracts.py` fails if this file and the code disagree.\n\nEvery C1 error is `{\"contract_version\": \"v1\", \"error\": {\"code\", \"message\"}}`.\nMessages are static per code: they never embed a submitted value, an account,\nan invitation, a token or a fingerprint, so an error cannot be used to\nenumerate resources. `429` additionally carries `Retry-After`.\n\n| Status | Code | Static message |\n|---|---|---|\n\n| `400` | `idempotency_key_required` | Supply exactly one Idempotency-Key header. |\n| `400` | `malformed_request` | The request body is not acceptable. |\n| `401` | `authentication_required` | Provide a bearer session token. |\n| `401` | `invalid_credentials` | Authentication failed. |\n| `401` | `invalid_invitation` | The invitation is not usable. |\n| `401` | `invalid_session` | The session is not valid. |\n| `403` | `forbidden` | The authenticated account may not perform this operation. |\n| `403` | `identity_key_change_unsupported` | The supplied identity key id does not match the stored identity. |\n| `403` | `password_change_required` | This account must change its temporary password before other operations. |\n| `404` | `account_not_found` | The account was not found. |\n| `404` | `assignment_not_found` | The assignment was not found. |\n| `404` | `consent_not_found` | No active synthetic-demo consent was found. |\n| `404` | `invitation_not_found` | The invitation was not found. |\n| `404` | `not_found` | The resource was not found. |\n| `404` | `visit_not_found` | The verified visit was not found. |\n| `409` | `account_registration_unavailable` | The account cannot be created. |\n| `409` | `account_status_conflict` | The requested status transition is not permitted. |\n| `409` | `assignment_already_revoked` | The assignment is already revoked. |\n| `409` | `concurrency_conflict` | A concurrent request changed the resource. |\n| `409` | `idempotency_key_conflict` | The Idempotency-Key was reused with a different request. |\n| `409` | `idempotency_scope_conflict` | The Idempotency-Key was already used for a different operation or target. |\n| `409` | `identity_key_material_mismatch` | The configured identity key material does not match the database key check. |\n| `409` | `identity_key_replacement_unsupported` | Identity key replacement is not supported for a populated database. |\n| `409` | `invitation_already_active` | An active invitation already exists for this visit. |\n| `409` | `invitation_attempts_exhausted` | The invitation was revoked after too many attempts. |\n| `409` | `last_administrator_protected` | The operation would leave no usable administrator. |\n| `409` | `role_profile_mismatch` | The account role and profile are inconsistent. |\n| `409` | `secret_not_redisclosable` | The original response contained a one-time secret and cannot be replayed. |\n| `409` | `subject_identity_conflict` | An account already exists for this identity; use the authenticated link flow. |\n| `422` | `invalid_attestation` | The attestation attested visit data is not admissible. |\n| `422` | `invalid_demo_identifier` | Only the fictitious DEMO-ID-nnn grammar is accepted. |\n| `422` | `password_policy_violation` | The password does not meet the policy. |\n| `422` | `password_unchanged` | The new password must differ from the current one. |\n| `422` | `validation_failed` | The request failed semantic validation. |\n| `429` | `rate_limited` | Too many attempts. Retry later. |\n| `500` | `internal_error` | The service could not complete the request. |\n| `503` | `identity_key_configuration_error` | Identity key material is not configured correctly for this database. |\n\n## Status semantics\n\n| Status | Meaning |\n|---|---|\n| 400 | Malformed body, wrong `Content-Type`, or a missing/ambiguous `Idempotency-Key` |\n| 401 | Unauthenticated, or a deliberately generic authentication/invitation failure |\n| 403 | Authenticated but wrong role, `password_change_required`, or an unsupported key-id change |\n| 404 | Not found **or** not owned by the caller (identical shape; no IDOR oracle) |\n| 409 | Idempotency or domain-state conflict |\n| 422 | Semantically complete but inadmissible values |\n| 429 | Lockout; `Retry-After` is present |\n| 500 | Unexpected failure; no internal detail is disclosed |\n| 503 | Identity key material is not configured correctly for this database |\n\n## Not in the catalogue, on purpose\n\n* No `404` for an unknown *invitation code* at `POST /v1/patients/register`\n  (that would be an enumeration oracle); it is `401 invalid_invitation`.\n* No distinct code distinguishes a suspended account at login.\n* No code exists for \"patient score display\" — that operation is not served.\n"
+description: "# Term 1 · C1 contract source — closed error catalogue\n\n> **STATUS: PROPOSED — NOT APPROVED, NOT DEPLOYED.** Generated from\n> `backend/app/term1/errors.py::ERROR_CATALOGUE`; the contract test\n> `tests/c1/test_c1_contracts.py` fails if this file and the code disagree.\n\nEvery C1 and C2 error is `{\"contract_version\": \"v1\", \"error\": {\"code\", \"message\"}}`.\nMessages are static per code: they never embed a submitted value, an account,\nan invitation, a token or a fingerprint, so an error cannot be used to\nenumerate resources. `429` additionally carries `Retry-After`.\n\n| Status | Code | Static message |\n|---|---|---|\n\n| `400` | `idempotency_key_required` | Supply exactly one Idempotency-Key header. |\n| `400` | `malformed_request` | The request body is not acceptable. |\n| `401` | `authentication_required` | Provide a bearer session token. |\n| `401` | `invalid_credentials` | Authentication failed. |\n| `401` | `invalid_invitation` | The invitation is not usable. |\n| `401` | `invalid_session` | The session is not valid. |\n| `403` | `admin_clinical_content_forbidden` | Administrators cannot access clinical intake, assessment, or medical document content. |\n| `403` | `consent_required` | Active synthetic-demo consent is required for this operation. |\n| `403` | `forbidden` | The authenticated account may not perform this operation. |\n| `403` | `identity_key_change_unsupported` | The supplied identity key id does not match the stored identity. |\n| `403` | `ocr_inference_not_authorized` | OCR-confirmed demo intake is not currently authorized for model inference. |\n| `403` | `password_change_required` | This account must change its temporary password before other operations. |\n| `404` | `account_not_found` | The account was not found. |\n| `404` | `assessment_not_found` | The assessment was not found. |\n| `404` | `assignment_not_found` | The assignment was not found. |\n| `404` | `consent_not_found` | No active synthetic-demo consent was found. |\n| `404` | `document_not_found` | The document was not found. |\n| `404` | `extraction_not_found` | The document extraction was not found. |\n| `404` | `health_profile_not_found` | The health profile was not found. |\n| `404` | `invitation_not_found` | The invitation was not found. |\n| `404` | `not_found` | The resource was not found. |\n| `404` | `visit_not_found` | The verified visit was not found. |\n| `409` | `account_registration_unavailable` | The account cannot be created. |\n| `409` | `account_status_conflict` | The requested status transition is not permitted. |\n| `409` | `assignment_already_revoked` | The assignment is already revoked. |\n| `409` | `concurrency_conflict` | A concurrent request changed the resource. |\n| `409` | `document_integrity_mismatch` | The stored document digest does not match the recorded immutable digest. |\n| `409` | `document_limit_reached` | The maximum document count or storage quota for this account has been reached. |\n| `409` | `document_not_confirmed` | The OCR extraction must be explicitly confirmed by the patient first. |\n| `409` | `extraction_already_confirmed` | This extraction version has already been confirmed. |\n| `409` | `extraction_version_conflict` | The submitted extraction version does not match the bound extraction version. |\n| `409` | `health_profile_superseded` | The referenced health profile version has already been superseded. |\n| `409` | `idempotency_key_conflict` | The Idempotency-Key was reused with a different request. |\n| `409` | `idempotency_scope_conflict` | The Idempotency-Key was already used for a different operation or target. |\n| `409` | `identity_key_material_mismatch` | The configured identity key material does not match the database key check. |\n| `409` | `identity_key_replacement_unsupported` | Identity key replacement is not supported for a populated database. |\n| `409` | `invitation_already_active` | An active invitation already exists for this visit. |\n| `409` | `invitation_attempts_exhausted` | The invitation was revoked after too many attempts. |\n| `409` | `last_administrator_protected` | The operation would leave no usable administrator. |\n| `409` | `role_profile_mismatch` | The account role and profile are inconsistent. |\n| `409` | `secret_not_redisclosable` | The original response contained a one-time secret and cannot be replayed. |\n| `409` | `stale_attempt_fenced` | The inference attempt completion was rejected by fencing or lease expiration. |\n| `409` | `subject_identity_conflict` | An account already exists for this identity; use the authenticated link flow. |\n| `413` | `payload_too_large` | The uploaded document exceeds the maximum allowed size. |\n| `415` | `unsupported_media_type` | Only PDF, PNG, and JPEG documents are accepted. |\n| `422` | `active_pdf_content_rejected` | The PDF contains prohibited active, scripted, or embedded content. |\n| `422` | `health_profile_incomplete` | A complete health profile version is required before assessment submission. |\n| `422` | `invalid_attestation` | The attestation attested visit data is not admissible. |\n| `422` | `invalid_demo_identifier` | Only the fictitious DEMO-ID-nnn grammar is accepted. |\n| `422` | `invalid_document_content` | The uploaded file failed structural, fixture-allowlist, page, or pixel validation. |\n| `422` | `invalid_panel_input` | The clinical panel values, units, or missingness reasons failed validation. |\n| `422` | `missing_mandatory_attachment` | OCR-assisted assessment submission requires a bound confirmed resting-vitals document. |\n| `422` | `missing_reason_mismatch` | Every omitted or null optional field requires a valid missingness reason. |\n| `422` | `password_policy_violation` | The password does not meet the policy. |\n| `422` | `password_unchanged` | The new password must differ from the current one. |\n| `422` | `prohibited_clinical_field` | Prohibited leakage, laboratory, or wearable fields are not permitted. |\n| `422` | `provenance_relabeling_forbidden` | OCR-derived clinical values cannot be submitted as manual-only provenance. |\n| `422` | `unsupported_template_for_intake` | This document template cannot be confirmed as resting-assessment intake. |\n| `422` | `validation_failed` | The request failed semantic validation. |\n| `429` | `rate_limited` | Too many attempts. Retry later. |\n| `500` | `internal_error` | The service could not complete the request. |\n| `503` | `identity_key_configuration_error` | Identity key material is not configured correctly for this database. |\n| `503` | `worker_unavailable` | The isolated local inference or OCR worker is currently unavailable. |\n\n\n## Status semantics\n\n| Status | Meaning |\n|---|---|\n| 400 | Malformed body, wrong `Content-Type`, or a missing/ambiguous `Idempotency-Key` |\n| 401 | Unauthenticated, or a deliberately generic authentication/invitation failure |\n| 403 | Authenticated but wrong role, `password_change_required`, or an unsupported key-id change |\n| 404 | Not found **or** not owned by the caller (identical shape; no IDOR oracle) |\n| 409 | Idempotency or domain-state conflict |\n| 413 | Payload exceeds the documented size limit |\n| 415 | Unsupported declared media type |\n| 422 | Semantically complete but inadmissible values |\n| 429 | Lockout; `Retry-After` is present |\n| 500 | Unexpected failure; no internal detail is disclosed |\n| 503 | Identity key material is not configured correctly for this database |\n\n## Not in the catalogue, on purpose\n\n* No `404` for an unknown *invitation code* at `POST /v1/patients/register`\n  (that would be an enumeration oracle); it is `401 invalid_invitation`.\n* No distinct code distinguishes a suspended account at login.\n* No code exists for \"patient score display\" — that operation is not served.\n"
 codes:
   account_not_found:
     status: 404
@@ -18,6 +18,15 @@ codes:
   account_status_conflict:
     status: 409
     message: The requested status transition is not permitted.
+  active_pdf_content_rejected:
+    status: 422
+    message: The PDF contains prohibited active, scripted, or embedded content.
+  admin_clinical_content_forbidden:
+    status: 403
+    message: Administrators cannot access clinical intake, assessment, or medical document content.
+  assessment_not_found:
+    status: 404
+    message: The assessment was not found.
   assignment_already_revoked:
     status: 409
     message: The assignment is already revoked.
@@ -33,9 +42,42 @@ codes:
   consent_not_found:
     status: 404
     message: No active synthetic-demo consent was found.
+  consent_required:
+    status: 403
+    message: Active synthetic-demo consent is required for this operation.
+  document_integrity_mismatch:
+    status: 409
+    message: The stored document digest does not match the recorded immutable digest.
+  document_limit_reached:
+    status: 409
+    message: The maximum document count or storage quota for this account has been reached.
+  document_not_confirmed:
+    status: 409
+    message: The OCR extraction must be explicitly confirmed by the patient first.
+  document_not_found:
+    status: 404
+    message: The document was not found.
+  extraction_already_confirmed:
+    status: 409
+    message: This extraction version has already been confirmed.
+  extraction_not_found:
+    status: 404
+    message: The document extraction was not found.
+  extraction_version_conflict:
+    status: 409
+    message: The submitted extraction version does not match the bound extraction version.
   forbidden:
     status: 403
     message: The authenticated account may not perform this operation.
+  health_profile_incomplete:
+    status: 422
+    message: A complete health profile version is required before assessment submission.
+  health_profile_not_found:
+    status: 404
+    message: The health profile was not found.
+  health_profile_superseded:
+    status: 409
+    message: The referenced health profile version has already been superseded.
   idempotency_key_conflict:
     status: 409
     message: The Idempotency-Key was reused with a different request.
@@ -69,9 +111,15 @@ codes:
   invalid_demo_identifier:
     status: 422
     message: Only the fictitious DEMO-ID-nnn grammar is accepted.
+  invalid_document_content:
+    status: 422
+    message: The uploaded file failed structural, fixture-allowlist, page, or pixel validation.
   invalid_invitation:
     status: 401
     message: The invitation is not usable.
+  invalid_panel_input:
+    status: 422
+    message: The clinical panel values, units, or missingness reasons failed validation.
   invalid_session:
     status: 401
     message: The session is not valid.
@@ -90,9 +138,18 @@ codes:
   malformed_request:
     status: 400
     message: The request body is not acceptable.
+  missing_mandatory_attachment:
+    status: 422
+    message: OCR-assisted assessment submission requires a bound confirmed resting-vitals document.
+  missing_reason_mismatch:
+    status: 422
+    message: Every omitted or null optional field requires a valid missingness reason.
   not_found:
     status: 404
     message: The resource was not found.
+  ocr_inference_not_authorized:
+    status: 403
+    message: OCR-confirmed demo intake is not currently authorized for model inference.
   password_change_required:
     status: 403
     message: This account must change its temporary password before other operations.
@@ -102,6 +159,15 @@ codes:
   password_unchanged:
     status: 422
     message: The new password must differ from the current one.
+  payload_too_large:
+    status: 413
+    message: The uploaded document exceeds the maximum allowed size.
+  prohibited_clinical_field:
+    status: 422
+    message: Prohibited leakage, laboratory, or wearable fields are not permitted.
+  provenance_relabeling_forbidden:
+    status: 422
+    message: OCR-derived clinical values cannot be submitted as manual-only provenance.
   rate_limited:
     status: 429
     message: Too many attempts. Retry later.
@@ -111,12 +177,24 @@ codes:
   secret_not_redisclosable:
     status: 409
     message: The original response contained a one-time secret and cannot be replayed.
+  stale_attempt_fenced:
+    status: 409
+    message: The inference attempt completion was rejected by fencing or lease expiration.
   subject_identity_conflict:
     status: 409
     message: An account already exists for this identity; use the authenticated link flow.
+  unsupported_media_type:
+    status: 415
+    message: Only PDF, PNG, and JPEG documents are accepted.
+  unsupported_template_for_intake:
+    status: 422
+    message: This document template cannot be confirmed as resting-assessment intake.
   validation_failed:
     status: 422
     message: The request failed semantic validation.
   visit_not_found:
     status: 404
     message: The verified visit was not found.
+  worker_unavailable:
+    status: 503
+    message: The isolated local inference or OCR worker is currently unavailable.

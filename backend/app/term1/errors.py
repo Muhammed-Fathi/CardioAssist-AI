@@ -1,6 +1,10 @@
-"""Term 1 HTTP error type and the frozen C1 error catalogue.
+"""Term 1 HTTP error type and the frozen C1+C2 error catalogue.
 
-Codes are closed. ``docs/term1/TERM1_API_INTEGRATION_MATRIX.md`` §3 fixes the
+Codes are closed. The original 37 C1 codes and messages are byte-identical;
+the 26 additive C2 codes (C2.1 clinical intake/assessment and C2.2
+documents/OCR vocabulary) follow the same status-per-code rule. Every code maps
+to exactly one HTTP status.
+``docs/term1/TERM1_API_INTEGRATION_MATRIX.md`` §3 fixes the
 status semantics: ``400`` malformed/schema, ``401`` unauthenticated or generic
 auth/invitation failure, ``403`` wrong role or ``password_change_required``,
 ``404`` wrong owner, ``409`` idempotency/domain conflict, ``422`` semantic
@@ -110,6 +114,100 @@ ERROR_CATALOGUE: dict[str, tuple[int, str]] = {
         "The original response contained a one-time secret and cannot be replayed.",
     ),
     "concurrency_conflict": (409, "A concurrent request changed the resource."),
+    # --- C2 additive codes (C2.1/C2.2; messages verbatim from
+    # docs/term1/TERM1_C2_API_AND_OCR_CONTRACT_SPEC_20261127.md §5) -----------
+    "admin_clinical_content_forbidden": (
+        403,
+        "Administrators cannot access clinical intake, assessment, or medical document content.",
+    ),
+    "consent_required": (
+        403,
+        "Active synthetic-demo consent is required for this operation.",
+    ),
+    "ocr_inference_not_authorized": (
+        403,
+        "OCR-confirmed demo intake is not currently authorized for model inference.",
+    ),
+    "health_profile_not_found": (404, "The health profile was not found."),
+    "assessment_not_found": (404, "The assessment was not found."),
+    "document_not_found": (404, "The document was not found."),
+    "extraction_not_found": (404, "The document extraction was not found."),
+    "health_profile_superseded": (
+        409,
+        "The referenced health profile version has already been superseded.",
+    ),
+    "document_not_confirmed": (
+        409,
+        "The OCR extraction must be explicitly confirmed by the patient first.",
+    ),
+    "document_integrity_mismatch": (
+        409,
+        "The stored document digest does not match the recorded immutable digest.",
+    ),
+    "document_limit_reached": (
+        409,
+        "The maximum document count or storage quota for this account has been reached.",
+    ),
+    "extraction_already_confirmed": (
+        409,
+        "This extraction version has already been confirmed.",
+    ),
+    "extraction_version_conflict": (
+        409,
+        "The submitted extraction version does not match the bound extraction version.",
+    ),
+    "stale_attempt_fenced": (
+        409,
+        "The inference attempt completion was rejected by fencing or lease expiration.",
+    ),
+    "payload_too_large": (
+        413,
+        "The uploaded document exceeds the maximum allowed size.",
+    ),
+    "unsupported_media_type": (
+        415,
+        "Only PDF, PNG, and JPEG documents are accepted.",
+    ),
+    "active_pdf_content_rejected": (
+        422,
+        "The PDF contains prohibited active, scripted, or embedded content.",
+    ),
+    "health_profile_incomplete": (
+        422,
+        "A complete health profile version is required before assessment submission.",
+    ),
+    "invalid_document_content": (
+        422,
+        "The uploaded file failed structural, fixture-allowlist, page, or pixel validation.",
+    ),
+    "invalid_panel_input": (
+        422,
+        "The clinical panel values, units, or missingness reasons failed validation.",
+    ),
+    "missing_mandatory_attachment": (
+        422,
+        "OCR-assisted assessment submission requires a bound confirmed resting-vitals document.",
+    ),
+    "missing_reason_mismatch": (
+        422,
+        "Every omitted or null optional field requires a valid missingness reason.",
+    ),
+    "prohibited_clinical_field": (
+        422,
+        "Prohibited leakage, laboratory, or wearable fields are not permitted.",
+    ),
+    "provenance_relabeling_forbidden": (
+        422,
+        "OCR-derived clinical values cannot be submitted as manual-only provenance.",
+    ),
+    "unsupported_template_for_intake": (
+        422,
+        "This document template cannot be confirmed as resting-assessment intake.",
+    ),
+    "worker_unavailable": (
+        503,
+        "The isolated local inference or OCR worker is currently unavailable.",
+    ),
 }
 
 

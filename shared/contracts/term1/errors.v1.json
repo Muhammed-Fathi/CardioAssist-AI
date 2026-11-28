@@ -1,6 +1,6 @@
 {
   "contract_version": "v1",
-  "stage": "C1",
+  "stage": "C1+C2",
   "status": "PROPOSED \u2014 NOT APPROVED, NOT DEPLOYED",
   "source": "backend/app/term1/errors.py::ERROR_CATALOGUE",
   "envelope": {
@@ -26,6 +26,18 @@
       "status": 409,
       "message": "The requested status transition is not permitted."
     },
+    "active_pdf_content_rejected": {
+      "status": 422,
+      "message": "The PDF contains prohibited active, scripted, or embedded content."
+    },
+    "admin_clinical_content_forbidden": {
+      "status": 403,
+      "message": "Administrators cannot access clinical intake, assessment, or medical document content."
+    },
+    "assessment_not_found": {
+      "status": 404,
+      "message": "The assessment was not found."
+    },
     "assignment_already_revoked": {
       "status": 409,
       "message": "The assignment is already revoked."
@@ -46,9 +58,53 @@
       "status": 404,
       "message": "No active synthetic-demo consent was found."
     },
+    "consent_required": {
+      "status": 403,
+      "message": "Active synthetic-demo consent is required for this operation."
+    },
+    "document_integrity_mismatch": {
+      "status": 409,
+      "message": "The stored document digest does not match the recorded immutable digest."
+    },
+    "document_limit_reached": {
+      "status": 409,
+      "message": "The maximum document count or storage quota for this account has been reached."
+    },
+    "document_not_confirmed": {
+      "status": 409,
+      "message": "The OCR extraction must be explicitly confirmed by the patient first."
+    },
+    "document_not_found": {
+      "status": 404,
+      "message": "The document was not found."
+    },
+    "extraction_already_confirmed": {
+      "status": 409,
+      "message": "This extraction version has already been confirmed."
+    },
+    "extraction_not_found": {
+      "status": 404,
+      "message": "The document extraction was not found."
+    },
+    "extraction_version_conflict": {
+      "status": 409,
+      "message": "The submitted extraction version does not match the bound extraction version."
+    },
     "forbidden": {
       "status": 403,
       "message": "The authenticated account may not perform this operation."
+    },
+    "health_profile_incomplete": {
+      "status": 422,
+      "message": "A complete health profile version is required before assessment submission."
+    },
+    "health_profile_not_found": {
+      "status": 404,
+      "message": "The health profile was not found."
+    },
+    "health_profile_superseded": {
+      "status": 409,
+      "message": "The referenced health profile version has already been superseded."
     },
     "idempotency_key_conflict": {
       "status": 409,
@@ -94,9 +150,17 @@
       "status": 422,
       "message": "Only the fictitious DEMO-ID-nnn grammar is accepted."
     },
+    "invalid_document_content": {
+      "status": 422,
+      "message": "The uploaded file failed structural, fixture-allowlist, page, or pixel validation."
+    },
     "invalid_invitation": {
       "status": 401,
       "message": "The invitation is not usable."
+    },
+    "invalid_panel_input": {
+      "status": 422,
+      "message": "The clinical panel values, units, or missingness reasons failed validation."
     },
     "invalid_session": {
       "status": 401,
@@ -122,9 +186,21 @@
       "status": 400,
       "message": "The request body is not acceptable."
     },
+    "missing_mandatory_attachment": {
+      "status": 422,
+      "message": "OCR-assisted assessment submission requires a bound confirmed resting-vitals document."
+    },
+    "missing_reason_mismatch": {
+      "status": 422,
+      "message": "Every omitted or null optional field requires a valid missingness reason."
+    },
     "not_found": {
       "status": 404,
       "message": "The resource was not found."
+    },
+    "ocr_inference_not_authorized": {
+      "status": 403,
+      "message": "OCR-confirmed demo intake is not currently authorized for model inference."
     },
     "password_change_required": {
       "status": 403,
@@ -138,6 +214,18 @@
       "status": 422,
       "message": "The new password must differ from the current one."
     },
+    "payload_too_large": {
+      "status": 413,
+      "message": "The uploaded document exceeds the maximum allowed size."
+    },
+    "prohibited_clinical_field": {
+      "status": 422,
+      "message": "Prohibited leakage, laboratory, or wearable fields are not permitted."
+    },
+    "provenance_relabeling_forbidden": {
+      "status": 422,
+      "message": "OCR-derived clinical values cannot be submitted as manual-only provenance."
+    },
     "rate_limited": {
       "status": 429,
       "message": "Too many attempts. Retry later."
@@ -150,9 +238,21 @@
       "status": 409,
       "message": "The original response contained a one-time secret and cannot be replayed."
     },
+    "stale_attempt_fenced": {
+      "status": 409,
+      "message": "The inference attempt completion was rejected by fencing or lease expiration."
+    },
     "subject_identity_conflict": {
       "status": 409,
       "message": "An account already exists for this identity; use the authenticated link flow."
+    },
+    "unsupported_media_type": {
+      "status": 415,
+      "message": "Only PDF, PNG, and JPEG documents are accepted."
+    },
+    "unsupported_template_for_intake": {
+      "status": 422,
+      "message": "This document template cannot be confirmed as resting-assessment intake."
     },
     "validation_failed": {
       "status": 422,
@@ -161,6 +261,10 @@
     "visit_not_found": {
       "status": 404,
       "message": "The verified visit was not found."
+    },
+    "worker_unavailable": {
+      "status": 503,
+      "message": "The isolated local inference or OCR worker is currently unavailable."
     }
   },
   "served_by_status": {
@@ -177,7 +281,10 @@
     "403": [
       "forbidden",
       "password_change_required",
-      "identity_key_change_unsupported"
+      "identity_key_change_unsupported",
+      "admin_clinical_content_forbidden",
+      "consent_required",
+      "ocr_inference_not_authorized"
     ],
     "404": [
       "not_found",
@@ -185,7 +292,11 @@
       "visit_not_found",
       "invitation_not_found",
       "assignment_not_found",
-      "consent_not_found"
+      "consent_not_found",
+      "health_profile_not_found",
+      "assessment_not_found",
+      "document_not_found",
+      "extraction_not_found"
     ],
     "409": [
       "account_registration_unavailable",
@@ -201,14 +312,36 @@
       "idempotency_key_conflict",
       "idempotency_scope_conflict",
       "secret_not_redisclosable",
-      "concurrency_conflict"
+      "concurrency_conflict",
+      "health_profile_superseded",
+      "document_not_confirmed",
+      "document_integrity_mismatch",
+      "document_limit_reached",
+      "extraction_already_confirmed",
+      "extraction_version_conflict",
+      "stale_attempt_fenced"
+    ],
+    "413": [
+      "payload_too_large"
+    ],
+    "415": [
+      "unsupported_media_type"
     ],
     "422": [
       "validation_failed",
       "password_policy_violation",
       "password_unchanged",
       "invalid_attestation",
-      "invalid_demo_identifier"
+      "invalid_demo_identifier",
+      "active_pdf_content_rejected",
+      "health_profile_incomplete",
+      "invalid_document_content",
+      "invalid_panel_input",
+      "missing_mandatory_attachment",
+      "missing_reason_mismatch",
+      "prohibited_clinical_field",
+      "provenance_relabeling_forbidden",
+      "unsupported_template_for_intake"
     ],
     "429": [
       "rate_limited"
@@ -217,7 +350,8 @@
       "internal_error"
     ],
     "503": [
-      "identity_key_configuration_error"
+      "identity_key_configuration_error",
+      "worker_unavailable"
     ]
   }
 }

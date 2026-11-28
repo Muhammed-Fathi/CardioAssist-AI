@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_health_profile_response.schema.json",
+  "title": "term1_health_profile_response.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "health_profile_id",
+    "version_number",
+    "status",
+    "panel_id",
+    "panel_version",
+    "schema_version",
+    "inputs",
+    "units",
+    "missing_reasons",
+    "provenance",
+    "profile_sha256",
+    "created_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "v1"
+    },
+    "health_profile_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "version_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "COMPLETE",
+        "SUPERSEDED"
+      ]
+    },
+    "panel_id": {
+      "const": "da_a2_resting_v1"
+    },
+    "panel_version": {
+      "const": "1.0.0"
+    },
+    "schema_version": {
+      "const": "term1.c2.profile/v1"
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "units": {
+      "type": "object"
+    },
+    "missing_reasons": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source_contract_version", "source_kind"],
+      "additionalProperties": false,
+      "properties": {
+        "source_contract_version": {"const": "term1.c2.intake/v1"},
+        "source_kind": {"const": "synthetic_demo_patient_manual"}
+      }
+    },
+    "profile_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

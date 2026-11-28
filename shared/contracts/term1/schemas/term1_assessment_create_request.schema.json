@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_assessment_create_request.schema.json",
+  "title": "term1_assessment_create_request.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "assignment_id",
+    "health_profile_id",
+    "panel_id",
+    "panel_version",
+    "input_mode",
+    "panel_input"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "v1"
+    },
+    "assignment_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "health_profile_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "panel_id": {
+      "const": "da_a2_resting_v1"
+    },
+    "panel_version": {
+      "const": "1.0.0"
+    },
+    "input_mode": {
+      "enum": [
+        "manual",
+        "ocr_confirmed"
+      ],
+      "description": "Strict XOR; SAFE_SCOPE serves manual only (ocr_confirmed -> 403 ocr_inference_not_authorized)."
+    },
+    "panel_input": {
+      "type": "object",
+      "required": [
+        "inputs",
+        "units",
+        "missing_reasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "inputs": {
+          "type": "object"
+        },
+        "units": {
+          "type": "object"
+        },
+        "missing_reasons": {
+          "type": "object"
+        }
+      }
+    },
+    "ocr_source": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Track 2 (DOC/OCR) payload; any non-null value fails closed with 403 ocr_inference_not_authorized until EXC+A3 are ratified."
+    },
+    "attached_document_ids": {
+      "type": "array",
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "reassessment_of_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "reassessment_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}

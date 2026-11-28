@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_assessment_create_response.schema.json",
+  "title": "term1_assessment_create_response.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "assessment_id",
+    "assignment_id",
+    "health_profile_id",
+    "snapshot_id",
+    "snapshot_sha256",
+    "panel_id",
+    "panel_version",
+    "source_contract_version",
+    "source_kind",
+    "status",
+    "reason_code",
+    "attempt_id",
+    "review_state",
+    "created_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "assessment_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+    "assignment_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+    "health_profile_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+    "snapshot_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+    "snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "panel_id": {"const": "da_a2_resting_v1"},
+    "panel_version": {"const": "1.0.0"},
+    "source_contract_version": {"const": "term1.c2.intake/v1"},
+    "source_kind": {"const": "synthetic_demo_patient_manual"},
+    "status": {
+      "const": "INFERENCE_UNAVAILABLE",
+      "description": "SAFE_SCOPE always terminates here; never RUNNING or a terminal success state."
+    },
+    "reason_code": {
+      "const": "real_ai_not_authorized",
+      "description": "SAFE_SCOPE reason; adapter, artifact and inference_result paths are unreachable."
+    },
+    "attempt_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+    "review_state": {"const": "NOT_REVIEWED"},
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}
