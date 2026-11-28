@@ -3,8 +3,8 @@
 The suite exercises the real 06→07→08 chain through Alembic elsewhere. These
 focused disposable-schema tests additionally call migration 08's own
 ``upgrade()``/``downgrade()`` through a bound ``Operations`` object to pin its
-six tables, thirteen new DOC triggers, the replacement assessment-scope trigger,
-and RB-C1 downgrade guard.
+six tables, fourteen new DOC triggers, replacement scope/attempt guards, and
+RB-C1 downgrade guard.
 """
 
 from __future__ import annotations
@@ -18,9 +18,12 @@ from alembic.operations import Operations
 from sqlalchemy import create_engine, text
 
 from backend.app.storage.models import Base
+from backend.app.term1 import constants as core_constants
+from backend.app.term1.models import AssessmentSnapshot
 import backend.app.term1.models  # noqa: F401
 import backend.app.term1_c2_documents.models  # noqa: F401 - metadata registration
 from backend.app.term1.triggers import C2_TRIGGER_DEFINITIONS, normalize_trigger_sql
+from backend.app.term1_c2_documents.triggers import ASSESSMENT_SCOPE_TRIGGER_OVERRIDE
 
 MIGRATION = Path(__file__).resolve().parents[3] / "backend" / "migrations" / "versions" / "20261128_08_c2_documents_ocr.py"
 C2_TABLES = {"medical_document", "document_extraction", "extraction_field",
@@ -41,7 +44,7 @@ def _bind(engine, mig, *, as_sql=False):
     return conn, ctx
 
 
-def test_upgrade_creates_six_tables_thirteen_doc_triggers_and_scope_override(tmp_path):
+def test_upgrade_creates_six_tables_fourteen_doc_triggers_and_core_overrides(tmp_path):
     engine = create_engine(f"sqlite:///{(tmp_path / 'm.sqlite3').as_posix()}")
     c1_tables = [t for n, t in Base.metadata.tables.items() if n not in C2_TABLES]
     Base.metadata.create_all(engine, tables=c1_tables)
@@ -55,14 +58,27 @@ def test_upgrade_creates_six_tables_thirteen_doc_triggers_and_scope_override(tmp
         triggers = {r[0] for r in conn.execute(text(
             "SELECT name FROM sqlite_master WHERE type='trigger'"))}
         assert C2_TABLES.issubset(tables)
-        assert len(mig.TRIGGER_DEFINITIONS) == 13
-        assert len(triggers) == 14
-        assert set(mig.TRIGGER_DEFINITIONS) | {"tr_assessment_scope_insert"} == triggers
+        assert len(mig.TRIGGER_DEFINITIONS) == 14
+        assert len(triggers) == 16
+        assert set(mig.TRIGGER_DEFINITIONS) | {
+            "tr_assessment_scope_insert", "tr_attempt_insert_guard"
+        } == triggers
         scope_sql = conn.execute(text(
             "SELECT sql FROM sqlite_master WHERE type='trigger' "
             "AND name='tr_assessment_scope_insert'"
         )).scalar_one()
+        attempt_sql = conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='trigger' "
+            "AND name='tr_attempt_insert_guard'"
+        )).scalar_one()
+        binding_sql = conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='trigger' "
+            "AND name='tr_assessment_document_insert_guard'"
+        )).scalar_one()
         assert "json_array_length(s.snapshot_json, '$.attached_documents') <= 5" in scope_sql
+        assert "synthetic_demo_ocr_confirmed" in scope_sql
+        assert "assessment_document" in attempt_sql
+        assert "assessment_document_insert_forbidden" in binding_sql
         assert "medical_document" in scope_sql
     finally:
         conn.close()
@@ -114,6 +130,22 @@ def test_revision_metadata_is_additive_after_07():
     mig = _load_migration()
     assert mig.down_revision == "20261128_07"
     assert mig.revision == "20261128_08"
+
+
+def test_ocr_source_kind_matches_constants_orm_migration_and_startup():
+    mig = _load_migration()
+    source_kind = core_constants.SOURCE_KIND_OCR_CONFIRMED
+    assert source_kind == "synthetic_demo_ocr_confirmed"
+    orm_checks = [
+        str(constraint.sqltext)
+        for constraint in AssessmentSnapshot.__table__.constraints
+        if getattr(constraint, "name", None) == "ck_snapshot_source_kind"
+    ]
+    assert len(orm_checks) == 1 and source_kind in orm_checks[0]
+    guard = mig.ASSESSMENT_SCOPE_TRIGGER_DEFINITION
+    assert f"json_extract(s.snapshot_json, '$.source_kind') != '{source_kind}'" in guard
+    assert "json_extract(s.snapshot_json, '$.source_kind') != 'ocr_confirmed'" not in guard
+    assert ASSESSMENT_SCOPE_TRIGGER_OVERRIDE == guard
 
 
 # --- RB-C1 downgrade guard: 6th-table coverage -------------------------------
@@ -180,13 +212,20 @@ def test_empty_downgrade_drops_all_six_tables_and_triggers(tmp_path):
         triggers = {r[0] for r in conn.execute(text(
             "SELECT name FROM sqlite_master WHERE type='trigger'"))}
         assert C2_TABLES.isdisjoint(tables)  # all six dropped
-        assert set(mig.TRIGGER_DEFINITIONS).isdisjoint(triggers)  # all 13 new DOC triggers dropped
+        assert set(mig.TRIGGER_DEFINITIONS).isdisjoint(triggers)  # all 14 DOC triggers dropped
         restored_scope = conn.execute(text(
             "SELECT sql FROM sqlite_master WHERE type='trigger' "
             "AND name='tr_assessment_scope_insert'"
         )).scalar_one()
+        restored_attempt = conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='trigger' "
+            "AND name='tr_attempt_insert_guard'"
+        )).scalar_one()
         assert normalize_trigger_sql(restored_scope) == normalize_trigger_sql(
             C2_TRIGGER_DEFINITIONS["tr_assessment_scope_insert"]
+        )
+        assert normalize_trigger_sql(restored_attempt) == normalize_trigger_sql(
+            C2_TRIGGER_DEFINITIONS["tr_attempt_insert_guard"]
         )
     finally:
         conn.close()

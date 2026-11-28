@@ -4,10 +4,11 @@ Revision ID: 20261128_08
 Revises: 20261128_07
 Create Date: 2026-11-28
 
-Adds the six document/OCR tables, their CHECK constraints and thirteen
-immutability triggers. It also replaces the 07 assessment-scope guard with an
-integrated definition that accepts only bounded, snapshot-backed document
-bindings; downgrade restores the exact 07 guard. ``down_revision`` is
+Adds the six document/OCR tables, their CHECK constraints and fourteen
+immutability/authorization triggers. It also replaces the 07 assessment-scope
+and attempt-insert guards with integrated definitions that accept only bounded,
+snapshot-backed bindings and require the complete binding set before attempt
+initiation; downgrade restores the exact 07 guards. ``down_revision`` is
 ``20261128_07``.
 
 Corrections round (reviewer REQUEST CHANGES #7233518509):
@@ -43,7 +44,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# Exact SQL for the thirteen new document triggers, also exported for startup
+# Exact SQL for the fourteen new document triggers, also exported for startup
 # verification. The replacement for tr_assessment_scope_insert is defined
 # separately below and overrides the 07 baseline under the same trigger name.
 # Identity comparisons use NULL-safe ``IS NOT`` checks.
@@ -205,6 +206,97 @@ TRIGGER_DEFINITIONS: dict[str, str] = {
             SELECT RAISE(ABORT, 'assessment_document_delete_forbidden');
         END
     """,
+    # I1: every binding row must be the exact descriptor frozen into the
+    # immutable assessment snapshot and may be created only in S1's authorized
+    # INPUT_VALIDATED phase, before any attempt or result pointer exists.
+    "tr_assessment_document_insert_guard": """
+        CREATE TRIGGER tr_assessment_document_insert_guard
+        BEFORE INSERT ON assessment_document
+        FOR EACH ROW
+        WHEN NOT EXISTS (
+            SELECT 1
+            FROM assessment a
+            JOIN assessment_snapshot s ON s.snapshot_id = a.snapshot_id
+            JOIN json_each(s.snapshot_json, '$.attached_documents') AS descriptor
+            JOIN medical_document d
+              ON d.document_id = NEW.document_id
+             AND d.patient_id = NEW.patient_id
+            WHERE a.assessment_id = NEW.assessment_id
+              AND a.patient_id = NEW.patient_id
+              AND a.status = 'INPUT_VALIDATED'
+              AND a.reason_code IS NULL
+              AND a.active_attempt_id IS NULL
+              AND a.current_result_id IS NULL
+              AND a.current_generation = 0
+              AND NOT EXISTS (
+                    SELECT 1 FROM inference_attempt i
+                    WHERE i.assessment_id = a.assessment_id
+              )
+              AND EXISTS (
+                    SELECT 1 FROM doctor_patient_assignment p
+                    WHERE p.assignment_id = a.assignment_id
+                      AND p.patient_id = a.patient_id
+                      AND p.revoked_at IS NULL
+              )
+              AND EXISTS (
+                    SELECT 1 FROM consent_record c
+                    WHERE c.consent_id = a.consent_id
+                      AND c.patient_id = a.patient_id
+                      AND c.kind = 'synthetic_demo'
+                      AND c.scope = 'patient_wide_synthetic_demo'
+                      AND c.contract_version = 'term1-c1-v1'
+                      AND c.revoked_at IS NULL
+              )
+              AND json_extract(descriptor.value, '$.binding_id') = NEW.binding_id
+              AND json_extract(descriptor.value, '$.document_id') = NEW.document_id
+              AND json_extract(descriptor.value, '$.document_sha256_at_bind')
+                    = NEW.document_sha256_at_bind
+              AND json_extract(descriptor.value, '$.attachment_role') = NEW.attachment_role
+              AND json_extract(descriptor.value, '$.extraction_id') IS NEW.extraction_id
+              AND json_extract(descriptor.value, '$.extraction_version') IS NEW.extraction_version
+              AND d.upload_status = 'STORED'
+              AND d.content_sha256 = NEW.document_sha256_at_bind
+              AND d.fixture_file_sha256 = d.content_sha256
+              AND (
+                    (d.document_kind = 'RESTING_CARDIAC_DEMO_REPORT'
+                     AND NEW.attachment_role IN ('SUPPORTING_REPORT','OCR_SOURCE_REPORT'))
+                 OR (d.document_kind = 'UNRELATED_LAB_DEMO_REPORT'
+                     AND NEW.attachment_role = 'UNRELATED_LAB_ATTACHMENT')
+              )
+              AND (
+                    (NEW.attachment_role = 'OCR_SOURCE_REPORT'
+                     AND s.source_kind = 'synthetic_demo_ocr_confirmed'
+                     AND json_type(descriptor.value, '$.extraction_confirmed_at') = 'text'
+                     AND json_type(descriptor.value, '$.confirmed_values_sha256') = 'text'
+                     AND EXISTS (
+                         SELECT 1
+                         FROM document_extraction x
+                         WHERE x.extraction_id = NEW.extraction_id
+                           AND x.document_id = NEW.document_id
+                           AND x.extraction_version = NEW.extraction_version
+                           AND x.is_confirmed = 1
+                           AND x.extraction_status = 'CONFIRMED_BY_PATIENT'
+                           AND x.template_id = 'CAI-DEMO-RESTING-CARDIAC-REPORT-V1'
+                           AND x.document_sha256 = NEW.document_sha256_at_bind
+                           AND x.confirmed_at = json_extract(
+                               descriptor.value, '$.extraction_confirmed_at'
+                           )
+                           AND x.confirmed_values_sha256 = json_extract(
+                               descriptor.value, '$.confirmed_values_sha256'
+                           )
+                           AND x.confirmed_envelope_json IS NOT NULL
+                     ))
+                 OR (NEW.attachment_role != 'OCR_SOURCE_REPORT'
+                     AND NEW.extraction_id IS NULL
+                     AND NEW.extraction_version IS NULL
+                     AND json_type(descriptor.value, '$.extraction_confirmed_at') = 'null'
+                     AND json_type(descriptor.value, '$.confirmed_values_sha256') = 'null')
+              )
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'assessment_document_insert_forbidden');
+        END
+    """,
 }
 
 # Migration 07's insert guard intentionally allowed only empty attachment lists
@@ -272,6 +364,113 @@ BEGIN
     SELECT RAISE(ABORT, 'assessment_scope_invalid');
 END;"""
 
+# Keep the exact 07 attempt guard so a clean 08 -> 07 downgrade restores it.
+# Migration 08 overlays a one-to-one snapshot/binding completeness predicate
+# before permitting the first inference_attempt. S1 intentionally inserts the
+# assessment, then each immutable binding, then the attempt in one transaction.
+BASE_ATTEMPT_INSERT_TRIGGER_DEFINITION = """CREATE TRIGGER tr_attempt_insert_guard
+BEFORE INSERT ON inference_attempt
+FOR EACH ROW
+WHEN NEW.state != 'INFERENCE_RUNNING'
+  OR NEW.reason_code IS NOT NULL
+  OR NEW.completed_at IS NOT NULL
+  OR NEW.worker_id != 'disabled_stub'
+  OR NOT EXISTS (
+        SELECT 1
+        FROM assessment s
+        JOIN doctor_patient_assignment a
+          ON a.assignment_id = s.assignment_id
+         AND a.patient_id = s.patient_id
+        JOIN consent_record c
+          ON c.consent_id = s.consent_id
+         AND c.patient_id = s.patient_id
+        WHERE s.assessment_id = NEW.assessment_id
+          AND s.status = 'INPUT_VALIDATED'
+          AND s.active_attempt_id IS NULL
+          AND s.current_result_id IS NULL
+          AND s.current_generation = NEW.generation
+          AND a.revoked_at IS NULL
+          AND c.revoked_at IS NULL
+          AND c.kind = 'synthetic_demo'
+          AND c.scope = 'patient_wide_synthetic_demo'
+          AND c.contract_version = 'term1-c1-v1'
+    )
+BEGIN
+    SELECT RAISE(ABORT, 'inference_attempt_insert_forbidden');
+END;"""
+
+_ATTEMPT_BINDING_COMPLETENESS_CHECK = """  OR NOT EXISTS (
+        SELECT 1
+        FROM assessment a
+        JOIN assessment_snapshot s ON s.snapshot_id = a.snapshot_id
+        WHERE a.assessment_id = NEW.assessment_id
+          AND (
+              SELECT COUNT(*)
+              FROM json_each(s.snapshot_json, '$.attached_documents')
+          ) = (
+              SELECT COUNT(*) FROM assessment_document b
+              WHERE b.assessment_id = a.assessment_id
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM json_each(s.snapshot_json, '$.attached_documents') AS descriptor
+              WHERE NOT EXISTS (
+                  SELECT 1 FROM assessment_document b
+                  WHERE b.assessment_id = a.assessment_id
+                    AND b.patient_id = a.patient_id
+                    AND b.binding_id = json_extract(descriptor.value, '$.binding_id')
+                    AND b.document_id = json_extract(descriptor.value, '$.document_id')
+                    AND b.document_sha256_at_bind = json_extract(
+                        descriptor.value, '$.document_sha256_at_bind'
+                    )
+                    AND b.attachment_role = json_extract(
+                        descriptor.value, '$.attachment_role'
+                    )
+                    AND b.extraction_id IS json_extract(
+                        descriptor.value, '$.extraction_id'
+                    )
+                    AND b.extraction_version IS json_extract(
+                        descriptor.value, '$.extraction_version'
+                    )
+              )
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM assessment_document b
+              WHERE b.assessment_id = a.assessment_id
+                AND b.patient_id = a.patient_id
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM json_each(s.snapshot_json, '$.attached_documents') AS descriptor
+                    WHERE b.binding_id = json_extract(descriptor.value, '$.binding_id')
+                      AND b.document_id = json_extract(descriptor.value, '$.document_id')
+                      AND b.document_sha256_at_bind = json_extract(
+                          descriptor.value, '$.document_sha256_at_bind'
+                      )
+                      AND b.attachment_role = json_extract(
+                          descriptor.value, '$.attachment_role'
+                      )
+                      AND b.extraction_id IS json_extract(
+                          descriptor.value, '$.extraction_id'
+                      )
+                      AND b.extraction_version IS json_extract(
+                          descriptor.value, '$.extraction_version'
+                      )
+                )
+          )
+    )
+"""
+
+_ATTEMPT_INSERT_GUARD_MARKER = (
+    "BEGIN\n    SELECT RAISE(ABORT, 'inference_attempt_insert_forbidden');"
+)
+if BASE_ATTEMPT_INSERT_TRIGGER_DEFINITION.count(_ATTEMPT_INSERT_GUARD_MARKER) != 1:
+    raise RuntimeError("Migration 07 attempt insert trigger changed unexpectedly.")
+ATTEMPT_INSERT_TRIGGER_DEFINITION = BASE_ATTEMPT_INSERT_TRIGGER_DEFINITION.replace(
+    _ATTEMPT_INSERT_GUARD_MARKER,
+    _ATTEMPT_BINDING_COMPLETENESS_CHECK + _ATTEMPT_INSERT_GUARD_MARKER,
+)
+
 _SCOPE_ATTACHMENT_EMPTY_CHECK = (
     "AND json_array_length(s.snapshot_json, '$.attached_documents') = 0"
 )
@@ -328,7 +527,7 @@ _SCOPE_ATTACHMENT_INTEGRATED_CHECK = """AND json_array_length(s.snapshot_json, '
                  OR (
                      json_extract(a.value, '$.attachment_role') = 'OCR_SOURCE_REPORT'
                      AND (
-                         json_extract(s.snapshot_json, '$.source_kind') != 'ocr_confirmed'
+                         json_extract(s.snapshot_json, '$.source_kind') != 'synthetic_demo_ocr_confirmed'
                          OR json_type(a.value, '$.extraction_id') IS NOT 'text'
                          OR json_type(a.value, '$.extraction_version') IS NOT 'integer'
                          OR json_extract(a.value, '$.extraction_version') < 1
@@ -593,9 +792,13 @@ def upgrade() -> None:
         sa.CheckConstraint("attempt_count >= 1", name="ck_inflight_attempt_count"),
     )
 
-    # Replace 07's empty-attachments guard after its referenced DOC tables exist.
+    # Replace the 07 assessment-scope guard after its referenced DOC tables
+    # exist, and overlay the attempt guard with complete one-to-one binding-set
+    # verification. Both exact 07 definitions are restored by downgrade.
     op.execute("DROP TRIGGER IF EXISTS tr_assessment_scope_insert")
     op.execute(ASSESSMENT_SCOPE_TRIGGER_DEFINITION)
+    op.execute("DROP TRIGGER IF EXISTS tr_attempt_insert_guard")
+    op.execute(ATTEMPT_INSERT_TRIGGER_DEFINITION)
     for sql in TRIGGER_DEFINITIONS.values():
         op.execute(sql)
 
@@ -632,11 +835,14 @@ def downgrade() -> None:
     for name in TRIGGER_DEFINITIONS:
         op.execute(f"DROP TRIGGER IF EXISTS {name}")
     op.execute("DROP TRIGGER IF EXISTS tr_assessment_scope_insert")
+    op.execute("DROP TRIGGER IF EXISTS tr_attempt_insert_guard")
     op.drop_table("document_inflight_operation")
     op.drop_table("assessment_document")
     op.drop_table("extraction_field")
     op.drop_table("extraction_event")
     op.drop_table("document_extraction")
     op.drop_table("medical_document")
-    # Restore the exact pre-08 core scope trigger for a valid 08 -> 07 downgrade.
+    # Restore the exact pre-08 core scope and attempt guards for a valid
+    # 08 -> 07 downgrade.
     op.execute(BASE_ASSESSMENT_SCOPE_TRIGGER_DEFINITION)
+    op.execute(BASE_ATTEMPT_INSERT_TRIGGER_DEFINITION)

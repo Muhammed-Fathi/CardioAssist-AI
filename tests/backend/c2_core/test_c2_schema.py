@@ -1,7 +1,8 @@
 """C2 schema verification: combined 07/08 trigger inventory and fail-closed checks.
 
-The integrated 06→07→08 chain has fifteen clinical-core triggers and thirteen
-Document/OCR triggers. Startup pins all 28 fresh-upgrade ``sqlite_master``
+The integrated 06→07→08 chain has fifteen clinical-core trigger names and
+fourteen document/OCR trigger names. Migration 08 replaces the scope and
+attempt-insert guards; startup pins all 29 fresh-upgrade ``sqlite_master``
 statements against their frozen sources and refuses missing or modified DDL.
 """
 
@@ -14,6 +15,7 @@ from backend.app.storage.database import Database
 from backend.app.term1.triggers import C2_TRIGGER_DEFINITIONS, normalize_trigger_sql
 from backend.app.term1_c2_documents.triggers import (
     ASSESSMENT_SCOPE_TRIGGER_OVERRIDE,
+    ATTEMPT_INSERT_TRIGGER_OVERRIDE,
     DOCUMENT_TRIGGER_DEFINITIONS,
 )
 
@@ -33,22 +35,27 @@ def _trigger_map(url: str) -> dict[str, str]:
         engine.dispose()
 
 
-def test_fresh_integrated_upgrade_creates_exactly_28_frozen_triggers(migrated_database_url):
+def test_fresh_integrated_upgrade_creates_exactly_29_frozen_triggers(migrated_database_url):
     actual = _trigger_map(migrated_database_url)
     definitions = C2_TRIGGER_DEFINITIONS | DOCUMENT_TRIGGER_DEFINITIONS
     definitions["tr_assessment_scope_insert"] = ASSESSMENT_SCOPE_TRIGGER_OVERRIDE
+    definitions["tr_attempt_insert_guard"] = ATTEMPT_INSERT_TRIGGER_OVERRIDE
     expected = {
         name: normalize_trigger_sql(sql) for name, sql in definitions.items()
     }
     assert len(C2_TRIGGER_DEFINITIONS) == 15
-    assert len(DOCUMENT_TRIGGER_DEFINITIONS) == 13
+    assert len(DOCUMENT_TRIGGER_DEFINITIONS) == 14
     assert (
         ASSESSMENT_SCOPE_TRIGGER_OVERRIDE
         != C2_TRIGGER_DEFINITIONS["tr_assessment_scope_insert"]
     )
-    # The 08 migration replaces one core guard and adds thirteen DOC triggers:
-    # the live 28-name inventory is exact, with no unreviewed extras.
-    assert len(expected) == 28
+    assert (
+        ATTEMPT_INSERT_TRIGGER_OVERRIDE
+        != C2_TRIGGER_DEFINITIONS["tr_attempt_insert_guard"]
+    )
+    # Migration 08 replaces two core guards and adds fourteen DOC triggers:
+    # the live 29-name inventory is exact, with no unreviewed extras.
+    assert len(expected) == 29
     assert set(actual) == set(expected)
     assert actual == expected
 

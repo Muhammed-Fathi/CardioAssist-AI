@@ -449,16 +449,49 @@ class PrivateDocStore:
         os.replace(staging, final)
         self._apply_file_mode(final)
 
-    def discard_staging(self, staging_key: str) -> None:
+    @staticmethod
+    def _unlink_regular_and_verify(path: Path) -> bool:
+        """Unlink one regular file and prove the lexical path is absent.
+
+        Unsafe/reparse paths and all inspection/unlink errors fail closed. A
+        caller must not mark quota reclaimed unless this returns true.
+        """
+        try:
+            info = os.lstat(path)
+        except FileNotFoundError:
+            return True
+        except OSError:
+            return False
+        attrs = getattr(info, "st_file_attributes", 0)
+        if stat.S_ISLNK(info.st_mode) or attrs & _FILE_ATTRIBUTE_REPARSE_POINT:
+            return False
+        if not stat.S_ISREG(info.st_mode):
+            return False
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return False
+        try:
+            os.lstat(path)
+        except FileNotFoundError:
+            return True
+        except OSError:
+            return False
+        return False
+
+    def discard_staging(self, staging_key: str) -> bool:
+        """Remove one staging file and verify absence; false means keep quota."""
         self._require_writable()
+        if not _STAGING_KEY.match(staging_key):
+            return False
         try:
             final = self._resolve(storage_key_from_staging(staging_key))
-            staging = final.parent / Path(staging_key).name
-            if _is_reparse_or_symlink(staging):
-                return
-            staging.unlink(missing_ok=True)
         except StorageError:
-            return
+            return False
+        staging = final.parent / Path(staging_key).name
+        return self._unlink_regular_and_verify(staging)
 
     def _open_read_posix(self, storage_key: str) -> int:
         """Open a blob for reading WITHOUT following any symlink (P0-02).
@@ -519,14 +552,85 @@ class PrivateDocStore:
             raise IntegrityError("Stored document digest mismatch.")
         return buf
 
-    def remove(self, storage_key: str) -> None:
+    def remove(self, storage_key: str) -> bool:
+        """Remove one final blob and verify absence; false means keep quota."""
         self._require_writable()
         try:
             target = self._resolve(storage_key)
         except StorageError:
-            return
-        if target.is_file() and not _is_reparse_or_symlink(target):
-            target.unlink(missing_ok=True)
+            return False
+        return self._unlink_regular_and_verify(target)
+
+    def remove_document_blobs(
+        self, storage_key: str, staging_key: str | None = None
+    ) -> bool:
+        """Remove and verify the final blob and every stage owned by a document.
+
+        The database records the current stage, but a crash between ``stage``
+        and persisting ``staging_key`` can leave an unrecorded stage. Discover
+        all well-formed stages sharing this document's immutable final key and
+        include them in the cleanup proof. Any unsafe path, listing error, or
+        failed unlink returns false so the caller retains quota until recovery.
+        """
+        self._require_writable()
+        if not _KEY.match(storage_key):
+            return False
+        if staging_key is not None:
+            if not _STAGING_KEY.match(staging_key):
+                return False
+            if storage_key_from_staging(staging_key) != storage_key:
+                return False
+        try:
+            final = self._resolve(storage_key)
+        except StorageError:
+            return False
+
+        stage_keys: set[str] = set()
+        if staging_key is not None:
+            stage_keys.add(staging_key)
+        patient_dir = final.parent
+        try:
+            entries = list(patient_dir.iterdir())
+        except FileNotFoundError:
+            entries = []
+        except OSError:
+            return False
+        prefix = final.name + ".tmp-"
+        for entry in entries:
+            if not entry.name.startswith(prefix):
+                continue
+            candidate = f"{storage_key.split('/', 1)[0]}/{entry.name}"
+            if not _STAGING_KEY.match(candidate):
+                # Do not claim complete cleanup when an unexpected path occupies
+                # the document's staging namespace.
+                return False
+            stage_keys.add(candidate)
+
+        for key in sorted(stage_keys):
+            if not self.discard_staging(key):
+                return False
+        if not self.remove(storage_key):
+            return False
+
+        # Re-enumerate after unlinking: quota is reclaimed only if every owned
+        # final/staging path is verifiably absent at the accounting boundary.
+        try:
+            os.lstat(final)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return False
+        else:
+            return False
+        try:
+            for entry in patient_dir.iterdir():
+                if entry.name.startswith(prefix):
+                    return False
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return False
+        return True
 
     def iter_files(self):
         """Yield ``(storage_key, path)`` for every regular blob (orphan scan)."""

@@ -1,11 +1,14 @@
 # Track 2 → Track 1 integration requirements (C2 SAFE_SCOPE, DOC1–DOC7)
 
-Status: **PROPOSED — NOT APPROVED, NOT DEPLOYED.** Track 2 supplies these modules
-and artifacts on the isolated contributor branch; the core integrator (Track 1)
-owns all shared-file wiring and the single integrated C2 Draft PR. Track 2 has
-**not** edited any shared file (`backend/app/main.py`, `term1/api.py`,
-`term1/errors.py`, `term1/openapi.py`, `term1/constants.py`, `term1/models.py`,
-`migrations/env.py`, `shared/contracts/term1/**`).
+Status: **PROPOSED — NOT APPROVED, NOT DEPLOYED.** This document preserves the
+Track 2 handoff record and append-only residual reconciliations; it is not
+approval or deployment evidence. At handoff, Track 2 supplied its modules on an
+isolated contributor branch and did not edit the listed shared files. The core
+integrator (Track 1) retains ownership of shared-file wiring and the single
+integrated C2 Draft PR:
+`backend/app/main.py`, `term1/api.py`, `term1/errors.py`, `term1/openapi.py`,
+`term1/constants.py`, `term1/models.py`, `migrations/env.py`, and
+`shared/contracts/term1/**`.
 
 Baseline: bootstrap `review/term1-c2-authorized-bootstrap` @ `5e763b0`; accepted
 delivery `delivery/term1-prototype` @ `5c96a2b`. Grant
@@ -29,7 +32,10 @@ Tables: `medical_document`, `document_extraction`, `extraction_field`,
 * Track 1 publishes `20261128_07` (assessment core). Track 2's
   `backend/migrations/versions/20261128_08_c2_documents_ocr.py` has
   `down_revision = "20261128_07"` and is **additive** (6 tables, 13 immutability /
-  guard triggers, RB-C1 downgrade guard). The corrections round added the
+  guard triggers in the original handoff inventory, RB-C1 downgrade guard).
+  The integrated residual candidate now carries 14 document-trigger definitions
+  and overlays two core guards; §11.1 records the 29-name live inventory. The
+  corrections round added the
   `extraction_field` INSERT/UPDATE/DELETE guards, the `medical_document`
   STORED-freeze and promotion guards, the `document_inflight_operation` table,
   the `confirmed_envelope_json` / `confirmed_unit` / `missing_reason` /
@@ -133,14 +139,25 @@ different-account read/AI-denial checks). Native Windows checks are
 **OWNER-EXECUTED** and are **not** claimed as passed from the Linux sandbox.
 
 ## 7. Assessment binding (Track 1 S1)
-Track 1's S1 calls `DocumentService.bind_assessment_document(session, ...)` to
-attach a confirmed OCR source or supporting report to an assessment. It enforces
-same-patient ownership, STORED status, confirmed extraction + exact version for
-`OCR_SOURCE_REPORT`, **re-reads and SHA-verifies the complete stored buffer**
-before binding, **verifies the canonical confirmation digest** reconstructed from
-the persisted child rows, and records `document_sha256_at_bind` from the verified
-bytes (T2-R2). The `assessment_document` composite FK targets Track 1's
-`assessment` table.
+Track 1's S1 resolves each attachment before canonical snapshot construction,
+preallocates its immutable `binding_id`, persists the snapshot and `INPUT_VALIDATED`
+assessment, then inserts the binding rows before creating the first inference
+attempt—all in one transaction. The service enforces same-patient ownership,
+STORED status, confirmed extraction + exact version for `OCR_SOURCE_REPORT`,
+**re-reads and SHA-verifies the complete stored buffer** before binding,
+**verifies the canonical confirmation digest** reconstructed from persisted child
+rows, and records `document_sha256_at_bind` from verified bytes (T2-R2).
+
+The database independently enforces the two-phase order: migration 08's
+`tr_assessment_document_insert_guard` permits only an exact match to an immutable
+snapshot descriptor while the assessment is authorized and still
+`INPUT_VALIDATED`, with no attempt/pointer already created. The overlaid
+`tr_attempt_insert_guard` requires a complete one-to-one binding set (no missing
+or extra rows) before the attempt may start. Update/delete triggers freeze rows;
+the `assessment_document` composite FK targets Track 1's `assessment` table.
+The persisted database/ORM `source_kind` for OCR confirmation is
+`synthetic_demo_ocr_confirmed`; the shorter API `input_mode` token remains
+`ocr_confirmed` and is not the `source_kind` vocabulary.
 
 ## 8. Verified panel binding
 `PANEL_CONTRACT_SHA256 = c18ad4cd2cf08f6fefb2e340573760da7000bc1d8eb4ad38783b873c018e57b8`
@@ -199,11 +216,15 @@ prior passing tests are preserved.
   now`); expiry **equality is already expired**. `_assert_lease` guards staging-key
   publication (phase 2) and finalization (phase 3); promotion is bound to the exact
   staging identity this attempt published. `_fail_upload` checks ownership BEFORE
-  any unlink and sets `reclaim_at` only AFTER the staging blob is actually removed
-  (a failed cleanup rolls back, never charging quota). Recovery refreshes the
-  candidate under lease acquisition. The orphan sweep checks ownership and unlinks
-  in one `BEGIN IMMEDIATE` transaction (no check/unlink race) and never charges an
-  in-flight, not-yet-published blob. Regressions: `test_c2_r6_lease_ownership.py`
+  cleanup and removes the final blob plus every recorded or crash-left staging
+  file. It sets `reclaim_at` only after a verified all-absent result; a failed
+  unlink persists `UPLOAD_FAILED` with `reclaim_at=NULL`, so quota remains counted
+  and `sweep_orphans()` retries cleanup under the write lock. This also covers a
+  final blob left by a crash after `os.replace()` but before the DB commit.
+  Recovery refreshes the candidate under lease acquisition. The orphan sweep
+  checks ownership and unlinks in one `BEGIN IMMEDIATE` transaction (no
+  check/unlink race) and never charges an in-flight, not-yet-published blob.
+  Regressions: `test_c2_r6_lease_ownership.py`
   (expiry equality, expired owner without takeover, stale failure after takeover,
   staging/finalization races, reclaim ordering, sweep).
 * **P0-02 — read-only worker storage + complete Windows protections.** The
@@ -217,16 +238,25 @@ prior passing tests are preserved.
   (`windows_launch_worker.py`) builds an exact allowlisted env from a protected
   config (never the logon env). Runbook updated: SID ACL, valid-UUID junction test,
   explicit-env launcher, exact IPv4 origin family. Regressions:
-  `test_c2_r7_storage_isolation.py`. Native Windows remains **NOT_RUN** (owner
-  procedure); the DACL policy decision is a pure function tested on Linux.
-* **P0-03 — bounded admission + absolute deadlines + terminable parser.** Bounded
-  TCP connection admission (`WORKER_MAX_CONNECTIONS`) at accept time; an absolute
-  request deadline (`WORKER_REQUEST_DEADLINE_SECONDS`) covering body read + parse;
-  every daemon parse runs in an isolated spawn-child that is hard-killed and reaped
-  at the deadline (`parser_process.py`), with outbound network disabled. A
-  deliberately stalled parser is terminated and the next genuine OCR succeeds.
-  Genuine PDF extraction and native Tesseract OCR are retained unchanged.
-  Regressions: `test_c2_r8_parser_isolation.py`.
+  `test_c2_r7_storage_isolation.py`. The owner-only
+  `scripts/verify_c2_restricted_storage.py` additionally probes the real Windows
+  token, verified blob read, denied root write, and denied DB/AI/research reads.
+  Native Windows and restricted-account execution remain **NOT_RUN** here (owner
+  procedure); the DACL policy decision is also tested as a pure function on Linux.
+* **P0-03 — bounded admission + absolute deadlines + process-tree termination.**
+  Bounded TCP connection admission (`WORKER_MAX_CONNECTIONS`) at accept time; an
+  absolute request deadline (`WORKER_REQUEST_DEADLINE_SECONDS`) covering body read
+  + parser IPC; JSON IPC has a 1 MiB receive cap and a timed receiver so partial
+  frames cannot block beyond the monotonic deadline. Every daemon parse runs in a
+  spawned process isolated in a POSIX session or Windows KILL_ON_JOB_CLOSE Job
+  Object before parsing; native Tesseract descendants are terminated with the
+  parser. Linux uses the isolated OCR supervisor as a child subreaper. All joins
+  are bounded; failed containment poisons the worker. Regressions exercise a live
+  subprocess descendant, oversized/partial IPC, a stalled parser, and recovery of
+  the next genuine OCR request. Genuine PDF extraction and Tesseract OCR remain
+  real (no mocks). Native Tesseract/Windows execution remains **NOT_RUN** unless
+  the owner runs the authored-fixture procedure. Regressions:
+  `test_c2_r8_parser_isolation.py`.
 
 ### 11.1 Append-only reconciliation: the sixth table `document_inflight_operation`
 
@@ -261,10 +291,12 @@ not a new migration.
 * **ORM / startup coverage.** `DocumentInflightOperation` is registered in
   `backend/app/term1_c2_documents/models.py`, so Alembic `compare_metadata` and
   startup `verify_schema` cover it. `test_orm_metadata_matches_migration_for_all_six_tables`
-  asserts the ORM columns equal the migration columns for **all six** tables. The
-  thirteen immutability/guard triggers remain on the other five tables (the
-  inflight table is mutable by design); `test_upgrade_creates_six_tables_and_thirteen_triggers`
-  verifies the count and names.
+  asserts the ORM columns equal the migration columns for **all six** tables.
+  Fourteen document immutability/authorization triggers are on the other five
+  tables (the inflight table is mutable by design); the assessment-scope and
+  attempt-insert overrides complete the 29-name integrated trigger inventory.
+  `test_c2_migration_08.py` and `test_c2_schema.py` verify exact upgrade,
+  downgrade restoration and startup parity.
 
 Track 1 still owns the single integrated C2 Draft PR and the full
 `06 → 07 → 08` migration-chain + 34-operation API verification; this residual

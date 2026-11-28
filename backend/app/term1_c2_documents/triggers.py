@@ -1,8 +1,8 @@
 """Migration-08 trigger definitions used by integrated startup verification.
 
-The migration is the canonical SQL source. This module exposes its thirteen
-new document triggers plus the replacement assessment-scope trigger, without
-copying DDL into a second source of truth.
+The migration is the canonical SQL source. This module exposes its document
+triggers plus the replacement assessment-scope and attempt-insert guards,
+without copying DDL into a second source of truth.
 """
 
 from __future__ import annotations
@@ -33,8 +33,12 @@ def _load_migration() -> ModuleType:
 
 _MIGRATION = _load_migration()
 DOCUMENT_TRIGGER_DEFINITIONS: dict[str, str] = dict(_MIGRATION.TRIGGER_DEFINITIONS)
-# Migration 08 replaces one core 07 trigger under the same name so the
-# assessment scope guard admits only verified, snapshot-backed DOC bindings.
+# Migration 08 replaces two core 07 triggers under the same names: assessment
+# scope validates snapshot descriptors, and attempt insertion requires the full
+# one-to-one binding set to exist before lifecycle initiation.
 ASSESSMENT_SCOPE_TRIGGER_OVERRIDE: str = (
     _MIGRATION.ASSESSMENT_SCOPE_TRIGGER_DEFINITION
+)
+ATTEMPT_INSERT_TRIGGER_OVERRIDE: str = (
+    _MIGRATION.ATTEMPT_INSERT_TRIGGER_DEFINITION
 )

@@ -180,11 +180,17 @@ class DocumentService:
         return row
 
     # --- quota --------------------------------------------------------------
-    def _quota_usage(self, session: Session, patient_id: str) -> tuple[int, int]:
-        rows = session.execute(
-            select(MedicalDocument.upload_status, MedicalDocument.byte_size,
-                   MedicalDocument.reclaim_at).where(MedicalDocument.patient_id == patient_id)
-        ).all()
+    def _quota_usage(
+        self, session: Session, patient_id: str,
+        *, exclude_document_id: str | None = None,
+    ) -> tuple[int, int]:
+        query = select(
+            MedicalDocument.upload_status, MedicalDocument.byte_size,
+            MedicalDocument.reclaim_at,
+        ).where(MedicalDocument.patient_id == patient_id)
+        if exclude_document_id is not None:
+            query = query.where(MedicalDocument.document_id != exclude_document_id)
+        rows = session.execute(query).all()
         count = 0
         total = 0
         for status, size, reclaim_at in rows:
@@ -196,8 +202,13 @@ class DocumentService:
             total += size
         return count, total
 
-    def _check_quota(self, session: Session, patient_id: str, incoming_bytes: int) -> None:
-        count, total = self._quota_usage(session, patient_id)
+    def _check_quota(
+        self, session: Session, patient_id: str, incoming_bytes: int,
+        *, replacing_document_id: str | None = None,
+    ) -> None:
+        count, total = self._quota_usage(
+            session, patient_id, exclude_document_id=replacing_document_id
+        )
         if count + 1 > C.QUOTA_MAX_DOCUMENTS or total + incoming_bytes > C.QUOTA_MAX_BYTES:
             raise doc_api_error("document_limit_reached")
 
@@ -354,6 +365,7 @@ class DocumentService:
         )
 
         # Phase 1: durable reservation (document + lease) under BEGIN IMMEDIATE.
+        cleanup_blocked = False
         with write_transaction(self.database) as session:
             patient_id = self._patient_id(session, actor)
             decision = precheck(session, clock=self.clock, identity=identity)
@@ -378,16 +390,36 @@ class DocumentService:
                              public_response=response, secret_disclosed=False)
                     session.delete(inflight)
                     return response
-                # Re-arm a FAILED/PENDING reservation for a fresh bounded attempt.
-                self._check_quota(session, patient_id, admission.byte_size)
-                row.upload_status = C.UPLOAD_PENDING_SCAN
-                row.staging_key = None
-                row.reclaim_at = None
-                row.content_sha256 = None
-                row.validated_at = None
-                row.page_count = 0
-                row.pixel_width = None
-                row.pixel_height = None
+                # A prior owner may have crashed after stage creation or after
+                # os.replace(). Do not forget/reuse its bytes until every final
+                # and staging path for this document is removed and verified.
+                if not self.store.remove_document_blobs(row.storage_key, row.staging_key):
+                    if row.upload_status == C.UPLOAD_PENDING_SCAN:
+                        self._mark_failed(session, row, "worker_unavailable")
+                    else:
+                        row.reclaim_at = None
+                    self._release_lease_failed(
+                        session, inflight.inflight_id, owner, fence, "worker_unavailable"
+                    )
+                    cleanup_blocked = True
+                else:
+                    if row.upload_status == C.UPLOAD_FAILED:
+                        row.staging_key = None
+                        row.reclaim_at = self.clock.now_iso()
+                    # This is the same durable reservation, not a second quota
+                    # item. Exclude it while checking its replacement bytes.
+                    self._check_quota(
+                        session, patient_id, admission.byte_size,
+                        replacing_document_id=document_id,
+                    )
+                    row.upload_status = C.UPLOAD_PENDING_SCAN
+                    row.staging_key = None
+                    row.reclaim_at = None
+                    row.content_sha256 = None
+                    row.validated_at = None
+                    row.page_count = 0
+                    row.pixel_width = None
+                    row.pixel_height = None
             else:
                 self._check_quota(session, patient_id, admission.byte_size)
                 document_id = str(uuid.uuid4())
@@ -410,6 +442,9 @@ class DocumentService:
                 )
             storage_key = row.storage_key
             inflight_id = inflight.inflight_id
+
+        if cleanup_blocked:
+            raise doc_api_error("worker_unavailable")
 
         # Phase 2: stage + bounded worker validation OUTSIDE the DB lock.
         try:
@@ -525,12 +560,18 @@ class DocumentService:
                 return  # not the current owner: touch nothing
             row = session.get(MedicalDocument, document_id)
             if row is not None and row.upload_status == C.UPLOAD_PENDING_SCAN:
-                # Actual cleanup first, then accounting (no reclaim before unlink).
-                if row.staging_key:
-                    self.store.discard_staging(row.staging_key)
+                # Remove the final blob and every recorded/unrecorded staging
+                # file before releasing quota. An unlink failure is durable as
+                # FAILED with reclaim_at=NULL so sweep_orphans can retry safely.
+                removed_all = self.store.remove_document_blobs(
+                    row.storage_key, row.staging_key
+                )
                 row.upload_status = C.UPLOAD_FAILED
-                row.staging_key = None
-                row.reclaim_at = self.clock.now_iso()
+                if removed_all:
+                    row.staging_key = None
+                    row.reclaim_at = self.clock.now_iso()
+                else:
+                    row.reclaim_at = None
                 doc_audit.record_document_event(
                     session, clock=self.clock, event_type=C.AUDIT_EVENT_DOCUMENT_UPLOAD_FAILED,
                     outcome=c1.OUTCOME_FAILED, subject_type=C.AUDIT_SUBJECT_MEDICAL_DOCUMENT,
@@ -1170,56 +1211,104 @@ class DocumentService:
             return None
 
     def sweep_orphans(self) -> int:
-        """Remove private blobs with no owning live reservation (P0-01).
+        """Remove orphans and reclaim failed-row quota only after full cleanup.
 
-        The ownership check AND the unlink run inside one ``BEGIN IMMEDIATE``
-        transaction per candidate, so no live reservation can claim the blob
-        between the check and the unlink (no check/unlink race). The CURRENT
-        ``staging_key`` of a reservation and any STORED/PENDING_SCAN final blob
-        are always protected. An abandoned extra staging blob (not the current
-        ``staging_key``) is reclaimed only after the grace period, so an
-        in-flight not-yet-published blob is never charged or deleted. A blob is
-        counted only after a successful unlink.
+        Each ownership check, filesystem cleanup, and accounting update runs in
+        one ``BEGIN IMMEDIATE`` transaction. Failed rows are handled as a unit:
+        their final blob plus every recorded or crash-left staging file must be
+        absent before ``reclaim_at`` is set. Pending reservations protect their
+        current stage/final bytes; unrelated extra stages retain the grace period.
         """
         import time as _time
 
         now = _time.time()
         removed = 0
-        for key, path in self.store.iter_files():
-            is_staging = ".tmp-" in key
-            if is_staging:
-                final_key = key[: key.find(".bin.tmp-") + len(".bin")]
-                document_id = final_key.split("/")[1][: -len(".bin")]
-            else:
-                document_id = key.split("/")[1][: -len(".bin")]
+        with read_transaction(self.database) as session:
+            failed_ids = session.execute(
+                select(MedicalDocument.document_id).where(
+                    MedicalDocument.upload_status == C.UPLOAD_FAILED
+                )
+            ).scalars().all()
+
+        for document_id in failed_ids:
             with write_transaction(self.database) as session:
                 row = session.get(MedicalDocument, document_id)
+                if row is None or row.upload_status != C.UPLOAD_FAILED:
+                    continue
+                inflight = session.execute(
+                    select(DocumentInflightOperation).where(
+                        DocumentInflightOperation.document_id == document_id,
+                        DocumentInflightOperation.operation == C.OP_DOC1_UPLOAD,
+                    )
+                ).scalar_one_or_none()
+                if (
+                    inflight is not None
+                    and inflight.state == C.INFLIGHT_STATE_IN_FLIGHT
+                    and from_iso(inflight.lease_expires_at) > self.clock.now()
+                ):
+                    continue
+                prefix = row.storage_key + ".tmp-"
+                before = {
+                    key: path for key, path in self.store.iter_files()
+                    if key == row.storage_key or key.startswith(prefix)
+                }
+                removed_all = self.store.remove_document_blobs(
+                    row.storage_key, row.staging_key
+                )
+                if removed_all:
+                    row.staging_key = None
+                    if row.reclaim_at is None:
+                        row.reclaim_at = self.clock.now_iso()
+                    removed += sum(not path.exists() for path in before.values())
+                else:
+                    # Keep the row quota-counted until a later verified sweep.
+                    row.reclaim_at = None
+
+        # Reclaim unowned or extra staging blobs. Failed rows are skipped here:
+        # the all-files proof above is the only path that frees their quota.
+        for key, path in self.store.iter_files():
+            is_staging = ".tmp-" in key
+            filename = key.split("/", 1)[1]
+            document_id = filename.split(".bin", 1)[0]
+            with write_transaction(self.database) as session:
+                row = session.get(MedicalDocument, document_id)
+                if row is not None and row.upload_status == C.UPLOAD_FAILED:
+                    continue
                 if is_staging:
-                    if row is not None and row.staging_key == key:
-                        continue  # current reservation's staging: protected
+                    if (
+                        row is not None
+                        and row.upload_status == C.UPLOAD_PENDING_SCAN
+                        and row.staging_key == key
+                    ):
+                        continue  # current reservation's stage: protected
                     try:
                         age = now - path.stat().st_mtime
                     except OSError:
                         continue
                     if age < C.PENDING_SCAN_RECOVERY_AGE_SECONDS:
                         continue  # may be an in-flight, not-yet-published blob
-                    self.store.discard_staging(key)
+                    removed_ok = self.store.discard_staging(key)
                 else:
                     if row is not None and row.upload_status in (
                         C.UPLOAD_STORED, C.UPLOAD_PENDING_SCAN
                     ):
                         continue  # owned final blob
-                    self.store.remove(key)
-                if not path.exists():
+                    removed_ok = self.store.remove(key)
+                if removed_ok and not path.exists():
                     removed += 1
         return removed
 
     def _mark_failed(self, session: Session, row: MedicalDocument, code: str) -> None:
-        if row.staging_key:
-            self.store.discard_staging(row.staging_key)
+        # Recovery may find a final blob after a crash between os.replace() and
+        # the DB commit. Remove final + all stages, and reclaim only after the
+        # complete owned namespace is verified absent.
+        removed_all = self.store.remove_document_blobs(row.storage_key, row.staging_key)
         row.upload_status = C.UPLOAD_FAILED
-        row.staging_key = None
-        row.reclaim_at = self.clock.now_iso()
+        if removed_all:
+            row.staging_key = None
+            row.reclaim_at = self.clock.now_iso()
+        else:
+            row.reclaim_at = None
         doc_audit.record_document_event(
             session, clock=self.clock, event_type=C.AUDIT_EVENT_DOCUMENT_UPLOAD_FAILED,
             outcome=c1.OUTCOME_FAILED, subject_type=C.AUDIT_SUBJECT_MEDICAL_DOCUMENT,

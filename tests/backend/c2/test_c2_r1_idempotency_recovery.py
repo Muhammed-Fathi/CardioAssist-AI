@@ -28,7 +28,6 @@ from backend.app.term1_c2_documents.service import Actor
 from backend.app.term1_c2_documents.storage import make_storage_key
 from backend.app.term1_c2_documents.worker_client import WorkerUnavailableError
 
-from .conftest import requires_native_ocr
 
 FIXTURES = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents" / "fixtures"
 
@@ -55,7 +54,6 @@ def _upload(service, actor, key):
     )
 
 
-@requires_native_ocr
 def test_simultaneous_same_key_creates_exactly_one_document(document_service, actor_patient):
     key = f"same-{uuid.uuid4()}"
     barrier = threading.Barrier(2)
@@ -85,7 +83,6 @@ def test_simultaneous_same_key_creates_exactly_one_document(document_service, ac
             assert body in ("concurrency_conflict", "idempotency_key_conflict")
 
 
-@requires_native_ocr
 def test_lost_response_replay_returns_remembered_body(document_service, actor_patient):
     key = f"lost-{uuid.uuid4()}"
     first = _upload(document_service, actor_patient, key)
@@ -102,7 +99,6 @@ def test_lost_response_replay_returns_remembered_body(document_service, actor_pa
     assert docs == 1
 
 
-@requires_native_ocr
 def test_doc5_revoked_consent_refused_before_worker_dispatch(document_service, actor_patient):
     doc = _upload(document_service, actor_patient, f"up-{uuid.uuid4()}")
     # Revoke consent BEFORE extraction.
@@ -127,7 +123,6 @@ def test_doc5_revoked_consent_refused_before_worker_dispatch(document_service, a
     assert called["extract"] is False  # worker NEVER dispatched without authorization
 
 
-@requires_native_ocr
 def test_doc5_replay_with_worker_unavailable_does_not_dispatch(document_service, actor_patient):
     doc = _upload(document_service, actor_patient, f"up-{uuid.uuid4()}")
     key = f"ex-{uuid.uuid4()}"
@@ -189,7 +184,37 @@ def _crashed_reservation(service, doc_store, actor, *, promote_final):
     return document_id, storage_key, identity
 
 
-@requires_native_ocr
+def test_failed_recovery_after_rename_keeps_quota_until_verified_sweep(
+    document_service, doc_store, actor_patient, clock, monkeypatch
+):
+    """A failed recovery cleans final + orphan stages before releasing quota."""
+    document_id, storage_key, _identity = _crashed_reservation(
+        document_service, doc_store, actor_patient, promote_final=True
+    )
+    extra_stage = doc_store.stage(_data(), storage_key)
+    clock.advance(seconds=C.INFLIGHT_LEASE_SECONDS + 30)
+    monkeypatch.setattr(document_service, "_validate_recovery_candidate", lambda _candidate: None)
+    monkeypatch.setattr(doc_store, "discard_staging", lambda _key: False)
+
+    assert document_service.recover_pending(startup=False) == 1
+    with read_transaction(document_service.database) as session:
+        row = session.get(MedicalDocument, document_id)
+        assert row.upload_status == C.UPLOAD_FAILED
+        assert row.reclaim_at is None
+        assert document_service._quota_usage(session, actor_patient.patient_id) == (
+            1, len(_data())
+        )
+    assert doc_store.exists(storage_key) and doc_store.exists(extra_stage)
+
+    monkeypatch.undo()
+    document_service.sweep_orphans()
+    with read_transaction(document_service.database) as session:
+        row = session.get(MedicalDocument, document_id)
+        assert row.reclaim_at is not None and row.staging_key is None
+        assert document_service._quota_usage(session, actor_patient.patient_id) == (0, 0)
+    assert not doc_store.exists(storage_key) and not doc_store.exists(extra_stage)
+
+
 @pytest.mark.parametrize("promote_final", [False, True])
 def test_recovery_publishes_with_original_identity_event_audit(
         document_service, doc_store, actor_patient, clock, promote_final):
@@ -227,7 +252,6 @@ def test_recovery_publishes_with_original_identity_event_audit(
     assert doc_store.exists(storage_key)
 
 
-@requires_native_ocr
 def test_recovery_does_not_touch_live_lease(document_service, doc_store, actor_patient):
     document_id, _, _ = _crashed_reservation(
         document_service, doc_store, actor_patient, promote_final=False)
@@ -238,7 +262,6 @@ def test_recovery_does_not_touch_live_lease(document_service, doc_store, actor_p
         assert session.get(MedicalDocument, document_id).upload_status == C.UPLOAD_PENDING_SCAN
 
 
-@requires_native_ocr
 def test_stale_attempt_is_fenced_out_after_recovery(document_service, doc_store, actor_patient, clock):
     document_id, _, _ = _crashed_reservation(
         document_service, doc_store, actor_patient, promote_final=False)

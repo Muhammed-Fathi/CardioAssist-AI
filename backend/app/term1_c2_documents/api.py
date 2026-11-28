@@ -16,7 +16,6 @@ HTTP status/headers/body are sent.
 
 from __future__ import annotations
 
-import io
 from typing import Any
 
 import python_multipart as multipart
@@ -126,6 +125,7 @@ def _parse_multipart(body: bytes, content_type: str) -> tuple[dict[str, str], by
     fields: dict[str, str] = {}
     files: list[tuple[str, bytes]] = []
     metadata_bytes = 0
+    multipart_file_objects = []
 
     def on_field(field) -> None:
         nonlocal metadata_bytes
@@ -143,13 +143,14 @@ def _parse_multipart(body: bytes, content_type: str) -> tuple[dict[str, str], by
         fields[name] = value.decode("utf-8", errors="strict")
 
     def on_file(file) -> None:
+        file_object = file.file_object
+        multipart_file_objects.append(file_object)
         if len(files) >= C.MAX_FILE_PARTS:
             raise doc_api_error("malformed_request")  # more than one file part
         part_name = (file.field_name or b"").decode("utf-8", errors="strict")
         if part_name != _DOC1_FILE_PART:
             raise doc_api_error("malformed_request")  # exact file-part name required
-        file_object = file.file_object
-        # The parser leaves the spooled file cursor at EOF; rewind before read.
+        # The parser leaves the file cursor at EOF; rewind before reading.
         if hasattr(file_object, "seek"):
             file_object.seek(0)
         data = file_object.read(C.FILE_CAP_BYTES + 1)
@@ -158,13 +159,25 @@ def _parse_multipart(body: bytes, content_type: str) -> tuple[dict[str, str], by
         filename = (file.file_name or b"document").decode("utf-8", errors="replace")
         files.append((filename, data))
 
+    parser = multipart.create_form_parser(
+        {"Content-Type": content_type.encode("latin-1")},
+        on_field, on_file,
+        config={
+            "MAX_BODY_SIZE": C.RAW_MULTIPART_CAP_BYTES,
+            "MAX_MEMORY_FILE_SIZE": C.RAW_MULTIPART_CAP_BYTES + 1,
+        },
+    )
     try:
-        multipart.parse_form(
-            {"Content-Type": content_type.encode("latin-1")},
-            io.BytesIO(body), on_field, on_file,
-        )
+        parser.write(body)
+        parser.finalize()
     except (UnicodeError, ValueError) as error:
         raise doc_api_error("malformed_request") from error
+    finally:
+        try:
+            parser.close()
+        finally:
+            for file_object in multipart_file_objects:
+                file_object.close()
     if len(files) != 1:
         raise doc_api_error("malformed_request")
     if set(fields) != _DOC1_FIELDS:

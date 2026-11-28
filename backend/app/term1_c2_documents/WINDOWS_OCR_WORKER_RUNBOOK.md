@@ -189,6 +189,23 @@ These must be executed and the output captured as evidence:
    (e.g. `CARDIOASSIST_PEPPER`) to `worker-config.json` and confirm
    `windows_launch_worker` refuses to start (`LauncherError`), so a leaked secret
    can never reach the worker environment.
+8. **Automated real-account storage probe** (OWNER RUN): create one known stored
+   fixture as `cai-backend`; identify its exact `<patient-uuid>/<document-uuid>.bin`
+   key, SHA-256 and byte size; and create existing one-byte probe files in the DB,
+   AI-bundle, signing-key and research roots. Then run the checker as `cai-ocr`
+   (the checker verifies the Windows token username via `GetUserNameW`, not an
+   inherited `USERNAME` variable):
+   Replace every angle-bracket value with the real fixture identity before
+   running the command (do not include the brackets):
+   ```bat
+   runas /user:cai-ocr "C:\cai\venv\Scripts\python.exe C:\CardioAssist-Term1-Prototype\scripts\verify_c2_restricted_storage.py --root D:\cai-private\documents --storage-key <patient-uuid>/<document-uuid>.bin --sha256 <lowercase-sha256> --size <byte-count> --deny-read D:\cai-private\db\probe.db --deny-read D:\cai-ai\bundles\probe.bin --deny-read D:\cai-ai\signing-keys\probe.key --deny-read D:\cai-research\probe.txt"
+   ```
+   Expected output contains `PASS read-verified`, `PASS denied-write`, one
+   `PASS denied-read` for every protected file, and `PASS restricted-account: cai-ocr`.
+   Any readable sensitive file, writable private root, wrong account,
+   failed DACL verification or missing probe file is a FAIL. Capture the complete
+   command/output and the Windows build; do not label this check passed until the
+   owner executes it.
 
 ## 5. Genuine OCR on Windows (OWNER RUN)
 

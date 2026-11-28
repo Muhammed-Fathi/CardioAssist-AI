@@ -50,7 +50,11 @@ from pathlib import Path
 from . import constants as C
 from .fixture_manifest import FixtureManifest, load_manifest
 from .ocr_engine import OcrEngineConfig
-from .parser_process import parse_inprocess, run_parse_isolated
+from .parser_process import (
+    ParserContainmentError,
+    parse_inprocess,
+    run_parse_isolated,
+)
 from .storage import IntegrityError, PrivateDocStore, StorageError
 
 # Strict environment allowlist (T2-R4). Anything else fails startup closed.
@@ -118,10 +122,16 @@ class WorkerCore:
         self._engine = engine_config
         self._manifest = manifest
         # P0-03: the daemon runs every parse in an isolated, terminable child
-        # process so a blocked native parser is hard-killed at the deadline. The
-        # in-process local test client keeps isolated=False for speed; the genuine
-        # daemon path (and the IPC/evidence tests) always isolate.
+        # process so a blocked native parser and its descendants are killed at
+        # the deadline. The in-process local test client keeps isolated=False for
+        # speed. If process-tree cleanup cannot be proven, poison this daemon
+        # rather than dispatching another parse with a leaked child.
         self._isolated = isolated
+        self._parser_poisoned = False
+
+    @property
+    def parser_poisoned(self) -> bool:
+        return self._parser_poisoned
 
     def _read(self, storage_key: str, content_sha256: str, byte_size: int) -> bytes:
         return self._store.read_verified(
@@ -129,10 +139,32 @@ class WorkerCore:
         )
 
     def _parse(self, kind: str, data: bytes, media_type: str, deadline: float | None) -> dict:
+        if self._parser_poisoned:
+            return {
+                "ok": False, "code": "worker_unavailable",
+                "reason": "parser_containment_failed",
+            }
         if self._isolated:
             dl = deadline if deadline is not None else (
                 time.monotonic() + C.WORKER_REQUEST_DEADLINE_SECONDS)
-            return run_parse_isolated(kind, data, media_type, self._engine, dl)
+            try:
+                result = run_parse_isolated(kind, data, media_type, self._engine, dl)
+            except ParserContainmentError:
+                self._parser_poisoned = True
+                return {
+                    "ok": False, "code": "worker_unavailable",
+                    "reason": "parser_containment_failed",
+                }
+            if result.get("reason") == "process_tree_isolation_failed":
+                # The parser was not released, but this worker cannot establish
+                # its containment boundary. Refuse further dispatches rather
+                # than retrying a broken isolation setup on every request.
+                self._parser_poisoned = True
+                return {
+                    "ok": False, "code": "worker_unavailable",
+                    "reason": "parser_containment_failed",
+                }
+            return result
         return parse_inprocess(kind, data, media_type, self._engine)
 
     def _manifest_gate(self, *, content_sha256: str, fixture_file_sha256: str,
@@ -228,18 +260,85 @@ def _schema_ok(request: dict, keys: set[str]) -> bool:
 
 
 class _RequestDeadlineExceeded(Exception):
-    """The absolute request deadline elapsed while reading the body (P0-03)."""
+    """The absolute request deadline elapsed while reading the request (P0-03)."""
+
+
+class _DeadlineSocketReader:
+    """Small socket-backed file reader with an absolute deadline on every recv.
+
+    ``BufferedReader.readline`` can perform multiple receives, each with a fresh
+    socket timeout, so a peer that dribbles request headers can outlive a single
+    per-read timeout indefinitely. This reader checks the monotonic deadline on
+    each receive while retaining any bytes read past a line boundary for the
+    body reader.
+    """
+
+    def __init__(self, connection: socket.socket, deadline: float) -> None:
+        self._connection = connection
+        self._deadline = deadline
+        self._buffer = bytearray()
+        self.closed = False
+
+    def _recv(self, size: int, *, header: bool) -> bytes:
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise socket.timeout("Absolute OCR worker request deadline exceeded.")
+        timeout = min(C.WORKER_READ_TIMEOUT_SECONDS, remaining) if header else remaining
+        self._connection.settimeout(timeout)
+        return self._connection.recv(size)
+
+    def readline(self, size: int = -1) -> bytes:
+        if self.closed or size == 0:
+            return b""
+        limit = 65537 if size is None or size < 0 else size
+        while True:
+            newline = self._buffer.find(b"\n")
+            if newline >= 0 and newline + 1 <= limit:
+                take = newline + 1
+                result = bytes(self._buffer[:take])
+                del self._buffer[:take]
+                return result
+            if len(self._buffer) >= limit:
+                result = bytes(self._buffer[:limit])
+                del self._buffer[:limit]
+                return result
+            try:
+                chunk = self._recv(min(4096, limit - len(self._buffer)), header=True)
+            except socket.timeout:
+                raise
+            if not chunk:
+                result = bytes(self._buffer)
+                self._buffer.clear()
+                return result
+            self._buffer.extend(chunk)
+
+    def read1(self, size: int = -1) -> bytes:
+        if self.closed or size == 0:
+            return b""
+        limit = 65536 if size is None or size < 0 else size
+        if self._buffer:
+            take = min(limit, len(self._buffer))
+            result = bytes(self._buffer[:take])
+            del self._buffer[:take]
+            return result
+        return self._recv(limit, header=False)
+
+    def close(self) -> None:
+        self.closed = True
+        self._buffer.clear()
 
 
 def _handler_factory(core: WorkerCore, token: str, slots: threading.BoundedSemaphore):
     class Handler(BaseHTTPRequestHandler):
         def setup(self) -> None:
             super().setup()
-            # Absolute wall-clock deadline for the whole request (P0-03): body
-            # read + parser execution are bounded regardless of byte dribble. A
-            # per-socket read deadline additionally bounds the header phase.
+            # Start the absolute deadline before parsing even the request line.
+            # The socket-backed reader checks it on every header/body receive, so
+            # byte dribbling cannot reset a per-read timeout indefinitely.
             self._deadline = time.monotonic() + C.WORKER_REQUEST_DEADLINE_SECONDS
             self.connection.settimeout(C.WORKER_READ_TIMEOUT_SECONDS)
+            self.rfile.close()
+            self.rfile = _DeadlineSocketReader(self.connection, self._deadline)
 
         def _read_body(self, length: int) -> bytes:
             """Read exactly ``length`` bytes under the absolute request deadline.
@@ -259,6 +358,8 @@ def _handler_factory(core: WorkerCore, token: str, slots: threading.BoundedSemap
                     chunk = self.rfile.read1(min(remaining, 65536))
                 except socket.timeout as error:
                     raise _RequestDeadlineExceeded() from error
+                if time.monotonic() >= self._deadline:
+                    raise _RequestDeadlineExceeded()
                 if not chunk:
                     raise OSError("Client closed the connection mid-body.")
                 chunks.append(chunk)
@@ -325,6 +426,12 @@ def _handler_factory(core: WorkerCore, token: str, slots: threading.BoundedSemap
                 self._send(503, {"ok": False, "code": "worker_unavailable", "reason": "busy"})
                 return
             try:
+                if core.parser_poisoned:
+                    self._send(503, {
+                        "ok": False, "code": "worker_unavailable",
+                        "reason": "parser_containment_failed",
+                    })
+                    return
                 if self.path == C.IPC_VALIDATE_PATH:
                     result = core.validate(
                         storage_key=request["storage_key"],
@@ -347,7 +454,12 @@ def _handler_factory(core: WorkerCore, token: str, slots: threading.BoundedSemap
                     )
             finally:
                 slots.release()
-            self._send(200 if result.get("ok") else 422, result)
+            status = (
+                200 if result.get("ok")
+                else 503 if result.get("code") == "worker_unavailable"
+                else 422
+            )
+            self._send(status, result)
 
     return Handler
 

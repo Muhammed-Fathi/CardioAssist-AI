@@ -260,19 +260,22 @@ class Database:
         """Fail closed unless every integrated C2 trigger exists unchanged.
 
         The expected inventory is the frozen 07 core set, overlaid with the
-        migration-08 assessment-scope replacement and thirteen DOC triggers.
-        Comparison is whitespace-normalized SQL against ``sqlite_master``.
+        migration-08 assessment-scope and attempt-insert replacements plus the
+        DOC triggers. Comparison is whitespace-normalized SQL against
+        ``sqlite_master``.
         Extra triggers are not an error; a missing or modified expected trigger
         refuses startup without attempting schema repair.
         """
         from ..term1.triggers import C2_TRIGGER_DEFINITIONS, normalize_trigger_sql
         from ..term1_c2_documents.triggers import (
             ASSESSMENT_SCOPE_TRIGGER_OVERRIDE,
+            ATTEMPT_INSERT_TRIGGER_OVERRIDE,
             DOCUMENT_TRIGGER_DEFINITIONS,
         )
 
         expected_triggers = {**C2_TRIGGER_DEFINITIONS, **DOCUMENT_TRIGGER_DEFINITIONS}
         expected_triggers["tr_assessment_scope_insert"] = ASSESSMENT_SCOPE_TRIGGER_OVERRIDE
+        expected_triggers["tr_attempt_insert_guard"] = ATTEMPT_INSERT_TRIGGER_OVERRIDE
         rows = connection.exec_driver_sql(
             "SELECT name, sql FROM sqlite_master WHERE type='trigger'"
         ).fetchall()

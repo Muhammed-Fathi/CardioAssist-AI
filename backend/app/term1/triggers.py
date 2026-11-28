@@ -10,9 +10,10 @@ integrated fresh-upgrade ``sqlite_master`` output against these definitions so t
 never drift.
 
 This dictionary remains the exact 07 baseline. Integrated startup combines it
-with migration 08's thirteen document triggers and its replacement definition
-for ``tr_assessment_scope_insert`` (which now admits only verified snapshot
-attachments). Nothing here is executed by this module itself.
+with migration 08's document triggers and replacement definitions for
+``tr_assessment_scope_insert`` and ``tr_attempt_insert_guard``. The replacements
+validate immutable snapshot attachments and require the complete binding set
+before the first attempt. Nothing here is executed by this module itself.
 """
 
 from __future__ import annotations

@@ -248,11 +248,12 @@ def test_fail_upload_reclaims_only_after_cleanup(document_service, doc_store, ac
     document_id, storage_key, staging_key, owner = _reservation(document_service, doc_store, actor_patient)
     inflight = _inflight(document_service, document_id)
 
-    # If cleanup fails, accounting must NOT happen (transaction rolls back).
-    def boom(key):
+    # An unexpected cleanup exception rolls back both the lease transition and
+    # quota state. Ordinary unlink failure is covered separately below.
+    def boom(storage_key, staging_key=None):
         raise RuntimeError("cleanup failed")
 
-    monkeypatch.setattr(doc_store, "discard_staging", boom)
+    monkeypatch.setattr(doc_store, "remove_document_blobs", boom)
     with pytest.raises(RuntimeError):
         document_service._fail_upload(document_id, inflight.inflight_id, owner, 1, staging_key, "internal_error")
     with read_transaction(document_service.database) as session:
@@ -273,6 +274,81 @@ def test_fail_upload_reclaims_only_after_cleanup(document_service, doc_store, ac
         lease = session.get(DocumentInflightOperation, inflight.inflight_id)
         assert lease.state == C.INFLIGHT_STATE_FAILED
     assert not doc_store.exists(staging_key)
+
+
+def test_failed_unlink_after_rename_keeps_quota_until_sweep_verifies_all_bytes(
+    document_service, doc_store, actor_patient, monkeypatch
+):
+    document_id, storage_key, staging_key, owner = _reservation(
+        document_service, doc_store, actor_patient
+    )
+    inflight = _inflight(document_service, document_id)
+    # Simulate a crash after atomic promotion plus an unrecorded extra stage.
+    doc_store.promote(staging_key, storage_key)
+    extra_stage = doc_store.stage(_data(), storage_key)
+    assert doc_store.exists(storage_key) and doc_store.exists(extra_stage)
+
+    monkeypatch.setattr(doc_store, "discard_staging", lambda _key: False)
+    document_service._fail_upload(
+        document_id, inflight.inflight_id, owner, 1, staging_key, "internal_error"
+    )
+    with read_transaction(document_service.database) as session:
+        row = session.get(MedicalDocument, document_id)
+        assert row.upload_status == C.UPLOAD_FAILED
+        assert row.reclaim_at is None  # unlink was not verified
+        assert document_service._quota_usage(session, actor_patient.patient_id) == (
+            1, len(_data())
+        )
+    assert doc_store.exists(storage_key) and doc_store.exists(extra_stage)
+
+    # The next orphan sweep removes final + every stage and only then frees quota.
+    monkeypatch.undo()
+    document_service.sweep_orphans()
+    with read_transaction(document_service.database) as session:
+        row = session.get(MedicalDocument, document_id)
+        assert row.reclaim_at is not None and row.staging_key is None
+        assert document_service._quota_usage(session, actor_patient.patient_id) == (0, 0)
+    assert not doc_store.exists(storage_key) and not doc_store.exists(extra_stage)
+
+
+def test_final_unlink_failure_keeps_failed_row_quota_until_later_sweep(
+    document_service, doc_store, actor_patient, monkeypatch
+):
+    document_id, storage_key, staging_key, owner = _reservation(
+        document_service, doc_store, actor_patient
+    )
+    inflight = _inflight(document_service, document_id)
+    doc_store.promote(staging_key, storage_key)
+    extra_stage = doc_store.stage(_data(), storage_key)
+
+    monkeypatch.setattr(doc_store, "remove", lambda _key: False)
+    document_service._fail_upload(
+        document_id, inflight.inflight_id, owner, 1, staging_key, "internal_error"
+    )
+    with read_transaction(document_service.database) as session:
+        row = session.get(MedicalDocument, document_id)
+        assert row.upload_status == C.UPLOAD_FAILED and row.reclaim_at is None
+        assert document_service._quota_usage(session, actor_patient.patient_id) == (
+            1, len(_data())
+        )
+    assert doc_store.exists(storage_key)
+    assert not doc_store.exists(extra_stage)  # partial cleanup is not quota reclamation
+
+    # A sweep that still cannot remove the final blob retains quota.
+    document_service.sweep_orphans()
+    with read_transaction(document_service.database) as session:
+        assert document_service._quota_usage(session, actor_patient.patient_id) == (
+            1, len(_data())
+        )
+    assert doc_store.exists(storage_key)
+
+    monkeypatch.undo()
+    document_service.sweep_orphans()
+    with read_transaction(document_service.database) as session:
+        row = session.get(MedicalDocument, document_id)
+        assert row.reclaim_at is not None and row.staging_key is None
+        assert document_service._quota_usage(session, actor_patient.patient_id) == (0, 0)
+    assert not doc_store.exists(storage_key)
 
 
 # --- orphan sweep: no check/unlink race -------------------------------------
