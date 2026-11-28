@@ -81,6 +81,8 @@
           "typed_value_json",
           "confirmed_value_json",
           "unit",
+          "confirmed_unit",
+          "missing_reason",
           "confidence",
           "conflict_flag",
           "parse_status",
@@ -131,6 +133,32 @@
             "anyOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confirmed_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "missing_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "not_available_at_time",
+                  "not_measured",
+                  "not_provided",
+                  "unknown"
+                ]
               },
               {
                 "type": "null"

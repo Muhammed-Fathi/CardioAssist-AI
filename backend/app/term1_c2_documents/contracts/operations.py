@@ -52,6 +52,10 @@ _DOCUMENT_PROPERTIES = {
     "byte_size": {"type": "integer", "minimum": 0, "maximum": C.FILE_CAP_BYTES},
     "page_count": {"type": "integer", "minimum": 0, "maximum": C.MAX_PDF_PAGES},
     "content_sha256": {"anyOf": [_SHA, {"type": "null"}]},
+    "pixel_width": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": C.MAX_PIXEL_SIDE},
+                              {"type": "null"}]},
+    "pixel_height": {"anyOf": [{"type": "integer", "minimum": 1, "maximum": C.MAX_PIXEL_SIDE},
+                               {"type": "null"}]},
     "created_at": _ISO,
     "latest_extraction_id": _UUID,
     "latest_extraction_version": {"type": "integer", "minimum": 1},
@@ -60,13 +64,16 @@ _DOCUMENT_PROPERTIES = {
 
 _EXTRACTION_FIELD = _obj(
     ["field_name", "raw_text", "typed_value_json", "confirmed_value_json", "unit",
-     "confidence", "conflict_flag", "parse_status", "provenance_kind"],
+     "confirmed_unit", "missing_reason", "confidence", "conflict_flag", "parse_status",
+     "provenance_kind"],
     {
         "field_name": {"type": "string"},
         "raw_text": {"anyOf": [{"type": "string"}, {"type": "null"}]},
         "typed_value_json": {"anyOf": [{"type": "integer"}, {"type": "number"}, {"type": "null"}]},
         "confirmed_value_json": {"anyOf": [{"type": "integer"}, {"type": "number"}, {"type": "null"}]},
         "unit": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "confirmed_unit": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "missing_reason": {"anyOf": [{"type": "string", "enum": _MISSING_REASONS}, {"type": "null"}]},
         "confidence": {"anyOf": [{"type": "number", "minimum": 0, "maximum": 1}, {"type": "null"}]},
         "conflict_flag": {"type": "boolean"},
         "parse_status": {"type": "string", "enum": _PARSE_STATUSES},
@@ -103,7 +110,7 @@ SCHEMAS: Final[dict[str, dict[str, Any]]] = {
         "term1_document_upload_response.schema.json",
         _obj(["contract_version", "document_id", "status", "document_kind",
               "fixture_template_id", "declared_media_type", "byte_size", "page_count",
-              "content_sha256", "created_at"], _DOCUMENT_PROPERTIES),
+              "content_sha256", "pixel_width", "pixel_height", "created_at"], _DOCUMENT_PROPERTIES),
     ),
     "term1_document_list_response.schema.json": _schema(
         "term1_document_list_response.schema.json",
@@ -112,7 +119,7 @@ SCHEMAS: Final[dict[str, dict[str, Any]]] = {
             "items": {"type": "array", "items": _obj(
                 ["contract_version", "document_id", "status", "document_kind",
                  "fixture_template_id", "declared_media_type", "byte_size", "page_count",
-                 "content_sha256", "created_at"], _DOCUMENT_PROPERTIES)},
+                 "content_sha256", "pixel_width", "pixel_height", "created_at"], _DOCUMENT_PROPERTIES)},
             "next_cursor": {"anyOf": [{"type": "string"}, {"type": "null"}]},
         }),
     ),
@@ -120,7 +127,7 @@ SCHEMAS: Final[dict[str, dict[str, Any]]] = {
         "term1_document_read_response.schema.json",
         _obj(["contract_version", "document_id", "status", "document_kind",
               "fixture_template_id", "declared_media_type", "byte_size", "page_count",
-              "content_sha256", "created_at", "original_filename_sanitized",
+              "content_sha256", "pixel_width", "pixel_height", "created_at", "original_filename_sanitized",
               "latest_extraction", "event_count"], {
                   **_DOCUMENT_PROPERTIES,
                   "original_filename_sanitized": {"type": "string", "maxLength": 128},
