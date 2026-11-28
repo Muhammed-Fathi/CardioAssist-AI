@@ -32,15 +32,23 @@ C1_TABLES = {
     "workflow_audit_event",
     "admin_bootstrap_record",
 }
-C2_C3_TABLES = {
+C2_CORE_TABLES = {
     "health_profile",
     "assessment",
     "assessment_snapshot",
     "inference_attempt",
     "inference_result",
+}
+# Not created by migration 07: Track 2 documents/OCR (08) and C3 (09).
+LATER_STAGE_TABLES = {
     "assessment_review",
     "follow_up_message",
     "notification_record",
+    "medical_document",
+    "document_extraction",
+    "extraction_field",
+    "extraction_event",
+    "assessment_document",
 }
 
 REVISION_ORDER = [
@@ -50,6 +58,7 @@ REVISION_ORDER = [
     "20261126_04",
     "20261126_05",
     "20261126_06",
+    "20261128_07",
 ]
 
 
@@ -62,7 +71,7 @@ def _tables(url: str) -> set[str]:
 
 
 def test_migration_head_graph_is_the_documented_c1_chain(migrated_url):
-    assert _expected_migration_heads() == ("20261126_06",)
+    assert _expected_migration_heads() == ("20261128_07",)
     config = alembic_config(migrated_url)
     from alembic.script import ScriptDirectory
 
@@ -100,7 +109,10 @@ def test_legacy_migration_is_unchanged_and_preserved(migrated_url):
 def test_c1_inventory_is_exact_and_no_later_stage_table_exists(migrated_url):
     tables = _tables(migrated_url)
     assert C1_TABLES <= tables
-    assert not (C2_C3_TABLES & tables), sorted(C2_C3_TABLES & tables)
+    # Migration 07 owns exactly the five C2 core tables; 08 (documents/OCR)
+    # and 09 (C3) tables must not exist yet.
+    assert C2_CORE_TABLES <= tables, sorted(C2_CORE_TABLES - tables)
+    assert not (LATER_STAGE_TABLES & tables), sorted(LATER_STAGE_TABLES & tables)
     # Every declared table is mapped; nothing is created outside Base.metadata.
     assert tables - {"alembic_version"} == set(Base.metadata.tables)
 
@@ -118,7 +130,15 @@ def test_referenced_tables_are_created_before_dependents():
         declared[revision.revision] = set(
             re.findall(r'op\.create_table\(\s*\n?\s*"([a-z_]+)"', source)
         )
-    order = ["20261017_01", "20261126_02", "20261126_03", "20261126_04", "20261126_05", "20261126_06"]
+    order = [
+        "20261017_01",
+        "20261126_02",
+        "20261126_03",
+        "20261126_04",
+        "20261126_05",
+        "20261126_06",
+        "20261128_07",
+    ]
     assert list(declared) == list(reversed(order)) or set(declared) == set(order)
     seen: set[str] = set()
     for revision in order:
@@ -455,7 +475,7 @@ def test_startup_verification_is_read_only(migrated_url):
     finally:
         database.dispose()
     # No repair happened: alembic head and table inventory are unchanged.
-    assert _expected_migration_heads() == ("20261126_06",)
+    assert _expected_migration_heads() == ("20261128_07",)
     assert C1_TABLES <= _tables(migrated_url)
 
 
@@ -525,7 +545,7 @@ def test_bound_c1_downgrade_refused_before_ddl_preserves_all_state(
     assert len(before[1]["identity_key_check"]) == 3
     assert before[1]["durable_idempotency"]
     assert before[1]["patient_profile"]
-    assert before[1]["alembic_version"] == [("20261126_06",)]
+    assert before[1]["alembic_version"] == [("20261128_07",)]
     with pytest.raises(RuntimeError, match="C1 downgrade refused: persisted C1 state"):
         downgrade(migrated_url, "20261126_05")
     # The entire schema and every durable row must be untouched, including
@@ -549,6 +569,6 @@ def test_admin_only_c1_state_also_refuses_downgrade(app, client, migrated_url):
         db.verify_schema()
         with db.engine.connect() as connection:
             assert connection.execute(text("SELECT COUNT(*) FROM user_account")).scalar_one() == 1
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20261126_06"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20261128_07"
     finally:
         db.dispose()

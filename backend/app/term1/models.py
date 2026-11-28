@@ -26,9 +26,14 @@ Design notes that the constraints encode:
 
 from __future__ import annotations
 
+import importlib.util
+
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
+    Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     JSON,
@@ -472,13 +477,341 @@ class AdminBootstrapRecord(Base):
     bootstrapped_at: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
+class HealthProfile(Base):
+    """C2 immutable versioned patient profile rows (``superseded_at`` lifecycle)."""
+
+    __tablename__ = "health_profile"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["patient_id"],
+            ["patient_profile.patient_id"],
+            ondelete="RESTRICT",
+            name="fk_health_profile_patient",
+        ),
+        ForeignKeyConstraint(
+            ["actor_user_id"],
+            ["user_account.user_id"],
+            ondelete="RESTRICT",
+            name="fk_health_profile_actor",
+        ),
+        CheckConstraint("version_number >= 1", name="ck_health_profile_version"),
+        UniqueConstraint(
+            "patient_id", "version_number", name="ux_health_profile_patient_version"
+        ),
+        UniqueConstraint(
+            "health_profile_id", "patient_id", name="ux_health_profile_id_patient"
+        ),
+        Index(
+            "ux_health_profile_one_active",
+            "patient_id",
+            unique=True,
+            sqlite_where=text("superseded_at IS NULL"),
+        ),
+        CheckConstraint(
+            "status IN ('DRAFT','COMPLETE','SUPERSEDED')", name="ck_health_profile_status"
+        ),
+        CheckConstraint(
+            "(status = 'SUPERSEDED' AND superseded_at IS NOT NULL) "
+            "OR (status IN ('DRAFT','COMPLETE') AND superseded_at IS NULL)",
+            name="ck_health_profile_supersession",
+        ),
+    )
+
+    health_profile_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    superseded_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    panel_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    panel_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    fields_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    provenance_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    profile_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class AssessmentSnapshot(Base):
+    """C2 canonical immutable snapshot envelope; one per assessment."""
+
+    __tablename__ = "assessment_snapshot"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["patient_id"],
+            ["patient_profile.patient_id"],
+            ondelete="RESTRICT",
+            name="fk_assessment_snapshot_patient",
+        ),
+        ForeignKeyConstraint(
+            ["health_profile_id", "patient_id"],
+            ["health_profile.health_profile_id", "health_profile.patient_id"],
+            ondelete="RESTRICT",
+            name="fk_assessment_snapshot_profile",
+        ),
+        UniqueConstraint("snapshot_id", "patient_id", name="ux_snapshot_id_patient"),
+        CheckConstraint(
+            "source_kind IN ('synthetic_demo_patient_manual','synthetic_demo_ocr_confirmed')",
+            name="ck_snapshot_source_kind",
+        ),
+    )
+
+    snapshot_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    health_profile_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    panel_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    panel_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    panel_contract_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    schema_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_contract_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    snapshot_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    snapshot_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class Assessment(Base):
+    """C2 submission record: C0 state machine, CAS pointers, generation."""
+
+    __tablename__ = "assessment"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["patient_id"],
+            ["patient_profile.patient_id"],
+            ondelete="RESTRICT",
+            name="fk_assessment_patient",
+        ),
+        ForeignKeyConstraint(
+            ["health_profile_id", "patient_id"],
+            ["health_profile.health_profile_id", "health_profile.patient_id"],
+            ondelete="RESTRICT",
+            name="fk_assessment_health_profile",
+        ),
+        ForeignKeyConstraint(
+            ["snapshot_id", "patient_id"],
+            ["assessment_snapshot.snapshot_id", "assessment_snapshot.patient_id"],
+            ondelete="RESTRICT",
+            name="fk_assessment_snapshot",
+        ),
+        ForeignKeyConstraint(
+            ["assignment_id"],
+            ["doctor_patient_assignment.assignment_id"],
+            ondelete="RESTRICT",
+            name="fk_assessment_assignment",
+        ),
+        ForeignKeyConstraint(
+            ["consent_id"],
+            ["consent_record.consent_id"],
+            ondelete="RESTRICT",
+            name="fk_assessment_consent",
+        ),
+        ForeignKeyConstraint(
+            ["reassessment_of_id"],
+            ["assessment.assessment_id"],
+            ondelete="RESTRICT",
+            name="fk_assessment_reassessment",
+        ),
+        UniqueConstraint(
+            "assessment_id", "assignment_id", name="ux_assessment_id_assignment"
+        ),
+        UniqueConstraint("assessment_id", "patient_id", name="ux_assessment_id_patient"),
+        UniqueConstraint("assessment_id", "snapshot_id", name="ux_assessment_id_snapshot"),
+        UniqueConstraint("snapshot_id", name="ux_assessment_snapshot_id"),
+        UniqueConstraint("active_attempt_id", name="ux_assessment_active_attempt"),
+        UniqueConstraint("current_result_id", name="ux_assessment_current_result"),
+        CheckConstraint(
+            "status IN ('DRAFT','INPUT_VALIDATED','INFERENCE_RUNNING',"
+            "'INFERENCE_SUCCEEDED','PENDING_REVIEW','INFERENCE_ABSTAINED',"
+            "'INFERENCE_UNAVAILABLE','INFERENCE_ERROR')",
+            name="ck_assessment_status",
+        ),
+        CheckConstraint(
+            "((status IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR') "
+            "AND reason_code IS NOT NULL) OR "
+            "(status NOT IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR') "
+            "AND reason_code IS NULL))",
+            name="ck_assessment_status_reason",
+        ),
+        CheckConstraint(
+            "((status = 'INFERENCE_RUNNING' AND active_attempt_id IS NOT NULL "
+            "AND current_result_id IS NULL) OR "
+            "(status IN ('INFERENCE_SUCCEEDED','PENDING_REVIEW') "
+            "AND active_attempt_id IS NULL AND current_result_id IS NOT NULL) OR "
+            "(status IN ('DRAFT','INPUT_VALIDATED','INFERENCE_ABSTAINED',"
+            "'INFERENCE_UNAVAILABLE','INFERENCE_ERROR') "
+            "AND active_attempt_id IS NULL AND current_result_id IS NULL))",
+            name="ck_assessment_pointer",
+        ),
+        Index("ix_assessment_patient_created", "patient_id", "created_at"),
+        Index("ix_assessment_assignment_status", "assignment_id", "status"),
+        Index("ix_assessment_current_result", "current_result_id"),
+    )
+
+    assessment_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    patient_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    health_profile_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    snapshot_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    assignment_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    consent_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    reassessment_of_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    reassessment_reason: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    panel_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    panel_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_contract_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    stage_complete: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    status: Mapped[str] = mapped_column(String(36), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    active_attempt_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    current_generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    current_result_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    review_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    review_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class InferenceAttempt(Base):
+    """C2 lease/generation/fencing attempt record for every terminal path."""
+
+    __tablename__ = "inference_attempt"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["assessment_id"],
+            ["assessment.assessment_id"],
+            ondelete="RESTRICT",
+            name="fk_inference_attempt_assessment",
+        ),
+        UniqueConstraint(
+            "assessment_id", "generation", name="ux_inference_attempt_assessment_gen"
+        ),
+        UniqueConstraint(
+            "assessment_id",
+            "attempt_idempotency_hash",
+            name="ux_inference_attempt_idempotency",
+        ),
+        UniqueConstraint(
+            "assessment_id",
+            "attempt_id",
+            "generation",
+            name="ux_inference_attempt_id_gen_pair",
+        ),
+        Index(
+            "ux_inference_attempt_one_active",
+            "assessment_id",
+            unique=True,
+            sqlite_where=text("state = 'INFERENCE_RUNNING'"),
+        ),
+        Index("ix_inference_attempt_assessment_state", "assessment_id", "state"),
+    )
+
+    attempt_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    assessment_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt_idempotency_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    worker_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    fence_token: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(36), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    leased_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    lease_until: Mapped[str] = mapped_column(String(32), nullable=False)
+    completed_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class InferenceResult(Base):
+    """Append-only immutable C2 result record (created only after A3)."""
+
+    __tablename__ = "inference_result"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["assessment_id", "snapshot_id"],
+            ["assessment.assessment_id", "assessment.snapshot_id"],
+            ondelete="RESTRICT",
+            name="fk_inference_result_assessment",
+        ),
+        ForeignKeyConstraint(
+            ["assessment_id", "attempt_id", "generation"],
+            ["inference_attempt.assessment_id", "inference_attempt.attempt_id",
+             "inference_attempt.generation"],
+            ondelete="RESTRICT",
+            name="fk_inference_result_attempt",
+        ),
+        ForeignKeyConstraint(
+            ["snapshot_id"],
+            ["assessment_snapshot.snapshot_id"],
+            ondelete="RESTRICT",
+            name="fk_inference_result_snapshot",
+        ),
+        UniqueConstraint("attempt_id", name="ux_inference_result_attempt"),
+        UniqueConstraint(
+            "assessment_id", "snapshot_id", "result_id",
+            name="ux_inference_result_ass_snap_res",
+        ),
+        CheckConstraint(
+            "serving_eligibility = 'RESEARCH_ONLY'",
+            name="ck_inference_result_serving_eligibility",
+        ),
+        CheckConstraint(
+            "clinical_use_authorized = 0",
+            name="ck_inference_result_clinical_use",
+        ),
+    )
+
+    result_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    assessment_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    attempt_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    snapshot_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    snapshot_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    panel_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    panel_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    panel_contract_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_contract_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    protocol_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    execution_profile: Mapped[str] = mapped_column(String(48), nullable=False)
+    bundle_dir_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_joblib_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    preprocessing_json_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    calibration_json_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    shap_background_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluation_summary_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    protocol_md_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    serving_eligibility: Mapped[str] = mapped_column(String(32), nullable=False)
+    clinical_use_authorized: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    raw_model_score: Mapped[float] = mapped_column(Float, nullable=False)
+    raw_model_log_odds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    calibrated_research_score: Mapped[float] = mapped_column(Float, nullable=False)
+    calibrated_log_odds: Mapped[float] = mapped_column(Float, nullable=False)
+    calibration_meta_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    shap_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    lime_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    lime_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    lime_meta_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    fold_dispersion_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    limitations_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    result_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    published_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
 __all__ = [
     "AdminBootstrapRecord",
+    "Assessment",
+    "AssessmentSnapshot",
     "ConsentRecord",
     "DoctorPatientAssignment",
     "DoctorProfile",
     "DurableIdempotency",
+    "HealthProfile",
     "IdentityKeyCheck",
+    "InferenceAttempt",
+    "InferenceResult",
     "InvitationAttempt",
     "InvitationRedemption",
     "LoginAttempt",
@@ -491,3 +824,12 @@ __all__ = [
     "WorkflowAuditEvent",
     "Text",
 ]
+
+# --- Documented C2 model registration (shared integration point) -------------
+# Track 2 ships its document/OCR models as the subpackage
+# ``backend.app.term1.documents``; this guarded hook registers them with the
+# same metadata as soon as the package exists, without Track 2 editing this
+# file (or ``migrations/env.py`` / ``storage/database.py``). A package that
+# exists but fails to import still fails loudly.
+if importlib.util.find_spec("backend.app.term1.documents") is not None:
+    from . import documents as _c2_document_models  # noqa: F401

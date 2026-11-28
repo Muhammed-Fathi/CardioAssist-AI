@@ -251,5 +251,40 @@ class Database:
                         f"(first violation: {tuple(foreign_key_violation)})."
                     )
 
+                self._verify_c2_triggers(connection)
+
+    @staticmethod
+    def _verify_c2_triggers(connection) -> None:
+        """Fail closed unless every frozen C2 trigger exists and is unmodified.
+
+        The expected definitions live in ``backend.app.term1.triggers`` (a
+        zero-import leaf module); comparison is whitespace-normalized SQL
+        against ``sqlite_master``. Extra triggers (later migrations) are not an
+        error — only missing or tampered C2 triggers refuse startup.
+        """
+        from ..term1.triggers import C2_TRIGGER_DEFINITIONS, normalize_trigger_sql
+
+        rows = connection.exec_driver_sql(
+            "SELECT name, sql FROM sqlite_master WHERE type='trigger'"
+        ).fetchall()
+        actual = {
+            str(name): normalize_trigger_sql(str(sql or "")) for name, sql in rows
+        }
+        problems: list[str] = []
+        for name, expected in C2_TRIGGER_DEFINITIONS.items():
+            found = actual.get(name)
+            if found is None:
+                problems.append(f"{name} missing")
+            elif found != normalize_trigger_sql(expected):
+                problems.append(f"{name} modified")
+        if problems:
+            details = ", ".join(problems)
+            raise RuntimeError(
+                "Database C2 trigger verification failed "
+                f"({details}). Restore a verified backup or repair the schema "
+                "with an explicit, operator-reviewed migration; startup never "
+                "changes the schema."
+            )
+
     def dispose(self) -> None:
         self.engine.dispose()
