@@ -1,0 +1,107 @@
+"""SAFE_SCOPE boundary: no shared-route wiring, no AI access, no inference."""
+
+from __future__ import annotations
+
+import re
+import uuid
+from pathlib import Path
+
+import pytest
+from sqlalchemy import text
+
+from backend.app.term1.tx import read_transaction
+from backend.app.term1_c2_documents import constants as C
+
+from .conftest import requires_native_ocr
+
+PACKAGE = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents"
+FIXTURES = PACKAGE / "fixtures"
+
+
+def test_create_app_does_not_register_document_routes():
+    # Track 1 owns shared app registration. Track 2 supplies the DOC module only;
+    # create_app must still serve exactly the frozen 22-operation C1 inventory.
+    from backend.app.main import create_app
+    from backend.app.term1.openapi import SERVED_OPERATIONS
+
+    app = create_app()
+    served = {str(getattr(r, "path", "")) for r in app.routes}
+    served = {p for p in served if p.startswith("/v1")}
+    assert served == {p for _m, p in SERVED_OPERATIONS}
+    assert len(served) == 22
+    assert not any("/documents" in p for p in served)
+
+
+def test_document_modules_import_no_ai_research_or_inference_runtime():
+    # Static boundary: the Track 2 package never imports the AI bundle, the
+    # offline research layer, or the inference provider/registry runtime.
+    forbidden = re.compile(
+        r"^\s*(?:from|import)\s+(?:backend\.app\.)?"
+        r"(?:ai|research|inference|synthetic|calibration|panels)\b",
+        re.MULTILINE,
+    )
+    offenders = []
+    for path in PACKAGE.glob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        if forbidden.search(source):
+            offenders.append(path.name)
+    assert offenders == []
+
+
+def test_document_service_has_no_inference_dispatch_symbol():
+    # AST-level: no inference/assessment-dispatch identifier is referenced in
+    # code (docstring mentions of what the service does NOT do are ignored).
+    import ast
+
+    tree = ast.parse((PACKAGE / "service.py").read_text(encoding="utf-8"))
+    identifiers = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            identifiers.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            identifiers.add(node.attr)
+    forbidden = {"build_active_provider", "dispatch_assessment", "submit_assessment",
+                 "MockSyntheticProvider", "InferenceResult", "create_inference_result"}
+    assert identifiers.isdisjoint(forbidden)
+
+
+@requires_native_ocr
+def test_confirmation_binds_no_assessment_and_dispatches_no_inference(client, patient, c2_app):
+    token = patient["token"]
+    data = (FIXTURES / "resting_text.pdf").read_bytes()
+    up = client.post(
+        "/v1/me/documents",
+        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": f"up-{uuid.uuid4()}"},
+        data={"contract_version": "v1", "document_kind": C.DOC_KIND_RESTING,
+              "fixture_template_id": C.TEMPLATE_RESTING},
+        files={"file": ("resting_text.pdf", data, "application/pdf")},
+    )
+    document_id = up.json()["document_id"]
+    ext = client.post(f"/v1/me/documents/{document_id}/extract",
+                      headers={"Authorization": f"Bearer {token}",
+                               "Idempotency-Key": f"ex-{uuid.uuid4()}"}).json()
+    confirm = client.post(
+        f"/v1/me/documents/{document_id}/confirm",
+        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": f"cf-{uuid.uuid4()}"},
+        json={"contract_version": "v1", "extraction_id": ext["extraction_id"],
+              "extraction_version": 1,
+              "confirmed_inputs": {"age": 54, "sex": 1, "cp": 2, "trestbps": 130, "restecg": 0},
+              "units": {"age": "years", "trestbps": "mmHg"}, "missing_reasons": {},
+              "confirm_fabricated_demo_inputs": True},
+    )
+    assert confirm.status_code == 200
+    # Patient confirmation is NOT assessment submission: no assessment_document
+    # binding is created (that is Track 1's S1), and no inference is dispatched.
+    with read_transaction(c2_app.state.database) as session:
+        bindings = session.execute(text("SELECT COUNT(*) FROM assessment_document")).scalar_one()
+        assert bindings == 0
+
+
+def test_worker_environment_excludes_ai_bundle_bindings():
+    # The worker's fail-closed environment check refuses every AI bundle / key
+    # binding, so the OCR process can never read private model material.
+    from backend.app.term1_c2_documents.worker import WorkerStartupError, verify_sanitized_env
+    for secret in ("CARDIOASSIST_LOCAL_BUNDLE_DIR", "CARDIOASSIST_LOCAL_TRUSTED_ROOT",
+                   "CARDIOASSIST_LOCAL_HMAC_KEY_PATH"):
+        with pytest.raises(WorkerStartupError):
+            verify_sanitized_env({secret: "/private/ai"})
