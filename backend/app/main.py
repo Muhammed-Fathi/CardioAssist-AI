@@ -32,6 +32,7 @@ from .state import MockState
 from .storage.database import Database
 from .storage.monitoring import MonitoringRepository
 from .term1.api import Term1Handler, register_term1_routes
+from .term1.c2_api import register_c2_routes
 from .term1.clock_provider import clock_from
 from .term1.openapi import compose_openapi
 from .term1.settings import Term1Settings
@@ -143,6 +144,9 @@ def create_app(
     )
     app.state.term1 = term1_handler
     register_term1_routes(app, handler=term1_handler)
+    # Additive Term 1 C2 clinical-intake surface (SAFE_SCOPE); composed into
+    # the same served OpenAPI document (see backend/app/term1/openapi.py).
+    register_c2_routes(app, handler=term1_handler)
     app.openapi = compose_openapi(contracts)
 
     return app
