@@ -53,6 +53,57 @@ _FILE_MODE = 0o640
 _IS_WINDOWS = os.name == "nt"
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 
+# Well-known SIDs of BROAD principals that must never hold sensitive rights on the
+# private root (P0-02). SIDs are locale-independent, unlike icacls principal names
+# which are localized on non-English Windows.
+_BROAD_SIDS = frozenset({
+    "S-1-1-0",        # Everyone
+    "S-1-5-11",       # Authenticated Users
+    "S-1-5-32-545",   # BUILTIN\Users
+    "S-1-5-32-546",   # BUILTIN\Guests
+    "S-1-5-4",        # INTERACTIVE
+    "S-1-5-2",        # NETWORK
+    "S-1-5-32-547",   # BUILTIN\Power Users
+})
+# Sensitive access rights: any read OR write of data/attributes, delete, or DACL
+# ownership change. A broad principal holding ANY of these is a violation, so the
+# check denies unintended READ as well as write (P0-02).
+_SENSITIVE_RIGHTS = (
+    0x00000001  # FILE_READ_DATA
+    | 0x00000002  # FILE_WRITE_DATA
+    | 0x00000004  # FILE_APPEND_DATA
+    | 0x00000008  # FILE_READ_EA
+    | 0x00000010  # FILE_WRITE_EA
+    | 0x00000020  # FILE_EXECUTE / traverse
+    | 0x00010000  # DELETE
+    | 0x00040000  # WRITE_DAC
+    | 0x00080000  # WRITE_OWNER
+    | 0x10000000  # GENERIC_ALL
+    | 0x40000000  # GENERIC_WRITE
+    | 0x80000000  # GENERIC_READ
+)
+_SE_DACL_PROTECTED = 0x1000
+
+
+def _acl_violation(aces: list[tuple[str, int, int]], *, dacl_protected: bool) -> str | None:
+    """Pure, locale-independent DACL policy check (testable off-Windows).
+
+    ``aces`` is a list of ``(sid_string, access_mask, ace_type)`` where
+    ``ace_type`` 0 = ACCESS_ALLOWED, 1 = ACCESS_DENIED. Returns a violation
+    reason, or ``None`` when the DACL is safe. Fails closed when the DACL is not
+    protected against inheritance (a permissive parent could grant broad access)
+    or when any broad principal holds an ALLOW ACE with sensitive read/write
+    rights. Deny ACEs never grant access and are ignored.
+    """
+    if not dacl_protected:
+        return "Private root DACL is not protected against inheritance."
+    for sid, mask, ace_type in aces:
+        if ace_type != 0:  # only ALLOW ACEs grant access
+            continue
+        if sid in _BROAD_SIDS and (mask & _SENSITIVE_RIGHTS):
+            return f"Broad principal {sid} holds sensitive read/write rights on the private root."
+    return None
+
 
 class StorageError(RuntimeError):
     """A storage operation failed safely."""
@@ -132,26 +183,151 @@ def _win_open_no_reparse(path: Path, *, write: bool, create_new: bool) -> int:
         raise
 
 
+def _read_windows_dacl(path: Path) -> tuple[list[tuple[str, int, int]], bool]:
+    """Return ``(aces, dacl_protected)`` for ``path`` via the Windows API.
+
+    Each ACE is ``(sid_string, access_mask, ace_type)``. Uses
+    ``GetNamedSecurityInfoW`` + ``GetAce`` + ``ConvertSidToStringSidW`` so the
+    result is independent of the OS display language. Windows-only; raises
+    :class:`StorageError` on any failure so the caller fails closed.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    class ACE_HEADER(ctypes.Structure):
+        _fields_ = [("AceType", ctypes.c_ubyte), ("AceFlags", ctypes.c_ubyte),
+                    ("AceSize", wintypes.WORD)]
+
+    class ACCESS_ALLOWED_ACE(ctypes.Structure):
+        _fields_ = [("Header", ACE_HEADER), ("Mask", wintypes.DWORD),
+                    ("SidStart", wintypes.DWORD)]
+
+    class ACL_SIZE_INFORMATION(ctypes.Structure):
+        _fields_ = [("AceCount", wintypes.DWORD), ("AclBytesInUse", wintypes.DWORD),
+                    ("AclBytesFree", wintypes.DWORD)]
+
+    SE_FILE_OBJECT = 1
+    DACL_SECURITY_INFORMATION = 0x00000004
+    advapi32.GetNamedSecurityInfoW.argtypes = [
+        wintypes.LPCWSTR, ctypes.c_int, ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    advapi32.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    p_dacl = ctypes.c_void_p()
+    p_sd = ctypes.c_void_p()
+    rc = advapi32.GetNamedSecurityInfoW(
+        str(path), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+        None, None, ctypes.byref(p_dacl), None, ctypes.byref(p_sd),
+    )
+    if rc != 0 or not p_sd:
+        raise StorageError(f"GetNamedSecurityInfoW failed (winerr {rc}).")
+    try:
+        control = wintypes.WORD()
+        revision = wintypes.DWORD()
+        advapi32.GetSecurityDescriptorControl.argtypes = [
+            ctypes.c_void_p, ctypes.POINTER(wintypes.WORD), ctypes.POINTER(wintypes.DWORD)]
+        advapi32.GetSecurityDescriptorControl(p_sd, ctypes.byref(control), ctypes.byref(revision))
+        dacl_protected = bool(control.value & _SE_DACL_PROTECTED)
+        if not p_dacl:
+            # A NULL DACL grants everyone full control: never acceptable.
+            raise StorageError("Private root has a NULL DACL (unrestricted access).")
+        size_info = ACL_SIZE_INFORMATION()
+        advapi32.GetAclInformation.argtypes = [
+            ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.c_int]
+        advapi32.GetAclInformation(p_dacl, ctypes.byref(size_info), ctypes.sizeof(size_info), 2)
+        advapi32.GetAce.argtypes = [ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p)]
+        advapi32.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_wchar_p)]
+        advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+        kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+        aces: list[tuple[str, int, int]] = []
+        for index in range(size_info.AceCount):
+            p_ace = ctypes.c_void_p()
+            if not advapi32.GetAce(p_dacl, index, ctypes.byref(p_ace)):
+                raise StorageError("GetAce failed while enumerating the private root DACL.")
+            ace = ctypes.cast(p_ace, ctypes.POINTER(ACCESS_ALLOWED_ACE)).contents
+            ace_type = ace.Header.AceType
+            if ace_type not in (0, 1):  # only ALLOWED / DENIED carry a SID+mask here
+                continue
+            sid_addr = ctypes.addressof(ace) + ACCESS_ALLOWED_ACE.SidStart.offset
+            sid_str = ctypes.c_wchar_p()
+            if not advapi32.ConvertSidToStringSidW(ctypes.c_void_p(sid_addr), ctypes.byref(sid_str)):
+                raise StorageError("ConvertSidToStringSidW failed on a private root ACE.")
+            try:
+                aces.append((sid_str.value, int(ace.Mask), int(ace_type)))
+            finally:
+                kernel32.LocalFree(sid_str)
+        return aces, dacl_protected
+    finally:
+        kernel32.LocalFree(p_sd)
+
+
 class PrivateDocStore:
     """A contained, private blob store keyed by server-generated paths."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, read_only: bool = False) -> None:
+        """Open the private store.
+
+        ``read_only=True`` is the OCR worker's access mode (P0-02): it NEVER
+        creates, chmods or writes anything. The backend account owns the root and
+        applies permissions; a separate read-only OCR account is not the owner and
+        must not attempt ``mkdir``/``chmod`` (which would fail or, worse, succeed
+        on a mis-owned root). The reader only verifies containment + policy and
+        reads verified bytes.
+        """
         root = Path(root)
         if not root.is_absolute():
             raise StorageError("Private document root must be an absolute path.")
+        self._read_only = read_only
         if _is_reparse_or_symlink(root):
             raise StorageError("Private document root must not be a symlink/reparse point.")
-        root.mkdir(parents=True, exist_ok=True)
+        # Containment must hold for EVERY ancestor, not just the root: a junction
+        # planted at any parent could redirect the whole store. This check is done
+        # on the lexical path BEFORE resolve() collapses any reparse point (P0-02).
+        self._verify_no_reparse_ancestors(root)
+        if read_only:
+            if not root.is_dir():
+                raise StorageError("Private document root does not exist for read-only access.")
+        else:
+            root.mkdir(parents=True, exist_ok=True)
         self._root = root.resolve()
-        # Refuse a root whose resolved form escapes via a reparse ancestor.
         if _is_reparse_or_symlink(self._root):
             raise StorageError("Private document root resolves through a reparse point.")
-        self._apply_dir_mode(self._root)
+        # Re-verify ancestors on the resolved form as defence in depth.
+        self._verify_no_reparse_ancestors(self._root)
+        if not read_only:
+            self._apply_dir_mode(self._root)
         self.verify_access_policy()
 
     @property
     def root(self) -> Path:
         return self._root
+
+    @property
+    def read_only(self) -> bool:
+        return self._read_only
+
+    def _require_writable(self) -> None:
+        if self._read_only:
+            raise StorageError("Private document store is opened read-only (OCR worker).")
+
+    @staticmethod
+    def _verify_no_reparse_ancestors(root: Path) -> None:
+        """Refuse a root reached through ANY symlink/reparse ancestor (P0-02).
+
+        Walking the lexical ancestors (rather than trusting ``resolve()``) means a
+        junction/symlink at a parent is detected even though ``resolve()`` would
+        silently collapse it and make a later containment check vacuous.
+        """
+        for ancestor in (root, *root.parents):
+            if _is_reparse_or_symlink(ancestor):
+                raise StorageError(
+                    "Private document root has a symlink/reparse ancestor; refusing."
+                )
 
     def _apply_dir_mode(self, directory: Path) -> None:
         if not _IS_WINDOWS:
@@ -188,24 +364,22 @@ class PrivateDocStore:
             raise StorageError("Private document root grants group write; refusing to start.")
 
     def _verify_windows_acl(self) -> None:
-        import subprocess
+        """Verify the private root DACL by SID (locale-independent, P0-02).
 
+        Reads the security descriptor via the Windows API, enumerates every ACE's
+        SID and access mask, and applies :func:`_acl_violation`. This checks both
+        unintended READ and write by broad principals and requires a protected
+        (non-inheriting) DACL. Any inability to inspect the DACL fails closed.
+        """
         try:
-            result = subprocess.run(
-                ["icacls", str(self._root)], capture_output=True, text=True, timeout=15
-            )
-        except (OSError, subprocess.SubprocessError) as error:
-            raise StorageError("Cannot inspect private root DACL (icacls unavailable).") from error
-        if result.returncode != 0:
-            raise StorageError("icacls failed to inspect the private root DACL.")
-        forbidden_principals = ("everyone", "builtin\\users", "authenticated users", "users:")
-        for line in result.stdout.lower().splitlines():
-            if any(p in line for p in forbidden_principals):
-                # (F) full, (M) modify, (W) write, (WD/WE) write-data/append.
-                if any(perm in line for perm in ("(f)", "(m)", "(w)", "(wd)", "(we)", "(dc)")):
-                    raise StorageError(
-                        "Private root DACL grants a broad principal write/full access."
-                    )
+            aces, dacl_protected = _read_windows_dacl(self._root)
+        except StorageError:
+            raise
+        except Exception as error:  # noqa: BLE001 - fail closed on any API failure
+            raise StorageError("Cannot inspect private root DACL via the Windows API.") from error
+        violation = _acl_violation(aces, dacl_protected=dacl_protected)
+        if violation is not None:
+            raise StorageError(violation)
 
     def _resolve(self, storage_key: str) -> Path:
         # Accept a final key or its staging form (worker validates staged bytes).
@@ -236,6 +410,7 @@ class PrivateDocStore:
         Returns the staging key (``<final>.tmp-<random>``). The caller promotes
         it atomically only after successful validation and authorization.
         """
+        self._require_writable()
         if len(data) > C.FILE_CAP_BYTES:
             raise StorageError("Staged bytes exceed the file cap.")
         target = self._resolve(storage_key)
@@ -264,6 +439,7 @@ class PrivateDocStore:
 
     def promote(self, staging_key: str, storage_key: str) -> None:
         """Atomically publish a validated staging blob to its final key."""
+        self._require_writable()
         final = self._resolve(storage_key)
         staging = final.parent / Path(staging_key).name
         if _is_reparse_or_symlink(staging) or not staging.is_file():
@@ -274,6 +450,7 @@ class PrivateDocStore:
         self._apply_file_mode(final)
 
     def discard_staging(self, staging_key: str) -> None:
+        self._require_writable()
         try:
             final = self._resolve(storage_key_from_staging(staging_key))
             staging = final.parent / Path(staging_key).name
@@ -282,6 +459,30 @@ class PrivateDocStore:
             staging.unlink(missing_ok=True)
         except StorageError:
             return
+
+    def _open_read_posix(self, storage_key: str) -> int:
+        """Open a blob for reading WITHOUT following any symlink (P0-02).
+
+        Each path component is opened relative to a held directory descriptor
+        with ``O_NOFOLLOW`` (``dir_fd``), so an intermediate symlink/junction
+        swapped in after the lexical check cannot redirect the open: there is no
+        check/open race on any ancestor. The root itself is opened ``O_NOFOLLOW``
+        too, so a reparse root is refused at the syscall, not just by lstat.
+        """
+        if not (_KEY.match(storage_key) or _STAGING_KEY.match(storage_key)):
+            raise StorageError("Malformed storage key.")
+        patient_id, filename = storage_key.split("/")
+        flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+        root_fd = os.open(self._root, flags | os.O_DIRECTORY)
+        try:
+            dir_fd = os.open(patient_id, flags | os.O_DIRECTORY, dir_fd=root_fd)
+        finally:
+            os.close(root_fd)
+        try:
+            file_fd = os.open(filename, flags, dir_fd=dir_fd)
+        finally:
+            os.close(dir_fd)
+        return file_fd
 
     def read_verified(self, storage_key: str, *, expected_sha256: str,
                       expected_size: int) -> bytes:
@@ -295,11 +496,11 @@ class PrivateDocStore:
         if not (0 <= expected_size <= C.FILE_CAP_BYTES):
             raise IntegrityError("Recorded size is out of bounds.")
         try:
-            target = self._resolve(storage_key)
             if _IS_WINDOWS:
+                target = self._resolve(storage_key)
                 fd = _win_open_no_reparse(target, write=False, create_new=False)
             else:
-                fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+                fd = self._open_read_posix(storage_key)
         except (OSError, StorageError) as error:
             raise IntegrityError("Stored document is unavailable.") from error
         try:
@@ -319,6 +520,7 @@ class PrivateDocStore:
         return buf
 
     def remove(self, storage_key: str) -> None:
+        self._require_writable()
         try:
             target = self._resolve(storage_key)
         except StorageError:
