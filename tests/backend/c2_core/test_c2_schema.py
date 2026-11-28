@@ -1,7 +1,7 @@
 """C2.1 schema verification: frozen trigger inventory and fail-closed checks.
 
 Migration ``20261128_07`` and ``backend.app.term1.triggers`` both carry the
-twelve C2 trigger definitions; this suite pins the fresh-upgrade
+fifteen C2 trigger definitions; this suite pins the fresh-upgrade
 ``sqlite_master`` output against the frozen dictionary (single drift guard)
 and proves ``Database.verify_schema()`` refuses startup when a trigger is
 missing or modified, while accepting an untouched head database.
@@ -37,8 +37,8 @@ def test_fresh_upgrade_creates_exactly_the_frozen_c2_trigger_set(migrated_databa
         name: normalize_trigger_sql(sql)
         for name, sql in C2_TRIGGER_DEFINITIONS.items()
     }
-    # Exactly the twelve 07 triggers exist anywhere in the database (legacy C1
-    # and monitoring tables own none), and every statement matches.
+    # Exactly the fifteen 07 triggers exist anywhere in the database (legacy
+    # C1 and monitoring tables own none), and every statement matches.
     assert set(actual) == set(expected) == {
         "tr_health_profile_immutable_update",
         "tr_health_profile_no_delete",
@@ -48,12 +48,36 @@ def test_fresh_upgrade_creates_exactly_the_frozen_c2_trigger_set(migrated_databa
         "tr_assessment_pointer_insert",
         "tr_assessment_pointer_update",
         "tr_assessment_no_delete",
+        "tr_attempt_insert_guard",
+        "tr_attempt_associate_assessment",
         "tr_attempt_transition_guard",
         "tr_attempt_no_delete",
+        "tr_result_insert_forbidden",
         "tr_result_no_update",
         "tr_result_no_delete",
     }
     assert actual == expected
+
+
+def test_assessment_review_and_terminal_reason_constraints_are_closed(migrated_database_url):
+    engine = create_engine(migrated_database_url)
+    try:
+        with engine.connect() as connection:
+            assessment_sql = connection.exec_driver_sql(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='assessment'"
+            ).scalar_one()
+            attempt_sql = connection.exec_driver_sql(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='inference_attempt'"
+            ).scalar_one()
+    finally:
+        engine.dispose()
+
+    assert "review_state = 'NOT_REVIEWED'" in assessment_sql
+    assert "review_version = 0" in assessment_sql
+    assessment_reason_check = assessment_sql.split("ck_assessment_status_reason", 1)[1]
+    attempt_reason_check = attempt_sql.split("ck_inference_attempt_state_reason", 1)[1]
+    assert "reason_code IS NOT NULL" in assessment_reason_check
+    assert "reason_code IS NOT NULL" in attempt_reason_check
 
 
 def test_startup_verification_accepts_an_untouched_head_database(migrated_database_url):

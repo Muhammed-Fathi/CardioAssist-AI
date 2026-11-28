@@ -10,7 +10,7 @@ fresh-upgrade ``sqlite_master`` output against this dictionary so the two can
 never drift.
 
 Track 2 appends its ``20261128_08`` trigger definitions to this dictionary at
-integration time (Track 1 owns this file). Scope is exactly the twelve triggers
+integration time (Track 1 owns this file). Scope is exactly the fifteen triggers
 of migration 07; nothing here is executed by this module itself.
 """
 
@@ -161,6 +161,9 @@ WHEN NEW.assessment_id != OLD.assessment_id
   OR NEW.source_contract_version != OLD.source_contract_version
   OR NEW.source_kind != OLD.source_kind
   OR NEW.stage_complete != OLD.stage_complete
+  OR NEW.created_at IS NOT OLD.created_at
+  OR NEW.review_state IS NOT OLD.review_state
+  OR NEW.review_version IS NOT OLD.review_version
   OR NEW.current_generation < OLD.current_generation
   OR (NEW.active_attempt_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM inference_attempt a
@@ -423,6 +426,49 @@ FOR EACH ROW
 BEGIN
     SELECT RAISE(ABORT, 'assessment_delete_forbidden');
 END;""",
+    # Every attempt insertion starts from the exact safe, authorized assessment
+    # generation; the AFTER trigger binds the inserted running attempt and
+    # state transition atomically so no committed orphan-running attempt exists.
+    "tr_attempt_insert_guard": """CREATE TRIGGER tr_attempt_insert_guard
+BEFORE INSERT ON inference_attempt
+FOR EACH ROW
+WHEN NEW.state != 'INFERENCE_RUNNING'
+  OR NEW.reason_code IS NOT NULL
+  OR NEW.completed_at IS NOT NULL
+  OR NEW.worker_id != 'disabled_stub'
+  OR NOT EXISTS (
+        SELECT 1
+        FROM assessment s
+        JOIN doctor_patient_assignment a
+          ON a.assignment_id = s.assignment_id
+         AND a.patient_id = s.patient_id
+        JOIN consent_record c
+          ON c.consent_id = s.consent_id
+         AND c.patient_id = s.patient_id
+        WHERE s.assessment_id = NEW.assessment_id
+          AND s.status = 'INPUT_VALIDATED'
+          AND s.active_attempt_id IS NULL
+          AND s.current_result_id IS NULL
+          AND s.current_generation = NEW.generation
+          AND a.revoked_at IS NULL
+          AND c.revoked_at IS NULL
+          AND c.kind = 'synthetic_demo'
+          AND c.scope = 'patient_wide_synthetic_demo'
+          AND c.contract_version = 'term1-c1-v1'
+    )
+BEGIN
+    SELECT RAISE(ABORT, 'inference_attempt_insert_forbidden');
+END;""",
+    "tr_attempt_associate_assessment": """CREATE TRIGGER tr_attempt_associate_assessment
+AFTER INSERT ON inference_attempt
+FOR EACH ROW
+BEGIN
+    UPDATE assessment
+    SET status = 'INFERENCE_RUNNING',
+        active_attempt_id = NEW.attempt_id,
+        updated_at = NEW.leased_at
+    WHERE assessment_id = NEW.assessment_id;
+END;""",
     # ------------------------------------------------------------- inference_attempt
     "tr_attempt_transition_guard": """CREATE TRIGGER tr_attempt_transition_guard
 BEFORE UPDATE ON inference_attempt
@@ -492,6 +538,15 @@ BEFORE DELETE ON inference_attempt
 FOR EACH ROW
 BEGIN
     SELECT RAISE(ABORT, 'inference_attempt_delete_forbidden');
+END;""",
+    # SAFE_SCOPE has no authorized result publisher. This database guard is
+    # deliberately unconditional; enabling result insertion requires a later
+    # explicitly authorized migration rather than a direct SQL bypass.
+    "tr_result_insert_forbidden": """CREATE TRIGGER tr_result_insert_forbidden
+BEFORE INSERT ON inference_result
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'inference_result_publication_not_authorized');
 END;""",
     # -------------------------------------------------------------- inference_result
     "tr_result_no_update": """CREATE TRIGGER tr_result_no_update

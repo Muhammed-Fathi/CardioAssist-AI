@@ -108,10 +108,14 @@ def begin_attempt(
     )
     session.add(attempt)
     session.flush()
-    assessment.status = constants.ASSESSMENT_INFERENCE_RUNNING
-    assessment.active_attempt_id = attempt.attempt_id
-    assessment.updated_at = now
-    session.flush()
+    # The migration-07 AFTER INSERT trigger binds the attempt and transitions
+    # the assessment in the same statement/transaction, preventing a committed
+    # orphan-running attempt. Refresh the identity-mapped ORM row so the later
+    # terminal fence works from the database-authored pointer state.
+    session.refresh(
+        assessment,
+        attribute_names=["status", "active_attempt_id", "updated_at"],
+    )
     return attempt
 
 

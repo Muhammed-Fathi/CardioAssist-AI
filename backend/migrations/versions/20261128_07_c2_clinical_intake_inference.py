@@ -9,7 +9,7 @@ exact merged baseline ``5c96a2b9d5438b6600cf5eebebb70294fdeeadad`` bootstrapped
 by ``5e763b055c51bd77e42b140642ce49a4d2524386`` (the verified append-only C2
 workstream grant). Migrations ``20261017_01`` through ``20261126_06`` and their
 data are byte-for-byte unchanged; this revision only appends the five C2 core
-tables (schema-only, no seed/mock data) and their twelve immutability/consistency
+tables (schema-only, no seed/mock data) and their fifteen immutability/consistency
 triggers.
 
 Tables (ERD of ``TERM1_C2_SCHEMA_AND_MIGRATION_SPEC_20261127`` §3):
@@ -174,6 +174,9 @@ WHEN NEW.assessment_id != OLD.assessment_id
   OR NEW.source_contract_version != OLD.source_contract_version
   OR NEW.source_kind != OLD.source_kind
   OR NEW.stage_complete != OLD.stage_complete
+  OR NEW.created_at IS NOT OLD.created_at
+  OR NEW.review_state IS NOT OLD.review_state
+  OR NEW.review_version IS NOT OLD.review_version
   OR NEW.current_generation < OLD.current_generation
   OR (NEW.active_attempt_id IS NOT NULL AND NOT EXISTS (
         SELECT 1 FROM inference_attempt a
@@ -436,6 +439,46 @@ FOR EACH ROW
 BEGIN
     SELECT RAISE(ABORT, 'assessment_delete_forbidden');
 END;""",
+    """CREATE TRIGGER tr_attempt_insert_guard
+BEFORE INSERT ON inference_attempt
+FOR EACH ROW
+WHEN NEW.state != 'INFERENCE_RUNNING'
+  OR NEW.reason_code IS NOT NULL
+  OR NEW.completed_at IS NOT NULL
+  OR NEW.worker_id != 'disabled_stub'
+  OR NOT EXISTS (
+        SELECT 1
+        FROM assessment s
+        JOIN doctor_patient_assignment a
+          ON a.assignment_id = s.assignment_id
+         AND a.patient_id = s.patient_id
+        JOIN consent_record c
+          ON c.consent_id = s.consent_id
+         AND c.patient_id = s.patient_id
+        WHERE s.assessment_id = NEW.assessment_id
+          AND s.status = 'INPUT_VALIDATED'
+          AND s.active_attempt_id IS NULL
+          AND s.current_result_id IS NULL
+          AND s.current_generation = NEW.generation
+          AND a.revoked_at IS NULL
+          AND c.revoked_at IS NULL
+          AND c.kind = 'synthetic_demo'
+          AND c.scope = 'patient_wide_synthetic_demo'
+          AND c.contract_version = 'term1-c1-v1'
+    )
+BEGIN
+    SELECT RAISE(ABORT, 'inference_attempt_insert_forbidden');
+END;""",
+    """CREATE TRIGGER tr_attempt_associate_assessment
+AFTER INSERT ON inference_attempt
+FOR EACH ROW
+BEGIN
+    UPDATE assessment
+    SET status = 'INFERENCE_RUNNING',
+        active_attempt_id = NEW.attempt_id,
+        updated_at = NEW.leased_at
+    WHERE assessment_id = NEW.assessment_id;
+END;""",
     """CREATE TRIGGER tr_attempt_transition_guard
 BEFORE UPDATE ON inference_attempt
 FOR EACH ROW
@@ -504,6 +547,12 @@ BEFORE DELETE ON inference_attempt
 FOR EACH ROW
 BEGIN
     SELECT RAISE(ABORT, 'inference_attempt_delete_forbidden');
+END;""",
+    """CREATE TRIGGER tr_result_insert_forbidden
+BEFORE INSERT ON inference_result
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'inference_result_publication_not_authorized');
 END;""",
     """CREATE TRIGGER tr_result_no_update
 BEFORE UPDATE ON inference_result
@@ -709,7 +758,10 @@ def upgrade() -> None:
             name="ck_assessment_contract_identity",
         ),
         sa.CheckConstraint("current_generation >= 0", name="ck_assessment_generation"),
-        sa.CheckConstraint("review_version >= 0", name="ck_assessment_review_version"),
+        sa.CheckConstraint(
+            "review_state = 'NOT_REVIEWED'", name="ck_assessment_review_state"
+        ),
+        sa.CheckConstraint("review_version = 0", name="ck_assessment_review_version"),
         sa.CheckConstraint(
             "status IN ('DRAFT','INPUT_VALIDATED','INFERENCE_RUNNING',"
             "'INFERENCE_SUCCEEDED','PENDING_REVIEW','INFERENCE_ABSTAINED',"
@@ -718,11 +770,14 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "((status = 'INFERENCE_ABSTAINED' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code = 'optional_panel_field_missing' "
             "AND stage_complete = 0) OR "
             "(status = 'INFERENCE_UNAVAILABLE' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code IN ('real_ai_not_authorized','authorization_withdrawn')) OR "
             "(status = 'INFERENCE_ERROR' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code IN ('lease_expired','worker_error',"
             "'malformed_worker_response','artifact_integrity_failed')) OR "
             "(status NOT IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR') "
@@ -780,12 +835,15 @@ def upgrade() -> None:
             "OR (state = 'INFERENCE_SUCCEEDED' AND reason_code IS NULL "
             "AND completed_at IS NOT NULL) "
             "OR (state = 'INFERENCE_ABSTAINED' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code = 'optional_panel_field_missing' "
             "AND completed_at IS NOT NULL) "
             "OR (state = 'INFERENCE_UNAVAILABLE' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code IN ('real_ai_not_authorized','authorization_withdrawn') "
             "AND completed_at IS NOT NULL) "
             "OR (state = 'INFERENCE_ERROR' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code IN ('lease_expired','worker_error',"
             "'malformed_worker_response','artifact_integrity_failed') "
             "AND completed_at IS NOT NULL)",
@@ -946,8 +1004,11 @@ def downgrade() -> None:
         "tr_assessment_pointer_insert",
         "tr_assessment_pointer_update",
         "tr_assessment_no_delete",
+        "tr_attempt_insert_guard",
+        "tr_attempt_associate_assessment",
         "tr_attempt_transition_guard",
         "tr_attempt_no_delete",
+        "tr_result_insert_forbidden",
         "tr_result_no_update",
         "tr_result_no_delete",
     ):

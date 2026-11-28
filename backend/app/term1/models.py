@@ -652,7 +652,10 @@ class Assessment(Base):
             name="ck_assessment_contract_identity",
         ),
         CheckConstraint("current_generation >= 0", name="ck_assessment_generation"),
-        CheckConstraint("review_version >= 0", name="ck_assessment_review_version"),
+        CheckConstraint(
+            "review_state = 'NOT_REVIEWED'", name="ck_assessment_review_state"
+        ),
+        CheckConstraint("review_version = 0", name="ck_assessment_review_version"),
         CheckConstraint(
             "status IN ('DRAFT','INPUT_VALIDATED','INFERENCE_RUNNING',"
             "'INFERENCE_SUCCEEDED','PENDING_REVIEW','INFERENCE_ABSTAINED',"
@@ -661,11 +664,14 @@ class Assessment(Base):
         ),
         CheckConstraint(
             "((status = 'INFERENCE_ABSTAINED' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code = 'optional_panel_field_missing' "
             "AND stage_complete = 0) OR "
             "(status = 'INFERENCE_UNAVAILABLE' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code IN ('real_ai_not_authorized','authorization_withdrawn')) OR "
             "(status = 'INFERENCE_ERROR' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code IN ('lease_expired','worker_error',"
             "'malformed_worker_response','artifact_integrity_failed')) OR "
             "(status NOT IN ('INFERENCE_ABSTAINED','INFERENCE_UNAVAILABLE','INFERENCE_ERROR') "
@@ -734,12 +740,15 @@ class InferenceAttempt(Base):
             "OR (state = 'INFERENCE_SUCCEEDED' AND reason_code IS NULL "
             "AND completed_at IS NOT NULL) "
             "OR (state = 'INFERENCE_ABSTAINED' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code = 'optional_panel_field_missing' "
             "AND completed_at IS NOT NULL) "
             "OR (state = 'INFERENCE_UNAVAILABLE' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code IN ('real_ai_not_authorized','authorization_withdrawn') "
             "AND completed_at IS NOT NULL) "
             "OR (state = 'INFERENCE_ERROR' "
+            "AND reason_code IS NOT NULL "
             "AND reason_code IN ('lease_expired','worker_error',"
             "'malformed_worker_response','artifact_integrity_failed') "
             "AND completed_at IS NOT NULL)",

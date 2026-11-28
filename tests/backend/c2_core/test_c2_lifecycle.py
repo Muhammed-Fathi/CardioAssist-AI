@@ -75,6 +75,164 @@ def _assessment_row(app, assessment_id: str):
         }
 
 
+def test_wrong_worker_or_fence_rejects_completion_without_writes(
+    monkeypatch, app, client
+):
+    _seeded, created = _start_running_attempt(monkeypatch, app, client)
+    monkeypatch.undo()
+    attempt = _attempt_row(app, created["attempt_id"])
+
+    for worker_id, fence_token in (
+        ("wrong-worker", attempt["fence_token"]),
+        (attempt["worker_id"], "0" * 64),
+    ):
+        with pytest.raises(ApiError) as excinfo:
+            with write_transaction(app.state.database) as session:
+                inference_lifecycle.complete_unavailable(
+                    session,
+                    clock=app.state.term1.clock,
+                    attempt_id=attempt["attempt_id"],
+                    reason_code="real_ai_not_authorized",
+                    worker_id=worker_id,
+                    fence_token=fence_token,
+                )
+        assert excinfo.value.code == "stale_attempt_fenced"
+        assert _attempt_row(app, attempt["attempt_id"])["state"] == "INFERENCE_RUNNING"
+        state = _assessment_row(app, created["assessment_id"])
+        assert state["status"] == "INFERENCE_RUNNING"
+        assert state["active_attempt_id"] == attempt["attempt_id"]
+
+
+def test_attempt_insert_is_generation_guarded_and_atomically_associated(
+    monkeypatch, app, client
+):
+    _seeded, created = _start_running_attempt(monkeypatch, app, client)
+    monkeypatch.undo()
+    first_attempt = _attempt_row(app, created["attempt_id"])
+    first_assessment = _assessment_row(app, created["assessment_id"])
+    assert first_assessment["status"] == "INFERENCE_RUNNING"
+    assert first_assessment["active_attempt_id"] == first_attempt["attempt_id"]
+
+    # Complete generation 0 with a retryable error, then perform the valid
+    # C0 ERROR -> INPUT_VALIDATED generation-advance transition directly.
+    with write_transaction(app.state.database) as session:
+        inference_lifecycle.complete_error(
+            session,
+            clock=app.state.term1.clock,
+            attempt_id=first_attempt["attempt_id"],
+            reason_code="worker_error",
+            worker_id=first_attempt["worker_id"],
+            fence_token=first_attempt["fence_token"],
+        )
+    with app.state.database.engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE assessment SET status = 'INPUT_VALIDATED', reason_code = NULL, "
+                "current_generation = 1, updated_at = :now "
+                "WHERE assessment_id = :assessment_id"
+            ),
+            {
+                "now": app.state.term1.clock.now_iso(),
+                "assessment_id": created["assessment_id"],
+            },
+        )
+
+    def attempt_values(*, attempt_id: str, generation: int, digest: str):
+        now = app.state.term1.clock.now_iso()
+        return {
+            "attempt_id": attempt_id,
+            "assessment_id": created["assessment_id"],
+            "generation": generation,
+            "attempt_idempotency_hash": digest * 64,
+            "worker_id": "disabled_stub",
+            "fence_token": "f" * 64,
+            "state": "INFERENCE_RUNNING",
+            "reason_code": None,
+            "leased_at": now,
+            "lease_until": app.state.term1.clock.iso_after(300),
+            "completed_at": None,
+        }
+
+    insert_sql = text(
+        "INSERT INTO inference_attempt "
+        "(attempt_id, assessment_id, generation, attempt_idempotency_hash, "
+        "worker_id, fence_token, state, reason_code, leased_at, lease_until, completed_at) "
+        "VALUES (:attempt_id, :assessment_id, :generation, :attempt_idempotency_hash, "
+        ":worker_id, :fence_token, :state, :reason_code, :leased_at, :lease_until, :completed_at)"
+    )
+    invalid = attempt_values(attempt_id=str(uuid.uuid4()), generation=0, digest="a")
+    with pytest.raises(DBAPIError, match="inference_attempt_insert_forbidden"):
+        with app.state.database.engine.begin() as connection:
+            connection.execute(insert_sql, invalid)
+
+    validated = _assessment_row(app, created["assessment_id"])
+    assert validated["status"] == "INPUT_VALIDATED"
+    assert validated["active_attempt_id"] is None
+    assert validated["current_generation"] == 1
+
+    second_attempt_id = str(uuid.uuid4())
+    valid = attempt_values(attempt_id=second_attempt_id, generation=1, digest="b")
+    with app.state.database.engine.begin() as connection:
+        connection.execute(insert_sql, valid)
+
+    associated = _assessment_row(app, created["assessment_id"])
+    assert associated["status"] == "INFERENCE_RUNNING"
+    assert associated["active_attempt_id"] == second_attempt_id
+    assert associated["current_generation"] == 1
+    second_attempt = _attempt_row(app, second_attempt_id)
+    assert second_attempt["state"] == "INFERENCE_RUNNING"
+    assert second_attempt["worker_id"] == "disabled_stub"
+
+    with write_transaction(app.state.database) as session:
+        terminal = inference_lifecycle.complete_unavailable(
+            session,
+            clock=app.state.term1.clock,
+            attempt_id=second_attempt_id,
+            reason_code="real_ai_not_authorized",
+            worker_id=second_attempt["worker_id"],
+            fence_token=second_attempt["fence_token"],
+        )
+        assert terminal.state == "INFERENCE_UNAVAILABLE"
+    assert _assessment_row(app, created["assessment_id"])["status"] == "INFERENCE_UNAVAILABLE"
+
+
+def test_terminal_write_failure_rolls_back_both_attempt_and_assessment(
+    monkeypatch, app, client
+):
+    _seeded, created = _start_running_attempt(monkeypatch, app, client)
+    attempt = _attempt_row(app, created["attempt_id"])
+    with app.state.database.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TRIGGER tr_test_reject_attempt_terminal "
+            "BEFORE UPDATE OF state ON inference_attempt "
+            "WHEN NEW.state != 'INFERENCE_RUNNING' BEGIN "
+            "SELECT RAISE(ABORT, 'test_attempt_terminal_failure'); END"
+        )
+    try:
+        with pytest.raises(DBAPIError, match="test_attempt_terminal_failure"):
+            with write_transaction(app.state.database) as session:
+                inference_lifecycle.complete_error(
+                    session,
+                    clock=app.state.term1.clock,
+                    attempt_id=attempt["attempt_id"],
+                    reason_code="worker_error",
+                    worker_id=attempt["worker_id"],
+                    fence_token=attempt["fence_token"],
+                )
+    finally:
+        with app.state.database.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "DROP TRIGGER IF EXISTS tr_test_reject_attempt_terminal"
+            )
+
+    state = _assessment_row(app, created["assessment_id"])
+    unchanged_attempt = _attempt_row(app, attempt["attempt_id"])
+    assert state["status"] == "INFERENCE_RUNNING"
+    assert state["active_attempt_id"] == attempt["attempt_id"]
+    assert unchanged_attempt["state"] == "INFERENCE_RUNNING"
+    assert unchanged_attempt["reason_code"] is None
+
+
 def test_recovery_includes_exact_lease_expiry_and_increments_once(
     monkeypatch, app, client, clock
 ):

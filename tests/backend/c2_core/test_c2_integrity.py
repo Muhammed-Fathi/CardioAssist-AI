@@ -155,6 +155,49 @@ def test_direct_sql_cannot_mutate_panel_or_source_identity(client, app):
     assert row.source_contract_version == "term1.c2.intake/v1"
 
 
+def test_direct_sql_cannot_mutate_created_or_review_fields(client, app):
+    seeded = seed_patient(app, client)
+    response = submit_s1(
+        client,
+        seeded["token"],
+        seeded["assignment_id"],
+        seeded["profile"]["health_profile_id"],
+    )
+    assert response.status_code == 201, response.text
+    assessment_id = response.json()["assessment_id"]
+    original = sql_rows(
+        app,
+        "SELECT created_at, review_state, review_version, status "
+        "FROM assessment WHERE assessment_id = :id",
+        id=assessment_id,
+    )[0]
+    assert original.status == "INFERENCE_UNAVAILABLE"
+    assert original.review_state == "NOT_REVIEWED"
+    assert original.review_version == 0
+
+    for column, value in (
+        ("created_at", "2026-11-29T09:00:00.000000Z"),
+        ("review_state", "ACCEPTED"),
+        ("review_version", 1),
+    ):
+        with pytest.raises(DBAPIError, match="assessment_pointer_update_forbidden"):
+            with app.state.database.engine.begin() as connection:
+                connection.execute(
+                    text(f"UPDATE assessment SET {column} = :value WHERE assessment_id = :id"),
+                    {"value": value, "id": assessment_id},
+                )
+
+    unchanged = sql_rows(
+        app,
+        "SELECT created_at, review_state, review_version FROM assessment "
+        "WHERE assessment_id = :id",
+        id=assessment_id,
+    )[0]
+    assert unchanged.created_at == original.created_at
+    assert unchanged.review_state == "NOT_REVIEWED"
+    assert unchanged.review_version == 0
+
+
 def test_direct_sql_cannot_reset_a_terminal_assessment(client, app):
     seeded = seed_patient(app, client)
     response = submit_s1(
@@ -272,7 +315,7 @@ def test_direct_sql_immutability_triggers_reject_profile_snapshot_and_assessment
     assert sql_rows(app, "SELECT COUNT(*) FROM health_profile")[0][0] == 1
 
 
-def test_direct_sql_result_rows_are_immutable(client, app):
+def test_safe_scope_refuses_test_only_result_insert_for_unavailable_attempt(client, app):
     seeded = seed_patient(app, client)
     response = submit_s1(
         client,
@@ -289,7 +332,10 @@ def test_direct_sql_result_rows_are_immutable(client, app):
         id=created["snapshot_id"],
     )[0]
 
-    # Test-only publication-shaped row: Track 1 has no production result writer.
+    # Test-only direct-SQL denial probe: the candidate uses real IDs for an
+    # unavailable attempt and its snapshot. It is intentionally NOT valid
+    # success/association evidence; this asserts only that SAFE_SCOPE rejects
+    # every result insert, even a fully populated request-shaped row.
     result_id = str(uuid.uuid4())
     values = {
         "result_id": result_id,
@@ -335,32 +381,23 @@ def test_direct_sql_result_rows_are_immutable(client, app):
     }
     columns = ", ".join(values)
     parameters = ", ".join(f":{column}" for column in values)
-    with app.state.database.engine.begin() as connection:
-        connection.execute(
-            text(
-                f"INSERT INTO inference_result ({columns}) "
-                f"VALUES ({parameters})"
-            ),
-            values,
-        )
-
-    with pytest.raises(DBAPIError, match="inference_result_update_forbidden"):
+    with pytest.raises(
+        DBAPIError, match="inference_result_publication_not_authorized"
+    ):
         with app.state.database.engine.begin() as connection:
             connection.execute(
                 text(
-                    "UPDATE inference_result SET raw_model_score = 0.6 "
-                    "WHERE result_id = :id"
+                    f"INSERT INTO inference_result ({columns}) "
+                    f"VALUES ({parameters})"
                 ),
-                {"id": result_id},
+                values,
             )
-    with pytest.raises(DBAPIError, match="inference_result_delete_forbidden"):
-        with app.state.database.engine.begin() as connection:
-            connection.execute(
-                text("DELETE FROM inference_result WHERE result_id = :id"),
-                {"id": result_id},
-            )
-    assert sql_rows(
+
+    assert sql_rows(app, "SELECT COUNT(*) FROM inference_result")[0][0] == 0
+    state = sql_rows(
         app,
-        "SELECT raw_model_score FROM inference_result WHERE result_id = :id",
-        id=result_id,
-    )[0].raw_model_score == 0.5
+        "SELECT status, current_result_id FROM assessment WHERE assessment_id = :id",
+        id=created["assessment_id"],
+    )[0]
+    assert state.status == "INFERENCE_UNAVAILABLE"
+    assert state.current_result_id is None
