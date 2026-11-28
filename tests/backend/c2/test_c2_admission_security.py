@@ -10,8 +10,6 @@ import pytest
 from backend.app.term1_c2_documents import constants as C
 from backend.app.term1_c2_documents.admission import AdmissionError, validate_structure
 
-from .conftest import requires_native_ocr
-
 FIXTURES = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents" / "fixtures"
 
 
@@ -160,7 +158,6 @@ def test_duplicate_form_field_rejected(client, patient):
 
 
 # --- ownership / role / consent ---------------------------------------------
-@requires_native_ocr
 def test_wrong_patient_cannot_read_another_patients_document(client, patient):
     document_id = _upload(client, patient["token"], "resting_text.pdf").json()["document_id"]
     # Provision a second, distinct patient.
@@ -182,7 +179,6 @@ def test_wrong_patient_cannot_read_another_patients_document(client, patient):
     assert all(item["document_id"] != document_id for item in listing["items"])
 
 
-@requires_native_ocr
 def test_doctor_and_admin_are_refused_document_content(client, patient, c2_app):
     document_id = _upload(client, patient["token"], "resting_text.pdf").json()["document_id"]
     doctor_token = patient["doctor"]["token"]
@@ -198,7 +194,6 @@ def test_doctor_and_admin_are_refused_document_content(client, patient, c2_app):
     assert response.json()["error"]["code"] == "admin_clinical_content_forbidden"
 
 
-@requires_native_ocr
 def test_consent_withdrawal_blocks_upload_extract_confirm(client, patient):
     token = patient["token"]
     document_id = _upload(client, token, "resting_text.pdf").json()["document_id"]
@@ -232,7 +227,6 @@ def test_consent_withdrawal_blocks_upload_extract_confirm(client, patient):
     assert cf.json()["error"]["code"] == "consent_required"
 
 
-@requires_native_ocr
 def test_tampered_stored_file_refused_before_publication(client, patient, doc_store):
     token = patient["token"]
     doc = _upload(client, token, "resting_text.pdf").json()
@@ -252,7 +246,6 @@ def test_tampered_stored_file_refused_before_publication(client, patient, doc_st
     assert response.content == b"" or response.json()["error"]["code"] == "document_integrity_mismatch"
 
 
-@requires_native_ocr
 def test_unauthenticated_requests_refused(client):
     response = client.get("/v1/me/documents")
     assert response.status_code == 401

@@ -226,7 +226,6 @@ def test_parser_child_blocks_outbound_network():
     assert result["blocked"] is True  # no remote call possible from the parser
 
 
-@requires_native_ocr
 def test_isolated_extract_matches_inprocess(tmp_path):
     from backend.app.term1_c2_documents.parser_process import parse_inprocess
     data = (FIXTURES / "resting_text.pdf").read_bytes()

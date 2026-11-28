@@ -22,8 +22,6 @@ from backend.app.term1_c2_documents import constants as C
 from backend.app.term1_c2_documents.models import ExtractionField, MedicalDocument
 from backend.app.term1_c2_documents.service import Actor, confirmation_envelope, _sha256_text
 
-from .conftest import requires_native_ocr
-
 FIXTURES = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents" / "fixtures"
 CONFIRM_INPUTS = {"age": 54, "sex": 1, "cp": 2, "trestbps": 130, "restecg": 0}
 
@@ -67,7 +65,6 @@ def _confirmed(service, actor):
     return doc["document_id"], ext["extraction_id"]
 
 
-@requires_native_ocr
 def test_confirmed_child_field_update_refused(document_service, actor_patient):
     _, extraction_id = _confirmed(document_service, actor_patient)
     with pytest.raises(IntegrityError):
@@ -77,7 +74,6 @@ def test_confirmed_child_field_update_refused(document_service, actor_patient):
                 "WHERE extraction_id=:e AND field_name='age'"), {"e": extraction_id})
 
 
-@requires_native_ocr
 def test_confirmed_child_field_delete_refused(document_service, actor_patient):
     _, extraction_id = _confirmed(document_service, actor_patient)
     with pytest.raises(IntegrityError):
@@ -86,7 +82,6 @@ def test_confirmed_child_field_delete_refused(document_service, actor_patient):
                 "DELETE FROM extraction_field WHERE extraction_id=:e"), {"e": extraction_id})
 
 
-@requires_native_ocr
 def test_child_insert_under_confirmed_parent_refused(document_service, actor_patient):
     document_id, extraction_id = _confirmed(document_service, actor_patient)
     with pytest.raises(IntegrityError):
@@ -98,7 +93,6 @@ def test_child_insert_under_confirmed_parent_refused(document_service, actor_pat
                 {"r": str(uuid.uuid4()), "e": extraction_id, "d": document_id})
 
 
-@requires_native_ocr
 def test_draft_child_evidence_columns_immutable(document_service, actor_patient):
     doc = _upload(document_service, actor_patient)
     ext = _extract(document_service, actor_patient, doc["document_id"])
@@ -109,7 +103,6 @@ def test_draft_child_evidence_columns_immutable(document_service, actor_patient)
                 "WHERE extraction_id=:e AND field_name='age'"), {"e": ext["extraction_id"]})
 
 
-@requires_native_ocr
 def test_wrong_document_child_insert_refused(document_service, actor_patient):
     doc_a = _upload(document_service, actor_patient)
     ext_a = _extract(document_service, actor_patient, doc_a["document_id"])
@@ -124,7 +117,6 @@ def test_wrong_document_child_insert_refused(document_service, actor_patient):
                 {"r": str(uuid.uuid4()), "e": ext_a["extraction_id"], "d": doc_b["document_id"]})
 
 
-@requires_native_ocr
 def test_confirmation_digest_reconstructible_from_persisted_children(document_service, actor_patient):
     document_id, extraction_id = _confirmed(document_service, actor_patient)
     with read_transaction(document_service.database) as session:
@@ -143,7 +135,6 @@ def test_confirmation_digest_reconstructible_from_persisted_children(document_se
         assert envelope["units"]["age"] == "years"
 
 
-@requires_native_ocr
 def test_read_verifies_digest_even_without_trigger(document_service, actor_patient):
     document_id, extraction_id = _confirmed(document_service, actor_patient)
     # Defense in depth: simulate a restored DB missing the child guard trigger,
@@ -158,7 +149,6 @@ def test_read_verifies_digest_even_without_trigger(document_service, actor_patie
     assert getattr(exc.value, "code", None) == "document_integrity_mismatch"
 
 
-@requires_native_ocr
 def test_stored_document_digest_status_pixels_frozen(document_service, actor_patient):
     doc = _upload(document_service, actor_patient)
     zero_sha = "'" + "0" * 64 + "'"
@@ -171,7 +161,6 @@ def test_stored_document_digest_status_pixels_frozen(document_service, actor_pat
                     {"d": doc["document_id"]})
 
 
-@requires_native_ocr
 def test_promotion_without_digest_or_validation_refused(document_service, actor_patient):
     # A fresh PENDING_SCAN row cannot be flipped to STORED without the verified
     # digest and validation evidence (trigger guard), so recovery cannot publish
@@ -199,7 +188,6 @@ def test_promotion_without_digest_or_validation_refused(document_service, actor_
                 {"d": document_id})
 
 
-@requires_native_ocr
 def test_binding_requires_confirmed_extraction_and_verified_bytes(document_service, actor_patient):
     doc = _upload(document_service, actor_patient)
     ext = _extract(document_service, actor_patient, doc["document_id"])

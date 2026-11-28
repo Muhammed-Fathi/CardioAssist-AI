@@ -12,8 +12,6 @@ from pathlib import Path
 
 from backend.app.term1_c2_documents import constants as C
 
-from .conftest import requires_native_ocr
-
 FIXTURES = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents" / "fixtures"
 
 DOC_PATHS = {
@@ -121,7 +119,6 @@ def test_doc7_unknown_key_rejected(client, patient):
     assert response.json()["error"]["code"] == "malformed_request"
 
 
-@requires_native_ocr
 def test_doc1_response_includes_pixel_metadata(client, patient):
     png = (FIXTURES / "resting.png").read_bytes()
     response = client.post("/v1/me/documents", headers=_auth(patient["token"], f"up-{uuid.uuid4()}"),

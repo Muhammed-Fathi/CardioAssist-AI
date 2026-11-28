@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import subprocess
+import sys
 import uuid
 from pathlib import Path
 
@@ -12,9 +14,8 @@ from sqlalchemy import text
 from backend.app.term1.tx import read_transaction
 from backend.app.term1_c2_documents import constants as C
 
-from .conftest import requires_native_ocr
-
-PACKAGE = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents"
+ROOT = Path(__file__).resolve().parents[3]
+PACKAGE = ROOT / "backend" / "app" / "term1_c2_documents"
 FIXTURES = PACKAGE / "fixtures"
 
 
@@ -68,7 +69,6 @@ def test_document_service_has_no_inference_dispatch_symbol():
     assert identifiers.isdisjoint(forbidden)
 
 
-@requires_native_ocr
 def test_confirmation_binds_no_assessment_and_dispatches_no_inference(client, patient, c2_app):
     token = patient["token"]
     data = (FIXTURES / "resting_text.pdf").read_bytes()
@@ -108,3 +108,42 @@ def test_worker_environment_excludes_ai_bundle_bindings():
                    "CARDIOASSIST_LOCAL_HMAC_KEY_PATH"):
         with pytest.raises(WorkerStartupError):
             verify_sanitized_env({secret: "/private/ai"})
+
+
+def test_backend_runtime_and_requirements_stay_free_of_ocr_and_ml_libraries():
+    # Production backend requirements stay strictly free of OCR and ML/numerical
+    # packages even though test-only requirements-dev.txt includes them.
+    req_lines = [
+        line.strip().lower()
+        for line in (ROOT / "backend" / "requirements.txt").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    forbidden_pins = (
+        "pdfminer", "pypdfium2", "pillow", "pytesseract",
+        "numpy", "scipy", "scikit-learn", "joblib", "torch", "onnxruntime",
+    )
+    for line in req_lines:
+        pkg = re.split(r"[=<>!;\[ ]", line, maxsplit=1)[0]
+        assert not any(pkg == f or pkg.startswith(f + ".") for f in forbidden_pins), line
+
+    # Importing and building the production FastAPI app in a clean interpreter
+    # must never load OCR worker modules, OCR libraries, or ML/research modules.
+    probe = (
+        "import sys; "
+        "from backend.app.main import create_app; "
+        "app = create_app(); "
+        "forbidden = ("
+        "'backend.app.term1_c2_documents.ocr_engine', "
+        "'backend.app.term1_c2_documents.worker', "
+        "'backend.app.term1_c2_documents.parser_process', "
+        "'backend.app.artifact_admission', "
+        "'pdfminer', 'pypdfium2', 'PIL', 'pytesseract', "
+        "'numpy', 'scipy', 'sklearn', 'joblib', 'ai', 'research'"
+        "); "
+        "loaded = [m for m in sys.modules if any(m == f or m.startswith(f + '.') for f in forbidden)]; "
+        "assert not loaded, f'Unexpected runtime imports: {loaded}'"
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", probe], cwd=ROOT, capture_output=True, text=True, check=False
+    )
+    assert completed.returncode == 0, completed.stderr

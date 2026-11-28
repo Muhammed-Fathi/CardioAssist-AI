@@ -4,7 +4,8 @@ This verifies the ``PANEL_CONTRACT_SHA256`` constant against the authoritative
 ``ai.panels.DA_A2_RESTING_PANEL.contract_sha256`` (canonical sorted-key JSON).
 The research ``ai`` package ``__init__`` pulls the full calibration/sklearn chain;
 this test loads ``ai.panels`` as a submodule without executing that ``__init__``
-so only numpy is required. It is skipped when numpy is unavailable.
+so only the test-only ``numpy==1.26.4`` pin in ``backend/requirements-dev.txt``
+is required (never added to ``backend/requirements.txt``).
 """
 
 from __future__ import annotations
@@ -12,11 +13,7 @@ from __future__ import annotations
 import sys
 import types
 
-import pytest
-
 from backend.app.term1_c2_documents import constants as C
-
-np = pytest.importorskip("numpy")
 
 
 def _load_resting_panel():

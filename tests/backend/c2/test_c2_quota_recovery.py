@@ -15,8 +15,6 @@ from backend.app.term1_c2_documents.models import DocumentInflightOperation, Med
 from backend.app.term1_c2_documents.service import Actor
 from backend.app.term1_c2_documents.storage import make_storage_key
 
-from .conftest import requires_native_ocr
-
 FIXTURES = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents" / "fixtures"
 
 
@@ -61,7 +59,6 @@ def _insert_document(service, patient, *, status, byte_size, storage_key=None,
 
 
 # --- quota -------------------------------------------------------------------
-@requires_native_ocr
 def test_document_count_quota_enforced(document_service, patient_with_user):
     patient = patient_with_user
     # 20 stored documents already consume the count quota.
@@ -77,7 +74,6 @@ def test_document_count_quota_enforced(document_service, patient_with_user):
     assert getattr(exc.value, "code", None) == "document_limit_reached"
 
 
-@requires_native_ocr
 def test_byte_quota_enforced(document_service, patient_with_user):
     patient = patient_with_user
     # Ten 5 MiB documents sum to exactly the 50 MiB byte quota (each file is
@@ -95,7 +91,6 @@ def test_byte_quota_enforced(document_service, patient_with_user):
     assert getattr(exc.value, "code", None) == "document_limit_reached"
 
 
-@requires_native_ocr
 def test_pending_scan_reservation_counts_toward_quota(document_service, patient_with_user):
     patient = patient_with_user
     # A durable PENDING_SCAN reservation occupies quota even before promotion.
@@ -111,7 +106,6 @@ def test_pending_scan_reservation_counts_toward_quota(document_service, patient_
     assert getattr(exc.value, "code", None) == "document_limit_reached"
 
 
-@requires_native_ocr
 def test_failed_upload_releases_quota(document_service, patient_with_user):
     patient = patient_with_user
     # An unlisted file fails admission BEFORE any reservation, so quota is intact.
@@ -134,7 +128,6 @@ def test_failed_upload_releases_quota(document_service, patient_with_user):
     assert result["status"] == C.UPLOAD_STORED
 
 
-@requires_native_ocr
 def test_concurrent_uploads_race_for_last_quota_slot(document_service, patient_with_user):
     from concurrent.futures import ThreadPoolExecutor
 
@@ -216,7 +209,6 @@ def _stage_pending(service, doc_store, patient, *, age_seconds):
     return document_id, storage_key, staging_key
 
 
-@requires_native_ocr
 def test_recovery_promotes_valid_abandoned_reservation(document_service, doc_store,
                                                        patient_with_user, clock):
     patient = patient_with_user
@@ -235,7 +227,6 @@ def test_recovery_promotes_valid_abandoned_reservation(document_service, doc_sto
     assert not doc_store.exists(staging_key)
 
 
-@requires_native_ocr
 def test_recovery_never_races_live_reservation(document_service, doc_store,
                                                patient_with_user, clock):
     patient = patient_with_user
@@ -250,7 +241,6 @@ def test_recovery_never_races_live_reservation(document_service, doc_store,
         assert row.staging_key == staging_key
 
 
-@requires_native_ocr
 def test_recovery_refuses_revoked_consent(document_service, doc_store,
                                           patient_with_user, clock):
     patient = patient_with_user
@@ -273,7 +263,6 @@ def test_recovery_refuses_revoked_consent(document_service, doc_store,
     assert not doc_store.exists(storage_key)
 
 
-@requires_native_ocr
 def test_recovery_refuses_tampered_staged_blob(document_service, doc_store,
                                                patient_with_user, clock):
     patient = patient_with_user
@@ -293,7 +282,6 @@ def test_recovery_refuses_tampered_staged_blob(document_service, doc_store,
     assert not doc_store.exists(storage_key)
 
 
-@requires_native_ocr
 def test_orphan_sweep_removes_unowned_staging_blob(document_service, doc_store,
                                                    patient_with_user, clock):
     patient = patient_with_user

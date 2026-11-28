@@ -15,8 +15,6 @@ from backend.app.term1_c2_documents import constants as C
 from backend.app.term1_c2_documents.models import ExtractionEvent, MedicalDocument
 from backend.app.term1_c2_documents.service import Actor
 
-from .conftest import requires_native_ocr
-
 FIXTURES = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents" / "fixtures"
 
 
@@ -49,7 +47,6 @@ def _upload_extract_confirm(service, actor):
     return doc["document_id"], extraction["extraction_id"]
 
 
-@requires_native_ocr
 def test_medical_document_identity_is_immutable(document_service, actor_patient):
     document_id, _ = _upload_extract_confirm(document_service, actor_patient)
     with pytest.raises(IntegrityError):
@@ -59,7 +56,6 @@ def test_medical_document_identity_is_immutable(document_service, actor_patient)
                 {"p": str(uuid.uuid4()), "d": document_id})
 
 
-@requires_native_ocr
 def test_medical_document_cannot_be_deleted(document_service, actor_patient):
     document_id, _ = _upload_extract_confirm(document_service, actor_patient)
     with pytest.raises(IntegrityError):
@@ -68,7 +64,6 @@ def test_medical_document_cannot_be_deleted(document_service, actor_patient):
                             {"d": document_id})
 
 
-@requires_native_ocr
 def test_confirmed_extraction_is_immutable(document_service, actor_patient):
     _, extraction_id = _upload_extract_confirm(document_service, actor_patient)
     with pytest.raises(IntegrityError):
@@ -78,7 +73,6 @@ def test_confirmed_extraction_is_immutable(document_service, actor_patient):
                 "WHERE extraction_id=:e"), {"s": "0" * 64, "e": extraction_id})
 
 
-@requires_native_ocr
 def test_extraction_cannot_be_deleted(document_service, actor_patient):
     _, extraction_id = _upload_extract_confirm(document_service, actor_patient)
     with pytest.raises(IntegrityError):
@@ -87,7 +81,6 @@ def test_extraction_cannot_be_deleted(document_service, actor_patient):
                             {"e": extraction_id})
 
 
-@requires_native_ocr
 def test_extraction_event_cannot_be_updated_or_deleted(document_service, actor_patient):
     document_id, _ = _upload_extract_confirm(document_service, actor_patient)
     with read_transaction(document_service.database) as session:
@@ -105,7 +98,6 @@ def test_extraction_event_cannot_be_updated_or_deleted(document_service, actor_p
                             {"e": event_id})
 
 
-@requires_native_ocr
 def test_lifecycle_status_transitions_remain_allowed(document_service, actor_patient):
     # The identity trigger must NOT block the legitimate status/digest columns.
     data = (FIXTURES / "resting_text.pdf").read_bytes()

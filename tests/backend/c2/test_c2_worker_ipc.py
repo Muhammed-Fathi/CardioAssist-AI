@@ -90,7 +90,6 @@ def _promote_fixture(store, name):
     return storage_key, hashlib.sha256(data).hexdigest(), len(data)
 
 
-@requires_native_ocr
 def test_real_ipc_validate_and_extract(worker_server):
     store, base_url = worker_server
     storage_key, sha, size = _promote_fixture(store, "resting_text.pdf")
@@ -105,7 +104,6 @@ def test_real_ipc_validate_and_extract(worker_server):
     assert "54" in raw.full_text
 
 
-@requires_native_ocr
 def test_ipc_wrong_token_refused(worker_server):
     store, base_url = worker_server
     storage_key, sha, size = _promote_fixture(store, "resting_text.pdf")
@@ -115,7 +113,6 @@ def test_ipc_wrong_token_refused(worker_server):
                         byte_size=size, media_type=C.MEDIA_PDF, fixture_file_sha256=sha)
 
 
-@requires_native_ocr
 def test_ipc_non_allowlisted_digest_refused_before_parse(worker_server):
     # T2-R4: a digest absent from the server-owned manifest is refused by the
     # worker itself, before any read/parse (not trusted from the caller).
@@ -128,7 +125,6 @@ def test_ipc_non_allowlisted_digest_refused_before_parse(worker_server):
     assert exc.value.code == "invalid_document_content"
 
 
-@requires_native_ocr
 def test_ipc_tampered_blob_integrity_mismatch(worker_server):
     # The digest IS allowlisted, but the stored bytes were tampered: the
     # verified read fails and the worker reports document_integrity_mismatch.

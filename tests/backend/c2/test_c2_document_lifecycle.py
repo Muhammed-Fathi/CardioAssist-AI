@@ -9,8 +9,6 @@ from pathlib import Path
 
 from backend.app.term1_c2_documents import constants as C
 
-from .conftest import requires_native_ocr
-
 FIXTURES = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents" / "fixtures"
 
 
@@ -40,7 +38,6 @@ def _auth(token, key=None):
     return headers
 
 
-@requires_native_ocr
 def test_full_resting_lifecycle_upload_extract_confirm(client, patient):
     token = patient["token"]
     up = _upload(client, token, "resting_text.pdf")
@@ -113,7 +110,6 @@ def test_full_resting_lifecycle_upload_extract_confirm(client, patient):
     assert read2.json()["is_confirmed"] is True
 
 
-@requires_native_ocr
 def test_upload_idempotent_replay_returns_same_document(client, patient):
     token = patient["token"]
     key = f"up-{uuid.uuid4()}"
@@ -125,7 +121,6 @@ def test_upload_idempotent_replay_returns_same_document(client, patient):
     assert len(listing["items"]) == 1
 
 
-@requires_native_ocr
 def test_extract_idempotent_replay_same_version(client, patient):
     token = patient["token"]
     document_id = _upload(client, token, "resting_text.pdf").json()["document_id"]
@@ -136,7 +131,6 @@ def test_extract_idempotent_replay_same_version(client, patient):
     assert first.json()["extraction_version"] == second.json()["extraction_version"] == 1
 
 
-@requires_native_ocr
 def test_reextract_creates_new_immutable_version(client, patient):
     token = patient["token"]
     document_id = _upload(client, token, "resting_text.pdf").json()["document_id"]
@@ -149,13 +143,12 @@ def test_reextract_creates_new_immutable_version(client, patient):
     assert v1["extraction_id"] != v2["extraction_id"]
 
 
-@requires_native_ocr
 def test_edit_and_confirm_records_patient_provenance(client, patient):
     token = patient["token"]
-    document_id = _upload(client, token, "resting_raster.pdf").json()["document_id"]
+    document_id = _upload(client, token, "resting_text.pdf").json()["document_id"]
     extraction = client.post(f"/v1/me/documents/{document_id}/extract",
                              headers=_auth(token, f"ex-{uuid.uuid4()}")).json()
-    # Patient corrects trestbps from the OCR draft value 130 to 128.
+    # Patient corrects trestbps from the extracted draft value 130 to 128.
     confirm = client.post(
         f"/v1/me/documents/{document_id}/confirm",
         headers=_auth(token, f"cf-{uuid.uuid4()}"),
@@ -171,7 +164,7 @@ def test_edit_and_confirm_records_patient_provenance(client, patient):
     assert confirm.json()["event_type"] == C.EVENT_EDITED_AND_CONFIRMED
     read = client.get(f"/v1/me/documents/{document_id}/extraction", headers=_auth(token)).json()
     fields = {f["field_name"]: f for f in read["fields"]}
-    # Raw OCR value preserved separately from the corrected confirmed value.
+    # Raw extracted value preserved separately from the corrected confirmed value.
     assert fields["trestbps"]["typed_value_json"] == 130
     assert fields["trestbps"]["confirmed_value_json"] == 128
     assert fields["trestbps"]["provenance_kind"] == C.PROV_PATIENT_FROM_DRAFT
@@ -179,7 +172,6 @@ def test_edit_and_confirm_records_patient_provenance(client, patient):
     assert fields["age"]["provenance_kind"] == C.PROV_OCR_CONFIRMED
 
 
-@requires_native_ocr
 def test_confirm_without_attestation_refused(client, patient):
     token = patient["token"]
     document_id = _upload(client, token, "resting_text.pdf").json()["document_id"]
@@ -200,7 +192,6 @@ def test_confirm_without_attestation_refused(client, patient):
     assert confirm.json()["error"]["code"] == "validation_failed"
 
 
-@requires_native_ocr
 def test_labs_document_cannot_be_confirmed_as_intake(client, patient):
     token = patient["token"]
     up = _upload(client, token, "labs_text.pdf", kind=C.DOC_KIND_LABS,
@@ -222,7 +213,6 @@ def test_labs_document_cannot_be_confirmed_as_intake(client, patient):
     assert confirm.json()["error"]["code"] == "unsupported_template_for_intake"
 
 
-@requires_native_ocr
 def test_double_confirm_conflicts(client, patient):
     token = patient["token"]
     document_id = _upload(client, token, "resting_text.pdf").json()["document_id"]
@@ -244,7 +234,6 @@ def test_double_confirm_conflicts(client, patient):
     assert second.json()["error"]["code"] == "extraction_already_confirmed"
 
 
-@requires_native_ocr
 def test_confirm_version_mismatch_conflicts(client, patient):
     token = patient["token"]
     document_id = _upload(client, token, "resting_text.pdf").json()["document_id"]

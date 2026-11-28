@@ -9,8 +9,6 @@ import pytest
 
 from backend.app.term1_c2_documents import constants as C
 
-from .conftest import requires_native_ocr
-
 FIXTURES = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents" / "fixtures"
 
 
@@ -53,7 +51,6 @@ BASE_INPUTS = {"age": 54, "sex": 1, "cp": 2, "trestbps": 130, "restecg": 0}
 BASE_UNITS = {"age": "years", "trestbps": "mmHg"}
 
 
-@requires_native_ocr
 def test_wrong_unit_for_trestbps_refused(client, patient):
     document_id, extraction_id = _prepare(client, patient["token"])
     response = _confirm(client, patient["token"], document_id, extraction_id,
@@ -62,7 +59,6 @@ def test_wrong_unit_for_trestbps_refused(client, patient):
     assert response.json()["error"]["code"] == "invalid_panel_input"
 
 
-@requires_native_ocr
 def test_wrong_unit_for_age_refused(client, patient):
     document_id, extraction_id = _prepare(client, patient["token"])
     response = _confirm(client, patient["token"], document_id, extraction_id,
@@ -71,7 +67,6 @@ def test_wrong_unit_for_age_refused(client, patient):
     assert response.json()["error"]["code"] == "invalid_panel_input"
 
 
-@requires_native_ocr
 @pytest.mark.parametrize("field,bad", [("sex", 2), ("cp", 0), ("cp", 5), ("restecg", 3)])
 def test_invalid_category_code_refused(client, patient, field, bad):
     document_id, extraction_id = _prepare(client, patient["token"])
@@ -82,7 +77,6 @@ def test_invalid_category_code_refused(client, patient, field, bad):
     assert response.json()["error"]["code"] == "invalid_panel_input"
 
 
-@requires_native_ocr
 @pytest.mark.parametrize("field,bad", [("age", 0), ("age", -5), ("trestbps", -1)])
 def test_non_positive_numeric_refused(client, patient, field, bad):
     document_id, extraction_id = _prepare(client, patient["token"])
@@ -93,7 +87,6 @@ def test_non_positive_numeric_refused(client, patient, field, bad):
     assert response.json()["error"]["code"] == "invalid_panel_input"
 
 
-@requires_native_ocr
 def test_mandatory_field_cannot_be_missing(client, patient):
     document_id, extraction_id = _prepare(client, patient["token"])
     inputs = {**BASE_INPUTS, "age": None}
@@ -103,7 +96,6 @@ def test_mandatory_field_cannot_be_missing(client, patient):
     assert response.json()["error"]["code"] == "invalid_panel_input"
 
 
-@requires_native_ocr
 def test_optional_missing_requires_valid_reason(client, patient):
     document_id, extraction_id = _prepare(client, patient["token"])
     inputs = {**BASE_INPUTS, "restecg": None}
@@ -119,7 +111,6 @@ def test_optional_missing_requires_valid_reason(client, patient):
     assert response.json()["error"]["code"] == "missing_reason_mismatch"
 
 
-@requires_native_ocr
 def test_optional_missing_with_valid_reason_accepted(client, patient):
     document_id, extraction_id = _prepare(client, patient["token"])
     inputs = {**BASE_INPUTS, "restecg": None}
@@ -130,7 +121,6 @@ def test_optional_missing_with_valid_reason_accepted(client, patient):
     assert response.json()["is_confirmed"] is True
 
 
-@requires_native_ocr
 def test_trestbps_zero_is_unavailable_not_numeric(client, patient):
     document_id, extraction_id = _prepare(client, patient["token"])
     inputs = {**BASE_INPUTS, "trestbps": 0}
@@ -145,7 +135,6 @@ def test_trestbps_zero_is_unavailable_not_numeric(client, patient):
     assert fields["trestbps"]["confirmed_value_json"] is None
 
 
-@requires_native_ocr
 def test_prohibited_clinical_field_refused(client, patient):
     document_id, extraction_id = _prepare(client, patient["token"])
     inputs = {**BASE_INPUTS, "chol": 200}  # laboratory leakage field
@@ -155,7 +144,6 @@ def test_prohibited_clinical_field_refused(client, patient):
     assert response.json()["error"]["code"] == "prohibited_clinical_field"
 
 
-@requires_native_ocr
 def test_boolean_value_refused(client, patient):
     document_id, extraction_id = _prepare(client, patient["token"])
     inputs = {**BASE_INPUTS, "sex": True}

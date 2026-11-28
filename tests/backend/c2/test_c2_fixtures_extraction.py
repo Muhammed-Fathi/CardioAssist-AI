@@ -1,9 +1,10 @@
 """Genuine local extraction evidence — REAL engines, never mocked.
 
-These tests run pdfminer.six (text PDFs), pypdfium2 + Pillow + native Tesseract
-(raster PDFs / PNG / JPEG) over the fabricated fixture allowlist and assert the
-actual extracted values, parse statuses and provenance. They are skipped
-(NOT_RUN) when the native Tesseract binary is unavailable.
+These tests run pdfminer.six (text PDFs) and pypdfium2 + Pillow + native
+Tesseract (raster PDFs / PNG / JPEG) over the fabricated fixture allowlist and
+assert the actual extracted values, parse statuses and provenance. Text-layer
+PDF cases always execute; only raster cases that genuinely depend on the native
+Tesseract binary are skipped (NOT_RUN) when Tesseract is unavailable.
 """
 
 from __future__ import annotations
@@ -40,14 +41,13 @@ def _admit(name: str):
     return data, entry
 
 
-@requires_native_ocr
 @pytest.mark.parametrize(
     "filename,mode",
     [
         ("resting_text.pdf", C.MODE_PDF_TEXT),
-        ("resting_raster.pdf", C.MODE_RASTER_OCR),
-        ("resting.png", C.MODE_RASTER_OCR),
-        ("resting.jpg", C.MODE_RASTER_OCR),
+        pytest.param("resting_raster.pdf", C.MODE_RASTER_OCR, marks=requires_native_ocr),
+        pytest.param("resting.png", C.MODE_RASTER_OCR, marks=requires_native_ocr),
+        pytest.param("resting.jpg", C.MODE_RASTER_OCR, marks=requires_native_ocr),
     ],
 )
 def test_clean_resting_extracts_exact_values(filename, mode):
@@ -71,7 +71,6 @@ def test_clean_resting_extracts_exact_values(filename, mode):
     assert units["trestbps"] == "mmHg"
 
 
-@requires_native_ocr
 def test_missing_variant_marks_restecg_missing():
     data, entry = _admit("resting_missing_text.pdf")
     raw = extract(data, entry.media_type, ocr_engine_config())
@@ -85,7 +84,6 @@ def test_missing_variant_marks_restecg_missing():
         assert fields[name].parse_status == C.PARSE_PARSED
 
 
-@requires_native_ocr
 def test_conflict_variant_flags_age_conflict():
     data, entry = _admit("resting_conflict_text.pdf")
     raw = extract(data, entry.media_type, ocr_engine_config())
@@ -98,9 +96,14 @@ def test_conflict_variant_flags_age_conflict():
     assert fields["age"].typed_value is None
 
 
-@requires_native_ocr
 @pytest.mark.parametrize(
-    "filename", ["labs_text.pdf", "labs_raster.pdf", "labs.png", "labs.jpg"]
+    "filename",
+    [
+        "labs_text.pdf",
+        pytest.param("labs_raster.pdf", marks=requires_native_ocr),
+        pytest.param("labs.png", marks=requires_native_ocr),
+        pytest.param("labs.jpg", marks=requires_native_ocr),
+    ],
 )
 def test_unrelated_labs_are_record_only_never_model_input(filename):
     data, entry = _admit(filename)

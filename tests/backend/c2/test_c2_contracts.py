@@ -15,8 +15,6 @@ from backend.app.term1_c2_documents.contracts import generate
 from backend.app.term1_c2_documents.contracts.operations import ERROR_CODES, OPERATIONS, SCHEMAS
 from backend.app.term1_c2_documents.errors import DOCUMENT_ERROR_CATALOGUE
 
-from .conftest import requires_native_ocr
-
 CONTRACTS = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_documents" / "contracts"
 FIXTURES = CONTRACTS.parent / "fixtures"
 
@@ -88,7 +86,6 @@ def _auth(token, key=None):
     return headers
 
 
-@requires_native_ocr
 def test_real_doc_responses_validate_against_schemas(client, patient):
     token = patient["token"]
     data = (FIXTURES / "resting_text.pdf").read_bytes()
@@ -124,7 +121,6 @@ def test_real_doc_responses_validate_against_schemas(client, patient):
     _validator("term1_document_confirm_response.schema.json").validate(confirm.json())
 
 
-@requires_native_ocr
 def test_confirm_request_schema_rejects_bad_payloads():
     validator = _validator("term1_document_confirm_request.schema.json")
     good = {"contract_version": "v1", "extraction_id": str(uuid.uuid4()),

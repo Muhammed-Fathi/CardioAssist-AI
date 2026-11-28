@@ -42,6 +42,8 @@ def _png_header(width: int, height: int) -> bytes:
     return sig + struct.pack(">I", len(ihdr_data)) + chunk + struct.pack(">I", zlib.crc32(chunk) & 0xFFFFFFFF)
 
 
+# _extract_image checks native Tesseract availability before Pillow header decode;
+# Tesseract-free structural pixel rejection is covered in test_c2_resource_limits.py.
 @requires_native_ocr
 def test_oversized_image_rejected_before_decode():
     # A 5000x5000 PNG header (no pixel data) must be rejected from the header
@@ -52,7 +54,6 @@ def test_oversized_image_rejected_before_decode():
 
 
 # --- text overflow rejection (no truncation) --------------------------------
-@requires_native_ocr
 def test_extracted_text_overflow_is_rejected_not_truncated():
     data = (FIXTURES / "resting_text.pdf").read_bytes()
     config = OcrEngineConfig(tesseract_cmd=ocr_engine_config().tesseract_cmd,
@@ -62,7 +63,6 @@ def test_extracted_text_overflow_is_rejected_not_truncated():
 
 
 # --- real processing deadline -----------------------------------------------
-@requires_native_ocr
 def test_total_deadline_exceeded_raises():
     data = (FIXTURES / "resting_text.pdf").read_bytes()
     config = OcrEngineConfig(tesseract_cmd=ocr_engine_config().tesseract_cmd,
@@ -104,7 +104,6 @@ def _two_page_pdf() -> bytes:
     return bytes(out)
 
 
-@requires_native_ocr
 def test_text_pdf_lines_carry_real_page_provenance():
     raw = extract(_two_page_pdf(), C.MEDIA_PDF, ocr_engine_config())
     assert raw.mode == C.MODE_PDF_TEXT
@@ -187,7 +186,6 @@ def test_client_rejects_mismatched_or_malformed_response(mutate):
 
 
 # --- bounded concurrency ----------------------------------------------------
-@requires_native_ocr
 def test_worker_bounds_simultaneous_parser_jobs(tmp_path, monkeypatch):
     import backend.app.term1_c2_documents.worker as wmod
 

@@ -16,9 +16,10 @@ pypdfium2==4.30.0
 Pillow==11.2.1
 pytesseract==0.3.13
 
-# Transitive closure (pinned to the resolved set, 2026-11-28):
-charset-normalizer==3.5.3
+# Transitive closure (pinned to the resolved set aligned with
+# tests/contracts/requirements.txt and research/*/requirements.txt):
+charset-normalizer==3.5.2
 cryptography==50.0.2
 cffi==2.1.1
 pycparser==3.12
-packaging==26.4
+packaging==26.3
