@@ -6,9 +6,9 @@ Schema strategy (explicitly labelled disposable harness):
     ``06 -> 07 -> 08`` chain here. These tests therefore build a disposable
     schema WITHOUT alembic: the C1 tables are created from the registered ORM
     metadata, then migration ``20261128_08``'s own ``upgrade()`` is applied
-    directly through a bound ``alembic.operations.Operations`` so the five C2
-    tables AND the eight real immutability triggers exist exactly as the
-    migration defines them. The ``assessment_document`` composite FK targets
+    directly through a bound ``alembic.operations.Operations`` so the six C2
+    tables AND the thirteen real immutability/guard triggers exist exactly as
+    the migration defines them. The ``assessment_document`` composite FK targets
     Track 1's ``assessment`` table (absent here); SQLite permits the CREATE and
     DOC1–DOC7 never insert into it, so the harness is faithful for Track 2.
     Migration 08 upgrade/downgrade *through alembic* remains an integration
@@ -59,7 +59,7 @@ ROOT = Path(__file__).resolve().parents[3]
 MIGRATION_08 = ROOT / "backend" / "migrations" / "versions" / "20261128_08_c2_documents_ocr.py"
 C2_TABLES = {
     "medical_document", "document_extraction", "extraction_field",
-    "extraction_event", "assessment_document",
+    "extraction_event", "assessment_document", "document_inflight_operation",
 }
 
 # Native Tesseract location (owner-local). Overridable for portability.

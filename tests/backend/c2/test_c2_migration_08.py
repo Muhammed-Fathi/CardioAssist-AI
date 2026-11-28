@@ -3,7 +3,7 @@
 The full alembic ``06 → 07 → 08`` chain upgrade/downgrade is an integration
 checkpoint pending Track 1's ``20261128_07``. These tests exercise the migration's
 own ``upgrade()``/``downgrade()`` callables directly through a bound
-``alembic.operations.Operations`` so the DDL, the eight triggers and the RB-C1
+``alembic.operations.Operations`` so the DDL, the thirteen triggers and the RB-C1
 downgrade guard are genuinely verified without alembic head resolution.
 """
 
@@ -23,7 +23,7 @@ import backend.app.term1_c2_documents.models  # noqa: F401 - metadata registrati
 
 MIGRATION = Path(__file__).resolve().parents[3] / "backend" / "migrations" / "versions" / "20261128_08_c2_documents_ocr.py"
 C2_TABLES = {"medical_document", "document_extraction", "extraction_field",
-             "extraction_event", "assessment_document"}
+             "extraction_event", "assessment_document", "document_inflight_operation"}
 
 
 def _load_migration():
@@ -40,7 +40,7 @@ def _bind(engine, mig, *, as_sql=False):
     return conn, ctx
 
 
-def test_upgrade_creates_five_tables_and_eight_triggers(tmp_path):
+def test_upgrade_creates_six_tables_and_thirteen_triggers(tmp_path):
     engine = create_engine(f"sqlite:///{(tmp_path / 'm.sqlite3').as_posix()}")
     c1_tables = [t for n, t in Base.metadata.tables.items() if n not in C2_TABLES]
     Base.metadata.create_all(engine, tables=c1_tables)
@@ -54,7 +54,7 @@ def test_upgrade_creates_five_tables_and_eight_triggers(tmp_path):
         triggers = {r[0] for r in conn.execute(text(
             "SELECT name FROM sqlite_master WHERE type='trigger'"))}
         assert C2_TABLES.issubset(tables)
-        assert len(triggers) == 8
+        assert len(triggers) == 13
         assert set(mig.TRIGGER_DEFINITIONS).issubset(triggers)
     finally:
         conn.close()

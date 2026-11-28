@@ -11,7 +11,7 @@ from sqlalchemy import select
 from backend.app.term1.models import ConsentRecord
 from backend.app.term1.tx import write_transaction
 from backend.app.term1_c2_documents import constants as C
-from backend.app.term1_c2_documents.models import MedicalDocument
+from backend.app.term1_c2_documents.models import DocumentInflightOperation, MedicalDocument
 from backend.app.term1_c2_documents.service import Actor
 from backend.app.term1_c2_documents.storage import make_storage_key
 
@@ -168,7 +168,12 @@ def test_concurrent_uploads_race_for_last_quota_slot(document_service, patient_w
 
 # --- crash recovery ----------------------------------------------------------
 def _stage_pending(service, doc_store, patient, *, age_seconds):
-    """Create a durable PENDING_SCAN reservation with a real staged blob."""
+    """Create a durable PENDING_SCAN reservation + in-flight lease + staged blob.
+
+    The lease is created live (expires ``INFLIGHT_LEASE_SECONDS`` from now); a
+    test that advances the clock past the lease expiry makes it eligible for
+    ownership-based recovery, while a fresh lease protects a live reservation.
+    """
     data = _fixture("resting_text.pdf")
     import hashlib
     sha = hashlib.sha256(data).hexdigest()
@@ -176,6 +181,16 @@ def _stage_pending(service, doc_store, patient, *, age_seconds):
     storage_key = make_storage_key(patient["patient_id"], document_id)
     staging_key = doc_store.stage(data, storage_key)
     created = service.clock.now_iso()
+    public_fields = {
+        "content_sha256": sha, "document_kind": C.DOC_KIND_RESTING,
+        "fixture_template_id": C.TEMPLATE_RESTING,
+        "declared_media_type": C.MEDIA_PDF, "byte_size": len(data),
+    }
+    identity = service._identity(
+        actor=_actor(patient), operation=C.OP_DOC1_UPLOAD, target_ref="none",
+        raw_key=f"recover-{document_id}", public_fields=public_fields,
+    )
+    key = identity.replay_key
     with write_transaction(service.database) as session:
         session.add(MedicalDocument(
             document_id=document_id, patient_id=patient["patient_id"],
@@ -185,6 +200,18 @@ def _stage_pending(service, doc_store, patient, *, age_seconds):
             byte_size=len(data), page_count=0, content_sha256=None,
             storage_key=storage_key, upload_status=C.UPLOAD_PENDING_SCAN,
             created_at=created, staging_key=staging_key,
+        ))
+        session.flush()  # document row must exist before the reservation FK
+        session.add(DocumentInflightOperation(
+            inflight_id=str(uuid.uuid4()), replay_scope=key.replay_scope,
+            key_hash=key.key_hash, actor_binding=key.actor_binding,
+            operation=key.operation, target_ref=key.target_ref,
+            request_fingerprint=identity.request_fingerprint,
+            actor_user_id=patient["user_id"], patient_id=patient["patient_id"],
+            document_id=document_id, state=C.INFLIGHT_STATE_IN_FLIGHT, fence_token=1,
+            lease_owner=str(uuid.uuid4()),
+            lease_expires_at=service.clock.plus(C.INFLIGHT_LEASE_SECONDS),
+            attempt_count=1, failure_code=None, created_at=created, updated_at=created,
         ))
     return document_id, storage_key, staging_key
 
