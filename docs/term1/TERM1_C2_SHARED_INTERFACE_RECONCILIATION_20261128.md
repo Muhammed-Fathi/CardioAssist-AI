@@ -493,3 +493,95 @@ This checkpoint authorizes nothing. No inference adapter, artifact access,
 `inference_result` row, mock fallback, patient score, OCR-to-model path,
 training, merge, self-ratification or C3/C4 work exists or is implied. A1, A2,
 A3, B, RD-09-TERM1-EDU-DEMO-V1 and EXC-TERM1-OCR-DEMO-V1 remain PENDING.
+
+## Dated implementation clarification — 2026-11-28 (post-review, pre-integration)
+
+Append-only. This implementation clarification supersedes the earlier §4 statement
+that Track 1 registers twelve migration-07 triggers, its incomplete frozen-name list,
+and the §8 description of a successful test-only inference-result insert. It does
+not rewrite accepted C0 history or relax any database constraint. Track 1 was reviewed
+at `99bfe992d2273e57226535396df58933e98fc2f3`; the independent exact-parity and
+SAFE_SCOPE denial-probe confirmation is recorded in [review comment #7237649631](https://github.com/Muhammed-Fathi/CardioAssist-AI/pull/149#issuecomment-7237649631).
+
+### Migration 07 — corrected trigger inventory and result-insertion evidence
+
+Migration `20261128_07` and `backend/app/term1/triggers.py::C2_TRIGGER_DEFINITIONS`
+contain exactly fifteen Track 1 triggers, with exact SQL parity independently verified:
+
+1. `tr_health_profile_immutable_update`
+2. `tr_health_profile_no_delete`
+3. `tr_snapshot_no_update`
+4. `tr_snapshot_no_delete`
+5. `tr_assessment_scope_insert`
+6. `tr_assessment_pointer_insert`
+7. `tr_assessment_pointer_update`
+8. `tr_assessment_no_delete`
+9. `tr_attempt_insert_guard`
+10. `tr_attempt_associate_assessment`
+11. `tr_attempt_transition_guard`
+12. `tr_attempt_no_delete`
+13. `tr_result_insert_forbidden`
+14. `tr_result_no_update`
+15. `tr_result_no_delete`
+
+In SAFE_SCOPE, `tr_result_insert_forbidden` rejects every attempted
+`inference_result` insertion with `inference_result_publication_not_authorized`.
+The direct-SQL tests are denial probes: they assert rejection and zero result rows.
+They do not demonstrate successful test-only insertion, attempt/result association,
+result immutability after a successful insert, or production publication. The earlier
+§8 sentence claiming a test-only row was inserted and then tested against update/delete
+triggers is superseded. No result publication, adapter dispatch, private artifact
+access, or mock fallback is authorized.
+
+### Pinned Track 2 migration 08 inventory
+
+The exact reviewed Track 2 commit is
+`a9074e41ade06a7f46d4c9e67f44fefc02317e9d` on
+`arena/63d9201c-cardioassist-ai`. Its migration `20261128_08` defines six document/OCR
+tables:
+
+- `medical_document`
+- `document_extraction`
+- `extraction_field`
+- `extraction_event`
+- `assessment_document`
+- `document_inflight_operation`
+
+It currently defines thirteen document/OCR triggers:
+
+1. `tr_medical_document_immutable_identity`
+2. `tr_medical_document_no_delete`
+3. `tr_medical_document_stored_immutable`
+4. `tr_medical_document_promotion_guard`
+5. `tr_extraction_confirmed_immutable`
+6. `tr_document_extraction_no_delete`
+7. `tr_extraction_field_insert_guard`
+8. `tr_extraction_field_update_guard`
+9. `tr_extraction_field_no_delete`
+10. `tr_extraction_event_no_update`
+11. `tr_extraction_event_no_delete`
+12. `tr_assessment_document_no_update`
+13. `tr_assessment_document_no_delete`
+
+This is the pinned handoff inventory, not a claim that Track 2 is already integrated
+or that combined startup verification has passed.
+
+### Assessment/document binding integration requirement
+
+At the pinned Track 2 revision, `DocumentService.bind_assessment_document()` in
+`backend/app/term1_c2_documents/service.py` verifies the stored document bytes but
+allocates `binding_id` while constructing and inserting the binding row. The accepted
+canonical snapshot contract requires each binding identity in the attachment descriptor
+before canonical snapshot construction. Integration therefore must resolve and
+reauthorize the exact requested documents and any confirmed OCR extraction; re-read and
+verify stored bytes/digests; preallocate immutable `binding_id` values; build the ordered
+canonical attachment descriptors and snapshot; insert the assessment; then persist the
+same preallocated IDs and exact resolved binding fields. These operations must remain in
+the appropriate atomic write transaction. Integrated verification must compare each
+persisted binding with the snapshot's descriptor and identities, not require an empty
+attachment list. Preserve manual-report provenance separately from confirmed OCR
+provenance; OCR-derived inference remains disabled.
+
+This clarification records implementation facts and the remaining integration contract;
+it is not C2 stage acceptance, owner self-ratification, Windows evidence, hosted CI, or
+a release of any A1/A2/A3/B, RD-09, OCR-inference, research, C3, or C4 hold.
