@@ -27,7 +27,16 @@ from .crypto import sha256_hex
 from .errors import ApiError, api_error
 from .idempotency import canonical_public
 from .models import HealthProfile, UserAccount
-from .panel import MANDATORY_FIELDS, normalize_panel_fields, panel_contract_ok
+from .panel import (
+    MANDATORY_FIELDS,
+    MEASUREMENT_MISSING_REASONS,
+    MISSING_REASONS,
+    MISSING_REASON_STRUCTURAL,
+    OPTIONAL_FIELDS,
+    normalize_panel_fields,
+    panel_contract_ok,
+    validate_panel_keys,
+)
 from .timeutil import Clock
 
 # Top-level request keys a client may never supply (manual-only provenance).
@@ -207,9 +216,12 @@ def patch_health_profile(
         if current is not None
         else {"inputs": {}, "units": {}, "missing_reasons": {}}
     )
-    patch_inputs = body.get("inputs") or {}
-    patch_units = body.get("units") or {}
-    patch_reasons = body.get("missing_reasons") or {}
+    patch_inputs = body.get("inputs")
+    patch_units = body.get("units")
+    patch_reasons = body.get("missing_reasons")
+    if not all(isinstance(value, dict) for value in (patch_inputs, patch_units, patch_reasons)):
+        raise api_error("invalid_panel_input")
+    validate_panel_keys(patch_inputs, patch_units, patch_reasons)
 
     merged_inputs = dict(old_fields["inputs"])
     merged_inputs.update(patch_inputs)
@@ -219,19 +231,29 @@ def patch_health_profile(
     merged_reasons.update(patch_reasons)
 
     # Explicit null is an affirmative measurement-missing assertion. It must
-    # carry a fresh measurement reason; never inherit a previous reason (which
-    # may have described a different observation). The normalizer rejects the
-    # missing reason and the structural `not_provided` reason for null values.
+    # carry a fresh measurement reason from this request; neither a previous
+    # measurement reason nor the structural `not_provided` marker is enough.
+    # This request-level check is deliberately separate from normalization of
+    # the merged canonical record: inherited optional null/not_provided pairs
+    # are trusted only after the stored row's digest/envelope was verified.
     for field, value in patch_inputs.items():
-        if value is None and field not in patch_reasons:
-            merged_reasons.pop(field, None)
+        if value is None and field in OPTIONAL_FIELDS:
+            reason = patch_reasons.get(field)
+            if reason is None or reason == MISSING_REASON_STRUCTURAL:
+                raise api_error("missing_reason_mismatch")
+            if not isinstance(reason, str) or reason not in MEASUREMENT_MISSING_REASONS:
+                raise api_error("invalid_panel_input")
         if value is None and field in old_fields["units"] and field not in patch_units:
             merged_units.pop(field, None)
 
-    # A reason paired with a non-null value in this request is contradictory.
-    # A reason resent for an inherited, already-present value is stale metadata
-    # and is dropped by the non-strict merge normalizer below.
-    for field in patch_reasons:
+    # A client cannot relabel an existing null as a structural omission merely
+    # by patching its reason while omitting the input. Structural reasons are
+    # assigned by the canonicalizer; measurement reasons must be explicit.
+    for field, reason in patch_reasons.items():
+        if not isinstance(reason, str) or reason not in MISSING_REASONS:
+            raise api_error("invalid_panel_input")
+        if reason == MISSING_REASON_STRUCTURAL and merged_inputs.get(field) is None:
+            raise api_error("missing_reason_mismatch")
         if field in patch_inputs and patch_inputs[field] is not None:
             raise api_error("missing_reason_mismatch")
 
@@ -241,6 +263,10 @@ def patch_health_profile(
         merged_reasons,
         allow_absent_mandatory=True,
         strict_reasons=False,
+        # Safe here only because client-supplied explicit nulls and reasons
+        # above were validated independently; untouched values came from the
+        # digest-verified canonical row (or are defaults on first creation).
+        allow_structural_null=True,
     )
 
     fields_json = {

@@ -14,8 +14,13 @@ import uuid
 from pathlib import Path
 
 import jsonschema
-from sqlalchemy import text
+import pytest
+from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError
 
+from backend.app.term1 import health_profile
+from backend.app.term1.models import HealthProfile, UserAccount
+from backend.app.term1.tx import read_transaction, write_transaction
 from backend.app.term1.health_profile import canonical_bytes
 from tests.backend.c1.factories import (
     clean_doctor,
@@ -364,6 +369,173 @@ def test_h1b_draft_when_mandatory_history_is_incomplete(client, app):
     )
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "DRAFT"
+
+
+def test_h1b_age_only_patch_inherits_canonical_optional_structural_nulls(client, app):
+    seeded = seed_patient(app, client, with_profile=False)
+    initial = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={"age": 61.0, "sex": 1, "cp": 2},
+            units={"age": "years"},
+            missing_reasons={},
+        ),
+    )
+    assert initial.status_code == 200, initial.text
+    assert initial.json()["status"] == "COMPLETE"
+    assert initial.json()["missing_reasons"] == {
+        "trestbps": "not_provided",
+        "restecg": "not_provided",
+    }
+
+    updated = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={"age": 62.0},
+            units={"age": "years"},
+            missing_reasons={},
+            expected_version_number=1,
+        ),
+    )
+    assert updated.status_code == 200, updated.text
+    body = updated.json()
+    assert body["version_number"] == 2
+    assert body["status"] == "COMPLETE"
+    assert body["inputs"] == {
+        "age": 62.0,
+        "sex": 1,
+        "cp": 2,
+        "trestbps": None,
+        "restecg": None,
+    }
+    assert body["missing_reasons"] == {
+        "trestbps": "not_provided",
+        "restecg": "not_provided",
+    }
+
+
+def test_h1b_draft_can_become_complete_and_fill_omitted_optional_fields(client, app):
+    seeded = seed_patient(app, client, with_profile=False)
+    draft = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={"age": 61.0, "sex": 1},
+            units={"age": "years"},
+            missing_reasons={},
+        ),
+    )
+    assert draft.status_code == 200, draft.text
+    assert draft.json()["status"] == "DRAFT"
+
+    completed = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={"cp": 2, "trestbps": 124.0, "restecg": 1},
+            units={"trestbps": "mmHg"},
+            missing_reasons={},
+            expected_version_number=1,
+        ),
+    )
+    assert completed.status_code == 200, completed.text
+    body = completed.json()
+    assert body["status"] == "COMPLETE"
+    assert body["inputs"] == {
+        "age": 61.0,
+        "sex": 1,
+        "cp": 2,
+        "trestbps": 124.0,
+        "restecg": 1,
+    }
+    assert body["units"] == {"age": "years", "trestbps": "mmHg"}
+    assert body["missing_reasons"] == {}
+
+
+def test_h1b_explicit_null_structural_reason_is_refused(client, app):
+    seeded = seed_patient(app, client, with_profile=False)
+    initial = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={"age": 61.0, "sex": 1, "cp": 2},
+            units={"age": "years"},
+            missing_reasons={},
+        ),
+    )
+    assert initial.status_code == 200, initial.text
+
+    rejected = patch_profile(
+        client,
+        seeded["token"],
+        h1b_body(
+            inputs={"restecg": None},
+            units={},
+            missing_reasons={"restecg": "not_provided"},
+            expected_version_number=1,
+        ),
+    )
+    assert rejected.status_code == 422
+    assert rejected.json()["error"]["code"] == "missing_reason_mismatch"
+    rows = sql_rows(
+        app,
+        "SELECT version_number FROM health_profile WHERE patient_id = :pid",
+        pid=seeded["patient_id"],
+    )
+    assert [row.version_number for row in rows] == [1]
+
+
+def test_h1b_failed_insert_rolls_back_old_profile_supersession(client, app):
+    seeded = seed_patient(app, client)
+    with app.state.database.engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TRIGGER tr_test_reject_profile_v2 BEFORE INSERT ON health_profile "
+            "WHEN NEW.version_number = 2 BEGIN "
+            "SELECT RAISE(ABORT, 'test_profile_insert_failure'); END"
+        )
+    try:
+        with pytest.raises(DBAPIError, match="test_profile_insert_failure"):
+            with write_transaction(app.state.database) as session:
+                account = session.execute(
+                    select(UserAccount).where(UserAccount.user_id == seeded["user_id"])
+                ).scalar_one()
+                health_profile.patch_health_profile(
+                    session,
+                    clock=app.state.term1.clock,
+                    account=account,
+                    body=h1b_body(
+                        inputs={"age": 62.0},
+                        units={"age": "years"},
+                        missing_reasons={},
+                        expected_version_number=1,
+                    ),
+                )
+    finally:
+        with app.state.database.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "DROP TRIGGER IF EXISTS tr_test_reject_profile_v2"
+            )
+
+    rows = sql_rows(
+        app,
+        "SELECT version_number, status, superseded_at FROM health_profile "
+        "WHERE patient_id = :pid ORDER BY version_number",
+        pid=seeded["patient_id"],
+    )
+    assert len(rows) == 1
+    assert rows[0].version_number == 1
+    assert rows[0].status == "COMPLETE"
+    assert rows[0].superseded_at is None
+    with read_transaction(app.state.database) as session:
+        active = session.execute(
+            select(HealthProfile).where(
+                HealthProfile.patient_id == seeded["patient_id"],
+                HealthProfile.superseded_at.is_(None),
+            )
+        ).scalar_one()
+        assert active.health_profile_id == seeded["profile"]["health_profile_id"]
 
 
 def test_h1b_rejects_unknown_and_prohibited_panel_keys(client, app):

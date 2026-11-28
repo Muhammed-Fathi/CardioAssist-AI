@@ -108,6 +108,24 @@ def _validate_value(field: str, value: Any) -> None:
         raise _reject("invalid_panel_input")
 
 
+def validate_panel_keys(
+    inputs: dict[str, Any],
+    units: dict[str, Any],
+    missing_reasons: dict[str, Any],
+) -> None:
+    """Validate map shapes, closed field names and allowed unit keys only."""
+    if not isinstance(inputs, dict) or not isinstance(units, dict) or not isinstance(
+        missing_reasons, dict
+    ):
+        raise _reject("invalid_panel_input")
+    _check_keys(inputs, label="inputs")
+    _check_keys(units, label="units")
+    _check_keys(missing_reasons, label="missing_reasons")
+    for key in units:
+        if key not in UNIT_FIELDS:
+            raise _reject("invalid_panel_input")
+
+
 def normalize_panel_fields(
     inputs: dict[str, Any],
     units: dict[str, Any],
@@ -134,17 +152,7 @@ def normalize_panel_fields(
     row verification may set ``allow_structural_null`` because an omitted
     optional value is serialized as null plus ``not_provided`` after validation.
     """
-    if not isinstance(inputs, dict) or not isinstance(units, dict) or not isinstance(
-        missing_reasons, dict
-    ):
-        raise _reject("invalid_panel_input")
-    _check_keys(inputs, label="inputs")
-    _check_keys(units, label="units")
-    _check_keys(missing_reasons, label="missing_reasons")
-
-    for key in units:
-        if key not in UNIT_FIELDS:
-            raise _reject("invalid_panel_input")
+    validate_panel_keys(inputs, units, missing_reasons)
 
     # Reject (strict) or drop (merge) reasons attached to present values.
     present = {
@@ -173,7 +181,7 @@ def normalize_panel_fields(
             reason = missing_reasons.get(field)
             if reason is None:
                 raise _reject("missing_reason_mismatch")
-            if reason not in MISSING_REASONS:
+            if not isinstance(reason, str) or reason not in MISSING_REASONS:
                 raise _reject("invalid_panel_input")
             if reason == MISSING_REASON_STRUCTURAL and not allow_structural_null:
                 raise _reject("missing_reason_mismatch")
@@ -186,14 +194,14 @@ def normalize_panel_fields(
                 # Draft: absent mandatory field; no reason required.
                 if field in missing_reasons:
                     reason = missing_reasons[field]
-                    if reason not in MISSING_REASONS:
+                    if not isinstance(reason, str) or reason not in MISSING_REASONS:
                         raise _reject("invalid_panel_input")
                     normalized_reasons[field] = reason
                 continue
             # Optional: default to null + structural reason on first creation;
             # an inherited null keeps its stored reason (checked above).
             reason = missing_reasons.get(field, MISSING_REASON_STRUCTURAL)
-            if reason not in MISSING_REASONS:
+            if not isinstance(reason, str) or reason not in MISSING_REASONS:
                 raise _reject("invalid_panel_input")
             normalized_inputs[field] = None
             normalized_reasons[field] = reason
