@@ -21,3 +21,13 @@ research/schemas/rh04_synthetic_report.v1.schema.json text eol=lf
 # RH-02 / RH-06 validators bind this canonical register by raw SHA-256.
 # Windows autocrlf must not alter its reviewed Linux/Git blob bytes.
 docs/research/next_phase/RH02_SOURCE_QUESTION_REGISTER_2026_11_19.json text eol=lf
+
+# Track 2 C2 SAFE_SCOPE: the server-owned fixture allowlist manifest and the
+# generated DOC contract artifacts are byte-bound (SHA-256 allowlist + contract
+# drift test). Keep them LF on every platform; fixture images/PDFs are binary.
+backend/app/term1_c2_documents/fixtures/fixture_manifest.json text eol=lf
+backend/app/term1_c2_documents/fixtures/*.png binary
+backend/app/term1_c2_documents/fixtures/*.jpg binary
+backend/app/term1_c2_documents/contracts/*.json text eol=lf
+backend/app/term1_c2_documents/contracts/*.yaml text eol=lf
+backend/app/term1_c2_documents/contracts/schemas/*.json text eol=lf

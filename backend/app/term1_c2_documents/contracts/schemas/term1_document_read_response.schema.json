@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_document_read_response.schema.json",
+  "title": "term1_document_read_response.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "document_id",
+    "status",
+    "document_kind",
+    "fixture_template_id",
+    "declared_media_type",
+    "byte_size",
+    "page_count",
+    "content_sha256",
+    "pixel_width",
+    "pixel_height",
+    "created_at",
+    "original_filename_sanitized",
+    "latest_extraction",
+    "event_count"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "enum": [
+        "v1"
+      ]
+    },
+    "document_id": {
+      "type": "string",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PENDING_SCAN",
+        "STORED",
+        "UPLOAD_FAILED",
+        "SUPERSEDED"
+      ]
+    },
+    "document_kind": {
+      "type": "string",
+      "enum": [
+        "RESTING_CARDIAC_DEMO_REPORT",
+        "UNRELATED_LAB_DEMO_REPORT"
+      ]
+    },
+    "fixture_template_id": {
+      "type": "string",
+      "enum": [
+        "CAI-DEMO-RESTING-CARDIAC-REPORT-V1",
+        "CAI-DEMO-UNRELATED-LABS-V1"
+      ]
+    },
+    "declared_media_type": {
+      "type": "string",
+      "enum": [
+        "application/pdf",
+        "image/png",
+        "image/jpeg"
+      ]
+    },
+    "byte_size": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5242880
+    },
+    "page_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "content_sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pixel_width": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pixel_height": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 32
+    },
+    "latest_extraction_id": {
+      "type": "string",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "latest_extraction_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "latest_extraction_status": {
+      "type": "string",
+      "enum": [
+        "EXTRACTED_DRAFT",
+        "NEEDS_MANUAL_REVIEW",
+        "UNSUPPORTED_TEMPLATE",
+        "CONFIRMED_BY_PATIENT",
+        "FAILED"
+      ]
+    },
+    "original_filename_sanitized": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "latest_extraction": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "extraction_id",
+            "extraction_version",
+            "extraction_status",
+            "is_confirmed"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "extraction_id": {
+              "type": "string",
+              "minLength": 36,
+              "maxLength": 36
+            },
+            "extraction_version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "extraction_status": {
+              "type": "string",
+              "enum": [
+                "EXTRACTED_DRAFT",
+                "NEEDS_MANUAL_REVIEW",
+                "UNSUPPORTED_TEMPLATE",
+                "CONFIRMED_BY_PATIENT",
+                "FAILED"
+              ]
+            },
+            "is_confirmed": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "event_count": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

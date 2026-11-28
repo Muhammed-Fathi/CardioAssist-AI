@@ -1,0 +1,119 @@
+{
+  "files": [
+    {
+      "byte_size": 264323,
+      "document_kind": "RESTING_CARDIAC_DEMO_REPORT",
+      "filename": "resting.jpg",
+      "media_type": "image/jpeg",
+      "page_count": 1,
+      "pixel_height": 2339,
+      "pixel_width": 1654,
+      "sha256": "14febbfcb6b03ce255eb8cd8fbd2bfd18c02465711ac8c78faa8d3ee93b83ffd",
+      "template_id": "CAI-DEMO-RESTING-CARDIAC-REPORT-V1"
+    },
+    {
+      "byte_size": 112407,
+      "document_kind": "RESTING_CARDIAC_DEMO_REPORT",
+      "filename": "resting.png",
+      "media_type": "image/png",
+      "page_count": 1,
+      "pixel_height": 2339,
+      "pixel_width": 1654,
+      "sha256": "1c1145621efb70b37f121d03980f067e8e1b2a82935bc26a82c7efeb07a18b82",
+      "template_id": "CAI-DEMO-RESTING-CARDIAC-REPORT-V1"
+    },
+    {
+      "byte_size": 2191,
+      "document_kind": "RESTING_CARDIAC_DEMO_REPORT",
+      "filename": "resting_conflict_text.pdf",
+      "media_type": "application/pdf",
+      "page_count": 1,
+      "pixel_height": null,
+      "pixel_width": null,
+      "sha256": "1ca14d1aae0094711564bbed9a25dfe7cdce67301a07e68a20f965ef192af741",
+      "template_id": "CAI-DEMO-RESTING-CARDIAC-REPORT-V1"
+    },
+    {
+      "byte_size": 115764,
+      "document_kind": "UNRELATED_LAB_DEMO_REPORT",
+      "filename": "labs.png",
+      "media_type": "image/png",
+      "page_count": 1,
+      "pixel_height": 2339,
+      "pixel_width": 1654,
+      "sha256": "1f3f90d890b8b51d393341541c60c90cb651ac7be13c5bd2a6567e641c0dd236",
+      "template_id": "CAI-DEMO-UNRELATED-LABS-V1"
+    },
+    {
+      "byte_size": 261641,
+      "document_kind": "UNRELATED_LAB_DEMO_REPORT",
+      "filename": "labs_raster.pdf",
+      "media_type": "application/pdf",
+      "page_count": 1,
+      "pixel_height": null,
+      "pixel_width": null,
+      "sha256": "3de88742db7be48a56bae9621e7306d29368bd8dcdecc045fdc6944b1ad64e08",
+      "template_id": "CAI-DEMO-UNRELATED-LABS-V1"
+    },
+    {
+      "byte_size": 2138,
+      "document_kind": "RESTING_CARDIAC_DEMO_REPORT",
+      "filename": "resting_text.pdf",
+      "media_type": "application/pdf",
+      "page_count": 1,
+      "pixel_height": null,
+      "pixel_width": null,
+      "sha256": "636377381872fea6d8df90ec6f9c47ed9d6f76e896e635a48430f5d834feb598",
+      "template_id": "CAI-DEMO-RESTING-CARDIAC-REPORT-V1"
+    },
+    {
+      "byte_size": 2115,
+      "document_kind": "UNRELATED_LAB_DEMO_REPORT",
+      "filename": "labs_text.pdf",
+      "media_type": "application/pdf",
+      "page_count": 1,
+      "pixel_height": null,
+      "pixel_width": null,
+      "sha256": "aeca6572d227ce4e7038db40cecc1e7bc2acd45537fc405d34f1f350044fdf42",
+      "template_id": "CAI-DEMO-UNRELATED-LABS-V1"
+    },
+    {
+      "byte_size": 2138,
+      "document_kind": "RESTING_CARDIAC_DEMO_REPORT",
+      "filename": "resting_missing_text.pdf",
+      "media_type": "application/pdf",
+      "page_count": 1,
+      "pixel_height": null,
+      "pixel_width": null,
+      "sha256": "c747ab5ca9771112264c30a25bfb0ec6999e3d0ce40ab411d17b25960f350396",
+      "template_id": "CAI-DEMO-RESTING-CARDIAC-REPORT-V1"
+    },
+    {
+      "byte_size": 260766,
+      "document_kind": "UNRELATED_LAB_DEMO_REPORT",
+      "filename": "labs.jpg",
+      "media_type": "image/jpeg",
+      "page_count": 1,
+      "pixel_height": 2339,
+      "pixel_width": 1654,
+      "sha256": "d4e6394995257a4a12c84c0368688d8afaea5be33f137d235d7009e177734354",
+      "template_id": "CAI-DEMO-UNRELATED-LABS-V1"
+    },
+    {
+      "byte_size": 265198,
+      "document_kind": "RESTING_CARDIAC_DEMO_REPORT",
+      "filename": "resting_raster.pdf",
+      "media_type": "application/pdf",
+      "page_count": 1,
+      "pixel_height": null,
+      "pixel_width": null,
+      "sha256": "dea8eff2c87dd78e4660f3f167b977b3fe19e600d1cbd55c24ec02cf6b249dde",
+      "template_id": "CAI-DEMO-RESTING-CARDIAC-REPORT-V1"
+    }
+  ],
+  "generator": "backend.app.term1_c2_documents.fixture_generation",
+  "generator_version": "term1.c2.document/v1",
+  "manifest_version": "cardioassist.demo_fixture_manifest/v1",
+  "note": "Project-generated fabricated educational fixtures only. No real patient records. Admission is by exact file SHA-256; expected field values are intentionally absent so OCR is never hardcoded autofill.",
+  "watermark": "SYNTHETIC DEMO REPORT - NOT A REAL PATIENT RECORD"
+}

@@ -144,6 +144,8 @@ class Database:
         from sqlalchemy import String, inspect
 
         from .models import Base
+        from ..term1 import models as _term1_models  # noqa: F401  (register shared metadata)
+        from ..term1_c2_documents import models as _term1_c2_document_models  # noqa: F401
 
         expected_heads = _expected_migration_heads()
         with self.engine.connect() as connection:
@@ -250,6 +252,51 @@ class Database:
                         "SQLite foreign-key integrity check failed "
                         f"(first violation: {tuple(foreign_key_violation)})."
                     )
+
+                self._verify_c2_triggers(connection)
+
+    @staticmethod
+    def _verify_c2_triggers(connection) -> None:
+        """Fail closed unless every integrated C2 trigger exists unchanged.
+
+        The expected inventory is the frozen 07 core set, overlaid with the
+        migration-08 assessment-scope and attempt-insert replacements plus the
+        DOC triggers. Comparison is whitespace-normalized SQL against
+        ``sqlite_master``.
+        Extra triggers are not an error; a missing or modified expected trigger
+        refuses startup without attempting schema repair.
+        """
+        from ..term1.triggers import C2_TRIGGER_DEFINITIONS, normalize_trigger_sql
+        from ..term1_c2_documents.triggers import (
+            ASSESSMENT_SCOPE_TRIGGER_OVERRIDE,
+            ATTEMPT_INSERT_TRIGGER_OVERRIDE,
+            DOCUMENT_TRIGGER_DEFINITIONS,
+        )
+
+        expected_triggers = {**C2_TRIGGER_DEFINITIONS, **DOCUMENT_TRIGGER_DEFINITIONS}
+        expected_triggers["tr_assessment_scope_insert"] = ASSESSMENT_SCOPE_TRIGGER_OVERRIDE
+        expected_triggers["tr_attempt_insert_guard"] = ATTEMPT_INSERT_TRIGGER_OVERRIDE
+        rows = connection.exec_driver_sql(
+            "SELECT name, sql FROM sqlite_master WHERE type='trigger'"
+        ).fetchall()
+        actual = {
+            str(name): normalize_trigger_sql(str(sql or "")) for name, sql in rows
+        }
+        problems: list[str] = []
+        for name, expected in expected_triggers.items():
+            found = actual.get(name)
+            if found is None:
+                problems.append(f"{name} missing")
+            elif found != normalize_trigger_sql(expected):
+                problems.append(f"{name} modified")
+        if problems:
+            details = ", ".join(problems)
+            raise RuntimeError(
+                "Database C2 trigger verification failed "
+                f"({details}). Restore a verified backup or repair the schema "
+                "with an explicit, operator-reviewed migration; startup never "
+                "changes the schema."
+            )
 
     def dispose(self) -> None:
         self.engine.dispose()

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_assessment_get_response.schema.json",
+  "title": "term1_assessment_get_response.schema.json",
+  "description": "Role union: patient projection is status-only pre-B; doctor projection adds the snapshot fields pre-A3. research_output is always null (no result is read).",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "assessment_id",
+    "status",
+    "reason_code",
+    "created_at",
+    "review_state",
+    "research_output"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "assessment_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+    "assignment_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+    "health_profile_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+    "snapshot_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+    "snapshot_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "panel_id": {"const": "da_a2_resting_v1"},
+    "panel_version": {"const": "1.0.0"},
+    "source_contract_version": {"const": "term1.c2.intake/v1"},
+    "source_kind": {
+      "enum": ["synthetic_demo_patient_manual", "synthetic_demo_ocr_confirmed"]
+    },
+    "status": {
+      "enum": [
+        "INPUT_VALIDATED",
+        "INFERENCE_RUNNING",
+        "INFERENCE_UNAVAILABLE",
+        "INFERENCE_ABSTAINED",
+        "INFERENCE_ERROR"
+      ]
+    },
+    "reason_code": {
+      "type": ["string", "null"],
+      "enum": [
+        "real_ai_not_authorized",
+        "optional_panel_field_missing",
+        "worker_error",
+        "malformed_worker_response",
+        "artifact_integrity_failed",
+        "lease_expired",
+        "authorization_withdrawn",
+        null
+      ]
+    },
+    "inputs": {"type": "object"},
+    "units": {"type": "object"},
+    "missing_reasons": {"type": "object"},
+    "attached_documents": {"type": "array"},
+    "review_state": {"enum": ["NOT_REVIEWED", "IN_REVIEW", "CHANGED", "ACCEPTED"]},
+    "review_version": {"type": "integer", "minimum": 0},
+    "research_output": {"type": "null"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"}
+  }
+}

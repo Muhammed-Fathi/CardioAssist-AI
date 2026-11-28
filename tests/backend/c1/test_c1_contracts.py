@@ -5,18 +5,18 @@ so that the contract source modules under ``shared/contracts/term1/`` cannot
 drift from the implementation in ``backend/app/term1/openapi.py`` and
 ``backend/app/term1/errors.py`` without failing a test.
 
-* 20 C1 operations, 22 served (2 legacy + 20 C1).
+* 20 C1 + 12 C2 operations, 34 served (2 legacy + 20 C1 + 12 C2).
 * ``IDEMPOTENT_C1`` = 10 paths, ``AUTHENTICATED_C1`` = 18 paths.
-* Error catalogue: 37 codes, static messages, statuses consistent between
+* Error catalogue: 63 codes (C1 + C2), static messages, statuses consistent between
   ``errors.py::ERROR_CATALOGUE``, ``openapi.py::ERROR_CODES`` and
   ``shared/contracts/term1/errors.yaml``.
 * Every schema under ``shared/contracts/term1/schemas/`` is a valid JSON Schema
   draft 2020-12 document.
 
-The path files are Markdown (not strict YAML); operations are quoted as
-`` `METHOD /v1/...` `` and extracted with a small regex. These files are
-proposed, not approved, not deployed — they document the same frozen inventory
-the server serves.
+The C1 path files are machine-readable YAML loaded with the frozen
+``paths-*.yaml`` glob; the separately prefixed ``c2-paths-*.yaml`` module is
+covered by the C2 contract tests. These files are proposed, not approved, not
+deployed — they document the same frozen inventory the server serves.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ TERM1_DIR = ROOT / "shared" / "contracts" / "term1"
 _OP_RE = re.compile(r"`(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) (/v1/[A-Za-z0-9_{}/-]+)`")
 
 # ---------------------------------------------------------------------------
-# Operation inventory (20 C1, 22 served, header sets)
+# Operation inventory (20 C1 + 12 C2, 34 served, C1 header sets)
 # ---------------------------------------------------------------------------
 
 
@@ -82,7 +82,7 @@ def test_c1_operations_match_contract_modules():
 
 def test_c1_operation_counts():
     assert len(openapi.C1_OPERATIONS) == 20
-    assert len(openapi.SERVED_OPERATIONS) == 22  # 2 legacy + 20 C1
+    assert len(openapi.SERVED_OPERATIONS) == 34  # 2 legacy + 20 C1 + 12 C2
     assert set(openapi.C1_OPERATIONS) <= set(openapi.SERVED_OPERATIONS)
     # Legacy ops are not C1.
     assert set(openapi.LEGACY_OPERATIONS).isdisjoint(set(openapi.C1_OPERATIONS))
@@ -134,7 +134,7 @@ def test_c1_auth_and_idempotency_per_method_and_path():
 
 
 # ---------------------------------------------------------------------------
-# Error catalogue (37 codes, static messages, status consistency)
+# Error catalogue (63 C1 + C2 codes, static messages, status consistency)
 # ---------------------------------------------------------------------------
 
 
@@ -165,7 +165,7 @@ def test_error_codes_closed_and_status_consistent():
             assert code in errors.ERROR_CATALOGUE, code
             assert str(errors.ERROR_CATALOGUE[code][0]) == status, (code, status)
             total += 1
-    assert total == 37
+    assert total == 63
     # Served catalogue covers every catalogue code exactly once per status.
     served = {c for codes in openapi.ERROR_CODES.values() for c in codes}
     assert served == set(errors.ERROR_CATALOGUE)

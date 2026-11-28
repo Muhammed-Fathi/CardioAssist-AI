@@ -1,0 +1,25 @@
+# Isolated OCR worker runtime — .venv-ocr-worker ONLY.
+#
+# These pins NEVER appear in backend/requirements.txt. The OCR worker runs as a
+# separate unprivileged OS account with a sanitized environment (PATH,
+# TESSDATA_PREFIX, LANG only) and zero read access to AI bundles, signing keys or
+# private research files. No paid API, cloud service, credit or quota is used.
+#
+# Native prerequisite: the Tesseract OCR binary + English tessdata must be
+# installed by the operator (Windows: UB-Mannheim installer; Linux: distro
+# package or the reproducible source build in the runbook). pytesseract is a
+# thin subprocess wrapper around that binary; it is not itself an OCR engine.
+#
+# Compatible, reviewed pins (Python 3.11/3.12):
+pdfminer.six==20250506
+pypdfium2==4.30.0
+Pillow==11.2.1
+pytesseract==0.3.13
+
+# Transitive closure (pinned to the resolved set aligned with
+# tests/contracts/requirements.txt and research/*/requirements.txt):
+charset-normalizer==3.5.2
+cryptography==50.0.2
+cffi==2.1.1
+pycparser==3.12
+packaging==26.3

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_me_assessments_response.schema.json",
+  "title": "term1_me_assessments_response.schema.json",
+  "description": "Status-only patient list; never scores, inputs or explanations.",
+  "type": "object",
+  "required": ["contract_version", "items", "next_cursor"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {"const": "v1"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "assignment_id",
+          "panel_id",
+          "panel_version",
+          "status",
+          "reason_code",
+          "source_kind",
+          "attempt_id",
+          "review_state",
+          "created_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "assessment_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+          "assignment_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+          "panel_id": {"const": "da_a2_resting_v1"},
+          "panel_version": {"const": "1.0.0"},
+          "status": {
+            "enum": [
+              "INPUT_VALIDATED",
+              "INFERENCE_RUNNING",
+              "INFERENCE_UNAVAILABLE",
+              "INFERENCE_ABSTAINED",
+              "INFERENCE_ERROR"
+            ]
+          },
+          "reason_code": {
+            "type": ["string", "null"],
+            "enum": [
+              "real_ai_not_authorized",
+              "optional_panel_field_missing",
+              "worker_error",
+              "malformed_worker_response",
+              "artifact_integrity_failed",
+              "lease_expired",
+              "authorization_withdrawn",
+              null
+            ]
+          },
+          "source_kind": {
+            "enum": ["synthetic_demo_patient_manual", "synthetic_demo_ocr_confirmed"]
+          },
+          "attempt_id": {"type": "string", "format": "uuid", "minLength": 36, "maxLength": 36},
+          "review_state": {"enum": ["NOT_REVIEWED", "IN_REVIEW", "CHANGED", "ACCEPTED"]},
+          "created_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "next_cursor": {"type": ["string", "null"], "maxLength": 96}
+  }
+}

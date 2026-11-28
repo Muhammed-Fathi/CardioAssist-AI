@@ -1,0 +1,92 @@
+{
+  "contract_version": "v1",
+  "stage": "C2",
+  "status": "PROPOSED \u2014 NOT APPROVED, NOT DEPLOYED",
+  "source": "backend/app/term1_c2_documents/errors.py::DOCUMENT_ERROR_CATALOGUE",
+  "envelope": {
+    "contract_version": "v1",
+    "error": {
+      "code": "str",
+      "message": "str"
+    }
+  },
+  "description": "Additive C2 document/OCR error catalogue. The frozen C1 catalogue (37 codes) is unchanged; these codes are merged by Track 1. Messages are static per code and never embed a submitted value or identifier.",
+  "codes": {
+    "active_pdf_content_rejected": {
+      "status": 422,
+      "message": "The PDF contains prohibited active, scripted, or embedded content."
+    },
+    "admin_clinical_content_forbidden": {
+      "status": 403,
+      "message": "Administrators cannot access clinical intake, assessment, or medical document content."
+    },
+    "consent_required": {
+      "status": 403,
+      "message": "Active synthetic-demo consent is required for this operation."
+    },
+    "document_integrity_mismatch": {
+      "status": 409,
+      "message": "The stored document digest does not match the recorded immutable digest."
+    },
+    "document_limit_reached": {
+      "status": 409,
+      "message": "The maximum document count or storage quota for this account has been reached."
+    },
+    "document_not_confirmed": {
+      "status": 409,
+      "message": "The OCR extraction must be explicitly confirmed by the patient first."
+    },
+    "document_not_found": {
+      "status": 404,
+      "message": "The document was not found."
+    },
+    "extraction_already_confirmed": {
+      "status": 409,
+      "message": "This extraction version has already been confirmed."
+    },
+    "extraction_not_found": {
+      "status": 404,
+      "message": "The document extraction was not found."
+    },
+    "extraction_version_conflict": {
+      "status": 409,
+      "message": "The submitted extraction version does not match the bound extraction version."
+    },
+    "invalid_document_content": {
+      "status": 422,
+      "message": "The uploaded file failed structural, fixture-allowlist, page, or pixel validation."
+    },
+    "invalid_panel_input": {
+      "status": 422,
+      "message": "The clinical panel values, units, or missingness reasons failed validation."
+    },
+    "missing_reason_mismatch": {
+      "status": 422,
+      "message": "Every omitted or null optional field requires a valid missingness reason."
+    },
+    "ocr_inference_not_authorized": {
+      "status": 403,
+      "message": "OCR-confirmed demo intake is not currently authorized for model inference."
+    },
+    "payload_too_large": {
+      "status": 413,
+      "message": "The uploaded document exceeds the maximum allowed size."
+    },
+    "prohibited_clinical_field": {
+      "status": 422,
+      "message": "Prohibited leakage, laboratory, or wearable fields are not permitted."
+    },
+    "unsupported_media_type": {
+      "status": 415,
+      "message": "Only PDF, PNG, and JPEG documents are accepted."
+    },
+    "unsupported_template_for_intake": {
+      "status": 422,
+      "message": "This document template cannot be confirmed as resting-assessment intake."
+    },
+    "worker_unavailable": {
+      "status": 503,
+      "message": "The isolated local inference or OCR worker is currently unavailable."
+    }
+  }
+}

@@ -10,3 +10,16 @@ truststore==0.10.5
 # Separate actual HTTP/ASGI integration client (not the fixture oracle).
 httpx==0.28.1
 httpcore==1.0.9
+
+# Test-only isolated OCR worker dependencies so tests/backend/c2/ collects and
+# exercises genuine text-PDF extraction, structural validation, and parser
+# isolation without skipping. These NEVER enter backend/requirements.txt;
+# production backend runtime isolation is verified independently against
+# backend/requirements.txt alone.
+-r requirements-ocr-worker.txt
+
+# Test-only NumPy pin matching research/experiments/requirements.txt and
+# research/uci412/requirements.txt (Python 3.11/3.12) so authoritative panel
+# contract tests (tests/backend/c2/test_c2_panel_contract.py) execute without
+# skipping. Never added to backend/requirements.txt.
+numpy==1.26.4

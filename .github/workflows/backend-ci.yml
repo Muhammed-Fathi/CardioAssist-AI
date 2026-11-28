@@ -24,8 +24,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend-tests:
-    name: Mock backend (Python ${{ matrix.python-version }})
+  pure-backend-isolation:
+    name: Pure backend runtime isolation (Python ${{ matrix.python-version }})
 
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -47,18 +47,110 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install pinned dependencies
+      - name: Install pure production backend dependencies only
         run: |
-          python -m pip install -r backend/requirements-dev.txt
-          python -m pip check
+          python -m venv "$RUNNER_TEMP/c2-pure-backend"
+          "$RUNNER_TEMP/c2-pure-backend/bin/python" -m pip install -r backend/requirements.txt
+          "$RUNNER_TEMP/c2-pure-backend/bin/python" -m pip check
+
+      - name: Verify production backend runtime isolation and migration chain
+        run: |
+          "$RUNNER_TEMP/c2-pure-backend/bin/python" - <<'EOF'
+          import importlib.util
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          from alembic import command
+          from alembic.config import Config
+          from backend.app.main import create_app
+          from backend.app.storage.database import Database
+          from backend.app.term1.openapi import SERVED_OPERATIONS
+
+          absent = ("pdfminer", "pypdfium2", "PIL", "pytesseract", "numpy", "scipy", "sklearn", "joblib")
+          present = [name for name in absent if importlib.util.find_spec(name) is not None]
+          assert not present, f"Production backend venv unexpectedly installed: {present}"
+
+          with tempfile.TemporaryDirectory() as tmp:
+              db_url = f"sqlite:///{(Path(tmp) / 'iso.sqlite3').as_posix()}"
+              cfg = Config("alembic.ini")
+              cfg.attributes["database_url"] = db_url
+              command.upgrade(cfg, "head")
+              command.check(cfg)
+              db = Database(db_url)
+              try:
+                  db.verify_schema()
+              finally:
+                  db.dispose()
+              command.downgrade(cfg, "20261126_06")
+              command.upgrade(cfg, "head")
+              command.check(cfg)
+
+              app = create_app(database_url=db_url)
+              try:
+                  served = {
+                      (method.lower(), path)
+                      for route in app.routes
+                      for path in [str(getattr(route, "path", ""))]
+                      for method in (getattr(route, "methods", None) or set())
+                      if path.startswith("/v1") and method.upper() in {"GET", "POST", "PATCH", "PUT", "DELETE"}
+                  }
+                  assert served == set(SERVED_OPERATIONS) and len(served) == 34
+
+                  forbidden = (
+                      "backend.app.term1_c2_documents.ocr_engine",
+                      "backend.app.term1_c2_documents.worker",
+                      "backend.app.term1_c2_documents.parser_process",
+                      "backend.app.artifact_admission",
+                      "pdfminer", "pypdfium2", "PIL", "pytesseract",
+                      "numpy", "scipy", "sklearn", "joblib", "ai", "research",
+                  )
+                  loaded = [
+                      m for m in sys.modules
+                      if any(m == f or m.startswith(f + ".") for f in forbidden)
+                  ]
+                  assert not loaded, f"Production runtime imported forbidden modules: {loaded}"
+                  print("PASS: pure backend runtime isolation and migration chain verified.")
+              finally:
+                  app.state.database.dispose()
+          EOF
+
+  backend-tests:
+    name: Mock backend (Python ${{ matrix.python-version }})
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      # Official actions pinned to immutable commit SHAs
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pinned test dependencies
+        run: |
+          python -m venv "$RUNNER_TEMP/c2-backend-tests"
+          "$RUNNER_TEMP/c2-backend-tests/bin/python" -m pip install -r backend/requirements-dev.txt
+          "$RUNNER_TEMP/c2-backend-tests/bin/python" -m pip check
 
       - name: Run contract and backend integration tests
         run: |
-          python -m pytest tests/contracts tests/backend -q -W error
+          "$RUNNER_TEMP/c2-backend-tests/bin/python" -m pytest tests/contracts tests/backend -q -W error -rs
 
       - name: Verify original source integrity
         run: |
-          python scripts/verify_sources.py
+          "$RUNNER_TEMP/c2-backend-tests/bin/python" scripts/verify_sources.py
 
       - name: Reject prohibited backend artifacts
         shell: bash

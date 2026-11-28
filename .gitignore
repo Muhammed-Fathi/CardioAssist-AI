@@ -19,6 +19,9 @@ venv/
 .venv-audit/
 .venv-experiments/
 .venv-rh04/
+.venv-build/
+.venv-ocr-worker/
+.venv-backend-dev/
 mlruns/
 lightning_logs/
 wandb/

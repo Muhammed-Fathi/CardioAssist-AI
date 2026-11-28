@@ -1,0 +1,195 @@
+# Term 1 · C2 contract source — paths (clinical intake & assessment: H1a, H1b, S1-S3)
+# Valid machine-readable YAML. Composed into the served /openapi.json by
+# backend/app/term1/openapi.py via the frozen `c2-paths-*.yaml` glob
+# (reconciliation checkpoint §6). Track 2 adds c2-paths-documents.yaml;
+# this file is never edited by Track 2.
+status: "PROPOSED — NOT APPROVED, NOT DEPLOYED"
+server: "/v1"
+content_type: "application/json"
+contract_version: "v1"
+synthetic_data_only: true
+description: |
+  Patient-owned health-profile versions (H1a read, H1b manual patch),
+  immutable assessment submission with canonical snapshot (S1), role-projected
+  assessment detail (S2) and the patient's status-only assessment list (S3).
+
+  SYNTHETIC DEMO DATA ONLY. C2_SAFE_SCOPE: zero artifact access, zero
+  inference dispatch, zero inference_result rows, zero mock fallback, and no
+  patient score is served on any operation (A1/A2/A3/B remain PENDING).
+cross_cutting_rules:
+  authentication: "Authorization: Bearer <session_token> where bearer required; never accepted in a body, query or cookie"
+  idempotency: "Exactly one Idempotency-Key request header on every mutating operation listed in IDEMPOTENT_C2"
+operations:
+  - id: H1a
+    method: GET
+    path: /v1/me/health-profile
+    authenticated: true
+    idempotent: false
+    summary: "Read the caller's current active immutable health_profile version (self-read allowed after consent withdrawal; ADMIN forbidden)."
+    request:
+      body: absent
+    responses:
+      - status: 200
+        description: "{contract_version, health_profile_id, version_number, status, panel_id, panel_version, schema_version, inputs, units, missing_reasons, provenance, profile_sha256, created_at}"
+        response_schema: term1_health_profile_response.schema.json
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated or invalid session"
+      - status: 403
+        codes: [admin_clinical_content_forbidden, forbidden, password_change_required]
+        description: "ADMIN clinical-content block, wrong role, or password_change_required"
+      - status: 404
+        codes: [health_profile_not_found]
+        description: "No active health profile version exists for the caller"
+      - status: 409
+        codes: [role_profile_mismatch]
+        description: "Account role and profile are inconsistent"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
+  - id: H1b
+    method: PATCH
+    path: /v1/me/health-profile
+    authenticated: true
+    idempotent: true
+    summary: "Manual-only merge into the active profile version; supersedes the old row and inserts the next immutable version (never triggers inference)."
+    request:
+      fields: [panel_id, panel_version, expected_version_number, inputs, units, missing_reasons]
+      body: required
+      request_schema: term1_health_profile_patch_request.schema.json
+    responses:
+      - status: 200
+        description: "{contract_version, health_profile_id, version_number, status, panel_id, panel_version, schema_version, inputs, units, missing_reasons, provenance, profile_sha256, created_at}"
+        response_schema: term1_health_profile_response.schema.json
+      - status: 400
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated or invalid session"
+      - status: 403
+        codes: [admin_clinical_content_forbidden, forbidden, password_change_required, consent_required]
+        description: "ADMIN clinical-content block, wrong role, password_change_required, or revoked consent"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, role_profile_mismatch, concurrency_conflict, identity_key_material_mismatch, identity_key_replacement_unsupported]
+        description: "Idempotency, identity-key or expected-version CAS conflict"
+      - status: 422
+        codes: [validation_failed, prohibited_clinical_field, invalid_panel_input, missing_reason_mismatch]
+        description: "Semantically complete but inadmissible values"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
+  - id: S1
+    method: POST
+    path: /v1/assessments
+    authenticated: true
+    idempotent: true
+    summary: "Submit an immutable assessment snapshot; SAFE_SCOPE always terminates INFERENCE_UNAVAILABLE (real_ai_not_authorized) with a status-only 201 and zero result rows."
+    request:
+      fields: [assignment_id, health_profile_id, panel_id, panel_version, input_mode, panel_input, ocr_source, attached_document_ids, reassessment_of_id, reassessment_reason]
+      body: required
+      request_schema: term1_assessment_create_request.schema.json
+    responses:
+      - status: 201
+        description: "{contract_version, assessment_id, assignment_id, health_profile_id, snapshot_id, snapshot_sha256, panel_id, panel_version, source_contract_version, source_kind, status, reason_code, attempt_id, review_state, created_at} — always status-only, never scores"
+        response_schema: term1_assessment_create_response.schema.json
+      - status: 400
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated or invalid session"
+      - status: 403
+        codes: [admin_clinical_content_forbidden, forbidden, password_change_required, consent_required, ocr_inference_not_authorized]
+        description: "ADMIN clinical-content block, wrong role, password_change_required, revoked consent, or the SAFE_SCOPE OCR gate"
+      - status: 404
+        codes: [assignment_not_found, health_profile_not_found, document_not_found, extraction_not_found, assessment_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, assignment_already_revoked, role_profile_mismatch, health_profile_superseded, document_not_confirmed, document_integrity_mismatch, identity_key_material_mismatch, identity_key_replacement_unsupported, concurrency_conflict]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed, prohibited_clinical_field, invalid_panel_input, missing_reason_mismatch, health_profile_incomplete, missing_mandatory_attachment, provenance_relabeling_forbidden]
+        description: "Semantically complete but inadmissible values"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error, worker_unavailable]
+        description: "Operator identity key material unavailable, or the isolated local worker is unavailable"
+  - id: S2
+    method: GET
+    path: /v1/assessments/{assessment_id}
+    authenticated: true
+    idempotent: false
+    summary: "Role-projected assessment detail: patient is status-only pre-B; assigned active doctor sees status plus snapshot (never scores pre-A3)."
+    path_parameters: [assessment_id]
+    request:
+      body: absent
+    responses:
+      - status: 200
+        description: "Patient: {contract_version, assessment_id, status, reason_code, created_at, review_state, research_output: null}. Doctor (active assignment): {contract_version, assessment_id, assignment_id, health_profile_id, snapshot_id, snapshot_sha256, panel_id, panel_version, source_contract_version, source_kind, status, reason_code, inputs, units, missing_reasons, attached_documents, review_state, review_version, research_output: null, created_at, updated_at}"
+        response_schema: term1_assessment_get_response.schema.json
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated or invalid session"
+      - status: 403
+        codes: [admin_clinical_content_forbidden, forbidden, password_change_required]
+        description: "ADMIN clinical-content block, wrong role, or password_change_required"
+      - status: 404
+        codes: [assessment_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 409
+        codes: [role_profile_mismatch]
+        description: "Account role and profile are inconsistent"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
+  - id: S3
+    method: GET
+    path: /v1/me/assessments
+    authenticated: true
+    idempotent: false
+    summary: "Cursor-paginated status-only list of the caller's own assessments (never scores or explanations)."
+    query_parameters:
+      - name: limit
+        required: false
+        description: "Page size 1..100 (default 20)"
+        schema: {type: integer, minimum: 1, maximum: 100}
+      - name: cursor
+        required: false
+        description: "Opaque created_at|assessment_id cursor from a previous page"
+        schema: {type: string, maxLength: 96}
+    request:
+      body: absent
+    responses:
+      - status: 200
+        description: "{contract_version, items: [{assessment_id, assignment_id, panel_id, panel_version, status, reason_code, source_kind, attempt_id, review_state, created_at}], next_cursor}"
+        response_schema: term1_me_assessments_response.schema.json
+      - status: 400
+        codes: [malformed_request]
+        description: "Malformed query string or invalid limit/cursor"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated or invalid session"
+      - status: 403
+        codes: [admin_clinical_content_forbidden, forbidden, password_change_required]
+        description: "ADMIN clinical-content block, wrong role, or password_change_required"
+      - status: 409
+        codes: [role_profile_mismatch]
+        description: "Account role and profile are inconsistent"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"

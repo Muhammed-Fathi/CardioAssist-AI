@@ -16,6 +16,7 @@ from backend.app.storage.models import Base
 # that `alembic check` (and read-only startup verification) compares the full
 # expected schema, not only the legacy monitoring tables.
 from backend.app.term1 import models as _term1_models  # noqa: F401  (side effect)
+import backend.app.term1_c2_documents.models as _term1_c2_document_models  # noqa: F401 (side effect)
 
 config = context.config
 if config.config_file_name is not None:
