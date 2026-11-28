@@ -1,0 +1,190 @@
+# Term 1 · C1 contract source — paths (verified visits and invitations)
+# Valid machine-readable YAML.
+status: "PROPOSED — NOT APPROVED, NOT DEPLOYED"
+server: "/v1"
+content_type: "application/json"
+contract_version: "v1"
+synthetic_data_only: true
+demo_invitation_id: "DEMO-ID-nnn"
+demo_visit_id: "PRIOR_IN_PERSON_VISIT_DEMO"
+description: |
+  Verified-visit creation and retrieval, invitation issue/revoke/status, and
+  attempt accounting. One live invitation per visit at a time; attempts are
+  accounted per invitation (try-5 then attempts_exhausted).
+cross_cutting_rules:
+  authentication: "Authorization: Bearer <session_token> (DOCTOR role required; owner only)"
+  idempotency: "Exactly one Idempotency-Key request header on every mutating operation listed in IDEMPOTENT_C1"
+operations:
+  - id: V1
+    method: POST
+    path: /v1/doctor/verified-visits
+    authenticated: true
+    idempotent: true
+    summary: "Create a verified visit for the doctor's own patient."
+    request:
+      fields: [visit_ref, subject_identifier, asserted_visit_at, attestation_code]
+      body: required
+      request_schema: term1_visit_create_request.schema.json
+    responses:
+      - status: 201
+        description: "Success"
+        response_schema: term1_visit_create_response.schema.json
+      - status: 400
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, concurrency_conflict, role_profile_mismatch, identity_key_material_mismatch, identity_key_replacement_unsupported]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed, invalid_attestation, invalid_demo_identifier]
+        description: "Semantically complete but inadmissible values"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
+  - id: V2
+    method: GET
+    path: /v1/doctor/verified-visits/{visit_id}
+    authenticated: true
+    idempotent: false
+    summary: "Retrieve a verified visit; owner doctor only."
+    path_parameters: [visit_id]
+    request:
+      body: absent
+    responses:
+      - status: 200
+        description: "Success"
+        response_schema: term1_visit_get_response.schema.json
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required, role_profile_mismatch]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 404
+        codes: [visit_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
+  - id: I1
+    method: POST
+    path: /v1/doctor/verified-visits/{visit_id}/invitations
+    authenticated: true
+    idempotent: true
+    summary: "Issue an invitation (access_code emitted once). One live invitation per visit."
+    path_parameters: [visit_id]
+    request:
+      fields: [subject_identifier, ttl_seconds]
+      body: required
+      request_schema: term1_invitation_create_request.schema.json
+    responses:
+      - status: 201
+        description: "{invitation_id, access_code once, expires_at, contract_version}"
+        response_schema: term1_invitation_create_response.schema.json
+      - status: 400
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session, invalid_invitation]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required, role_profile_mismatch]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 404
+        codes: [visit_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, secret_not_redisclosable, invitation_already_active, identity_key_material_mismatch, identity_key_replacement_unsupported]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed, invalid_demo_identifier]
+        description: "Semantically complete but inadmissible values"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
+  - id: I2
+    method: POST
+    path: /v1/doctor/invitations/{invitation_id}/revoke
+    authenticated: true
+    idempotent: true
+    summary: "Revoke an invitation owned by the calling doctor."
+    path_parameters: [invitation_id]
+    request:
+      fields: [reason_code]
+      body: required
+      request_schema: term1_invitation_revoke_request.schema.json
+    responses:
+      - status: 200
+        description: "Success"
+        response_schema: term1_invitation_revoke_response.schema.json
+      - status: 400
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required, role_profile_mismatch]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 404
+        codes: [invitation_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, concurrency_conflict, role_profile_mismatch, identity_key_material_mismatch, identity_key_replacement_unsupported]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed]
+        description: "Semantically complete but inadmissible values"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
+  - id: I3
+    method: GET
+    path: /v1/doctor/invitations/{invitation_id}
+    authenticated: true
+    idempotent: false
+    summary: "Retrieve an invitation; owner doctor only."
+    path_parameters: [invitation_id]
+    request:
+      body: absent
+    responses:
+      - status: 200
+        description: "Success"
+        response_schema: term1_invitation_get_response.schema.json
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required, role_profile_mismatch]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 404
+        codes: [invitation_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
+attempt_accounting:
+  try_limit: 5
+  exhausted_code: attempts_exhausted
+  unknown_code_rows: "unknown invitation codes produce FK NULL attempt rows (no enumeration oracle)"

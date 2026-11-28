@@ -35,6 +35,7 @@ from backend.app.inference import (
     build_active_provider,
 )
 from backend.app.main import create_app
+from backend.app.term1.openapi import SERVED_OPERATIONS
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "shared" / "contracts" / "fixtures"
@@ -381,12 +382,26 @@ def test_the_offline_research_layer_added_no_provider_and_no_route(http_app):
     assert type(provider) is MockSyntheticProvider
     assert http_app.state.mock.provider.provider_id == MOCK_SYNTHETIC_PROVIDER_ID
 
-    # The HTTP surface is exactly the two mock endpoints it already had: no
-    # research, synthetic-facade or artifact route was added beside them.
+    # The mock prediction and monitoring operations keep their exact paths, and
+    # no research, synthetic-facade, artifact or model-serving route was added
+    # beside them. The served /v1 surface is the frozen C1 inventory: the two
+    # legacy operations plus twenty additive Term 1 C1 operations.
     paths = sorted({str(getattr(route, "path", "")) for route in http_app.routes})
-    assert sorted(path for path in paths if path.startswith("/v1")) == sorted({CAD, MON})
+    served = {path for path in paths if path.startswith("/v1")}
+    assert {CAD, MON} <= served
+    assert served == {path for _method, path in SERVED_OPERATIONS}
+    assert len(served) == 22
+    # C1 consent withdrawal is a patient-wide consent operation, not a synthetic
+    # research facade, so it is the single allowed exception to the "synth"
+    # substring guard. Every other forbidden marker remains fully guarded.
+    consent_path = "/v1/me/consent/synthetic-demo/revoke"
     for forbidden in ("research", "synth", "facade", "artifact", "registry"):
-        assert not [path for path in paths if forbidden in path.lower()], forbidden
+        offenders = [
+            path
+            for path in paths
+            if forbidden in path.lower() and not (forbidden == "synth" and path == consent_path)
+        ]
+        assert not offenders, (forbidden, offenders)
 
 
 def test_the_serving_runtime_never_imports_the_offline_research_layer():

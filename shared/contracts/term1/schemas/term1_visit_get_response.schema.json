@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_visit_get_response.schema.json",
+  "title": "term1_visit_get_response.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "visit_id",
+    "visit_ref",
+    "subject_label",
+    "attested_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "description": "Contract major version; only 'v1' is served."
+    },
+    "visit_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "visit_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "subject_label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "asserted_visit_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "attested_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "attestation_code": {
+      "type": "string",
+      "maxLength": 64
+    }
+  }
+}

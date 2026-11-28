@@ -11,18 +11,61 @@ from openapi_spec_validator import validate as validate_openapi
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_bundled_openapi_is_valid_and_has_exactly_the_approved_operations(client):
+LEGACY_OPERATIONS = {
+    ("post", "/v1/predictions/cad-tabular"),
+    ("post", "/v1/monitoring/observations"),
+}
+
+C1_OPERATIONS = {
+    ("post", "/v1/auth/login"),
+    ("post", "/v1/auth/logout"),
+    ("get", "/v1/auth/me"),
+    ("post", "/v1/auth/refresh"),
+    ("post", "/v1/me/password"),
+    ("get", "/v1/me/sessions"),
+    ("delete", "/v1/me/sessions/{session_id}"),
+    ("post", "/v1/admin/doctors"),
+    ("patch", "/v1/admin/accounts/{user_id}/status"),
+    ("post", "/v1/doctor/verified-visits"),
+    ("get", "/v1/doctor/verified-visits/{visit_id}"),
+    ("post", "/v1/doctor/verified-visits/{visit_id}/invitations"),
+    ("post", "/v1/doctor/invitations/{invitation_id}/revoke"),
+    ("get", "/v1/doctor/invitations/{invitation_id}"),
+    ("post", "/v1/patients/register"),
+    ("post", "/v1/patients/link"),
+    ("get", "/v1/me/assignments"),
+    ("post", "/v1/doctor/assignments/{assignment_id}/revoke"),
+    ("post", "/v1/me/assignments/{assignment_id}/revoke"),
+    ("post", "/v1/me/consent/synthetic-demo/revoke"),
+}
+
+EXPECTED_OPERATIONS = LEGACY_OPERATIONS | C1_OPERATIONS
+
+
+def _served_operations(document):
+    return {
+        (method, path)
+        for path, item in document["paths"].items()
+        for method in item
+        if method in {"get", "post", "put", "patch", "delete"}
+    }
+
+
+def test_bundled_openapi_is_valid_and_serves_exactly_the_approved_operations(client):
     response = client.get("/openapi.json")
     assert response.status_code == 200
     document = response.json()
     validate_openapi(document)
-    assert set(document["paths"]) == {
-        "/v1/predictions/cad-tabular", "/v1/monitoring/observations"
-    }
-    for path, item in document["paths"].items():
-        assert set(item) == {"post"}
-        assert "422" in item["post"]["responses"]
-        assert "HTTPValidationError" not in json.dumps(item)
+    # The legacy paths keep their exact POST-only shape.
+    for path in ("/v1/predictions/cad-tabular", "/v1/monitoring/observations"):
+        assert set(document["paths"][path]) == {"post"}
+        assert "422" in document["paths"][path]["post"]["responses"]
+        assert "HTTPValidationError" not in json.dumps(document["paths"][path])
+    # The served surface is exactly the frozen inventory: 2 legacy + 20 C1.
+    assert _served_operations(document) == EXPECTED_OPERATIONS
+    assert len(EXPECTED_OPERATIONS) == 22
+    for _method, path in C1_OPERATIONS:
+        assert "HTTPValidationError" not in json.dumps(document["paths"][path])
     assert document["servers"] == [{
         "url": "/", "description": (
             "Relative to the deployment origin. This project is local-first at $0 "

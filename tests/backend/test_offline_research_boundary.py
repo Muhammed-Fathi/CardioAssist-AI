@@ -150,7 +150,11 @@ def test_offline_refusals_leave_mock_surface_track_isolation_and_replay_intact(
     assert http_app.state.mock.inference_count == 1
 
     openapi = client.get("/openapi.json").json()
-    assert set(openapi["paths"]) == {CAD, MONITORING}
+    # Both legacy paths are served with their exact POST-only shape; the C1
+    # operations are additional and are enumerated by the served-contract test.
+    assert {CAD, MONITORING} <= set(openapi["paths"])
+    assert set(openapi["paths"][CAD]) == {"post"}
+    assert set(openapi["paths"][MONITORING]) == {"post"}
     assert type(http_app.state.mock.provider) is MockSyntheticProvider
     assert http_app.state.mock.provider.provider_id == MOCK_SYNTHETIC_PROVIDER_ID
 

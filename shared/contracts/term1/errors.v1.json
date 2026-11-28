@@ -1,0 +1,223 @@
+{
+  "contract_version": "v1",
+  "stage": "C1",
+  "status": "PROPOSED \u2014 NOT APPROVED, NOT DEPLOYED",
+  "source": "backend/app/term1/errors.py::ERROR_CATALOGUE",
+  "envelope": {
+    "contract_version": "v1",
+    "error": {
+      "code": "str",
+      "message": "str"
+    }
+  },
+  "retry_after_codes": [
+    "rate_limited"
+  ],
+  "codes": {
+    "account_not_found": {
+      "status": 404,
+      "message": "The account was not found."
+    },
+    "account_registration_unavailable": {
+      "status": 409,
+      "message": "The account cannot be created."
+    },
+    "account_status_conflict": {
+      "status": 409,
+      "message": "The requested status transition is not permitted."
+    },
+    "assignment_already_revoked": {
+      "status": 409,
+      "message": "The assignment is already revoked."
+    },
+    "assignment_not_found": {
+      "status": 404,
+      "message": "The assignment was not found."
+    },
+    "authentication_required": {
+      "status": 401,
+      "message": "Provide a bearer session token."
+    },
+    "concurrency_conflict": {
+      "status": 409,
+      "message": "A concurrent request changed the resource."
+    },
+    "consent_not_found": {
+      "status": 404,
+      "message": "No active synthetic-demo consent was found."
+    },
+    "forbidden": {
+      "status": 403,
+      "message": "The authenticated account may not perform this operation."
+    },
+    "idempotency_key_conflict": {
+      "status": 409,
+      "message": "The Idempotency-Key was reused with a different request."
+    },
+    "idempotency_key_required": {
+      "status": 400,
+      "message": "Supply exactly one Idempotency-Key header."
+    },
+    "idempotency_scope_conflict": {
+      "status": 409,
+      "message": "The Idempotency-Key was already used for a different operation or target."
+    },
+    "identity_key_change_unsupported": {
+      "status": 403,
+      "message": "The supplied identity key id does not match the stored identity."
+    },
+    "identity_key_configuration_error": {
+      "status": 503,
+      "message": "Identity key material is not configured correctly for this database."
+    },
+    "identity_key_material_mismatch": {
+      "status": 409,
+      "message": "The configured identity key material does not match the database key check."
+    },
+    "identity_key_replacement_unsupported": {
+      "status": 409,
+      "message": "Identity key replacement is not supported for a populated database."
+    },
+    "internal_error": {
+      "status": 500,
+      "message": "The service could not complete the request."
+    },
+    "invalid_attestation": {
+      "status": 422,
+      "message": "The attestation attested visit data is not admissible."
+    },
+    "invalid_credentials": {
+      "status": 401,
+      "message": "Authentication failed."
+    },
+    "invalid_demo_identifier": {
+      "status": 422,
+      "message": "Only the fictitious DEMO-ID-nnn grammar is accepted."
+    },
+    "invalid_invitation": {
+      "status": 401,
+      "message": "The invitation is not usable."
+    },
+    "invalid_session": {
+      "status": 401,
+      "message": "The session is not valid."
+    },
+    "invitation_already_active": {
+      "status": 409,
+      "message": "An active invitation already exists for this visit."
+    },
+    "invitation_attempts_exhausted": {
+      "status": 409,
+      "message": "The invitation was revoked after too many attempts."
+    },
+    "invitation_not_found": {
+      "status": 404,
+      "message": "The invitation was not found."
+    },
+    "last_administrator_protected": {
+      "status": 409,
+      "message": "The operation would leave no usable administrator."
+    },
+    "malformed_request": {
+      "status": 400,
+      "message": "The request body is not acceptable."
+    },
+    "not_found": {
+      "status": 404,
+      "message": "The resource was not found."
+    },
+    "password_change_required": {
+      "status": 403,
+      "message": "This account must change its temporary password before other operations."
+    },
+    "password_policy_violation": {
+      "status": 422,
+      "message": "The password does not meet the policy."
+    },
+    "password_unchanged": {
+      "status": 422,
+      "message": "The new password must differ from the current one."
+    },
+    "rate_limited": {
+      "status": 429,
+      "message": "Too many attempts. Retry later."
+    },
+    "role_profile_mismatch": {
+      "status": 409,
+      "message": "The account role and profile are inconsistent."
+    },
+    "secret_not_redisclosable": {
+      "status": 409,
+      "message": "The original response contained a one-time secret and cannot be replayed."
+    },
+    "subject_identity_conflict": {
+      "status": 409,
+      "message": "An account already exists for this identity; use the authenticated link flow."
+    },
+    "validation_failed": {
+      "status": 422,
+      "message": "The request failed semantic validation."
+    },
+    "visit_not_found": {
+      "status": 404,
+      "message": "The verified visit was not found."
+    }
+  },
+  "served_by_status": {
+    "400": [
+      "malformed_request",
+      "idempotency_key_required"
+    ],
+    "401": [
+      "invalid_credentials",
+      "authentication_required",
+      "invalid_session",
+      "invalid_invitation"
+    ],
+    "403": [
+      "forbidden",
+      "password_change_required",
+      "identity_key_change_unsupported"
+    ],
+    "404": [
+      "not_found",
+      "account_not_found",
+      "visit_not_found",
+      "invitation_not_found",
+      "assignment_not_found",
+      "consent_not_found"
+    ],
+    "409": [
+      "account_registration_unavailable",
+      "account_status_conflict",
+      "last_administrator_protected",
+      "role_profile_mismatch",
+      "identity_key_material_mismatch",
+      "identity_key_replacement_unsupported",
+      "invitation_already_active",
+      "invitation_attempts_exhausted",
+      "subject_identity_conflict",
+      "assignment_already_revoked",
+      "idempotency_key_conflict",
+      "idempotency_scope_conflict",
+      "secret_not_redisclosable",
+      "concurrency_conflict"
+    ],
+    "422": [
+      "validation_failed",
+      "password_policy_violation",
+      "password_unchanged",
+      "invalid_attestation",
+      "invalid_demo_identifier"
+    ],
+    "429": [
+      "rate_limited"
+    ],
+    "500": [
+      "internal_error"
+    ],
+    "503": [
+      "identity_key_configuration_error"
+    ]
+  }
+}

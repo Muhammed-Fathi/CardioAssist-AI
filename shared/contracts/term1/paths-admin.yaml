@@ -1,0 +1,91 @@
+# Term 1 · C1 contract source — paths (administration)
+# Valid machine-readable YAML.
+status: "PROPOSED — NOT APPROVED, NOT DEPLOYED"
+server: "/v1"
+content_type: "application/json"
+contract_version: "v1"
+synthetic_data_only: true
+description: |
+  Both operations below require a live ADMIN bearer session and a valid
+  Idempotency-Key header. There is no HTTP route that creates the first
+  administrator: bootstrap is an operator CLI step (backend/app/term1/cli.py)
+  guarded by CARDIOASSIST_ADMIN_BOOTSTRAP_SECRET and a single-row
+  admin_bootstrap_record that makes a second bootstrap impossible.
+cross_cutting_rules:
+  authentication: "Authorization: Bearer <session_token> (ADMIN role required)"
+  idempotency: "Exactly one Idempotency-Key request header on every mutating operation listed in IDEMPOTENT_C1"
+operations:
+  - id: AD1
+    method: POST
+    path: /v1/admin/doctors
+    authenticated: true
+    idempotent: true
+    summary: "Provision a doctor account; issues a one-time temp_secret."
+    request:
+      fields: [email, display_name, temp_password_policy]
+      body: required
+      request_schema: term1_admin_doctors_request.schema.json
+    responses:
+      - status: 201
+        description: "{doctor_id, user_id, temp_secret once, display_name, role, contract_version}"
+        response_schema: term1_admin_doctors_response.schema.json
+      - status: 400
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, secret_not_redisclosable, account_registration_unavailable, role_profile_mismatch, identity_key_material_mismatch, identity_key_replacement_unsupported]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed]
+        description: "Semantically complete but inadmissible values"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"
+  - id: AD2
+    method: PATCH
+    path: /v1/admin/accounts/{user_id}/status
+    authenticated: true
+    idempotent: true
+    summary: "Patch account status; last-administrator protection applies."
+    request:
+      fields: [status, reason_code]
+      body: required
+      request_schema: term1_admin_status_request.schema.json
+    path_parameters: [user_id]
+    responses:
+      - status: 200
+        description: "Success"
+        response_schema: term1_admin_status_response.schema.json
+      - status: 400
+        codes: [malformed_request, idempotency_key_required]
+        description: "Malformed body, wrong Content-Type, or a missing/ambiguous Idempotency-Key"
+      - status: 401
+        codes: [authentication_required, invalid_session]
+        description: "Unauthenticated, invalid session, or a deliberately generic authentication/invitation failure"
+      - status: 403
+        codes: [forbidden, password_change_required]
+        description: "Authenticated but wrong role, password_change_required, or an unsupported key-id change"
+      - status: 404
+        codes: [account_not_found]
+        description: "Not found, or not owned by the caller (identical shape; no IDOR oracle)"
+      - status: 409
+        codes: [idempotency_key_conflict, idempotency_scope_conflict, account_status_conflict, last_administrator_protected, role_profile_mismatch, identity_key_material_mismatch, identity_key_replacement_unsupported]
+        description: "Idempotency, identity-key or domain-state conflict"
+      - status: 422
+        codes: [validation_failed]
+        description: "Semantically complete but inadmissible values"
+      - status: 500
+        codes: [internal_error]
+        description: "Unexpected failure; no internal detail is disclosed"
+      - status: 503
+        codes: [identity_key_configuration_error]
+        description: "Operator identity key material is not configured correctly for this database"

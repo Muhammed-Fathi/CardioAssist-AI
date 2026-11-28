@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_auth_session_revoke_response.schema.json",
+  "title": "term1_auth_session_revoke_response.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "session_id",
+    "revoked_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "description": "Contract major version; only 'v1' is served."
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "revoked_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
