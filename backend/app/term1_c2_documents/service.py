@@ -273,20 +273,41 @@ class DocumentService:
         session.flush()
         return row, owner, row.fence_token
 
+    def _lease_held(self, row: DocumentInflightOperation | None, owner: str, fence: int) -> bool:
+        """Strict ownership: same owner, same fence, IN_FLIGHT, and NOT expired.
+
+        Expiry is strict (``lease_expires_at > now``): a lease whose expiry equals
+        ``now`` is already expired and confers no ownership (P0-01). Every
+        state-mutating owner action MUST pass this check first.
+        """
+        return (
+            row is not None
+            and row.lease_owner == owner
+            and row.fence_token == fence
+            and row.state == C.INFLIGHT_STATE_IN_FLIGHT
+            and from_iso(row.lease_expires_at) > self.clock.now()
+        )
+
     def _assert_lease(self, session: Session, inflight_id: str, owner: str, fence: int) -> DocumentInflightOperation:
         row = session.get(DocumentInflightOperation, inflight_id)
-        if row is None or row.lease_owner != owner or row.fence_token != fence \
-                or row.state != C.INFLIGHT_STATE_IN_FLIGHT:
+        if not self._lease_held(row, owner, fence):
             raise doc_api_error("concurrency_conflict")
         return row
 
     def _release_lease_failed(self, session: Session, inflight_id: str, owner: str,
-                              fence: int, code: str) -> None:
+                              fence: int, code: str) -> bool:
+        """Mark the lease FAILED only if this attempt still strictly owns it.
+
+        Returns whether the release happened, so callers never mutate document
+        state or discard files on a stale (taken-over / expired) attempt.
+        """
         row = session.get(DocumentInflightOperation, inflight_id)
-        if row is not None and row.lease_owner == owner and row.fence_token == fence:
-            row.state = C.INFLIGHT_STATE_FAILED
-            row.failure_code = code
-            row.updated_at = self.clock.now_iso()
+        if not self._lease_held(row, owner, fence):
+            return False
+        row.state = C.INFLIGHT_STATE_FAILED
+        row.failure_code = code
+        row.updated_at = self.clock.now_iso()
+        return True
 
     def _identity_from_inflight(self, row: DocumentInflightOperation) -> RequestIdentity:
         """Reconstruct the ORIGINAL replay identity for recovery ``remember()``."""
@@ -391,10 +412,24 @@ class DocumentService:
             inflight_id = inflight.inflight_id
 
         # Phase 2: stage + bounded worker validation OUTSIDE the DB lock.
-        staging_key = self.store.stage(data, storage_key)
-        with write_transaction(self.database) as session:
-            row = session.get(MedicalDocument, document_id)
-            row.staging_key = staging_key
+        try:
+            staging_key = self.store.stage(data, storage_key)
+        except BaseException:
+            # Handle a stage failure: release the lease so a retry/recovery can
+            # proceed rather than leaving it hung until expiry (P0-01).
+            self._fail_upload(document_id, inflight_id, owner, fence, None, "internal_error")
+            raise
+        # Publish the staging identity ONLY while this attempt strictly owns the
+        # lease (P0-01). A stale attempt must never overwrite the current owner's
+        # reservation; the staging key is unique to this attempt.
+        try:
+            with write_transaction(self.database) as session:
+                self._assert_lease(session, inflight_id, owner, fence)
+                row = session.get(MedicalDocument, document_id)
+                row.staging_key = staging_key
+        except BaseException:
+            self.store.discard_staging(staging_key)  # ours, never published
+            raise
         try:
             structure = self.worker.validate(
                 storage_key=staging_key, content_sha256=admission.content_sha256,
@@ -423,6 +458,10 @@ class DocumentService:
             self._require_consent(session, patient_id)  # re-check at finalize
             row = session.get(MedicalDocument, document_id)
             if row is None or row.upload_status != C.UPLOAD_PENDING_SCAN:
+                raise doc_api_error("concurrency_conflict")
+            # Bind promotion to the exact staging identity this attempt published
+            # (P0-01): never promote a different owner's staged blob.
+            if row.staging_key != staging_key:
                 raise doc_api_error("concurrency_conflict")
             self.store.promote(staging_key, storage_key)
             response = self._publish_stored(
@@ -474,12 +513,21 @@ class DocumentService:
 
     def _fail_upload(self, document_id: str, inflight_id: str, owner: str, fence: int,
                      staging_key: str | None, code: str) -> None:
-        if staging_key:
-            self.store.discard_staging(staging_key)
+        """Fail this attempt ONLY if it still strictly owns the lease (P0-01).
+
+        A stale attempt (expired or taken over) must not discard the current
+        owner's staging file or mutate the document. Quota is reclaimed
+        (``reclaim_at``) only AFTER the staging blob is actually removed, so an
+        abandoned blob is never charged as reclaimed while it still exists.
+        """
         with write_transaction(self.database) as session:
-            self._release_lease_failed(session, inflight_id, owner, fence, code)
+            if not self._release_lease_failed(session, inflight_id, owner, fence, code):
+                return  # not the current owner: touch nothing
             row = session.get(MedicalDocument, document_id)
             if row is not None and row.upload_status == C.UPLOAD_PENDING_SCAN:
+                # Actual cleanup first, then accounting (no reclaim before unlink).
+                if row.staging_key:
+                    self.store.discard_staging(row.staging_key)
                 row.upload_status = C.UPLOAD_FAILED
                 row.staging_key = None
                 row.reclaim_at = self.clock.now_iso()
@@ -939,6 +987,13 @@ class DocumentService:
                 fence = inflight.fence_token
                 identity = self._identity_from_inflight(inflight)
                 inflight_id = inflight.inflight_id
+                # Refresh the candidate under acquisition (P0-01): validate the
+                # CURRENT staging/final identity, not the pre-lock snapshot.
+                candidate["staging_key"] = row.staging_key
+                candidate["storage_key"] = row.storage_key
+                candidate["sha"] = row.fixture_file_sha256
+                candidate["size"] = row.byte_size
+                candidate["media_type"] = row.declared_media_type
             structure = self._validate_recovery_candidate(candidate)
             with write_transaction(self.database) as session:
                 try:
@@ -1008,48 +1063,46 @@ class DocumentService:
             return None
 
     def sweep_orphans(self) -> int:
-        """Remove private blobs with no owning live reservation.
+        """Remove private blobs with no owning live reservation (P0-01).
 
-        Ownership is re-checked fresh per candidate (T2-R1): a staging blob whose
-        document row still holds a live lease, or any STORED/PENDING_SCAN final
-        blob, is never touched. Only truly orphaned staging older than the grace
-        period and unowned final blobs are reclaimed, and a blob is counted only
-        after a successful unlink.
+        The ownership check AND the unlink run inside one ``BEGIN IMMEDIATE``
+        transaction per candidate, so no live reservation can claim the blob
+        between the check and the unlink (no check/unlink race). The CURRENT
+        ``staging_key`` of a reservation and any STORED/PENDING_SCAN final blob
+        are always protected. An abandoned extra staging blob (not the current
+        ``staging_key``) is reclaimed only after the grace period, so an
+        in-flight not-yet-published blob is never charged or deleted. A blob is
+        counted only after a successful unlink.
         """
         import time as _time
 
         now = _time.time()
         removed = 0
         for key, path in self.store.iter_files():
-            if ".tmp-" in key:
+            is_staging = ".tmp-" in key
+            if is_staging:
                 final_key = key[: key.find(".bin.tmp-") + len(".bin")]
                 document_id = final_key.split("/")[1][: -len(".bin")]
-                with read_transaction(self.database) as session:
-                    row = session.get(MedicalDocument, document_id)
-                    if row is not None and row.staging_key == key:
-                        continue  # a reservation owns this staging blob
-                    if row is not None and row.upload_status in (
-                        C.UPLOAD_STORED, C.UPLOAD_PENDING_SCAN
-                    ):
-                        continue  # live/owned; leave for finalize/recovery
-                try:
-                    age = now - path.stat().st_mtime
-                except OSError:
-                    continue
-                if age < C.PENDING_SCAN_RECOVERY_AGE_SECONDS:
-                    continue
-                self.store.discard_staging(key)
-                if not path.exists():
-                    removed += 1
             else:
                 document_id = key.split("/")[1][: -len(".bin")]
-                with read_transaction(self.database) as session:
-                    row = session.get(MedicalDocument, document_id)
+            with write_transaction(self.database) as session:
+                row = session.get(MedicalDocument, document_id)
+                if is_staging:
+                    if row is not None and row.staging_key == key:
+                        continue  # current reservation's staging: protected
+                    try:
+                        age = now - path.stat().st_mtime
+                    except OSError:
+                        continue
+                    if age < C.PENDING_SCAN_RECOVERY_AGE_SECONDS:
+                        continue  # may be an in-flight, not-yet-published blob
+                    self.store.discard_staging(key)
+                else:
                     if row is not None and row.upload_status in (
                         C.UPLOAD_STORED, C.UPLOAD_PENDING_SCAN
                     ):
-                        continue
-                self.store.remove(key)
+                        continue  # owned final blob
+                    self.store.remove(key)
                 if not path.exists():
                     removed += 1
         return removed
