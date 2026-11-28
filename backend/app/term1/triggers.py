@@ -5,13 +5,14 @@ These strings are the authoritative expected definitions consumed by
 trigger below must exist in ``sqlite_master`` with matching
 whitespace-normalized SQL, and verification fails closed when one is missing or
 modified. Migration ``20261128_07_c2_clinical_intake_inference`` creates the
-same statements literally; ``tests/backend/c2/test_c2_schema.py`` pins the
-fresh-upgrade ``sqlite_master`` output against this dictionary so the two can
+same statements literally; ``tests/backend/c2_core/test_c2_schema.py`` pins the
+integrated fresh-upgrade ``sqlite_master`` output against these definitions so the two can
 never drift.
 
-Track 2 appends its ``20261128_08`` trigger definitions to this dictionary at
-integration time (Track 1 owns this file). Scope is exactly the fifteen triggers
-of migration 07; nothing here is executed by this module itself.
+This dictionary remains the exact 07 baseline. Integrated startup combines it
+with migration 08's thirteen document triggers and its replacement definition
+for ``tr_assessment_scope_insert`` (which now admits only verified snapshot
+attachments). Nothing here is executed by this module itself.
 """
 
 from __future__ import annotations

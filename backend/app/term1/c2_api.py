@@ -14,6 +14,9 @@ doctor projection is pre-``A3`` (no result is ever read).
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -81,7 +84,12 @@ def _authorization_failure_hook(
     return write
 
 
-def register_c2_routes(app: FastAPI, *, handler: Term1Handler) -> None:
+def register_c2_routes(
+    app: FastAPI,
+    *,
+    handler: Term1Handler,
+    document_service_provider: Callable[[], Any] | None = None,
+) -> None:
     # ================================================== H1a current profile
     async def _impl_health_profile_get(request: Request) -> JSONResponse:
         try:
@@ -173,6 +181,7 @@ def register_c2_routes(app: FastAPI, *, handler: Term1Handler) -> None:
                 clock=handler.clock,
                 account=actor.account,
                 body=body,
+                document_service_provider=document_service_provider,
             )
             return result, result, False
 

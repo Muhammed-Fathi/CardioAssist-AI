@@ -1,9 +1,9 @@
-"""Fixtures for the isolated Track 1 C2 core suite (same rules as C1).
+"""Fixtures for C2 clinical-intake service tests (same rules as C1).
 
 Every test gets a fresh disposable SQLite file migrated with Alembic through
-head ``20261128_07``, deterministic operator secrets supplied through the app
-factory, and a mutable Term 1 clock. Track 2 documents/OCR tests live in the
-separate ``tests/backend/c2_documents`` package and own their own fixtures.
+head ``20261128_08``, deterministic operator secrets supplied through the app
+factory, and a mutable Term 1 clock. The document/OCR tests share the integrated
+schema in ``tests/backend/c2``.
 """
 
 from __future__ import annotations

@@ -4,13 +4,11 @@ Revision ID: 20261128_08
 Revises: 20261128_07
 Create Date: 2026-11-28
 
-Adds the Track 2 document tables (``medical_document``, ``document_extraction``,
-``extraction_field``, ``extraction_event``, ``assessment_document``) plus the
-corrections-round ``document_inflight_operation`` (T2-R1 durable in-flight
-ownership/lease/fence), their CHECK constraints and their immutability triggers.
-``down_revision`` is Track 1's ``20261128_07``; this migration is the Track 2
-contributor deliverable and is integrated after the shared Track 1 checkpoint
-(see the implementation handoff document).
+Adds the six document/OCR tables, their CHECK constraints and thirteen
+immutability triggers. It also replaces the 07 assessment-scope guard with an
+integrated definition that accepts only bounded, snapshot-backed document
+bindings; downgrade restores the exact 07 guard. ``down_revision`` is
+``20261128_07``.
 
 Corrections round (reviewer REQUEST CHANGES #7233518509):
 
@@ -45,9 +43,10 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# Exact trigger SQL, also exported for Database.verify_schema() startup checks.
-# All identity comparisons are NULL-safe (``IS NOT``) so a NULL->value or
-# value->NULL mutation is rejected exactly like a value->value mutation.
+# Exact SQL for the thirteen new document triggers, also exported for startup
+# verification. The replacement for tr_assessment_scope_insert is defined
+# separately below and overrides the 07 baseline under the same trigger name.
+# Identity comparisons use NULL-safe ``IS NOT`` checks.
 TRIGGER_DEFINITIONS: dict[str, str] = {
     "tr_medical_document_immutable_identity": """
         CREATE TRIGGER tr_medical_document_immutable_identity
@@ -207,6 +206,172 @@ TRIGGER_DEFINITIONS: dict[str, str] = {
         END
     """,
 }
+
+# Migration 07's insert guard intentionally allowed only empty attachment lists
+# before the document tables existed. Migration 08 replaces that one guard with
+# the integrated document-aware version, while retaining the literal 07 form so
+# a clean downgrade restores exactly the prior schema invariant.
+BASE_ASSESSMENT_SCOPE_TRIGGER_DEFINITION = """CREATE TRIGGER tr_assessment_scope_insert
+BEFORE INSERT ON assessment
+FOR EACH ROW
+WHEN NOT EXISTS (
+        SELECT 1 FROM doctor_patient_assignment a
+        WHERE a.assignment_id = NEW.assignment_id
+          AND a.patient_id = NEW.patient_id
+          AND a.revoked_at IS NULL
+    )
+    OR NOT EXISTS (
+        SELECT 1 FROM consent_record c
+        WHERE c.consent_id = NEW.consent_id
+          AND c.patient_id = NEW.patient_id
+          AND c.kind = 'synthetic_demo'
+          AND c.scope = 'patient_wide_synthetic_demo'
+          AND c.contract_version = 'term1-c1-v1'
+          AND c.revoked_at IS NULL
+    )
+    OR (NEW.reassessment_of_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM assessment p
+        WHERE p.assessment_id = NEW.reassessment_of_id
+          AND p.patient_id = NEW.patient_id
+          AND p.assignment_id = NEW.assignment_id
+    ))
+    OR NOT EXISTS (
+        SELECT 1
+        FROM assessment_snapshot s
+        JOIN health_profile h
+          ON h.health_profile_id = s.health_profile_id
+         AND h.patient_id = s.patient_id
+        WHERE s.snapshot_id = NEW.snapshot_id
+          AND s.patient_id = NEW.patient_id
+          AND s.health_profile_id = NEW.health_profile_id
+          AND s.panel_id = NEW.panel_id
+          AND s.panel_version = NEW.panel_version
+          AND s.source_contract_version = NEW.source_contract_version
+          AND s.source_kind = NEW.source_kind
+          AND s.schema_version = 'term1.c2.snapshot/v1'
+          AND s.schema_sha256 = json_extract(s.snapshot_json, '$.schema_sha256')
+          AND s.source_contract_version = json_extract(s.snapshot_json, '$.source_contract_version')
+          AND s.source_kind = json_extract(s.snapshot_json, '$.source_kind')
+          AND json_extract(s.snapshot_json, '$.assessment_id') = NEW.assessment_id
+          AND json_extract(s.snapshot_json, '$.patient_id') = NEW.patient_id
+          AND json_extract(s.snapshot_json, '$.assignment_id') = NEW.assignment_id
+          AND json_extract(s.snapshot_json, '$.consent_id') = NEW.consent_id
+          AND json_extract(s.snapshot_json, '$.health_profile_id') = NEW.health_profile_id
+          AND json_extract(s.snapshot_json, '$.panel.panel_id') = s.panel_id
+          AND json_extract(s.snapshot_json, '$.panel.panel_version') = s.panel_version
+          AND json_extract(s.snapshot_json, '$.panel.panel_contract_sha256') = s.panel_contract_sha256
+          AND json_extract(s.snapshot_json, '$.provenance.health_profile_id') = h.health_profile_id
+          AND json_extract(s.snapshot_json, '$.provenance.health_profile_sha256') = h.profile_sha256
+          AND h.status = 'COMPLETE'
+          AND h.superseded_at IS NULL
+          AND json_type(s.snapshot_json, '$.attached_documents') = 'array'
+          AND json_array_length(s.snapshot_json, '$.attached_documents') = 0
+    )
+    OR ((NEW.reassessment_of_id IS NULL) != (NEW.reassessment_reason IS NULL))
+BEGIN
+    SELECT RAISE(ABORT, 'assessment_scope_invalid');
+END;"""
+
+_SCOPE_ATTACHMENT_EMPTY_CHECK = (
+    "AND json_array_length(s.snapshot_json, '$.attached_documents') = 0"
+)
+_SCOPE_ATTACHMENT_INTEGRATED_CHECK = """AND json_array_length(s.snapshot_json, '$.attached_documents') <= 5
+          AND (
+              SELECT COUNT(*) FROM json_each(s.snapshot_json, '$.attached_documents')
+          ) = (
+              SELECT COUNT(DISTINCT json_extract(a.value, '$.document_id'))
+              FROM json_each(s.snapshot_json, '$.attached_documents') AS a
+          )
+          AND (
+              SELECT COUNT(*) FROM json_each(s.snapshot_json, '$.attached_documents')
+          ) = (
+              SELECT COUNT(DISTINCT json_extract(a.value, '$.binding_id'))
+              FROM json_each(s.snapshot_json, '$.attached_documents') AS a
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM json_each(s.snapshot_json, '$.attached_documents') AS a
+              WHERE a.type != 'object'
+                 OR (SELECT COUNT(*) FROM json_each(a.value)) != 8
+                 OR json_type(a.value, '$.binding_id') IS NOT 'text'
+                 OR json_type(a.value, '$.document_id') IS NOT 'text'
+                 OR json_type(a.value, '$.attachment_role') IS NOT 'text'
+                 OR json_type(a.value, '$.extraction_id') IS NULL
+                 OR json_type(a.value, '$.extraction_version') IS NULL
+                 OR json_type(a.value, '$.document_sha256_at_bind') IS NOT 'text'
+                 OR json_type(a.value, '$.extraction_confirmed_at') IS NULL
+                 OR json_type(a.value, '$.confirmed_values_sha256') IS NULL
+                 OR COALESCE(json_extract(a.value, '$.attachment_role'), '') NOT IN (
+                     'SUPPORTING_REPORT', 'OCR_SOURCE_REPORT',
+                     'UNRELATED_LAB_ATTACHMENT'
+                 )
+                 OR length(json_extract(a.value, '$.document_sha256_at_bind')) != 64
+                 OR json_extract(a.value, '$.document_sha256_at_bind') GLOB '*[^0-9a-f]*'
+                 OR NOT EXISTS (
+                     SELECT 1
+                     FROM medical_document d
+                     WHERE d.document_id = json_extract(a.value, '$.document_id')
+                       AND d.patient_id = NEW.patient_id
+                       AND d.upload_status = 'STORED'
+                       AND d.content_sha256 = json_extract(a.value, '$.document_sha256_at_bind')
+                       AND d.fixture_file_sha256 = d.content_sha256
+                       AND (
+                           (d.document_kind = 'RESTING_CARDIAC_DEMO_REPORT'
+                            AND json_extract(a.value, '$.attachment_role') IN (
+                                'SUPPORTING_REPORT', 'OCR_SOURCE_REPORT'
+                            ))
+                           OR (d.document_kind = 'UNRELATED_LAB_DEMO_REPORT'
+                               AND json_extract(a.value, '$.attachment_role') =
+                                   'UNRELATED_LAB_ATTACHMENT')
+                       )
+                 )
+                 OR (
+                     json_extract(a.value, '$.attachment_role') = 'OCR_SOURCE_REPORT'
+                     AND (
+                         json_extract(s.snapshot_json, '$.source_kind') != 'ocr_confirmed'
+                         OR json_type(a.value, '$.extraction_id') IS NOT 'text'
+                         OR json_type(a.value, '$.extraction_version') IS NOT 'integer'
+                         OR json_extract(a.value, '$.extraction_version') < 1
+                         OR json_type(a.value, '$.extraction_confirmed_at') IS NOT 'text'
+                         OR json_type(a.value, '$.confirmed_values_sha256') IS NOT 'text'
+                         OR NOT EXISTS (
+                             SELECT 1
+                             FROM document_extraction x
+                             WHERE x.extraction_id = json_extract(a.value, '$.extraction_id')
+                               AND x.document_id = json_extract(a.value, '$.document_id')
+                               AND x.extraction_version = json_extract(a.value, '$.extraction_version')
+                               AND x.is_confirmed = 1
+                               AND x.extraction_status = 'CONFIRMED_BY_PATIENT'
+                               AND x.template_id = 'CAI-DEMO-RESTING-CARDIAC-REPORT-V1'
+                               AND x.document_sha256 = json_extract(
+                                   a.value, '$.document_sha256_at_bind'
+                               )
+                               AND x.confirmed_at = json_extract(
+                                   a.value, '$.extraction_confirmed_at'
+                               )
+                               AND x.confirmed_values_sha256 = json_extract(
+                                   a.value, '$.confirmed_values_sha256'
+                               )
+                               AND x.confirmed_envelope_json IS NOT NULL
+                         )
+                     )
+                 )
+                 OR (
+                     json_extract(a.value, '$.attachment_role') != 'OCR_SOURCE_REPORT'
+                     AND (
+                         json_type(a.value, '$.extraction_id') IS NOT 'null'
+                         OR json_type(a.value, '$.extraction_version') IS NOT 'null'
+                         OR json_type(a.value, '$.extraction_confirmed_at') IS NOT 'null'
+                         OR json_type(a.value, '$.confirmed_values_sha256') IS NOT 'null'
+                     )
+                 )
+          )"""
+
+if BASE_ASSESSMENT_SCOPE_TRIGGER_DEFINITION.count(_SCOPE_ATTACHMENT_EMPTY_CHECK) != 1:
+    raise RuntimeError("Migration 07 assessment scope trigger changed unexpectedly.")
+ASSESSMENT_SCOPE_TRIGGER_DEFINITION = BASE_ASSESSMENT_SCOPE_TRIGGER_DEFINITION.replace(
+    _SCOPE_ATTACHMENT_EMPTY_CHECK, _SCOPE_ATTACHMENT_INTEGRATED_CHECK
+)
 
 
 def upgrade() -> None:
@@ -428,6 +593,9 @@ def upgrade() -> None:
         sa.CheckConstraint("attempt_count >= 1", name="ck_inflight_attempt_count"),
     )
 
+    # Replace 07's empty-attachments guard after its referenced DOC tables exist.
+    op.execute("DROP TRIGGER IF EXISTS tr_assessment_scope_insert")
+    op.execute(ASSESSMENT_SCOPE_TRIGGER_DEFINITION)
     for sql in TRIGGER_DEFINITIONS.values():
         op.execute(sql)
 
@@ -463,9 +631,12 @@ def downgrade() -> None:
             )
     for name in TRIGGER_DEFINITIONS:
         op.execute(f"DROP TRIGGER IF EXISTS {name}")
+    op.execute("DROP TRIGGER IF EXISTS tr_assessment_scope_insert")
     op.drop_table("document_inflight_operation")
     op.drop_table("assessment_document")
     op.drop_table("extraction_field")
     op.drop_table("extraction_event")
     op.drop_table("document_extraction")
     op.drop_table("medical_document")
+    # Restore the exact pre-08 core scope trigger for a valid 08 -> 07 downgrade.
+    op.execute(BASE_ASSESSMENT_SCOPE_TRIGGER_DEFINITION)

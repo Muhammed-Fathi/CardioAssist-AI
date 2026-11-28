@@ -19,6 +19,7 @@ from __future__ import annotations
 import copy
 import json
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from sqlalchemy import select
@@ -279,6 +280,153 @@ def _sha256_hex(value: Any) -> bool:
     )
 
 
+def _verify_attached_document_bindings(
+    session: Session,
+    *,
+    assessment: Assessment,
+    descriptors: Any,
+    source_kind: str,
+) -> None:
+    """Prove the persisted immutable bindings are exactly the snapshot list."""
+    from ..term1_c2_documents import constants as document_constants
+    from ..term1_c2_documents.models import (
+        AssessmentDocument,
+        DocumentExtraction,
+        ExtractionField,
+        MedicalDocument,
+    )
+    from ..term1_c2_documents.service import confirmation_envelope
+
+    expected_keys = {
+        "binding_id", "document_id", "attachment_role", "extraction_id",
+        "extraction_version", "document_sha256_at_bind", "extraction_confirmed_at",
+        "confirmed_values_sha256",
+    }
+    if not isinstance(descriptors, list) or len(descriptors) > document_constants.MAX_ATTACHMENTS_PER_ASSESSMENT:
+        raise ValueError("snapshot attachment list is invalid")
+    if descriptors != sorted(
+        descriptors,
+        key=lambda item: (item["document_id"], item["binding_id"])
+        if isinstance(item, dict) and "document_id" in item and "binding_id" in item
+        else ("", ""),
+    ):
+        raise ValueError("snapshot attachment order is not canonical")
+
+    bindings = session.execute(
+        select(AssessmentDocument).where(
+            AssessmentDocument.assessment_id == assessment.assessment_id
+        )
+    ).scalars().all()
+    if len(bindings) != len(descriptors):
+        raise ValueError("snapshot and persisted binding counts differ")
+    by_binding_id = {row.binding_id: row for row in bindings}
+    if len(by_binding_id) != len(bindings):
+        raise ValueError("duplicate persisted binding id")
+
+    seen_documents: set[str] = set()
+    for descriptor in descriptors:
+        if not isinstance(descriptor, dict) or set(descriptor) != expected_keys:
+            raise ValueError("snapshot attachment descriptor keys differ")
+        binding_id = descriptor["binding_id"]
+        document_id = descriptor["document_id"]
+        role = descriptor["attachment_role"]
+        extraction_id = descriptor["extraction_id"]
+        extraction_version = descriptor["extraction_version"]
+        digest = descriptor["document_sha256_at_bind"]
+        if (
+            not _canonical_uuid(binding_id)
+            or not _canonical_uuid(document_id)
+            or document_id in seen_documents
+            or role not in document_constants.ATTACHMENT_ROLES
+            or not _sha256_hex(digest)
+            or (extraction_id is None) != (extraction_version is None)
+            or (extraction_id is not None and not _canonical_uuid(extraction_id))
+            or (extraction_version is not None and (
+                not isinstance(extraction_version, int)
+                or isinstance(extraction_version, bool)
+                or extraction_version < 1
+            ))
+        ):
+            raise ValueError("snapshot attachment identity is invalid")
+        seen_documents.add(document_id)
+
+        binding = by_binding_id.get(binding_id)
+        if (
+            binding is None
+            or binding.assessment_id != assessment.assessment_id
+            or binding.patient_id != assessment.patient_id
+            or binding.document_id != document_id
+            or binding.attachment_role != role
+            or binding.extraction_id != extraction_id
+            or binding.extraction_version != extraction_version
+            or binding.document_sha256_at_bind != digest
+        ):
+            raise ValueError("persisted binding differs from snapshot descriptor")
+
+        document = session.get(MedicalDocument, document_id)
+        if (
+            document is None
+            or document.patient_id != assessment.patient_id
+            or document.upload_status != document_constants.UPLOAD_STORED
+            or document.content_sha256 != digest
+            or document.fixture_file_sha256 != digest
+        ):
+            raise ValueError("bound document identity or digest differs")
+        expected_role = (
+            document_constants.ROLE_UNRELATED_LAB
+            if document.document_kind == document_constants.DOC_KIND_LABS
+            else document_constants.ROLE_SUPPORTING
+        )
+        if role == document_constants.ROLE_OCR_SOURCE:
+            if (
+                source_kind != constants.SOURCE_KIND_OCR_CONFIRMED
+                or document.document_kind != document_constants.DOC_KIND_RESTING
+            ):
+                raise ValueError("OCR source role is inconsistent with snapshot provenance")
+        elif role != expected_role:
+            raise ValueError("manual attachment role is inconsistent with document kind")
+
+        extraction_confirmed_at = None
+        confirmed_values_sha256 = None
+        if extraction_id is not None:
+            extraction = session.get(DocumentExtraction, extraction_id)
+            if (
+                extraction is None
+                or extraction.document_id != document_id
+                or extraction.extraction_version != extraction_version
+                or extraction.document_sha256 != digest
+                or not extraction.is_confirmed
+                or extraction.confirmed_at is None
+                or extraction.confirmed_values_sha256 is None
+            ):
+                raise ValueError("bound extraction identity or confirmation differs")
+            fields = session.execute(
+                select(ExtractionField).where(
+                    ExtractionField.extraction_id == extraction_id,
+                    ExtractionField.document_id == document_id,
+                )
+            ).scalars().all()
+            rebuilt = confirmation_envelope(fields)
+            if (
+                rebuilt != extraction.confirmed_envelope_json
+                or sha256_hex(canonical_bytes(rebuilt)) != extraction.confirmed_values_sha256
+            ):
+                raise ValueError("confirmed extraction digest differs")
+            if role == document_constants.ROLE_OCR_SOURCE:
+                if extraction.template_id != document_constants.TEMPLATE_RESTING:
+                    raise ValueError("OCR source is not the resting report template")
+            extraction_confirmed_at = extraction.confirmed_at
+            confirmed_values_sha256 = extraction.confirmed_values_sha256
+        elif role == document_constants.ROLE_OCR_SOURCE:
+            raise ValueError("OCR source binding lacks a confirmed extraction")
+
+        if (
+            descriptor["extraction_confirmed_at"] != extraction_confirmed_at
+            or descriptor["confirmed_values_sha256"] != confirmed_values_sha256
+        ):
+            raise ValueError("snapshot extraction provenance differs")
+
+
 def _verify_snapshot_integrity(session: Session, assessment: Assessment) -> AssessmentSnapshot:
     """Verify the full pinned envelope, row identity and canonical digests.
 
@@ -286,8 +434,8 @@ def _verify_snapshot_integrity(session: Session, assessment: Assessment) -> Asse
     outer hash is not enough: all envelope identities, profile provenance,
     panel values, stage completeness and the schema-definition digest are
     checked independently so a self-consistent but wrong document fails closed.
-    Track 1 has no migration-08 document tables, so its only valid attachment
-    list is the empty list.
+    Every attachment descriptor is checked against the immutable binding row,
+    the owned stored document and any confirmed extraction provenance.
     """
     snapshot = session.execute(
         select(AssessmentSnapshot).where(
@@ -444,9 +592,12 @@ def _verify_snapshot_integrity(session: Session, assessment: Assessment) -> Asse
         ):
             raise ValueError("snapshot provenance mismatch")
 
-        attachments = envelope["attached_documents"]
-        if not isinstance(attachments, list) or attachments:
-            raise ValueError("Track 1 snapshot must not carry documents")
+        _verify_attached_document_bindings(
+            session,
+            assessment=assessment,
+            descriptors=envelope["attached_documents"],
+            source_kind=source_kind,
+        )
         if (
             not _sha256_hex(snapshot.snapshot_sha256)
             or snapshot_digest(envelope) != snapshot.snapshot_sha256
@@ -481,6 +632,7 @@ def submit_assessment(
     clock: Clock,
     account: UserAccount,
     body: dict[str, Any],
+    document_service_provider: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
     """Create snapshot + assessment + terminal attempt in one transaction."""
     profile = require_clinical_patient(session, account=account)
@@ -532,13 +684,54 @@ def submit_assessment(
         strict_reasons=True,
     )
 
-    # Attachments: Track 1 has no document tables (migration 08 is Track 2);
-    # any non-empty list fails closed with the non-enumerating 404.
-    attached_document_ids = body.get("attached_document_ids") or []
-    if not isinstance(attached_document_ids, list):
+    # S1 attachment resolution is deliberately before canonical snapshot
+    # construction. Allocate the immutable binding identities first, then
+    # authorize the caller's exact documents and verify their stored bytes and
+    # digests through Track 2's service. A manual submission only binds reports;
+    # it never adopts OCR values as panel inputs (OCR inference remains denied).
+    from ..term1_c2_documents import constants as document_constants
+    from ..term1_c2_documents.models import MedicalDocument
+
+    attached_document_ids = body.get("attached_document_ids", [])
+    if (
+        not isinstance(attached_document_ids, list)
+        or len(attached_document_ids) > document_constants.MAX_ATTACHMENTS_PER_ASSESSMENT
+        or any(not isinstance(document_id, str) or not document_id for document_id in attached_document_ids)
+        or len(set(attached_document_ids)) != len(attached_document_ids)
+    ):
         raise api_error("validation_failed")
-    if attached_document_ids:
-        raise api_error("document_not_found")
+
+    document_service = None
+    attached_documents: list[dict[str, Any]] = []
+    binding_requests = [
+        {"document_id": document_id, "binding_id": str(uuid.uuid4())}
+        for document_id in sorted(attached_document_ids)
+    ]
+    for request_binding in binding_requests:
+        document = session.get(MedicalDocument, request_binding["document_id"])
+        if (
+            document is None
+            or document.patient_id != patient_id
+            or document.upload_status != document_constants.UPLOAD_STORED
+            or document.content_sha256 is None
+        ):
+            # One non-enumerating response for missing, wrong-owner and
+            # non-stored documents. The service repeats authorization before
+            # reading bytes and again before inserting the binding.
+            raise api_error("document_not_found")
+    if binding_requests:
+        if document_service_provider is None:
+            raise api_error("document_not_found")
+        document_service = document_service_provider()
+        for request_binding in binding_requests:
+            attached_documents.append(
+                document_service.resolve_assessment_document_binding(
+                    session,
+                    patient_id=patient_id,
+                    document_id=request_binding["document_id"],
+                    binding_id=request_binding["binding_id"],
+                )
+            )
 
     reassessment_of_id = body.get("reassessment_of_id")
     reassessment_reason = body.get("reassessment_reason")
@@ -573,7 +766,7 @@ def submit_assessment(
         units=units,
         missing_reasons=missing_reasons,
         source_kind=constants.SOURCE_KIND_MANUAL,
-        attached_documents=[],
+        attached_documents=attached_documents,
     )
     snapshot_sha256 = snapshot_digest(envelope)
 
@@ -623,9 +816,24 @@ def submit_assessment(
     session.add(assessment)
     session.flush()
 
-    # Re-read and validate the persisted canonical envelope before any
-    # inference lifecycle transition. This catches serialization/identity drift
-    # between the in-memory builder and the database dispatch record.
+    # Persist the exact preallocated bindings inside the same transaction as the
+    # assessment and snapshot. The service repeats authorization and digest
+    # verification and rejects any field that differs from the snapshot plan.
+    if attached_documents:
+        if document_service is None:  # defensive invariant; provider ran above
+            raise api_error("internal_error")
+        for descriptor in attached_documents:
+            document_service.persist_assessment_document_binding(
+                session,
+                assessment_id=assessment_id,
+                patient_id=patient_id,
+                descriptor=descriptor,
+            )
+        session.flush()
+
+    # Re-read and validate the persisted canonical envelope and binding rows
+    # before any inference lifecycle transition. This catches serialization,
+    # identity or relationship drift before SAFE_SCOPE termination commits.
     persisted_snapshot = _verify_snapshot_integrity(session, assessment)
     snapshot_sha256 = persisted_snapshot.snapshot_sha256
 

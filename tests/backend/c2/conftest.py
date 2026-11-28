@@ -1,45 +1,29 @@
-"""Fixtures for the Track 2 C2 SAFE_SCOPE suite.
+"""Fixtures for the integrated C2 SAFE_SCOPE and document/OCR suite.
 
-Schema strategy (explicitly labelled disposable harness):
-    Track 1's shared migration ``20261128_07`` is not yet published on this
-    isolated contributor branch, so ``alembic upgrade head`` cannot resolve the
-    ``06 -> 07 -> 08`` chain here. These tests therefore build a disposable
-    schema WITHOUT alembic: the C1 tables are created from the registered ORM
-    metadata, then migration ``20261128_08``'s own ``upgrade()`` is applied
-    directly through a bound ``alembic.operations.Operations`` so the six C2
-    tables AND the thirteen real immutability/guard triggers exist exactly as
-    the migration defines them. The ``assessment_document`` composite FK targets
-    Track 1's ``assessment`` table (absent here); SQLite permits the CREATE and
-    DOC1–DOC7 never insert into it, so the harness is faithful for Track 2.
-    Migration 08 upgrade/downgrade *through alembic* remains an integration
-    checkpoint pending Track 1's 07 (reported as a blocker, not faked).
-
-Genuine OCR:
-    The extraction tests run the REAL engine (pdfminer.six / pypdfium2 / Pillow /
-    native Tesseract) through the in-process worker client. If the native
-    Tesseract binary is unavailable the genuine-OCR tests are skipped and
-    reported NOT_RUN with the owner-local procedure (never mocked).
+Every test gets a disposable SQLite database upgraded through the real
+``06 → 07 → 08`` Alembic chain, including all core and document triggers. The
+OCR tests exercise the genuine local engine (pdfminer.six / pypdfium2 / Pillow /
+native Tesseract); if Tesseract is unavailable, only native-OCR cases are
+reported NOT_RUN and skipped with the owner-local procedure (never mocked).
 """
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import shutil
 from pathlib import Path
 
 import pytest
-from alembic.migration import MigrationContext
-from alembic.operations import Operations
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 
 from backend.app.storage.database import Database
-from backend.app.storage.models import Base
 import backend.app.term1.models  # noqa: F401 - register C1 metadata
-import backend.app.term1_c2_documents.models as c2_models  # noqa: F401
+import backend.app.term1_c2_documents.models  # noqa: F401 - register document metadata
 from backend.app.term1.api import Term1Handler, register_term1_routes
+from backend.app.term1.c2_api import register_c2_routes
 from backend.app.term1.timeutil import Clock
 from backend.app.term1_c2_documents.api import DocumentHandler, register_document_routes
 from backend.app.term1_c2_documents.fixture_manifest import load_manifest
@@ -56,11 +40,6 @@ from tests.backend.c1.conftest import (  # noqa: F401
 from tests.backend.c1 import factories  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[3]
-MIGRATION_08 = ROOT / "backend" / "migrations" / "versions" / "20261128_08_c2_documents_ocr.py"
-C2_TABLES = {
-    "medical_document", "document_extraction", "extraction_field",
-    "extraction_event", "assessment_document", "document_inflight_operation",
-}
 
 # Native Tesseract location (owner-local). Overridable for portability.
 _NATIVE_TESSERACT = Path("/home/user/ocr-native/prefix/bin/tesseract")
@@ -123,21 +102,10 @@ def c2_database_url(tmp_path) -> str:
 
 @pytest.fixture
 def c2_schema(c2_database_url) -> str:
-    """Disposable C1+C2 schema with the real migration-08 triggers."""
-    engine = create_engine(c2_database_url)
-    try:
-        c1_tables = [t for n, t in Base.metadata.tables.items() if n not in C2_TABLES]
-        Base.metadata.create_all(engine, tables=c1_tables)
-        spec = importlib.util.spec_from_file_location("mig08_harness", MIGRATION_08)
-        mig = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mig)
-        with engine.connect() as conn:
-            ctx = MigrationContext.configure(conn)
-            mig.op = Operations(ctx)
-            mig.upgrade()
-            conn.commit()
-    finally:
-        engine.dispose()
+    """Disposable database upgraded through the integrated Alembic head."""
+    config = Config(str(ROOT / "alembic.ini"))
+    config.attributes["database_url"] = c2_database_url
+    command.upgrade(config, "head")
     return c2_database_url
 
 
@@ -175,7 +143,7 @@ def _source_key(request) -> str:
 
 @pytest.fixture
 def c2_app_factory(c2_schema, clock, test_settings, document_service):
-    """Build a C1+DOC test application (no alembic verify_schema)."""
+    """Build the integrated C1+C2 test application over the migrated schema."""
 
     def build() -> FastAPI:
         database = document_service.database
@@ -188,6 +156,10 @@ def c2_app_factory(c2_schema, clock, test_settings, document_service):
         )
         app.state.term1 = term1_handler
         register_term1_routes(app, handler=term1_handler)
+        register_c2_routes(
+            app, handler=term1_handler,
+            document_service_provider=lambda: document_service,
+        )
         doc_handler = DocumentHandler(
             database=database, term1=term1_handler, service=document_service
         )

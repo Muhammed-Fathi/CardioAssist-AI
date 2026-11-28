@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_document_confirm_response.schema.json",
+  "title": "term1_document_confirm_response.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "document_id",
+    "extraction_id",
+    "extraction_version",
+    "is_confirmed",
+    "confirmed_values_sha256",
+    "event_type",
+    "confirmed_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "enum": [
+        "v1"
+      ]
+    },
+    "document_id": {
+      "type": "string",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "extraction_id": {
+      "type": "string",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "extraction_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "is_confirmed": {
+      "type": "boolean",
+      "enum": [
+        true
+      ]
+    },
+    "confirmed_values_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "PATIENT_CONFIRMED",
+        "EDITED_AND_CONFIRMED"
+      ]
+    },
+    "confirmed_at": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 32
+    }
+  }
+}

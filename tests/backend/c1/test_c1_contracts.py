@@ -5,7 +5,7 @@ so that the contract source modules under ``shared/contracts/term1/`` cannot
 drift from the implementation in ``backend/app/term1/openapi.py`` and
 ``backend/app/term1/errors.py`` without failing a test.
 
-* 20 C1 + 5 C2 operations, 27 served (2 legacy + 20 C1 + 5 C2).
+* 20 C1 + 12 C2 operations, 34 served (2 legacy + 20 C1 + 12 C2).
 * ``IDEMPOTENT_C1`` = 10 paths, ``AUTHENTICATED_C1`` = 18 paths.
 * Error catalogue: 63 codes (C1 + C2), static messages, statuses consistent between
   ``errors.py::ERROR_CATALOGUE``, ``openapi.py::ERROR_CODES`` and
@@ -39,7 +39,7 @@ TERM1_DIR = ROOT / "shared" / "contracts" / "term1"
 _OP_RE = re.compile(r"`(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) (/v1/[A-Za-z0-9_{}/-]+)`")
 
 # ---------------------------------------------------------------------------
-# Operation inventory (20 C1 + 5 C2, 27 served, C1 header sets)
+# Operation inventory (20 C1 + 12 C2, 34 served, C1 header sets)
 # ---------------------------------------------------------------------------
 
 
@@ -82,7 +82,7 @@ def test_c1_operations_match_contract_modules():
 
 def test_c1_operation_counts():
     assert len(openapi.C1_OPERATIONS) == 20
-    assert len(openapi.SERVED_OPERATIONS) == 27  # 2 legacy + 20 C1 + 5 C2
+    assert len(openapi.SERVED_OPERATIONS) == 34  # 2 legacy + 20 C1 + 12 C2
     assert set(openapi.C1_OPERATIONS) <= set(openapi.SERVED_OPERATIONS)
     # Legacy ops are not C1.
     assert set(openapi.LEGACY_OPERATIONS).isdisjoint(set(openapi.C1_OPERATIONS))

@@ -288,8 +288,8 @@ def test_fresh_migration_creates_expected_tables_indexes_and_foreign_keys(databa
     engine = create_engine(database_url)
     try:
         inspector = inspect(engine)
-        # Legacy three tables, the exact C1 inventory, and the five C2 core
-        # tables from migration 07 (no 08 documents/OCR or C3 table).
+        # Legacy three tables, exact C1 inventory, five 07 core tables, and
+        # six 08 document/OCR tables; no C3 table.
         assert set(inspector.get_table_names()) == {
             "alembic_version",
             "monitoring_observation",
@@ -316,6 +316,12 @@ def test_fresh_migration_creates_expected_tables_indexes_and_foreign_keys(databa
             "assessment",
             "inference_attempt",
             "inference_result",
+            "medical_document",
+            "document_extraction",
+            "extraction_field",
+            "extraction_event",
+            "assessment_document",
+            "document_inflight_operation",
         }
         assert {item["name"] for item in inspector.get_indexes("monitoring_observation")} == {
             "ix_monitoring_observation_public_id",

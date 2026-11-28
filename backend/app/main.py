@@ -36,6 +36,7 @@ from .term1.c2_api import register_c2_routes
 from .term1.clock_provider import clock_from
 from .term1.openapi import compose_openapi
 from .term1.settings import Term1Settings
+from .term1_c2_documents.api import DocumentHandler, register_document_routes
 from .term1.timeutil import Clock
 
 
@@ -144,9 +145,19 @@ def create_app(
     )
     app.state.term1 = term1_handler
     register_term1_routes(app, handler=term1_handler)
-    # Additive Term 1 C2 clinical-intake surface (SAFE_SCOPE); composed into
-    # the same served OpenAPI document (see backend/app/term1/openapi.py).
-    register_c2_routes(app, handler=term1_handler)
+    # Track 2 document service is constructed lazily: ordinary C1/core routes
+    # remain available when document/OCR operator settings are absent. S1 gets
+    # this provider only after its normal live authorization checks.
+    document_handler = DocumentHandler(database=database, term1=term1_handler)
+    app.state.doc = document_handler
+
+    # Additive C2 clinical-intake + document/OCR routes. One composed contract
+    # describes all 34 served operations.
+    register_c2_routes(
+        app, handler=term1_handler,
+        document_service_provider=document_handler.service,
+    )
+    register_document_routes(app, handler=document_handler)
     app.openapi = compose_openapi(contracts)
 
     return app

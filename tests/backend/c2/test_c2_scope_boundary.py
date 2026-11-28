@@ -1,4 +1,4 @@
-"""SAFE_SCOPE boundary: no shared-route wiring, no AI access, no inference."""
+"""Integrated SAFE_SCOPE routes preserve the no-AI/no-inference boundary."""
 
 from __future__ import annotations
 
@@ -18,18 +18,21 @@ PACKAGE = Path(__file__).resolve().parents[3] / "backend" / "app" / "term1_c2_do
 FIXTURES = PACKAGE / "fixtures"
 
 
-def test_create_app_does_not_register_document_routes():
-    # Track 1 owns shared app registration. Track 2 supplies the DOC module only;
-    # create_app must still serve exactly the frozen 22-operation C1 inventory.
+def test_create_app_registers_the_integrated_document_routes():
     from backend.app.main import create_app
     from backend.app.term1.openapi import SERVED_OPERATIONS
 
     app = create_app()
-    served = {str(getattr(r, "path", "")) for r in app.routes}
-    served = {p for p in served if p.startswith("/v1")}
-    assert served == {p for _m, p in SERVED_OPERATIONS}
-    assert len(served) == 22
-    assert not any("/documents" in p for p in served)
+    served = {
+        (method.lower(), path)
+        for route in app.routes
+        for path in [str(getattr(route, "path", ""))]
+        for method in (getattr(route, "methods", None) or set())
+        if path.startswith("/v1") and method.upper() in {"GET", "POST", "PATCH", "PUT", "DELETE"}
+    }
+    assert served == set(SERVED_OPERATIONS)
+    assert len(served) == 34  # 2 legacy + 20 C1 + 5 core C2 + 7 DOC
+    assert sum(1 for _method, path in served if "/documents" in path) == 7
 
 
 def test_document_modules_import_no_ai_research_or_inference_runtime():
@@ -91,7 +94,7 @@ def test_confirmation_binds_no_assessment_and_dispatches_no_inference(client, pa
     )
     assert confirm.status_code == 200
     # Patient confirmation is NOT assessment submission: no assessment_document
-    # binding is created (that is Track 1's S1), and no inference is dispatched.
+    # binding is created until S1 is explicitly submitted; no inference is dispatched.
     with read_transaction(c2_app.state.database) as session:
         bindings = session.execute(text("SELECT COUNT(*) FROM assessment_document")).scalar_one()
         assert bindings == 0

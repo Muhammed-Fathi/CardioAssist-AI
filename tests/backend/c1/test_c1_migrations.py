@@ -39,16 +39,19 @@ C2_CORE_TABLES = {
     "inference_attempt",
     "inference_result",
 }
-# Not created by migration 07: Track 2 documents/OCR (08) and C3 (09).
-LATER_STAGE_TABLES = {
-    "assessment_review",
-    "follow_up_message",
-    "notification_record",
+C2_DOCUMENT_TABLES = {
     "medical_document",
     "document_extraction",
     "extraction_field",
     "extraction_event",
     "assessment_document",
+    "document_inflight_operation",
+}
+# Only C3-owned tables remain beyond the integrated 20261128_08 head.
+LATER_STAGE_TABLES = {
+    "assessment_review",
+    "follow_up_message",
+    "notification_record",
 }
 
 REVISION_ORDER = [
@@ -59,6 +62,7 @@ REVISION_ORDER = [
     "20261126_05",
     "20261126_06",
     "20261128_07",
+    "20261128_08",
 ]
 
 
@@ -70,8 +74,8 @@ def _tables(url: str) -> set[str]:
         engine.dispose()
 
 
-def test_migration_head_graph_is_the_documented_c1_chain(migrated_url):
-    assert _expected_migration_heads() == ("20261128_07",)
+def test_migration_head_graph_is_the_integrated_06_to_08_chain(migrated_url):
+    assert _expected_migration_heads() == ("20261128_08",)
     config = alembic_config(migrated_url)
     from alembic.script import ScriptDirectory
 
@@ -106,12 +110,12 @@ def test_legacy_migration_is_unchanged_and_preserved(migrated_url):
         engine.dispose()
 
 
-def test_c1_inventory_is_exact_and_no_later_stage_table_exists(migrated_url):
+def test_integrated_inventory_has_all_eleven_c2_tables_and_no_c3_tables(migrated_url):
     tables = _tables(migrated_url)
     assert C1_TABLES <= tables
-    # Migration 07 owns exactly the five C2 core tables; 08 (documents/OCR)
-    # and 09 (C3) tables must not exist yet.
     assert C2_CORE_TABLES <= tables, sorted(C2_CORE_TABLES - tables)
+    assert C2_DOCUMENT_TABLES <= tables, sorted(C2_DOCUMENT_TABLES - tables)
+    assert len(C2_CORE_TABLES | C2_DOCUMENT_TABLES) == 11
     assert not (LATER_STAGE_TABLES & tables), sorted(LATER_STAGE_TABLES & tables)
     # Every declared table is mapped; nothing is created outside Base.metadata.
     assert tables - {"alembic_version"} == set(Base.metadata.tables)
@@ -138,6 +142,7 @@ def test_referenced_tables_are_created_before_dependents():
         "20261126_05",
         "20261126_06",
         "20261128_07",
+        "20261128_08",
     ]
     assert list(declared) == list(reversed(order)) or set(declared) == set(order)
     seen: set[str] = set()
@@ -475,7 +480,7 @@ def test_startup_verification_is_read_only(migrated_url):
     finally:
         database.dispose()
     # No repair happened: alembic head and table inventory are unchanged.
-    assert _expected_migration_heads() == ("20261128_07",)
+    assert _expected_migration_heads() == ("20261128_08",)
     assert C1_TABLES <= _tables(migrated_url)
 
 
@@ -545,8 +550,8 @@ def test_bound_c1_downgrade_refused_before_ddl_preserves_all_state(
     assert len(before[1]["identity_key_check"]) == 3
     assert before[1]["durable_idempotency"]
     assert before[1]["patient_profile"]
-    assert before[1]["alembic_version"] == [("20261128_07",)]
-    with pytest.raises(RuntimeError, match="C1 downgrade refused: persisted C1 state"):
+    assert before[1]["alembic_version"] == [("20261128_08",)]
+    with pytest.raises(RuntimeError, match="C2 document downgrade refused: persisted state is present"):
         downgrade(migrated_url, "20261126_05")
     # The entire schema and every durable row must be untouched, including
     # Alembic metadata and the security binding; no temporary tables remain.
@@ -562,13 +567,13 @@ def test_admin_only_c1_state_also_refuses_downgrade(app, client, migrated_url):
     from tests.backend.c1.conftest import bootstrap_admin
 
     bootstrap_admin(app)
-    with pytest.raises(RuntimeError, match="C1 downgrade refused: persisted C1 state"):
+    with pytest.raises(RuntimeError, match="C2 document downgrade refused: persisted state is present"):
         downgrade(migrated_url, "20261017_01")
     db = Database(migrated_url)
     try:
         db.verify_schema()
         with db.engine.connect() as connection:
             assert connection.execute(text("SELECT COUNT(*) FROM user_account")).scalar_one() == 1
-            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20261128_07"
+            assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "20261128_08"
     finally:
         db.dispose()

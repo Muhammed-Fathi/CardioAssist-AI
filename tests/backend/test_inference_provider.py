@@ -134,8 +134,10 @@ def test_runtime_import_does_not_load_the_offline_admission_module():
 
 def test_no_application_route_mentions_artifact_admission():
     source = inspect.getsource(create_app)
-    assert "artifact" not in source
-    assert "provider" not in source
+    # The integrated application now receives a document-service provider for
+    # S1 binding; this remains distinct from any offline/inference provider.
+    assert "artifact_admission" not in source
+    assert "inference_provider" not in source
 
 
 def test_state_module_no_longer_reaches_the_mock_arithmetic_directly():
@@ -385,13 +387,13 @@ def test_the_offline_research_layer_added_no_provider_and_no_route(http_app):
     # The mock prediction and monitoring operations keep their exact paths, and
     # no research, synthetic-facade, artifact or model-serving route was added
     # beside them. The served /v1 surface is the frozen inventory: two legacy,
-    # twenty additive C1 and five SAFE_SCOPE C2 clinical-intake operations.
+    # twenty additive C1 and twelve SAFE_SCOPE C2 core/document operations.
     paths = sorted({str(getattr(route, "path", "")) for route in http_app.routes})
     served = {path for path in paths if path.startswith("/v1")}
     assert {CAD, MON} <= served
     assert served == {path for _method, path in SERVED_OPERATIONS}
-    assert len(SERVED_OPERATIONS) == 27  # operation count; GET/PATCH share one path
-    assert len(served) == 26  # unique paths; 2 legacy + 20 C1 + 4 new C2 paths
+    assert len(SERVED_OPERATIONS) == 34  # exact operation inventory
+    assert len(served) == 32  # unique paths; H1a/H1b share one path
     # C1 consent withdrawal is a patient-wide consent operation, not a synthetic
     # research facade, so it is the single allowed exception to the "synth"
     # substring guard. Every other forbidden marker remains fully guarded.

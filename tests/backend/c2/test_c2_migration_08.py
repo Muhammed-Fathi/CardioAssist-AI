@@ -1,10 +1,10 @@
-"""Migration 20261128_08 upgrade/downgrade behavior (disposable harness).
+"""Migration 20261128_08 upgrade/downgrade behavior.
 
-The full alembic ``06 → 07 → 08`` chain upgrade/downgrade is an integration
-checkpoint pending Track 1's ``20261128_07``. These tests exercise the migration's
-own ``upgrade()``/``downgrade()`` callables directly through a bound
-``alembic.operations.Operations`` so the DDL, the thirteen triggers and the RB-C1
-downgrade guard are genuinely verified without alembic head resolution.
+The suite exercises the real 06→07→08 chain through Alembic elsewhere. These
+focused disposable-schema tests additionally call migration 08's own
+``upgrade()``/``downgrade()`` through a bound ``Operations`` object to pin its
+six tables, thirteen new DOC triggers, the replacement assessment-scope trigger,
+and RB-C1 downgrade guard.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from sqlalchemy import create_engine, text
 from backend.app.storage.models import Base
 import backend.app.term1.models  # noqa: F401
 import backend.app.term1_c2_documents.models  # noqa: F401 - metadata registration
+from backend.app.term1.triggers import C2_TRIGGER_DEFINITIONS, normalize_trigger_sql
 
 MIGRATION = Path(__file__).resolve().parents[3] / "backend" / "migrations" / "versions" / "20261128_08_c2_documents_ocr.py"
 C2_TABLES = {"medical_document", "document_extraction", "extraction_field",
@@ -40,7 +41,7 @@ def _bind(engine, mig, *, as_sql=False):
     return conn, ctx
 
 
-def test_upgrade_creates_six_tables_and_thirteen_triggers(tmp_path):
+def test_upgrade_creates_six_tables_thirteen_doc_triggers_and_scope_override(tmp_path):
     engine = create_engine(f"sqlite:///{(tmp_path / 'm.sqlite3').as_posix()}")
     c1_tables = [t for n, t in Base.metadata.tables.items() if n not in C2_TABLES]
     Base.metadata.create_all(engine, tables=c1_tables)
@@ -54,8 +55,15 @@ def test_upgrade_creates_six_tables_and_thirteen_triggers(tmp_path):
         triggers = {r[0] for r in conn.execute(text(
             "SELECT name FROM sqlite_master WHERE type='trigger'"))}
         assert C2_TABLES.issubset(tables)
-        assert len(triggers) == 13
-        assert set(mig.TRIGGER_DEFINITIONS).issubset(triggers)
+        assert len(mig.TRIGGER_DEFINITIONS) == 13
+        assert len(triggers) == 14
+        assert set(mig.TRIGGER_DEFINITIONS) | {"tr_assessment_scope_insert"} == triggers
+        scope_sql = conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='trigger' "
+            "AND name='tr_assessment_scope_insert'"
+        )).scalar_one()
+        assert "json_array_length(s.snapshot_json, '$.attached_documents') <= 5" in scope_sql
+        assert "medical_document" in scope_sql
     finally:
         conn.close()
         engine.dispose()
@@ -108,12 +116,10 @@ def test_revision_metadata_is_additive_after_07():
     assert mig.revision == "20261128_08"
 
 
-# --- residual P0 integration reconciliation: 6th-table coverage --------------
-# The RB-C1 downgrade guard traverses the full C1 + 07 + 08 table list. Track 1's
-# 07 tables are unpublished on this contributor branch, so the disposable harness
-# creates EMPTY 07 stubs purely so the guard can reach the 08 tables. This is a
-# labelled harness affordance, NOT a claim that 07 is integrated; the real
-# 06 -> 07 -> 08 chain remains Track 1's integration checkpoint.
+# --- RB-C1 downgrade guard: 6th-table coverage -------------------------------
+# The focused direct-call harness creates empty core-table stubs so its
+# downgrade guard can query the complete C1 + 07 + 08 inventory. Full-chain
+# behavior is independently exercised by the integrated C1/C2 migration tests.
 _CORE_07_TABLES = (
     "health_profile", "assessment_snapshot", "assessment",
     "inference_attempt", "inference_result",
@@ -173,8 +179,15 @@ def test_empty_downgrade_drops_all_six_tables_and_triggers(tmp_path):
             "SELECT name FROM sqlite_master WHERE type='table'"))}
         triggers = {r[0] for r in conn.execute(text(
             "SELECT name FROM sqlite_master WHERE type='trigger'"))}
-        assert C2_TABLES.isdisjoint(tables)              # all six dropped
-        assert set(mig.TRIGGER_DEFINITIONS).isdisjoint(triggers)  # all 13 dropped
+        assert C2_TABLES.isdisjoint(tables)  # all six dropped
+        assert set(mig.TRIGGER_DEFINITIONS).isdisjoint(triggers)  # all 13 new DOC triggers dropped
+        restored_scope = conn.execute(text(
+            "SELECT sql FROM sqlite_master WHERE type='trigger' "
+            "AND name='tr_assessment_scope_insert'"
+        )).scalar_one()
+        assert normalize_trigger_sql(restored_scope) == normalize_trigger_sql(
+            C2_TRIGGER_DEFINITIONS["tr_assessment_scope_insert"]
+        )
     finally:
         conn.close()
         engine.dispose()

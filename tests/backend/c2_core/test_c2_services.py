@@ -1,7 +1,7 @@
 """C2 clinical-intake service tests: H1a, H1b, S1, S2, S3 (checkpoint §9).
 
 End-to-end through the HTTP routes on a fresh Alembic database (head
-``20261128_07``): authorization matrices, immutable versioning, the canonical
+``20261128_08``): authorization matrices, immutable versioning, the canonical
 snapshot digest, the SAFE_SCOPE terminal state with zero result rows, role
 projections, cursor pagination, and the C2 idempotency replay rules
 (live consent/assignment revalidation before any cached 2xx).

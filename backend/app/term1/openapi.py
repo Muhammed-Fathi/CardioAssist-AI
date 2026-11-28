@@ -7,7 +7,7 @@ at ``/openapi.json`` is composed here from the C1 contract source modules under
 ``paths-enrollment.yaml``, ``paths-patient.yaml``) together with the
 operation-specific JSON Schemas under ``shared/contracts/term1/schemas/``.
 
-Composition is canonical: every served C1 operation, its authenticated /
+Composition is canonical: every served C1/C2 operation, its authenticated /
 idempotent flags, and its request / response schema references are derived from
 the modular YAML source — not re-declared in code — so the served contract
 cannot drift from the contract source without a test failure.
@@ -60,11 +60,10 @@ def _load_path_modules() -> list[dict[str, Any]]:
 
 
 def _load_c2_path_modules() -> list[dict[str, Any]]:
-    """Load every C2 ``c2-paths-*.yaml`` contract module.
+    """Load the integrated C2 contract modules (assessment and documents).
 
-    Track 1 ships ``c2-paths-assessment.yaml``; Track 2 adds
-    ``c2-paths-documents.yaml`` at integration — both compose automatically
-    without editing this file (frozen shared boundary, reconciliation §6).
+    The shared boundary composes every ``c2-paths-*.yaml`` module without
+    duplicating operation inventories in application code.
     """
     return _load_modules("c2-paths-*.yaml")
 
@@ -98,8 +97,8 @@ C1_OPERATIONS: tuple[tuple[str, str], ...] = tuple(
     (op["method"].lower(), op["path"]) for op in _contract_operations()
 )
 
-# Canonical C2 operation inventory (Track 1 core assessment operations now;
-# Track 2 document/OCR operations compose in at integration).
+# Canonical C2 operation inventory (five core assessment operations plus the
+# seven integrated Track 2 document/OCR operations).
 C2_OPERATIONS: tuple[tuple[str, str], ...] = tuple(
     (op["method"].lower(), op["path"]) for op in _c2_operations()
 )
@@ -159,7 +158,7 @@ def _build_op_schemas() -> dict[tuple[str, str], dict[str, str | None]]:
             "request": request.get("request_schema")
             or (_schema_filename(op_id, "request") if request.get("body") == "required" else None),
             "response": success_entry.get("response_schema")
-            or _schema_filename(op_id, "response"),
+            or (None if op.get("binary") else _schema_filename(op_id, "response")),
         }
     return mapping
 
@@ -243,7 +242,7 @@ def _operation_object(
     operation: dict[str, Any] = {
         "operationId": f"{method}_{path.strip('/').replace('/', '_').replace('{', '').replace('}', '')}",
         "tags": [f"term1-{stage.lower()}"],
-        "summary": f"{stage} {method.upper()} {path}",
+        "summary": op.get("summary") or f"{stage} {method.upper()} {path}",
         "x-term1-stage": stage,
         "x-op-id": operation_id,
     }
@@ -268,6 +267,23 @@ def _operation_object(
         if query.get("description"):
             entry["description"] = query["description"]
         parameters.append(entry)
+    for name, query in (request.get("query", {}) or {}).items():
+        if "min" in query or "max" in query:
+            schema: dict[str, Any] = {"type": "integer"}
+            if "min" in query:
+                schema["minimum"] = query["min"]
+            if "max" in query:
+                schema["maximum"] = query["max"]
+            if "default" in query:
+                schema["default"] = query["default"]
+        else:
+            schema = {"type": query.get("type", "string")}
+        parameters.append({
+            "name": name,
+            "in": "query",
+            "required": not bool(query.get("optional", False)),
+            "schema": schema,
+        })
     if authenticated:
         parameters.append(
             {
@@ -298,9 +314,32 @@ def _operation_object(
     if authenticated:
         operation["security"] = [{"bearerAuth": []}]
 
-    # Request body presence and schema come from the YAML source. A body is only
-    # declared when a schema exists to validate it against.
-    if body_presence == "required" and request_schema:
+    # Request body presence, encoding and schema come from the module. DOC1 is
+    # multipart with three closed text fields and one bounded binary file part;
+    # JSON S1/DOC7 bodies reference their committed JSON Schemas.
+    if op.get("content_type") == "multipart/form-data":
+        form_fields = request.get("form_fields", {})
+        properties = {
+            name: copy.deepcopy(spec) for name, spec in form_fields.items()
+        }
+        file_part = request.get("file_part", "file")
+        properties[file_part] = {"type": "string", "format": "binary"}
+        operation["requestBody"] = {
+            "required": True,
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "required": [*form_fields, file_part],
+                        "additionalProperties": False,
+                        "properties": properties,
+                    }
+                }
+            },
+            "x-raw-body-cap-bytes": request.get("raw_body_cap_bytes"),
+            "x-file-cap-bytes": request.get("file_cap_bytes"),
+        }
+    elif body_presence == "required" and request_schema:
         operation["requestBody"] = {
             "required": True,
             "content": {
@@ -323,16 +362,23 @@ def _operation_object(
     responses = op.get("responses", []) or []
     success_entry = next((r for r in responses if str(r.get("status", "")).startswith("2")), None)
     success_status = str(success_entry.get("status", "200")) if success_entry else "200"
+    if op.get("binary"):
+        success_content = {
+            media_type: {"schema": {"type": "string", "format": "binary"}}
+            for media_type in success_entry.get("media_types", [])
+        }
+    else:
+        success_content = {
+            "application/json": {
+                "schema": {
+                    "$ref": f"#/components/schemas/{success_entry.get('response_schema') or response_schema or 'term1_error.schema.json'}"
+                }
+            }
+        }
     operation["responses"] = {
         success_status: {
             "description": success_entry.get("description", "Success."),
-            "content": {
-                "application/json": {
-                    "schema": {
-                        "$ref": f"#/components/schemas/{success_entry.get('response_schema') or response_schema or 'term1_error.schema.json'}"
-                    }
-                }
-            },
+            "content": success_content,
         }
     }
     # Error statuses come from the remaining (non-2xx) responses declared in YAML.
@@ -438,11 +484,11 @@ def compose_openapi(contracts) -> Any:
                 {
                     "name": "term1-c2",
                     "description": (
-                        "Term 1 C2 — clinical intake, canonical assessment "
-                        "snapshots and fail-closed unavailable inference. "
-                        "SAFE_SCOPE: zero artifact access, zero inference "
-                        "dispatch, zero result rows, zero mock fallback, no "
-                        "patient scores (A3/B pending)."
+                    "Term 1 C2 — clinical intake, canonical assessment "
+                    "snapshots, fabricated document intake and genuine local OCR. "
+                    "SAFE_SCOPE: zero artifact access, zero inference dispatch, "
+                    "zero result rows, zero mock fallback, no patient scores, "
+                    "and no OCR-to-inference path (A1/A2/A3/B pending)."
                     ),
                 }
             )

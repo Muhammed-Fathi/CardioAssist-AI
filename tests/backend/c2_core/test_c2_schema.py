@@ -1,10 +1,8 @@
-"""C2.1 schema verification: frozen trigger inventory and fail-closed checks.
+"""C2 schema verification: combined 07/08 trigger inventory and fail-closed checks.
 
-Migration ``20261128_07`` and ``backend.app.term1.triggers`` both carry the
-fifteen C2 trigger definitions; this suite pins the fresh-upgrade
-``sqlite_master`` output against the frozen dictionary (single drift guard)
-and proves ``Database.verify_schema()`` refuses startup when a trigger is
-missing or modified, while accepting an untouched head database.
+The integrated 06→07→08 chain has fifteen clinical-core triggers and thirteen
+Document/OCR triggers. Startup pins all 28 fresh-upgrade ``sqlite_master``
+statements against their frozen sources and refuses missing or modified DDL.
 """
 
 from __future__ import annotations
@@ -14,6 +12,10 @@ from sqlalchemy import create_engine, text
 
 from backend.app.storage.database import Database
 from backend.app.term1.triggers import C2_TRIGGER_DEFINITIONS, normalize_trigger_sql
+from backend.app.term1_c2_documents.triggers import (
+    ASSESSMENT_SCOPE_TRIGGER_OVERRIDE,
+    DOCUMENT_TRIGGER_DEFINITIONS,
+)
 
 
 def _trigger_map(url: str) -> dict[str, str]:
@@ -31,31 +33,23 @@ def _trigger_map(url: str) -> dict[str, str]:
         engine.dispose()
 
 
-def test_fresh_upgrade_creates_exactly_the_frozen_c2_trigger_set(migrated_database_url):
+def test_fresh_integrated_upgrade_creates_exactly_28_frozen_triggers(migrated_database_url):
     actual = _trigger_map(migrated_database_url)
+    definitions = C2_TRIGGER_DEFINITIONS | DOCUMENT_TRIGGER_DEFINITIONS
+    definitions["tr_assessment_scope_insert"] = ASSESSMENT_SCOPE_TRIGGER_OVERRIDE
     expected = {
-        name: normalize_trigger_sql(sql)
-        for name, sql in C2_TRIGGER_DEFINITIONS.items()
+        name: normalize_trigger_sql(sql) for name, sql in definitions.items()
     }
-    # Exactly the fifteen 07 triggers exist anywhere in the database (legacy
-    # C1 and monitoring tables own none), and every statement matches.
-    assert set(actual) == set(expected) == {
-        "tr_health_profile_immutable_update",
-        "tr_health_profile_no_delete",
-        "tr_snapshot_no_update",
-        "tr_snapshot_no_delete",
-        "tr_assessment_scope_insert",
-        "tr_assessment_pointer_insert",
-        "tr_assessment_pointer_update",
-        "tr_assessment_no_delete",
-        "tr_attempt_insert_guard",
-        "tr_attempt_associate_assessment",
-        "tr_attempt_transition_guard",
-        "tr_attempt_no_delete",
-        "tr_result_insert_forbidden",
-        "tr_result_no_update",
-        "tr_result_no_delete",
-    }
+    assert len(C2_TRIGGER_DEFINITIONS) == 15
+    assert len(DOCUMENT_TRIGGER_DEFINITIONS) == 13
+    assert (
+        ASSESSMENT_SCOPE_TRIGGER_OVERRIDE
+        != C2_TRIGGER_DEFINITIONS["tr_assessment_scope_insert"]
+    )
+    # The 08 migration replaces one core guard and adds thirteen DOC triggers:
+    # the live 28-name inventory is exact, with no unreviewed extras.
+    assert len(expected) == 28
+    assert set(actual) == set(expected)
     assert actual == expected
 
 
@@ -139,4 +133,4 @@ def test_c2_trigger_failures_never_modify_the_database(migrated_database_url):
     with create_engine(migrated_database_url).connect() as connection:
         assert connection.execute(
             text("SELECT version_num FROM alembic_version")
-        ).scalar_one() == "20261128_07"
+        ).scalar_one() == "20261128_08"

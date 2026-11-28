@@ -45,6 +45,13 @@ C2_OPERATIONS = {
     ("post", "/v1/assessments"),
     ("get", "/v1/assessments/{assessment_id}"),
     ("get", "/v1/me/assessments"),
+    ("post", "/v1/me/documents"),
+    ("get", "/v1/me/documents"),
+    ("get", "/v1/me/documents/{document_id}"),
+    ("get", "/v1/me/documents/{document_id}/content"),
+    ("post", "/v1/me/documents/{document_id}/extract"),
+    ("get", "/v1/me/documents/{document_id}/extraction"),
+    ("post", "/v1/me/documents/{document_id}/confirm"),
 }
 
 EXPECTED_OPERATIONS = LEGACY_OPERATIONS | C1_OPERATIONS | C2_OPERATIONS
@@ -69,11 +76,29 @@ def test_bundled_openapi_is_valid_and_serves_exactly_the_approved_operations(cli
         assert set(document["paths"][path]) == {"post"}
         assert "422" in document["paths"][path]["post"]["responses"]
         assert "HTTPValidationError" not in json.dumps(document["paths"][path])
-    # The served surface is exactly the frozen inventory: 2 legacy + 20 C1 + 5 C2.
+    # One authoritative surface: 2 legacy + 20 C1 + 12 C2 operations.
     assert _served_operations(document) == EXPECTED_OPERATIONS
-    assert len(EXPECTED_OPERATIONS) == 27
+    assert len(EXPECTED_OPERATIONS) == 34
     for _method, path in C1_OPERATIONS | C2_OPERATIONS:
         assert "HTTPValidationError" not in json.dumps(document["paths"][path])
+    upload = document["paths"]["/v1/me/documents"]["post"]["requestBody"]
+    assert upload["required"] is True
+    assert "multipart/form-data" in upload["content"]
+    form = upload["content"]["multipart/form-data"]["schema"]
+    assert set(form["required"]) == {
+        "contract_version", "document_kind", "fixture_template_id", "file"
+    }
+    binary = document["paths"]["/v1/me/documents/{document_id}/content"]["get"]
+    assert set(binary["responses"]["200"]["content"]) == {
+        "application/pdf", "image/png", "image/jpeg"
+    }
+    listed = document["paths"]["/v1/me/documents"]["get"]
+    assert {p["name"] for p in listed["parameters"] if p["in"] == "query"} == {
+        "limit", "cursor"
+    }
+    assert "term1_document_confirm_request.schema.json" in json.dumps(
+        document["paths"]["/v1/me/documents/{document_id}/confirm"]["post"]
+    )
     assert document["servers"] == [{
         "url": "/", "description": (
             "Relative to the deployment origin. This project is local-first at $0 "

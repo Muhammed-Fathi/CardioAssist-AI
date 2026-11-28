@@ -1,9 +1,8 @@
 """T2-R5 regressions: exact multipart contract, bounded JSON, pixel metadata,
 strict DOC7 schema and the DOC route inventory.
 
-The final integrated route inventory (existing 22 + 5 core C2 + 7 document = 34)
-is assembled by Track 1's shared wiring; this contributor surface registers
-exactly the seven DOC operations and does not weaken the C1 guards.
+The final integrated route inventory is 2 legacy + 20 C1 + 5 core C2 + 7 DOC
+operations. This suite pins the seven DOC operations without weakening C1 guards.
 """
 
 from __future__ import annotations

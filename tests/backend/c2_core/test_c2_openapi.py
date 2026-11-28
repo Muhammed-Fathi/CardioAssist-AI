@@ -1,10 +1,9 @@
-"""C2 served-OpenAPI contract tests (checkpoint §9).
+"""Integrated C2 served-OpenAPI contract tests (checkpoint §9).
 
-The five C2 clinical-intake operations are composed into the served
-``/openapi.json`` from ``c2-paths-assessment.yaml`` + the C2 request/response
-schemas, with the frozen authentication/idempotency flags, error matrices
-resolvable against the closed 63-code catalogue, and score-free response
-shapes (``research_output`` always null, SAFE_SCOPE status-only S1).
+The five clinical-intake and seven document/OCR operations are composed into
+``/openapi.json`` from the modular paths and schemas, with frozen auth and
+idempotency flags, catalogue-backed error matrices, and score-free responses
+(``research_output`` always null; SAFE_SCOPE S1 is status-only).
 """
 
 from __future__ import annotations
@@ -27,6 +26,16 @@ C2_OPS = {
     ("post", "/v1/assessments"),
     ("get", "/v1/assessments/{assessment_id}"),
     ("get", "/v1/me/assessments"),
+}
+
+DOC_OPS = {
+    ("post", "/v1/me/documents"),
+    ("get", "/v1/me/documents"),
+    ("get", "/v1/me/documents/{document_id}"),
+    ("get", "/v1/me/documents/{document_id}/content"),
+    ("post", "/v1/me/documents/{document_id}/extract"),
+    ("get", "/v1/me/documents/{document_id}/extraction"),
+    ("post", "/v1/me/documents/{document_id}/confirm"),
 }
 
 FORBIDDEN_PATH_MARKERS = ("research", "synth", "facade", "artifact", "registry")
@@ -57,33 +66,77 @@ def _ops(document: dict) -> set[tuple[str, str]]:
 def test_c2_operations_are_composed_into_the_served_document():
     document = _served_document()
     served = _ops(document)
-    assert C2_OPS <= served
+    assert C2_OPS | DOC_OPS <= served
     assert served == set(openapi.SERVED_OPERATIONS)
-    assert len(served) == 27  # 2 legacy + 20 C1 + 5 C2
-    assert set(openapi.C2_OPERATIONS) == C2_OPS
-    assert set(openapi.C1_OPERATIONS).isdisjoint(C2_OPS)
-    assert set(openapi.LEGACY_OPERATIONS).isdisjoint(C2_OPS)
+    assert len(served) == 34  # 2 legacy + 20 C1 + 5 core C2 + 7 DOC
+    assert set(openapi.C2_OPERATIONS) == C2_OPS | DOC_OPS
+    assert set(openapi.C1_OPERATIONS).isdisjoint(C2_OPS | DOC_OPS)
+    assert set(openapi.LEGACY_OPERATIONS).isdisjoint(C2_OPS | DOC_OPS)
 
 
 def test_c2_paths_carry_no_forbidden_markers():
-    for method, path in C2_OPS:
+    for method, path in C2_OPS | DOC_OPS:
         for marker in FORBIDDEN_PATH_MARKERS:
             assert marker not in path.lower(), (path, marker)
 
 
+def test_document_paths_are_authoritative_in_the_composed_openapi():
+    module = yaml.safe_load((TERM1_DIR / "c2-paths-documents.yaml").read_text())
+    assert module["status"] == "PROPOSED — NOT APPROVED, NOT DEPLOYED"
+    declared = {
+        (op["method"].lower(), op["path"]): op for op in module["operations"]
+    }
+    assert set(declared) == DOC_OPS
+    document = _served_document()
+    for (method, path), source in declared.items():
+        operation = document["paths"][path][method]
+        assert operation["security"] == [{"bearerAuth": []}]
+        assert operation["x-op-id"] == source["id"]
+        assert operation["x-term1-stage"] == "C2"
+        assert any(
+            p.get("name") == "Authorization" and p.get("in") == "header"
+            for p in operation.get("parameters", [])
+        )
+        has_idempotency = any(
+            p.get("name") == "Idempotency-Key"
+            for p in operation.get("parameters", [])
+        )
+        assert has_idempotency is bool(source["idempotent"])
+        for response in source["responses"]:
+            status = str(response["status"])
+            if status.startswith("2"):
+                continue
+            served_response = operation["responses"][status]
+            for code in response.get("codes", []):
+                assert code in errors.ERROR_CATALOGUE
+                assert str(errors.ERROR_CATALOGUE[code][0]) == status
+                assert code in served_response.get("x-error-codes", [])
+
+    assert set(document["paths"]["/v1/me/documents"]["post"]["requestBody"]["content"]) == {
+        "multipart/form-data"
+    }
+    assert set(document["paths"]["/v1/me/documents/{document_id}/content"]["get"]["responses"]["200"]["content"]) == {
+        "application/pdf", "image/png", "image/jpeg"
+    }
+
+
 def test_c2_auth_and_idempotency_flags_are_frozen():
-    authenticated_paths = {path for _, path in C2_OPS}
+    all_c2_ops = C2_OPS | DOC_OPS
+    authenticated_paths = {path for _, path in all_c2_ops}
     idempotent_ops = {
         ("patch", "/v1/me/health-profile"),
         ("post", "/v1/assessments"),
+        ("post", "/v1/me/documents"),
+        ("post", "/v1/me/documents/{document_id}/extract"),
+        ("post", "/v1/me/documents/{document_id}/confirm"),
     }
     idempotent_paths = {path for _, path in idempotent_ops}
     assert openapi.AUTHENTICATED_C2 == authenticated_paths
-    # The helper frozenset is path-level by design; the operation-level check
-    # below pins which method on a shared path actually requires the header.
+    # Helpers are path-level by design; the operation-level check below pins
+    # which method on a shared path actually requires the idempotency header.
     assert openapi.IDEMPOTENT_C2 == idempotent_paths
     document = _served_document()
-    for method, path in C2_OPS:
+    for method, path in all_c2_ops:
         operation = document["paths"][path][method]
         assert operation.get("security") == [{"bearerAuth": []}], (method, path)
         has_idempotency_key = any(

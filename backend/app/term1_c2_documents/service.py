@@ -892,22 +892,60 @@ class DocumentService:
         return {"inputs": clean_inputs, "units": clean_units, "missing_reasons": clean_reasons}
 
     # --- assessment binding helper (called by Track 1 S1) -------------------
-    def bind_assessment_document(
-        self, session: Session, *, assessment_id: str, patient_id: str,
-        document_id: str, attachment_role: str, extraction_id: str | None,
-        extraction_version: int | None,
-    ) -> AssessmentDocument:
+    def resolve_assessment_document_binding(
+        self, session: Session, *, patient_id: str, document_id: str,
+        binding_id: str, attachment_role: str | None = None,
+        extraction_id: str | None = None, extraction_version: int | None = None,
+    ) -> dict[str, Any]:
+        """Authorize and fully verify one immutable binding before S1 snapshots.
+
+        ``binding_id`` is allocated by the S1 caller before this resolver runs.
+        Manual submissions infer only the attachment *role* from the server-owned
+        document kind; they never copy OCR fields into the assessment inputs.
+        The explicit OCR-source branch is retained for the separately gated
+        ``ocr_confirmed`` mode and requires an exact confirmed extraction pair.
+        """
         row = self._owned_document(session, patient_id, document_id)
         if row.upload_status != C.UPLOAD_STORED or row.content_sha256 is None:
             raise doc_api_error("document_not_found")
-        # Bind VERIFIED bytes (T2-R2): re-read and verify the complete buffer
-        # against the recorded digest before recording the binding identity.
+        if row.content_sha256 != row.fixture_file_sha256:
+            raise doc_api_error("document_integrity_mismatch")
+        entry = self.manifest.lookup(row.fixture_file_sha256)
+        if (
+            entry is None
+            or entry.byte_size != row.byte_size
+            or entry.media_type != row.declared_media_type
+            or entry.template_id != row.fixture_template_id
+            or entry.document_kind != row.document_kind
+        ):
+            raise doc_api_error("document_integrity_mismatch")
+        # Bind VERIFIED bytes: the complete blob is re-read and checked against
+        # both immutable digest identities before the canonical snapshot exists.
         try:
             self.store.read_verified(
-                row.storage_key, expected_sha256=row.content_sha256, expected_size=row.byte_size
+                row.storage_key,
+                expected_sha256=row.content_sha256,
+                expected_size=row.byte_size,
             )
         except IntegrityError as error:
             raise doc_api_error("document_integrity_mismatch") from error
+
+        if attachment_role is None:
+            if row.document_kind == C.DOC_KIND_RESTING:
+                attachment_role = C.ROLE_SUPPORTING
+            elif row.document_kind == C.DOC_KIND_LABS:
+                attachment_role = C.ROLE_UNRELATED_LAB
+            else:
+                raise doc_api_error("document_not_found")
+        if attachment_role not in C.ATTACHMENT_ROLES:
+            raise doc_api_error("validation_failed")
+        if attachment_role == C.ROLE_UNRELATED_LAB:
+            if row.document_kind != C.DOC_KIND_LABS:
+                raise doc_api_error("validation_failed")
+        elif row.document_kind != C.DOC_KIND_RESTING:
+            raise doc_api_error("validation_failed")
+
+        extraction = None
         if attachment_role == C.ROLE_OCR_SOURCE:
             if extraction_id is None or extraction_version is None:
                 raise doc_api_error("validation_failed")
@@ -918,18 +956,87 @@ class DocumentService:
                 raise doc_api_error("document_not_confirmed")
             if extraction.extraction_version != extraction_version:
                 raise doc_api_error("extraction_version_conflict")
+            if (
+                extraction.template_id != C.TEMPLATE_RESTING
+                or extraction.document_sha256 != row.content_sha256
+            ):
+                raise doc_api_error("unsupported_template_for_intake")
             fields = session.execute(
-                select(ExtractionField).where(ExtractionField.extraction_id == extraction_id)
+                select(ExtractionField).where(
+                    ExtractionField.extraction_id == extraction_id,
+                    ExtractionField.document_id == document_id,
+                )
             ).scalars().all()
-            self._verify_confirmed_integrity(session, extraction, fields, row.uploaded_by_user_id)
+            self._verify_confirmed_integrity(
+                session, extraction, fields, row.uploaded_by_user_id
+            )
+        elif extraction_id is not None or extraction_version is not None:
+            raise doc_api_error("validation_failed")
+
+        return {
+            "binding_id": binding_id,
+            "document_id": row.document_id,
+            "attachment_role": attachment_role,
+            "extraction_id": extraction.extraction_id if extraction is not None else None,
+            "extraction_version": extraction.extraction_version if extraction is not None else None,
+            "document_sha256_at_bind": row.content_sha256,
+            "extraction_confirmed_at": extraction.confirmed_at if extraction is not None else None,
+            "confirmed_values_sha256": (
+                extraction.confirmed_values_sha256 if extraction is not None else None
+            ),
+        }
+
+    def persist_assessment_document_binding(
+        self, session: Session, *, assessment_id: str, patient_id: str,
+        descriptor: Mapping[str, Any],
+    ) -> AssessmentDocument:
+        """Persist the exact pre-snapshot binding, rechecking its live identity.
+
+        This second check closes the gap between the initial verified read and
+        the insert. The row, snapshot, assessment, attempt and audit all commit
+        or roll back in the caller's single S1 write transaction.
+        """
+        current = self.resolve_assessment_document_binding(
+            session,
+            patient_id=patient_id,
+            document_id=str(descriptor["document_id"]),
+            binding_id=str(descriptor["binding_id"]),
+            attachment_role=str(descriptor["attachment_role"]),
+            extraction_id=descriptor["extraction_id"],
+            extraction_version=descriptor["extraction_version"],
+        )
+        if dict(descriptor) != current:
+            raise doc_api_error("document_integrity_mismatch")
         binding = AssessmentDocument(
-            binding_id=str(uuid.uuid4()), assessment_id=assessment_id,
-            patient_id=patient_id, document_id=document_id, extraction_id=extraction_id,
-            extraction_version=extraction_version, document_sha256_at_bind=row.content_sha256,
-            attachment_role=attachment_role, created_at=self.clock.now_iso(),
+            binding_id=current["binding_id"], assessment_id=assessment_id,
+            patient_id=patient_id, document_id=current["document_id"],
+            extraction_id=current["extraction_id"],
+            extraction_version=current["extraction_version"],
+            document_sha256_at_bind=current["document_sha256_at_bind"],
+            attachment_role=current["attachment_role"], created_at=self.clock.now_iso(),
         )
         session.add(binding)
         return binding
+
+    def bind_assessment_document(
+        self, session: Session, *, assessment_id: str, patient_id: str,
+        document_id: str, attachment_role: str, extraction_id: str | None,
+        extraction_version: int | None, binding_id: str | None = None,
+    ) -> AssessmentDocument:
+        """Compatibility wrapper; S1 should resolve first, then persist later."""
+        descriptor = self.resolve_assessment_document_binding(
+            session,
+            patient_id=patient_id,
+            document_id=document_id,
+            binding_id=binding_id or str(uuid.uuid4()),
+            attachment_role=attachment_role,
+            extraction_id=extraction_id,
+            extraction_version=extraction_version,
+        )
+        return self.persist_assessment_document_binding(
+            session, assessment_id=assessment_id, patient_id=patient_id,
+            descriptor=descriptor,
+        )
 
     # --- crash recovery -----------------------------------------------------
     def recover_pending(self, *, startup: bool = False) -> int:

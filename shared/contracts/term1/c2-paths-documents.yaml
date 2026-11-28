@@ -1,0 +1,421 @@
+status: PROPOSED — NOT APPROVED, NOT DEPLOYED
+server: /v1
+content_type: application/json
+contract_version: v1
+stage: C2
+synthetic_data_only: true
+description: Track 2 C2 SAFE_SCOPE bounded document intake + genuine local OCR (DOC1–DOC7).
+  Fabricated demo fixtures only; exact server-owned SHA-256 allowlist; isolated unprivileged
+  OCR worker; no inference dispatch; patient confirmation is not clinician verification.
+cross_cutting_rules:
+  authentication: 'Authorization: Bearer <session_token>; never in body/query/cookie'
+  idempotency: Exactly one Idempotency-Key on DOC1/DOC5/DOC7
+  ownership: Wrong-owner reads return 404 document_not_found (no IDOR oracle)
+  consent: Active synthetic-demo consent re-checked on every mutating operation and
+    replay
+  cache: 'Cache-Control: no-store on every JSON response; binary adds nosniff + CSP'
+operations:
+- id: DOC1
+  method: POST
+  path: /v1/me/documents
+  authenticated: true
+  idempotent: true
+  target_ref: none
+  content_type: multipart/form-data
+  summary: Upload a fabricated demo document; durable PENDING_SCAN quota reservation,
+    bounded isolated-worker validation, atomic STORED promotion.
+  request:
+    form_fields:
+      contract_version:
+        type: string
+        enum:
+        - v1
+      document_kind:
+        type: string
+        enum:
+        - RESTING_CARDIAC_DEMO_REPORT
+        - UNRELATED_LAB_DEMO_REPORT
+      fixture_template_id:
+        type: string
+        enum:
+        - CAI-DEMO-RESTING-CARDIAC-REPORT-V1
+        - CAI-DEMO-UNRELATED-LABS-V1
+    file_part: file
+    raw_body_cap_bytes: 6291456
+    file_cap_bytes: 5242880
+  responses:
+  - status: 201
+    description: Document stored and digest-verified.
+    response_schema: term1_document_upload_response.schema.json
+  - status: 400
+    codes:
+    - idempotency_key_required
+    - malformed_request
+    description: Declared failure statuses for 400
+  - status: 401
+    codes:
+    - authentication_required
+    - invalid_session
+    description: Declared failure statuses for 401
+  - status: 403
+    codes:
+    - admin_clinical_content_forbidden
+    - consent_required
+    - forbidden
+    - password_change_required
+    description: Declared failure statuses for 403
+  - status: 409
+    codes:
+    - concurrency_conflict
+    - document_limit_reached
+    - idempotency_key_conflict
+    - idempotency_scope_conflict
+    description: Declared failure statuses for 409
+  - status: 413
+    codes:
+    - payload_too_large
+    description: Declared failure statuses for 413
+  - status: 415
+    codes:
+    - unsupported_media_type
+    description: Declared failure statuses for 415
+  - status: 422
+    codes:
+    - active_pdf_content_rejected
+    - invalid_document_content
+    - validation_failed
+    description: Declared failure statuses for 422
+  - status: 500
+    codes:
+    - internal_error
+    description: Declared failure statuses for 500
+  - status: 503
+    codes:
+    - identity_key_configuration_error
+    - worker_unavailable
+    description: Declared failure statuses for 503
+- id: DOC2
+  method: GET
+  path: /v1/me/documents
+  authenticated: true
+  idempotent: false
+  summary: List the caller's stored documents (cursor pagination).
+  request:
+    query:
+      limit:
+        min: 1
+        max: 100
+        default: 20
+      cursor:
+        type: string
+        optional: true
+  responses:
+  - status: 200
+    description: Owned stored documents.
+    response_schema: term1_document_list_response.schema.json
+  - status: 400
+    codes:
+    - idempotency_key_required
+    - malformed_request
+    description: Declared failure statuses for 400
+  - status: 401
+    codes:
+    - authentication_required
+    - invalid_session
+    description: Declared failure statuses for 401
+  - status: 403
+    codes:
+    - admin_clinical_content_forbidden
+    - consent_required
+    - forbidden
+    - password_change_required
+    description: Declared failure statuses for 403
+  - status: 409
+    codes:
+    - concurrency_conflict
+    - idempotency_key_conflict
+    - idempotency_scope_conflict
+    description: Declared failure statuses for 409
+  - status: 422
+    codes:
+    - validation_failed
+    description: Declared failure statuses for 422
+  - status: 500
+    codes:
+    - internal_error
+    description: Declared failure statuses for 500
+  - status: 503
+    codes:
+    - identity_key_configuration_error
+    - worker_unavailable
+    description: Declared failure statuses for 503
+- id: DOC3
+  method: GET
+  path: /v1/me/documents/{document_id}
+  authenticated: true
+  idempotent: false
+  summary: Read one owned document's metadata.
+  request:
+    path_params:
+    - document_id
+  responses:
+  - status: 200
+    description: Document metadata.
+    response_schema: term1_document_read_response.schema.json
+  - status: 400
+    codes:
+    - idempotency_key_required
+    - malformed_request
+    description: Declared failure statuses for 400
+  - status: 401
+    codes:
+    - authentication_required
+    - invalid_session
+    description: Declared failure statuses for 401
+  - status: 403
+    codes:
+    - admin_clinical_content_forbidden
+    - consent_required
+    - forbidden
+    - password_change_required
+    description: Declared failure statuses for 403
+  - status: 404
+    codes:
+    - document_not_found
+    description: Declared failure statuses for 404
+  - status: 409
+    codes:
+    - concurrency_conflict
+    - idempotency_key_conflict
+    - idempotency_scope_conflict
+    description: Declared failure statuses for 409
+  - status: 422
+    codes:
+    - validation_failed
+    description: Declared failure statuses for 422
+  - status: 500
+    codes:
+    - internal_error
+    description: Declared failure statuses for 500
+  - status: 503
+    codes:
+    - identity_key_configuration_error
+    - worker_unavailable
+    description: Declared failure statuses for 503
+- id: DOC4
+  method: GET
+  path: /v1/me/documents/{document_id}/content
+  authenticated: true
+  idempotent: false
+  binary: true
+  summary: Download the verified document bytes. The complete bounded buffer is SHA-256
+    verified BEFORE any HTTP status/headers/body are sent.
+  request:
+    path_params:
+    - document_id
+  responses:
+  - status: 200
+    description: Verified bytes; attachment; nosniff; CSP default-src 'none'.
+    media_types:
+    - application/pdf
+    - image/png
+    - image/jpeg
+  - status: 404
+    codes:
+    - document_not_found
+    description: Not found / not owned.
+  - status: 409
+    codes:
+    - document_integrity_mismatch
+    description: Stored digest mismatch; zero document bytes sent.
+  - status: 401
+    codes:
+    - authentication_required
+    - invalid_session
+    description: Unauthenticated.
+  - status: 403
+    codes:
+    - forbidden
+    - admin_clinical_content_forbidden
+    description: Wrong role.
+  - status: 500
+    codes:
+    - internal_error
+    description: Unexpected failure.
+- id: DOC5
+  method: POST
+  path: /v1/me/documents/{document_id}/extract
+  authenticated: true
+  idempotent: true
+  target_ref: document_id
+  summary: Run genuine local extraction (PDF text / raster OCR) into a new immutable
+    extraction version. Never dispatches inference.
+  request:
+    path_params:
+    - document_id
+    body: optional
+  responses:
+  - status: 200
+    description: Extraction draft / review result.
+    response_schema: term1_document_extraction_response.schema.json
+  - status: 400
+    codes:
+    - idempotency_key_required
+    - malformed_request
+    description: Declared failure statuses for 400
+  - status: 401
+    codes:
+    - authentication_required
+    - invalid_session
+    description: Declared failure statuses for 401
+  - status: 403
+    codes:
+    - admin_clinical_content_forbidden
+    - consent_required
+    - forbidden
+    - password_change_required
+    description: Declared failure statuses for 403
+  - status: 404
+    codes:
+    - document_not_found
+    description: Declared failure statuses for 404
+  - status: 409
+    codes:
+    - concurrency_conflict
+    - document_integrity_mismatch
+    - idempotency_key_conflict
+    - idempotency_scope_conflict
+    description: Declared failure statuses for 409
+  - status: 422
+    codes:
+    - active_pdf_content_rejected
+    - invalid_document_content
+    - validation_failed
+    description: Declared failure statuses for 422
+  - status: 500
+    codes:
+    - internal_error
+    description: Declared failure statuses for 500
+  - status: 503
+    codes:
+    - identity_key_configuration_error
+    - worker_unavailable
+    description: Declared failure statuses for 503
+- id: DOC6
+  method: GET
+  path: /v1/me/documents/{document_id}/extraction
+  authenticated: true
+  idempotent: false
+  summary: Read the latest extraction version for an owned document.
+  request:
+    path_params:
+    - document_id
+  responses:
+  - status: 200
+    description: Latest extraction.
+    response_schema: term1_document_extraction_response.schema.json
+  - status: 400
+    codes:
+    - idempotency_key_required
+    - malformed_request
+    description: Declared failure statuses for 400
+  - status: 401
+    codes:
+    - authentication_required
+    - invalid_session
+    description: Declared failure statuses for 401
+  - status: 403
+    codes:
+    - admin_clinical_content_forbidden
+    - consent_required
+    - forbidden
+    - password_change_required
+    description: Declared failure statuses for 403
+  - status: 404
+    codes:
+    - document_not_found
+    - extraction_not_found
+    description: Declared failure statuses for 404
+  - status: 409
+    codes:
+    - concurrency_conflict
+    - idempotency_key_conflict
+    - idempotency_scope_conflict
+    description: Declared failure statuses for 409
+  - status: 422
+    codes:
+    - validation_failed
+    description: Declared failure statuses for 422
+  - status: 500
+    codes:
+    - internal_error
+    description: Declared failure statuses for 500
+  - status: 503
+    codes:
+    - identity_key_configuration_error
+    - worker_unavailable
+    description: Declared failure statuses for 503
+- id: DOC7
+  method: POST
+  path: /v1/me/documents/{document_id}/confirm
+  authenticated: true
+  idempotent: true
+  target_ref: document_id
+  summary: Explicit patient confirmation (with optional edits) of one extraction version.
+    Patient confirmation is NOT clinician verification and NOT assessment submission.
+  request:
+    path_params:
+    - document_id
+    body: required
+    request_schema: term1_document_confirm_request.schema.json
+  responses:
+  - status: 200
+    description: Confirmed immutable version + provenance.
+    response_schema: term1_document_confirm_response.schema.json
+  - status: 400
+    codes:
+    - idempotency_key_required
+    - malformed_request
+    description: Declared failure statuses for 400
+  - status: 401
+    codes:
+    - authentication_required
+    - invalid_session
+    description: Declared failure statuses for 401
+  - status: 403
+    codes:
+    - admin_clinical_content_forbidden
+    - consent_required
+    - forbidden
+    - password_change_required
+    description: Declared failure statuses for 403
+  - status: 404
+    codes:
+    - document_not_found
+    - extraction_not_found
+    description: Declared failure statuses for 404
+  - status: 409
+    codes:
+    - concurrency_conflict
+    - extraction_already_confirmed
+    - extraction_version_conflict
+    - idempotency_key_conflict
+    - idempotency_scope_conflict
+    description: Declared failure statuses for 409
+  - status: 422
+    codes:
+    - invalid_panel_input
+    - missing_reason_mismatch
+    - prohibited_clinical_field
+    - unsupported_template_for_intake
+    - validation_failed
+    description: Declared failure statuses for 422
+  - status: 500
+    codes:
+    - internal_error
+    description: Declared failure statuses for 500
+  - status: 503
+    codes:
+    - identity_key_configuration_error
+    - worker_unavailable
+    description: Declared failure statuses for 503

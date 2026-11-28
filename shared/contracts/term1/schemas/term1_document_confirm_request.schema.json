@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardioassist.local/contracts/term1/schemas/term1_document_confirm_request.schema.json",
+  "title": "term1_document_confirm_request.schema.json",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "extraction_id",
+    "extraction_version",
+    "confirmed_inputs",
+    "units",
+    "missing_reasons",
+    "confirm_fabricated_demo_inputs"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "type": "string",
+      "enum": [
+        "v1"
+      ]
+    },
+    "extraction_id": {
+      "type": "string",
+      "minLength": 36,
+      "maxLength": 36
+    },
+    "extraction_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "confirmed_inputs": {
+      "type": "object",
+      "required": [],
+      "additionalProperties": false,
+      "properties": {
+        "age": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sex": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cp": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trestbps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "restecg": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "units": {
+      "type": "object",
+      "required": [],
+      "additionalProperties": false,
+      "properties": {
+        "age": {
+          "type": "string"
+        },
+        "sex": {
+          "type": "string"
+        },
+        "cp": {
+          "type": "string"
+        },
+        "trestbps": {
+          "type": "string"
+        },
+        "restecg": {
+          "type": "string"
+        }
+      }
+    },
+    "missing_reasons": {
+      "type": "object",
+      "required": [],
+      "additionalProperties": false,
+      "properties": {
+        "age": {
+          "type": "string",
+          "enum": [
+            "not_available_at_time",
+            "not_measured",
+            "not_provided",
+            "unknown"
+          ]
+        },
+        "sex": {
+          "type": "string",
+          "enum": [
+            "not_available_at_time",
+            "not_measured",
+            "not_provided",
+            "unknown"
+          ]
+        },
+        "cp": {
+          "type": "string",
+          "enum": [
+            "not_available_at_time",
+            "not_measured",
+            "not_provided",
+            "unknown"
+          ]
+        },
+        "trestbps": {
+          "type": "string",
+          "enum": [
+            "not_available_at_time",
+            "not_measured",
+            "not_provided",
+            "unknown"
+          ]
+        },
+        "restecg": {
+          "type": "string",
+          "enum": [
+            "not_available_at_time",
+            "not_measured",
+            "not_provided",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "confirm_fabricated_demo_inputs": {
+      "type": "boolean",
+      "enum": [
+        true
+      ]
+    }
+  }
+}

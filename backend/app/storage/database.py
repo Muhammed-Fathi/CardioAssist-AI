@@ -144,6 +144,8 @@ class Database:
         from sqlalchemy import String, inspect
 
         from .models import Base
+        from ..term1 import models as _term1_models  # noqa: F401  (register shared metadata)
+        from ..term1_c2_documents import models as _term1_c2_document_models  # noqa: F401
 
         expected_heads = _expected_migration_heads()
         with self.engine.connect() as connection:
@@ -255,15 +257,22 @@ class Database:
 
     @staticmethod
     def _verify_c2_triggers(connection) -> None:
-        """Fail closed unless every frozen C2 trigger exists and is unmodified.
+        """Fail closed unless every integrated C2 trigger exists unchanged.
 
-        The expected definitions live in ``backend.app.term1.triggers`` (a
-        zero-import leaf module); comparison is whitespace-normalized SQL
-        against ``sqlite_master``. Extra triggers (later migrations) are not an
-        error — only missing or tampered C2 triggers refuse startup.
+        The expected inventory is the frozen 07 core set, overlaid with the
+        migration-08 assessment-scope replacement and thirteen DOC triggers.
+        Comparison is whitespace-normalized SQL against ``sqlite_master``.
+        Extra triggers are not an error; a missing or modified expected trigger
+        refuses startup without attempting schema repair.
         """
         from ..term1.triggers import C2_TRIGGER_DEFINITIONS, normalize_trigger_sql
+        from ..term1_c2_documents.triggers import (
+            ASSESSMENT_SCOPE_TRIGGER_OVERRIDE,
+            DOCUMENT_TRIGGER_DEFINITIONS,
+        )
 
+        expected_triggers = {**C2_TRIGGER_DEFINITIONS, **DOCUMENT_TRIGGER_DEFINITIONS}
+        expected_triggers["tr_assessment_scope_insert"] = ASSESSMENT_SCOPE_TRIGGER_OVERRIDE
         rows = connection.exec_driver_sql(
             "SELECT name, sql FROM sqlite_master WHERE type='trigger'"
         ).fetchall()
@@ -271,7 +280,7 @@ class Database:
             str(name): normalize_trigger_sql(str(sql or "")) for name, sql in rows
         }
         problems: list[str] = []
-        for name, expected in C2_TRIGGER_DEFINITIONS.items():
+        for name, expected in expected_triggers.items():
             found = actual.get(name)
             if found is None:
                 problems.append(f"{name} missing")
