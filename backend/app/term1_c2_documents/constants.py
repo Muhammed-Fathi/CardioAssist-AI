@@ -256,9 +256,17 @@ INFLIGHT_STATE_IN_FLIGHT: Final = "IN_FLIGHT"
 INFLIGHT_STATE_FAILED: Final = "FAILED"
 INFLIGHT_STATES: Final[tuple[str, ...]] = (INFLIGHT_STATE_IN_FLIGHT, INFLIGHT_STATE_FAILED)
 
-# --- worker / IPC resource boundaries (T2-R4) ---------------------------------
+# --- worker / IPC resource boundaries (T2-R4, residual P0-03) -----------------
 WORKER_MAX_CONCURRENCY: Final = 2          # bounded simultaneous parser jobs
-WORKER_READ_TIMEOUT_SECONDS: Final = 10.0  # per-socket read deadline
+WORKER_MAX_CONNECTIONS: Final = 8          # bounded simultaneous TCP connections
+WORKER_READ_TIMEOUT_SECONDS: Final = 10.0  # per-socket read deadline (header phase)
+# Absolute wall-clock deadline for a whole request (body read + parser execution),
+# enforced regardless of how slowly a client dribbles bytes (P0-03). It exceeds the
+# engine's cooperative total timeout so a genuinely blocked native parser is still
+# hard-killed by the parent at this deadline.
+WORKER_REQUEST_DEADLINE_SECONDS: Final = 40.0
+# Grace given to a parser child to exit after terminate() before kill() (P0-03).
+WORKER_PARSER_KILL_GRACE_SECONDS: Final = 2.0
 JSON_BODY_CAP_BYTES: Final = 64 * 1024     # 64 KiB DOC5/DOC7 JSON request cap
 IPC_VALIDATE_PATH: Final = "/internal/ocr/v1/validate"
 IPC_EXTRACT_PATH: Final = "/internal/ocr/v1/extract"

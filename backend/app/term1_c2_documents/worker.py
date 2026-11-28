@@ -17,11 +17,15 @@ Isolation properties (accepted design §4.3 / §5.3, corrections T2-R3/T2-R4):
   parsing: a request whose digest is not in the manifest, or whose declared
   template/size/media disagrees with the manifest entry, is rejected without
   reading or parsing the document;
-* strict request schemas (exact keys/types), bounded simultaneous parser jobs,
-  a per-socket read deadline and the engine's monotonic total/per-page deadline;
-* the worker reads documents only under its private document root and has zero
+* strict request schemas (exact keys/types), bounded simultaneous TCP
+  connections AND parser jobs, an absolute wall-clock request deadline (body read
+  + parse), and a per-socket header read deadline (P0-03);
+* every parse runs in an isolated, terminable spawn-child process: a parser
+  blocked in native pdfminer/PDFium/Tesseract code is hard-killed at the deadline
+  and reaped, so the next valid request still succeeds (P0-03);
+* the worker opens the private root READ-ONLY (no mkdir/chmod/write) and has zero
   OS read access to AI bundles, signing keys or private research files (enforced
-  by the separate account / DACL; see the runbook).
+  by the separate account / DACL; see the runbook) (P0-02).
 
 Run::
 
@@ -37,20 +41,16 @@ import hmac
 import json
 import os
 import re
+import socket
 import threading
-from dataclasses import asdict
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import constants as C
-from .admission import AdmissionError, validate_structure
-from .extraction_types import (
-    ExtractionDeadlineError,
-    ExtractionLimitError,
-    OcrUnavailableError,
-)
 from .fixture_manifest import FixtureManifest, load_manifest
-from .ocr_engine import OcrEngineConfig, extract
+from .ocr_engine import OcrEngineConfig
+from .parser_process import parse_inprocess, run_parse_isolated
 from .storage import IntegrityError, PrivateDocStore, StorageError
 
 # Strict environment allowlist (T2-R4). Anything else fails startup closed.
@@ -113,15 +113,27 @@ class WorkerCore:
     """
 
     def __init__(self, store: PrivateDocStore, engine_config: OcrEngineConfig,
-                 manifest: FixtureManifest) -> None:
+                 manifest: FixtureManifest, *, isolated: bool = False) -> None:
         self._store = store
         self._engine = engine_config
         self._manifest = manifest
+        # P0-03: the daemon runs every parse in an isolated, terminable child
+        # process so a blocked native parser is hard-killed at the deadline. The
+        # in-process local test client keeps isolated=False for speed; the genuine
+        # daemon path (and the IPC/evidence tests) always isolate.
+        self._isolated = isolated
 
     def _read(self, storage_key: str, content_sha256: str, byte_size: int) -> bytes:
         return self._store.read_verified(
             storage_key, expected_sha256=content_sha256, expected_size=byte_size
         )
+
+    def _parse(self, kind: str, data: bytes, media_type: str, deadline: float | None) -> dict:
+        if self._isolated:
+            dl = deadline if deadline is not None else (
+                time.monotonic() + C.WORKER_REQUEST_DEADLINE_SECONDS)
+            return run_parse_isolated(kind, data, media_type, self._engine, dl)
+        return parse_inprocess(kind, data, media_type, self._engine)
 
     def _manifest_gate(self, *, content_sha256: str, fixture_file_sha256: str,
                        byte_size: int, media_type: str,
@@ -143,7 +155,8 @@ class WorkerCore:
         return None
 
     def validate(self, *, storage_key: str, content_sha256: str, byte_size: int,
-                 media_type: str, fixture_file_sha256: str) -> dict:
+                 media_type: str, fixture_file_sha256: str,
+                 deadline: float | None = None) -> dict:
         gate = self._manifest_gate(
             content_sha256=content_sha256, fixture_file_sha256=fixture_file_sha256,
             byte_size=byte_size, media_type=media_type, fixture_template_id=None,
@@ -154,18 +167,11 @@ class WorkerCore:
             data = self._read(storage_key, content_sha256, byte_size)
         except (IntegrityError, StorageError):
             return {"ok": False, "code": "document_integrity_mismatch"}
-        try:
-            info = validate_structure(data, media_type)
-        except AdmissionError as error:
-            return {"ok": False, "code": error.code}
-        return {
-            "ok": True, "page_count": info.page_count,
-            "pixel_width": info.pixel_width, "pixel_height": info.pixel_height,
-        }
+        return self._parse("validate", data, media_type, deadline)
 
     def extract(self, *, document_id: str, storage_key: str, content_sha256: str,
                 byte_size: int, media_type: str, fixture_template_id: str,
-                fixture_file_sha256: str) -> dict:
+                fixture_file_sha256: str, deadline: float | None = None) -> dict:
         if not isinstance(document_id, str) or not _UUID.match(document_id):
             return {"ok": False, "code": "malformed_request"}
         gate = self._manifest_gate(
@@ -179,30 +185,17 @@ class WorkerCore:
             data = self._read(storage_key, content_sha256, byte_size)
         except (IntegrityError, StorageError):
             return {"ok": False, "code": "document_integrity_mismatch"}
-        try:
-            raw = extract(data, media_type, self._engine)
-        except OcrUnavailableError:
-            return {"ok": False, "code": "worker_unavailable", "reason": "ocr_unavailable"}
-        except ExtractionDeadlineError:
-            return {"ok": False, "code": "worker_unavailable", "reason": "deadline_exceeded"}
-        except ExtractionLimitError:
-            return {"ok": False, "code": "invalid_document_content", "reason": "limit_exceeded"}
-        return {
-            "ok": True,
-            "document_id": document_id,
-            "content_sha256": content_sha256,
-            "fixture_template_id": fixture_template_id,
-            "mode": raw.mode,
-            "engine_name": raw.engine_name,
-            "engine_version": raw.engine_version,
-            "page_count": raw.page_count,
-            "pixel_width": raw.pixel_width,
-            "pixel_height": raw.pixel_height,
-            "full_text": raw.full_text,
-            "raw_text_sha256": raw.raw_text_sha256,
-            "extracted_text_bytes": raw.extracted_text_bytes,
-            "lines": [asdict(line) for line in raw.lines],
-        }
+        result = self._parse("extract", data, media_type, deadline)
+        if result.get("ok"):
+            # Bind the exact request identity into the response (T2-R4); the
+            # client re-checks every echo before trusting any value.
+            result = {
+                **result,
+                "document_id": document_id,
+                "content_sha256": content_sha256,
+                "fixture_template_id": fixture_template_id,
+            }
+        return result
 
 
 # Exact request schemas (T2-R4): unknown keys / wrong types are refused.
@@ -234,13 +227,43 @@ def _schema_ok(request: dict, keys: set[str]) -> bool:
     return True
 
 
+class _RequestDeadlineExceeded(Exception):
+    """The absolute request deadline elapsed while reading the body (P0-03)."""
+
+
 def _handler_factory(core: WorkerCore, token: str, slots: threading.BoundedSemaphore):
     class Handler(BaseHTTPRequestHandler):
         def setup(self) -> None:
             super().setup()
-            # Per-socket read deadline so a slow/stalled client cannot hold a
-            # worker thread indefinitely (T2-R4).
+            # Absolute wall-clock deadline for the whole request (P0-03): body
+            # read + parser execution are bounded regardless of byte dribble. A
+            # per-socket read deadline additionally bounds the header phase.
+            self._deadline = time.monotonic() + C.WORKER_REQUEST_DEADLINE_SECONDS
             self.connection.settimeout(C.WORKER_READ_TIMEOUT_SECONDS)
+
+        def _read_body(self, length: int) -> bytes:
+            """Read exactly ``length`` bytes under the absolute request deadline.
+
+            ``read1`` performs a single recv per iteration so a client that
+            dribbles one byte at a time cannot reset a per-read timeout forever:
+            the monotonic deadline is re-checked every iteration (P0-03).
+            """
+            chunks: list[bytes] = []
+            remaining = length
+            while remaining > 0:
+                timeout = self._deadline - time.monotonic()
+                if timeout <= 0:
+                    raise _RequestDeadlineExceeded()
+                self.connection.settimeout(timeout)
+                try:
+                    chunk = self.rfile.read1(min(remaining, 65536))
+                except socket.timeout as error:
+                    raise _RequestDeadlineExceeded() from error
+                if not chunk:
+                    raise OSError("Client closed the connection mid-body.")
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            return b"".join(chunks)
 
         def log_message(self, *args):  # noqa: D401 - no document content in logs
             pass
@@ -276,7 +299,16 @@ def _handler_factory(core: WorkerCore, token: str, slots: threading.BoundedSemap
                 self._send(413, {"ok": False, "code": "payload_too_large"})
                 return
             try:
-                request = json.loads(self.rfile.read(length).decode("utf-8"))
+                raw_body = self._read_body(length)
+            except _RequestDeadlineExceeded:
+                self._send(408, {"ok": False, "code": "worker_unavailable",
+                                 "reason": "deadline_exceeded"})
+                return
+            except (OSError, ValueError):
+                self._send(400, {"ok": False, "code": "malformed_request"})
+                return
+            try:
+                request = json.loads(raw_body.decode("utf-8"))
             except (ValueError, UnicodeError):
                 self._send(400, {"ok": False, "code": "malformed_request"})
                 return
@@ -300,6 +332,7 @@ def _handler_factory(core: WorkerCore, token: str, slots: threading.BoundedSemap
                         byte_size=request["byte_size"],
                         media_type=request["declared_media_type"],
                         fixture_file_sha256=request["fixture_file_sha256"],
+                        deadline=self._deadline,
                     )
                 else:
                     result = core.extract(
@@ -310,6 +343,7 @@ def _handler_factory(core: WorkerCore, token: str, slots: threading.BoundedSemap
                         media_type=request["declared_media_type"],
                         fixture_template_id=request["fixture_template_id"],
                         fixture_file_sha256=request["fixture_file_sha256"],
+                        deadline=self._deadline,
                     )
             finally:
                 slots.release()
@@ -318,18 +352,63 @@ def _handler_factory(core: WorkerCore, token: str, slots: threading.BoundedSemap
     return Handler
 
 
+class _BoundedThreadingHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer with bounded CONNECTION admission (P0-03).
+
+    Plain ``ThreadingHTTPServer`` spawns a handler thread per connection BEFORE
+    any parser semaphore is reached, so an attacker could exhaust threads with
+    idle/slow connections. Here a connection slot is acquired at accept time; a
+    saturated server refuses the connection immediately. The slot is released
+    when the handler thread finishes, independent of the parser-job semaphore.
+    """
+
+    daemon_threads = True
+
+    def __init__(self, address, handler, connection_slots: threading.BoundedSemaphore):
+        self._connection_slots = connection_slots
+        super().__init__(address, handler)
+
+    def process_request(self, request, client_address):
+        if not self._connection_slots.acquire(blocking=False):
+            # Too many concurrent connections: refuse immediately, no thread.
+            try:
+                request.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            request.close()
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            # Thread creation failed before the handler could release the slot.
+            self._connection_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._connection_slots.release()
+
+
 def build_server(*, host: str = "127.0.0.1", port: int, store: PrivateDocStore,
                  engine_config: OcrEngineConfig, token: str, manifest: FixtureManifest,
-                 max_concurrency: int = C.WORKER_MAX_CONCURRENCY) -> ThreadingHTTPServer:
+                 max_concurrency: int = C.WORKER_MAX_CONCURRENCY,
+                 max_connections: int = C.WORKER_MAX_CONNECTIONS) -> ThreadingHTTPServer:
     if host != "127.0.0.1":
         raise WorkerStartupError("OCR worker must bind strictly to 127.0.0.1.")
     if not token or len(token) < 32:
         raise WorkerStartupError("OCR IPC token must be a >= 32-char CSPRNG secret.")
     if max_concurrency < 1:
         raise WorkerStartupError("OCR worker concurrency bound must be >= 1.")
+    if max_connections < max_concurrency:
+        raise WorkerStartupError("Connection bound must be >= the parser concurrency bound.")
     slots = threading.BoundedSemaphore(max_concurrency)
-    core = WorkerCore(store, engine_config, manifest)
-    return ThreadingHTTPServer((host, port), _handler_factory(core, token, slots))
+    connection_slots = threading.BoundedSemaphore(max_connections)
+    # P0-03: the daemon isolates every parse in a terminable child process.
+    core = WorkerCore(store, engine_config, manifest, isolated=True)
+    return _BoundedThreadingHTTPServer(
+        (host, port), _handler_factory(core, token, slots), connection_slots)
 
 
 def main() -> None:
@@ -346,7 +425,9 @@ def main() -> None:
         tesseract_cmd=os.environ.get("CARDIOASSIST_TESSERACT_CMD", "tesseract"),
         tessdata_dir=os.environ.get("TESSDATA_PREFIX") or None,
     )
-    store = PrivateDocStore(Path(doc_dir))
+    # P0-02: the OCR worker opens the private root READ-ONLY. It never creates,
+    # chmods or writes; the backend account owns the root and applies permissions.
+    store = PrivateDocStore(Path(doc_dir), read_only=True)
     manifest_path = os.environ.get("CARDIOASSIST_OCR_FIXTURE_MANIFEST")
     manifest = load_manifest(Path(manifest_path)) if manifest_path else load_manifest()
     server = build_server(port=args.port, store=store, engine_config=engine_config,
