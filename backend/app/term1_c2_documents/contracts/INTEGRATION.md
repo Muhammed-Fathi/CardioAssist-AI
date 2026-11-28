@@ -106,11 +106,22 @@ python -m backend.app.term1_c2_documents.worker --port 8765
 `worker.verify_sanitized_env` enforces a **strict allowlist** (T2-R4): any
 non-allowlisted variable — including every `CARDIOASSIST_*` secret/AI binding —
 fails startup closed. The worker enforces the server-owned fixture SHA-256
-manifest itself before parsing, validates exact request schemas, bounds
-simultaneous parser jobs (`WORKER_MAX_CONCURRENCY`), and applies a per-socket read
-deadline plus the engine's monotonic total/per-page deadline. `build_server`
-refuses any non-`127.0.0.1` bind. The backend IPC client disables proxies and
-refuses redirects, and validates the complete response schema + identity echoes.
+manifest itself before parsing and validates exact request schemas. Residual
+P0-03 hardens the resource boundaries: it bounds simultaneous TCP **connections**
+(`WORKER_MAX_CONNECTIONS`, admitted at accept time before any handler thread) AND
+parser jobs (`WORKER_MAX_CONCURRENCY`); applies an **absolute wall-clock request
+deadline** (`WORKER_REQUEST_DEADLINE_SECONDS`, body read + parse, not just a
+per-socket timeout); and runs **every parse in an isolated, terminable spawn-child
+process** (`parser_process.run_parse_isolated`) so a parser blocked in native
+pdfminer/PDFium/Tesseract code is hard-killed (`terminate` → `kill`) and reaped at
+the deadline, after which the next valid request still succeeds. The child has
+outbound network disabled and receives only verified bytes + engine config (no
+store/DB/secret access). Residual P0-02: the worker opens the private root
+**read-only** (`PrivateDocStore(root, read_only=True)`, no mkdir/chmod/write).
+`build_server` refuses any non-`127.0.0.1` bind, so the backend origin must be the
+IPv4 loopback family `http://127.0.0.1:<port>`. The backend IPC client disables
+proxies and refuses redirects, and validates the complete response schema +
+identity echoes.
 Pins: `backend/requirements-ocr-worker.txt` (pdfminer.six 20250506, pypdfium2
 4.30.0, Pillow 11.2.1, pytesseract 0.3.13 + resolved transitives). Native
 Tesseract 5.4.1 + `eng.traineddata`. $0, no cloud/paid API.
@@ -176,3 +187,87 @@ register the Track 2 models; wire the seven DOC routes + five core C2 routes int
 and contract artifacts; run the full `06 → 07 → 08` upgrade and populated/empty
 downgrade tests; execute the native Windows owner checks. The contributor branch
 does not edit shared files and does not merge.
+
+## 11. Residual corrections round (reviewer residual review #7235517859)
+
+Final targeted residual corrections on the same contributor branch (no redesign,
+no shared-file edits, no merge/self-ratify). The working OCR pipeline and all
+prior passing tests are preserved.
+
+* **P0-01 — strict lease ownership before every mutation.** `_lease_held()` is a
+  strict predicate (same owner + same fence + `IN_FLIGHT` + `lease_expires_at >
+  now`); expiry **equality is already expired**. `_assert_lease` guards staging-key
+  publication (phase 2) and finalization (phase 3); promotion is bound to the exact
+  staging identity this attempt published. `_fail_upload` checks ownership BEFORE
+  any unlink and sets `reclaim_at` only AFTER the staging blob is actually removed
+  (a failed cleanup rolls back, never charging quota). Recovery refreshes the
+  candidate under lease acquisition. The orphan sweep checks ownership and unlinks
+  in one `BEGIN IMMEDIATE` transaction (no check/unlink race) and never charges an
+  in-flight, not-yet-published blob. Regressions: `test_c2_r6_lease_ownership.py`
+  (expiry equality, expired owner without takeover, stale failure after takeover,
+  staging/finalization races, reclaim ordering, sweep).
+* **P0-02 — read-only worker storage + complete Windows protections.** The
+  constructor no longer unconditionally chmods the shared root; `read_only=True`
+  performs no mkdir/chmod/write (the OCR account is not the owner). Ancestor
+  containment is checked on the lexical path BEFORE `resolve()` collapses any
+  reparse point; POSIX reads are handle-relative (`dir_fd` + `O_NOFOLLOW`) so a
+  swapped component cannot redirect the open. The Windows DACL is verified by
+  **SID** (locale-independent) via the Windows API, requiring a protected DACL and
+  denying broad-principal **read AND write**. A clean-environment launcher
+  (`windows_launch_worker.py`) builds an exact allowlisted env from a protected
+  config (never the logon env). Runbook updated: SID ACL, valid-UUID junction test,
+  explicit-env launcher, exact IPv4 origin family. Regressions:
+  `test_c2_r7_storage_isolation.py`. Native Windows remains **NOT_RUN** (owner
+  procedure); the DACL policy decision is a pure function tested on Linux.
+* **P0-03 — bounded admission + absolute deadlines + terminable parser.** Bounded
+  TCP connection admission (`WORKER_MAX_CONNECTIONS`) at accept time; an absolute
+  request deadline (`WORKER_REQUEST_DEADLINE_SECONDS`) covering body read + parse;
+  every daemon parse runs in an isolated spawn-child that is hard-killed and reaped
+  at the deadline (`parser_process.py`), with outbound network disabled. A
+  deliberately stalled parser is terminated and the next genuine OCR succeeds.
+  Genuine PDF extraction and native Tesseract OCR are retained unchanged.
+  Regressions: `test_c2_r8_parser_isolation.py`.
+
+### 11.1 Append-only reconciliation: the sixth table `document_inflight_operation`
+
+The **accepted** migration-08 design specified **five** C2 tables
+(`medical_document`, `document_extraction`, `extraction_field`, `extraction_event`,
+`assessment_document`). The corrections round (T2-R1) **added a sixth table**,
+`document_inflight_operation`, and this residual round formally records it in the
+append-only reconciliation. The accepted migration grouping is **preserved**: it
+remains a single additive migration `20261128_08` (`down_revision = 20261128_07`),
+not a new migration.
+
+* **Justification.** Durable in-flight ownership/lease/fence is required so that
+  simultaneous same-key uploads never create two documents, a live attempt is
+  never reclaimed mid-flight, and crash recovery is ownership-based (an EXPIRED
+  lease, never age alone). The table reserves the complete C1 replay 5-tuple
+  (`replay_scope`, `key_hash`, `actor_binding`, `operation`, `target_ref`) plus
+  `request_fingerprint`, actor/patient/document bindings, `state`, a monotonic
+  `fence_token >= 1`, `lease_owner`/`lease_expires_at`, `attempt_count` and
+  `failure_code`. It is the durable anchor that lets recovery reconstruct the
+  ORIGINAL replay identity, `UPLOADED` event and audit atomically with STORED
+  promotion. It is intentionally **mutable** (lease state advances), so it carries
+  no immutability trigger; its integrity is enforced by CHECK constraints
+  (`state IN ('IN_FLIGHT','FAILED')`, `fence_token >= 1`, `attempt_count >= 1`) and
+  two unique indexes (`ux_inflight_replay_identity`, `ux_inflight_document_operation`).
+* **Downgrade coverage.** The RB-C1 guard's population check includes
+  `document_inflight_operation` (it refuses downgrade while the table is
+  populated), and `downgrade()` drops it first among the six tables. Verified by
+  `test_c2_migration_08.py::test_downgrade_refuses_populated_inflight_table` and
+  `test_empty_downgrade_drops_all_six_tables_and_triggers` (the latter uses
+  labelled EMPTY 07 stubs so the guard can traverse the full C1+07+08 list in the
+  disposable harness; the real chain is Track 1's checkpoint).
+* **ORM / startup coverage.** `DocumentInflightOperation` is registered in
+  `backend/app/term1_c2_documents/models.py`, so Alembic `compare_metadata` and
+  startup `verify_schema` cover it. `test_orm_metadata_matches_migration_for_all_six_tables`
+  asserts the ORM columns equal the migration columns for **all six** tables. The
+  thirteen immutability/guard triggers remain on the other five tables (the
+  inflight table is mutable by design); `test_upgrade_creates_six_tables_and_thirteen_triggers`
+  verifies the count and names.
+
+Track 1 still owns the single integrated C2 Draft PR and the full
+`06 → 07 → 08` migration-chain + 34-operation API verification; this residual
+round adds no shared-file edits and does not merge. The local patch report
+(`TRACK2_RESIDUAL_REPORT.md`) is contributor evidence, distinct from the committed
+integration checkpoint Track 1 will ratify.
