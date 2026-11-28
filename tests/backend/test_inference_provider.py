@@ -384,13 +384,14 @@ def test_the_offline_research_layer_added_no_provider_and_no_route(http_app):
 
     # The mock prediction and monitoring operations keep their exact paths, and
     # no research, synthetic-facade, artifact or model-serving route was added
-    # beside them. The served /v1 surface is the frozen C1 inventory: the two
-    # legacy operations plus twenty additive Term 1 C1 operations.
+    # beside them. The served /v1 surface is the frozen inventory: two legacy,
+    # twenty additive C1 and five SAFE_SCOPE C2 clinical-intake operations.
     paths = sorted({str(getattr(route, "path", "")) for route in http_app.routes})
     served = {path for path in paths if path.startswith("/v1")}
     assert {CAD, MON} <= served
     assert served == {path for _method, path in SERVED_OPERATIONS}
-    assert len(served) == 22
+    assert len(SERVED_OPERATIONS) == 27  # operation count; GET/PATCH share one path
+    assert len(served) == 26  # unique paths; 2 legacy + 20 C1 + 4 new C2 paths
     # C1 consent withdrawal is a patient-wide consent operation, not a synthetic
     # research facade, so it is the single allowed exception to the "synth"
     # substring guard. Every other forbidden marker remains fully guarded.

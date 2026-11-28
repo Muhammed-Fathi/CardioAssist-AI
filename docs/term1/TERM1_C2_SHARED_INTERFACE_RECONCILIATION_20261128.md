@@ -471,7 +471,7 @@ These existing pins change **only** in their exact-inventory/count assertions
 | `tests/backend/c1/test_c1_migrations.py` | head `("20261126_06",)`; `REVISION_ORDER` ends `_06`; no C2/C3 tables; `alembic_version == [("20261126_06",)]` (×2) | head `("20261128_07",)`; order ends `20261128_07`; the five 07 tables exist, C3/08 tables still absent; version `20261128_07` |
 | `tests/backend/c1/test_c1_contracts.py` | `SERVED_OPERATIONS == 22`; error total `== 37` | `== 27`; `== 63` (`C1_OPERATIONS == 20`, `IDEMPOTENT_C1 == 10`, `AUTHENTICATED_C1 == 18` unchanged) |
 | `tests/backend/test_openapi_http.py` | served set = legacy∪ C1, `len == 22` | served set = legacy ∪ C1 ∪ C2, `len == 27` |
-| `tests/backend/test_inference_provider.py` | `len(served) == 22` | `== 27` (route set still equals `SERVED_OPERATIONS`; forbidden-path guards unchanged) |
+| `tests/backend/test_inference_provider.py` | served-path set matched `SERVED_OPERATIONS`; `len(served) == 22` | operation inventory `len(SERVED_OPERATIONS) == 27`; unique route paths `len(served) == 26` because H1a/H1b share one path (route-set equality and forbidden-path guards unchanged) |
 | `tests/backend/test_persistence.py` | fresh-migration table inventory = legacy + C1 only | inventory additionally pins the five 07 tables (08/09 tables still absent) |
 
 `tests/contracts/**` (legacy `openapi.yaml` oracle) and every C1 closure/

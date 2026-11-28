@@ -39,7 +39,15 @@ C1_OPERATIONS = {
     ("post", "/v1/me/consent/synthetic-demo/revoke"),
 }
 
-EXPECTED_OPERATIONS = LEGACY_OPERATIONS | C1_OPERATIONS
+C2_OPERATIONS = {
+    ("get", "/v1/me/health-profile"),
+    ("patch", "/v1/me/health-profile"),
+    ("post", "/v1/assessments"),
+    ("get", "/v1/assessments/{assessment_id}"),
+    ("get", "/v1/me/assessments"),
+}
+
+EXPECTED_OPERATIONS = LEGACY_OPERATIONS | C1_OPERATIONS | C2_OPERATIONS
 
 
 def _served_operations(document):
@@ -61,10 +69,10 @@ def test_bundled_openapi_is_valid_and_serves_exactly_the_approved_operations(cli
         assert set(document["paths"][path]) == {"post"}
         assert "422" in document["paths"][path]["post"]["responses"]
         assert "HTTPValidationError" not in json.dumps(document["paths"][path])
-    # The served surface is exactly the frozen inventory: 2 legacy + 20 C1.
+    # The served surface is exactly the frozen inventory: 2 legacy + 20 C1 + 5 C2.
     assert _served_operations(document) == EXPECTED_OPERATIONS
-    assert len(EXPECTED_OPERATIONS) == 22
-    for _method, path in C1_OPERATIONS:
+    assert len(EXPECTED_OPERATIONS) == 27
+    for _method, path in C1_OPERATIONS | C2_OPERATIONS:
         assert "HTTPValidationError" not in json.dumps(document["paths"][path])
     assert document["servers"] == [{
         "url": "/", "description": (
